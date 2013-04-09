@@ -50,6 +50,7 @@ HISTORY
 0.9.95- April 09, 2013
 		Added cascading variable changes for optimization
 		Added this README
+		Added update() function to simply change parameters using cascading approach
 		
 0.9.9 - April 08, 2013
         First version in its own package

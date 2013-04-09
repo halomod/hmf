@@ -118,7 +118,8 @@ def Setup(transfer_file,camb_dict,prefix=None):
     if transfer_file is None:
         #camb_dict = CAMB(camb_dict,prefix)
         k,T,sig8 = pycamb.transfers(**camb_dict)
-        T = T[0,:,0]
+        T = np.log(T[1,:,0])
+        k = np.log(k)
         del sig8
         #transfer_file = 'camb/'+camb_dict["output_root"]+'_transfer_out.dat'
 

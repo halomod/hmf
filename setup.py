@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 setup(
     name = "hmf",
-    version = "0.9.9",
+    version = "0.9.95",
     packages = find_packages(),
     
     # Project uses reStructuredText, so ensure that the docutils get
