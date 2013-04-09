@@ -14,16 +14,20 @@ class Distances(object):
     The cosmology is input to the init function (at the moment only a flat cosmology)
     """        
     
-    def __init__(self,omega_lambda = 0.7,omega_mass = 0.3,crit_dens = 27.755*10**11):
-        self.omega_lambda = omega_lambda
-        self.omega_mass = omega_mass
-        self.omega_k = 1 - omega_lambda - omega_mass
-        self.crit_dens = crit_dens
+    def __init__(self,**kwargs):
+        self.cosmology = {'omega_lambda':0.7,
+                          'omega_mass':0.3,
+                          'crit_dens':27.755*10**11}
+        
+        self.cosmology.update({'omega_k':1-self.cosmology['omega_lambda']-self.cosmology['omega_mass']})
+        
+        for key,val in kwargs.iteritems():
+            self.cosmology.update({key:val})
         
         self.D_h = 9.26*10**25 #h^{-1}m Hogg eq.4
         
     def MeanDens(self,z):
-        return self.Omega_M(z)*self.crit_dens
+        return self.Omega_M(z)*self.cosmology['crit_dens']
     
     def ScaleFactor(self,z):
         """
@@ -56,7 +60,7 @@ class Distances(object):
         Output: hubble: the hubble parameter at z divided by H_0 (ie. we don't need H_0)
         """
         
-        hubble = np.sqrt(self.omega_mass*(1+z)**3 + self.omega_k*(1+z)**2 + self.omega_lambda)
+        hubble = np.sqrt(self.cosmology['omega_mass']*(1+z)**3 + self.cosmology['omega_k']*(1+z)**2 + self.cosmology['omega_lambda'])
         
         return hubble
     
@@ -65,17 +69,11 @@ class Distances(object):
         """
         Finds Omega_M as a function of redshift
         """
-        top = self.omega_mass * (1+z)**3
-        bottom = self.omega_mass * (1+z)**3 + self.omega_lambda + self.omega_k*(1+z)**2
+        top = self.cosmology['omega_mass'] * (1+z)**3
+        bottom = self.cosmology['omega_mass'] * (1+z)**3 + self.cosmology['omega_lambda'] + self.cosmology['omega_k']*(1+z)**2
         
         return top/bottom
                     
-    def ComovingDistance(self,z):
-        """
-        The comoving distance to an object at redshift z
-        """
-        
-        
     def Dplus(self,redshifts):
         """
         Finds the factor D+(a), from Lukic et. al. 2007, eq. 8.
@@ -96,7 +94,7 @@ class Distances(object):
             integrand = 1.0/(a_vector*self.HubbleFunction(self.zofa(a_vector)))**3
             
             integral = intg.romb(integrand,dx=step_size)
-            dplus[i] = 5.0*self.omega_mass*self.HubbleFunction(z)*integral/2.0
+            dplus[i] = 5.0*self.cosmology['omega_mass']*self.HubbleFunction(z)*integral/2.0
         
         return dplus
     

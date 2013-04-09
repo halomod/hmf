@@ -1,0 +1,67 @@
+THIS IS THE README FOR hmf
+---------------------------------------------------------------------------------------
+
+hmf is a python application that provides a flexible and simple way to calculate the 
+Halo Mass Function for any input cosmology, redshift, dark matter model, virial
+overdensity or several other variables. Addition of further variables should be simple. 
+
+It is also the backend to humf, the online hmf calculator at hmf.icrar.org
+
+
+INSTALLATION
+---------------------------------------------------------------------------------------
+---- Install Requirements ------
+1. Install Python
+2. Install numpy, scipy, scitools (easiest way is to pip install)
+3. Install pycamb:
+	>>> cd <Directory that pycamb source will live in>
+	>>> git clone https://github.com/joezuntz/pycamb
+	>>> cd pycamb
+	>>> sh extract_camb.sh
+	>>> [sudo] python setup.py install --nonstop ** Only use --nonstop if using gfortran **
+	
+---- Install hmf --------------
+    >>> cd <Directory that hmf source will live in>
+    >>> git clone https://github.com/steven-murray/hmf
+    >>> cd hmf
+    >>> [sudo] python setup.py install
+    
+    
+USAGE
+---------------------------------------------------------------------------------------
+hmf can be used interactively (for instance in ipython) or in a script. 
+To use interactively, in ipython do something like the following:
+
+>>> from hmf import Perturbations
+>>> import numpy as np
+>>> M = np.arange(10,15,0.01)
+>>> M = 10**M
+>>> pert_object = Perturbations(M=M)
+>>> mass_func = pert_object.MassFunction()
+
+This will return a Sheth-Tormen mass function between 10^10 and 10^15 M_sun, at redshift 0
+for a default cosmology. Cosmological parameters may be passed to the initialiser, Perturbations().
+
+Check the docstring of Perturbations() for arguments allowed. 
+
+
+HISTORY
+---------------------------------------------------------------------------------------
+0.9.95- April 09, 2013
+		Added cascading variable changes for optimization
+		Added this README
+		
+0.9.9 - April 08, 2013
+        First version in its own package
+        Added pycamb integration
+        Removed fitting function from being a class variable
+        Removed overdensity form being a class variable
+        
+0.9.7 - March 18, 2013
+        Modified set_z() so it only does calculations necessary when z changes
+        Made calculation of dlnsdlnM in init since it is same for all z
+        Removed mean density redshift dependence
+        
+0.9.5 - March 10, 2013
+        The class has been in the works for almost a year now, but it currently
+        will calculate a mass function based on any of several fitting functions.
