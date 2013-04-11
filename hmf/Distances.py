@@ -72,7 +72,7 @@ class Distances(object):
         
         return top/bottom
                     
-    def Dplus(self,redshifts):
+    def Dplus(self,z):
         """
         Finds the factor D+(a), from Lukic et. al. 2007, eq. 8.
         
@@ -82,17 +82,13 @@ class Distances(object):
         
         Output: dplus: the factor.
         """
-        if type(redshifts) is type (0.4):
-            redshifts = [redshifts]
             
-        dplus = np.zeros_like(redshifts)
-        for i,z in enumerate(redshifts):
-            step_size = self.StepSize(0.0000001,self.ScaleFactor(z))
-            a_vector = np.arange(0.0000001,self.ScaleFactor(z),step_size)
-            integrand = 1.0/(a_vector*self.HubbleFunction(self.zofa(a_vector)))**3
+        step_size = self.StepSize(0.0000001,self.ScaleFactor(z))
+        a_vector = np.arange(0.0000001,self.ScaleFactor(z),step_size)
+        integrand = 1.0/(a_vector*self.HubbleFunction(self.zofa(a_vector)))**3
             
-            integral = intg.romb(integrand,dx=step_size)
-            dplus[i] = 5.0*self.omega_mass*self.HubbleFunction(z)*integral/2.0
+        integral = intg.romb(integrand,dx=step_size)
+        dplus = 5.0*self.omega_mass*self.HubbleFunction(z)*integral/2.0
         
         return dplus
     

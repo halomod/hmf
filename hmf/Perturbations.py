@@ -4,6 +4,7 @@ methods that act upon a transfer function to gain functions such as the
 mass function.
 '''
 
+version = '0.9.96'
 
 ###############################################################################
 # Some Imports
@@ -91,7 +92,8 @@ class Perturbations(object):
                        reion__reionization :: True
                        reion__use_optical_depth :: True
                        w_perturb      :: False
-                       DoLensing       :: False  
+                       DoLensing       :: False 
+                       ThreadNum       :: 0 
                                 
     """
     
@@ -140,7 +142,8 @@ class Perturbations(object):
                                  'reion__reionization' : True,
                                  'reion__use_optical_depth' : True,
                                  'w_perturb'      : False,
-                                 'DoLensing'       : False  }
+                                 'DoLensing'       : False ,
+                                 'ThreadNum':0 }
         
         #Put together the transfer options and transfer_cosmo dictionaries
         self.camb_dict = dict(self.transfer_cosmo.items() + self.transfer_options.items())
@@ -309,7 +312,7 @@ class Perturbations(object):
         
         return k,dlnk
         
-    def Interpolate(self,k,Transfer,tol=0.001):
+    def Interpolate(self,k,Transfer,tol=0.01):
         """
         Interpolates the given Transfer function and transforms it into a Power Spectrum.
         
@@ -700,8 +703,6 @@ class Perturbations(object):
         """
         
         vfv = 0.315*np.exp(-np.abs(self.lnsigma+0.61)**3.8)
-        print self.lnsigma < -1.2
-        print self.lnsigma > 1.05
         #Conditional on sigma range.
         vfv[np.logical_or(self.lnsigma<-1.2,self.lnsigma>1.05)] = np.NaN
         return vfv
@@ -853,7 +854,7 @@ class Perturbations(object):
         A = 0.348
         a = 0.695
         p = 0.1
-        d_c = self.extra_cosmo['delta_c']
+        d_c = self.extra_cosmo['delta_c'] #Note for WMAP5 they find delta_c = 1.673
         
         vfv = A*np.sqrt(2*a/np.pi)*(d_c/self.sigma)*(1+(d_c/(self.sigma*np.sqrt(a)))**(-2*p))*np.exp(-d_c**2*a/(2*self.sigma**2))
         return vfv

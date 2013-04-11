@@ -1,7 +1,18 @@
 from setuptools import setup, find_packages
+from hmf.Perturbations import version
+
+def generate_version_py():
+    fid = open("__version.py",'w')
+    try:
+        fid.write("version = %s\n" % version)
+    finally:
+        fid.close()
+        
+generate_version_py()
+
 setup(
     name = "hmf",
-    version = "0.9.95",
+    version = version,
     packages = find_packages(),
     
     # Project uses reStructuredText, so ensure that the docutils get

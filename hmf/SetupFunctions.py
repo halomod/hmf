@@ -29,42 +29,42 @@ import pycamb
 ###############################################################################
 # The function definitions
 ###############################################################################        
-def SetParameter(filename,keys):
-    """
-    Sets parameters defined in the dictionary 'keys' into the CAMB params file 'filename'
-    
-    INPUT:
-    filename: name of the ini file for CAMB. Assumes that the current directory is the camb folder.
-    keys: a dictionary of CAMB parameters, with the keys being the variable names in CAMB and the values their values
-    
-    OUTPUT:
-    None
-    """
-    #Open the file 
-    file_object = open(filename,'r+')
-        
-    #file_data is a list of the lines in the parameter file
-    file_data = file_object.readlines()
-    for parameter,value in keys.iteritems():
-        for number,line in enumerate(file_data):
-            #Find a line that starts with the name of the parameter to be set
-            if line.strip().startswith(parameter):
-                if type(value) is type("string"):
-                    file_data[number] = line.replace(line.partition('=')[2].strip(),value) 
-                elif type(value) is type(True):
-                    if value:
-                        file_data[number] = line.replace(line.partition('=')[2].strip(),'T')
-                    else:
-                        file_data[number] = line.replace(line.partition('=')[2].strip(),'F')
-                else:
-                    file_data[number] = line.replace(line.partition('=')[2].strip(),str(value))
-                    
-                break
-                
-                
-    file_object.seek(0)
-    file_object.writelines(file_data)
-    file_object.close()
+#def SetParameter(filename,keys):
+#    """
+#    Sets parameters defined in the dictionary 'keys' into the CAMB params file 'filename'
+#    
+#    INPUT:
+#    filename: name of the ini file for CAMB. Assumes that the current directory is the camb folder.
+#    keys: a dictionary of CAMB parameters, with the keys being the variable names in CAMB and the values their values
+#    
+#    OUTPUT:
+#    None
+#    """
+#    #Open the file 
+#    file_object = open(filename,'r+')
+#        
+#    #file_data is a list of the lines in the parameter file
+#    file_data = file_object.readlines()
+#    for parameter,value in keys.iteritems():
+#        for number,line in enumerate(file_data):
+#            #Find a line that starts with the name of the parameter to be set
+#            if line.strip().startswith(parameter):
+#                if type(value) is type("string"):
+#                    file_data[number] = line.replace(line.partition('=')[2].strip(),value) 
+#                elif type(value) is type(True):
+#                    if value:
+#                        file_data[number] = line.replace(line.partition('=')[2].strip(),'T')
+#                    else:
+#                        file_data[number] = line.replace(line.partition('=')[2].strip(),'F')
+#                else:
+#                    file_data[number] = line.replace(line.partition('=')[2].strip(),str(value))
+#                    
+#                break
+#                
+#                
+#    file_object.seek(0)
+#    file_object.writelines(file_data)
+#    file_object.close()
     
 def ImportTransferFunction(transfer_file):
     """
@@ -88,29 +88,29 @@ def ImportTransferFunction(transfer_file):
         
 
 
-def CAMB(camb_dict,prefix):
-    """
-    Uses CAMB in its current setup to produce a transfer function
+#def CAMB(camb_dict,prefix):
+#    """
+#    Uses CAMB in its current setup to produce a transfer function
+#    
+#    The function needs to be imported by calling ImportTransferFunction.
+#    """
+#    #Get current time as a format string
+#    if prefix is None:
+#        prefix = time.asctime( time.localtime(time.time())).replace(" ","").replace(":","")
+#    
+#    camb_dict["output_root"] = prefix
+#        
+#    os.chdir('camb')
+#    os.system("cp HMF_params.ini params_"+prefix+'.ini')
+#    SetParameter('params_'+prefix+'.ini', camb_dict)
+#    os.system('module load gfortran')
+#    os.system('./camb params_'+prefix+'.ini')
+#    os.system('rm params_'+prefix+'.ini')
+#    os.chdir('..')
+#    
+#    return camb_dict
     
-    The function needs to be imported by calling ImportTransferFunction.
-    """
-    #Get current time as a format string
-    if prefix is None:
-        prefix = time.asctime( time.localtime(time.time())).replace(" ","").replace(":","")
-    
-    camb_dict["output_root"] = prefix
-        
-    os.chdir('camb')
-    os.system("cp HMF_params.ini params_"+prefix+'.ini')
-    SetParameter('params_'+prefix+'.ini', camb_dict)
-    os.system('module load gfortran')
-    os.system('./camb params_'+prefix+'.ini')
-    os.system('rm params_'+prefix+'.ini')
-    os.chdir('..')
-    
-    return camb_dict
-    
-def Setup(transfer_file,camb_dict,prefix=None):
+def Setup(transfer_file,camb_dict):
     """
     A convenience function used to fully setup the workspace in the 'usual' way
     """

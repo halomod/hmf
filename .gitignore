@@ -1,3 +1,6 @@
 .project
 .pydevproject
 test.py
+build/
+dist/
+*egg*

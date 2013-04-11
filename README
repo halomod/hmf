@@ -47,6 +47,9 @@ Check the docstring of Perturbations() for arguments allowed.
 
 HISTORY
 ---------------------------------------------------------------------------------------
+0.9.96- April 11, 2013
+		Few bugfixes
+		
 0.9.95- April 09, 2013
 		Added cascading variable changes for optimization
 		Added this README
