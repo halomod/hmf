@@ -47,6 +47,9 @@ Check the docstring of Perturbations() for arguments allowed.
 
 HISTORY
 ---------------------------------------------------------------------------------------
+0.9.97- April 15, 2013
+		Urgent Bugfix for updating cosmology (for transfer functions)
+		
 0.9.96- April 11, 2013
 		Few bugfixes
 		

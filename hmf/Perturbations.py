@@ -4,7 +4,7 @@ methods that act upon a transfer function to gain functions such as the
 mass function.
 '''
 
-version = '0.9.96'
+version = '0.9.97'
 
 ###############################################################################
 # Some Imports
@@ -262,7 +262,8 @@ class Perturbations(object):
         A convenience wrapper to auto-update the cosmology or parameters in an optimized way
         """
         set_transfer = ['transfer_file']
-        set_kbounds = ['k_bounds','extrapolate','n','sigma_8']
+        set_kbounds = ['k_bounds','extrapolate']
+        set_kbounds_extra_cosmo = ['n','sigma_8']
         set_WDM = ['WDM']
         set_z = ['z']
         
@@ -271,10 +272,11 @@ class Perturbations(object):
             if key in set_transfer and val != self.__dict__[key]: 
                 self.set_transfer_cosmo(**kwargs)
             elif key in self.camb_dict and val != self.camb_dict[key]:
+                self.set_transfer_cosmo(**kwargs)
                 return
                 
         for key,val in kwargs.iteritems():
-            if key in set_kbounds and val != self.__dict__[key]:
+            if (key in set_kbounds and val != self.__dict__[key]) or (key in set_kbounds_extra_cosmo and val != self.extra_cosmo[key]):
                 self.set_kbounds(**kwargs)
                 return
                 
