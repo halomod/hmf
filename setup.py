@@ -8,7 +8,7 @@ def generate_version_py():
     finally:
         fid.close()
         
-generate_version_py()
+#generate_version_py()
 
 setup(
     name = "hmf",

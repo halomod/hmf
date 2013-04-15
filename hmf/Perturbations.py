@@ -331,7 +331,8 @@ class Perturbations(object):
         # transfers which makes the extrapolation silly. 
         #If this is the case, we start when it is nice.
         
-        for i in range(len(k)):
+        start=0
+        for i in range(len(k)-1):
             if abs((Transfer[i+1]-Transfer[i])/(k[i+1]-k[i])) < tol:
                 start = i
                 break
@@ -394,7 +395,7 @@ class Perturbations(object):
         m_x = WDM
         nu = 1.12
             
-        alpha = 0.049*(self.omega_cdm/0.25)**0.11*(h/0.7)**1.22*(1/m_x)**1.11*(1.5/g_x)**0.29
+        alpha = 0.049*(self.camb_dict['omegac']/0.25)**0.11*(h/0.7)**1.22*(1/m_x)**1.11*(1.5/g_x)**0.29
             
         Transfer = (1+(alpha*np.exp(self.k))**(2*nu))**-(5.0/nu)
 
