@@ -21,51 +21,46 @@ The functions are:
 # Some simple imports
 ###############################################################################
 import numpy as np
-import os
-import time
 
 import pycamb
 
 ###############################################################################
 # The function definitions
-###############################################################################        
-#def SetParameter(filename,keys):
-#    """
-#    Sets parameters defined in the dictionary 'keys' into the CAMB params file 'filename'
-#    
-#    INPUT:
-#    filename: name of the ini file for CAMB. Assumes that the current directory is the camb folder.
-#    keys: a dictionary of CAMB parameters, with the keys being the variable names in CAMB and the values their values
-#    
-#    OUTPUT:
-#    None
-#    """
-#    #Open the file 
-#    file_object = open(filename,'r+')
-#        
-#    #file_data is a list of the lines in the parameter file
-#    file_data = file_object.readlines()
-#    for parameter,value in keys.iteritems():
-#        for number,line in enumerate(file_data):
-#            #Find a line that starts with the name of the parameter to be set
-#            if line.strip().startswith(parameter):
-#                if type(value) is type("string"):
-#                    file_data[number] = line.replace(line.partition('=')[2].strip(),value) 
-#                elif type(value) is type(True):
-#                    if value:
-#                        file_data[number] = line.replace(line.partition('=')[2].strip(),'T')
-#                    else:
-#                        file_data[number] = line.replace(line.partition('=')[2].strip(),'F')
-#                else:
-#                    file_data[number] = line.replace(line.partition('=')[2].strip(),str(value))
-#                    
-#                break
-#                
-#                
-#    file_object.seek(0)
-#    file_object.writelines(file_data)
-#    file_object.close()
-    
+###############################################################################
+def check_kR(min_m, max_m, mean_dens, mink, maxk):
+
+    #Define mass from radius function
+    def M(r):
+        return 4 * np.pi * r ** 3 * mean_dens / 3
+
+    #Define min and max radius
+    min_r = (3 * min_m / (4 * np.pi * mean_dens)) ** (1. / 3.)
+    max_r = (3 * max_m / (4 * np.pi * mean_dens)) ** (1. / 3.)
+
+    errmsg1 = """
+            Please make sure the product of minimum radius and maximum k is > 3.
+            If it is not, then the mass variance could be extremely inaccurate.
+                    
+            """
+
+    errmsg2 = """
+            Please make sure the product of maximum radius and minimum k is < 0.1
+            If it is not, then the mass variance could be inaccurate.
+                    
+            """
+
+    if maxk * min_r < 3:
+        error1 = errmsg1 + "This means extrapolating k to " + str(3 / min_r) + " or using min_M > " + str(np.log10(M(3.0 / maxk)))
+    else:
+        error1 = None
+
+    if mink * max_r > 0.1:
+        error2 = errmsg2 + "This means extrapolating k to " + str(0.1 / max_r) + " or using max_M < " + str(np.log10(M(0.1 / mink)))
+    else:
+        error2 = None
+
+    return error1, error2
+
 def ImportTransferFunction(transfer_file):
     """
     Imports the Transfer Function file to be analysed, and returns the pair ln(k), ln(T)
@@ -74,62 +69,38 @@ def ImportTransferFunction(transfer_file):
     
     Output: ln(k), ln(T)
     """
-     
+
     transfer = np.loadtxt(transfer_file)
-    k = transfer[:,0]
-    T = transfer[:,1]   
-    #k,T = TableIO.readColumns(transfer_file,"!#",columns=[0,1])
-  
+    k = transfer[:, 0]
+    T = transfer[:, 1]
+
     k = np.log(k)
     T = np.log(T)
 
 
-    return k,T
-        
+    return k, T
 
 
-#def CAMB(camb_dict,prefix):
-#    """
-#    Uses CAMB in its current setup to produce a transfer function
-#    
-#    The function needs to be imported by calling ImportTransferFunction.
-#    """
-#    #Get current time as a format string
-#    if prefix is None:
-#        prefix = time.asctime( time.localtime(time.time())).replace(" ","").replace(":","")
-#    
-#    camb_dict["output_root"] = prefix
-#        
-#    os.chdir('camb')
-#    os.system("cp HMF_params.ini params_"+prefix+'.ini')
-#    SetParameter('params_'+prefix+'.ini', camb_dict)
-#    os.system('module load gfortran')
-#    os.system('./camb params_'+prefix+'.ini')
-#    os.system('rm params_'+prefix+'.ini')
-#    os.chdir('..')
-#    
-#    return camb_dict
-    
-def Setup(transfer_file,camb_dict):
+def Setup(transfer_file, camb_dict):
     """
     A convenience function used to fully setup the workspace in the 'usual' way
     """
     #If no transfer file uploaded, but it was custom, execute CAMB
     if transfer_file is None:
         #camb_dict = CAMB(camb_dict,prefix)
-        k,T,sig8 = pycamb.transfers(**camb_dict)
-        T = np.log(T[1,:,0])
+        k, T, sig8 = pycamb.transfers(**camb_dict)
+        T = np.log(T[1, :, 0])
         k = np.log(k)
         del sig8
         #transfer_file = 'camb/'+camb_dict["output_root"]+'_transfer_out.dat'
 
     else:
         #Import the transfer file wherever it is.
-        k,T = ImportTransferFunction(transfer_file)
-    
+        k, T = ImportTransferFunction(transfer_file)
+
 #    #If we just created it with CAMB, now delete it and other bits that have been made.
 #    if transfer_file.endswith('_transfer_out.dat'):
 #        os.system('rm -f '+camb_dict["output_root"]+'*')
-#    
-    return k,T
-    
+#
+    return k, T
+

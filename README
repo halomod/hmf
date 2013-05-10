@@ -35,7 +35,6 @@ To use interactively, in ipython do something like the following:
 >>> from hmf import Perturbations
 >>> import numpy as np
 >>> M = np.arange(10,15,0.01)
->>> M = 10**M
 >>> pert_object = Perturbations(M=M)
 >>> mass_func = pert_object.MassFunction()
 
@@ -47,6 +46,11 @@ Check the docstring of Perturbations() for arguments allowed.
 
 HISTORY
 ---------------------------------------------------------------------------------------
+0.9.99- May 10, 2013
+		Added warning for k*R limits
+		Couple of minor bugfixes
+		**Important** Angulo fitting function corrected (arXiv version had a typo).
+		
 0.9.97- April 15, 2013
 		Urgent Bugfix for updating cosmology (for transfer functions)
 		
