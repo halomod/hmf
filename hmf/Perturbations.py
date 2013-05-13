@@ -31,6 +31,8 @@ class Perturbations(object):
     takes in various options as to how to calculate the various quantities. Most non-initial 
     methods of the class need no further input after the cosmology has been initialized.
     
+    Contains an update() method which can be passed arguments to update, in the most optimal manner.
+    
     Required Input:
         M: a float or vector of floats containing the log10(Solar Masses) at which to perform analysis.
         
@@ -45,7 +47,7 @@ class Perturbations(object):
         WDM:           a float giving warm dark matter particle size in keV. 
                        Default is None (corresponds to CDM)
                                                        
-        k_bounds:      a list/tuple defining two values: the lower and upper limit of ln(k). Used to truncate/extend
+        k_bounds:      a list/tuple defining two values: the lower and upper limit of k. Used to truncate/extend
                        the power spectrum. 
                        Default [0.0000001,20000.0]
    
@@ -53,7 +55,7 @@ class Perturbations(object):
                        Default: True
                      
         **kwargs:      There is a placeholder for any additional cosmological parameters, or camb
-                       parameters, that one wishes to include. Parameters that aren't use won't
+                       parameters, that one wishes to include. Parameters that aren't used won't
                        break the program, they will just be ignored. Here follows a list of parameters
                        that will be used by various parts of the program, and their respective defaults:
                        
@@ -518,9 +520,43 @@ class Perturbations(object):
 
     def MassFunction(self, fsigma='ST', user_model='', overdensity=178, delta_c=1.686):
         """
-        Uses the Press Schechter approach with a spherical top-hat to calculate the mass function.
+        Uses EPS framework to calculate the mass function.
         
-        Output: mass_function log10(dn/dlnM).
+        Input:
+            fsigma: str, default = 'ST'
+                An option defining the fitting function to be used.
+                Valid values are:
+                        1. 'PS': Press-Schechter Approach
+                        2. 'ST': Sheth-Tormen
+                        3. 'Jenkins': Jenkins empirical fit
+                        4. 'Warren': Warren empirical fit
+                        5. 'Reed03': Reed empirical from 2003
+                        6. 'Reed07': Reed empirical from 2007
+                        7. 'Tinker': Tinker empirical from 2008
+                        8. 'Watson': Watson empirical 2012
+                        9. 'Watson_FoF': Watson Friend-of-friend fit 2012
+                        10. 'Crocce': Crocce 2010
+                        11. 'Courtin': Courtin 2011
+                        12. 'Angulo': Angulo 2012
+                        13. 'Angulo_Bound': Angulo sub-halo function 2012
+                        14. 'user_model': A user-input string function
+                        
+            user_model: str, default = ''
+                A string defining a mathematical function of x, which will be
+                the mass variance (sigma). 
+            
+            overdensity: float, default=178
+                The virial overdensity of the halo definition. The only fitting
+                functions that will take any notice of this are Tinker and Watson.
+            
+            delta_c: float, default = 1.686
+                The critical overdensity parameter. Default corresponds to an
+                Einstein-deSitter Universe. Many later fitting functions don't
+                notice this parameter at all (it is fit to).
+                
+        Output: 
+            mass_function: ndarray shape(len(M))
+                The mass function, log10(dn/dlnM).
         """
         if fsigma == 'user_model' and user_model == '':
             print "Warning: Fitting Function is a user model, but no model supplied"
@@ -855,7 +891,7 @@ class Perturbations(object):
 
         vfv = self.Watson_Gamma() * A * ((beta / self.sigma) ** alpha + 1) * np.exp(-gamma / self.sigma ** 2)
 
-        # vfv[np.logical_or(self.lnsigma < -0.55, self.lnsigma > 1.05)] = np.NaN
+        vfv[np.logical_or(self.lnsigma < -0.55, self.lnsigma > 1.05)] = np.NaN
 
         return vfv
 
@@ -885,6 +921,7 @@ class Perturbations(object):
         from scitools.StringFunction import StringFunction
 
         f = StringFunction(user_model, globals=globals())
+
 
         return f(self.sigma)
 
