@@ -4,7 +4,7 @@ methods that act upon a transfer function to gain functions such as the
 mass function.
 '''
 
-version = '0.9.99'
+version = '1.0.1'
 
 ###############################################################################
 # Some Imports
@@ -110,22 +110,22 @@ class Perturbations(object):
         """
         Initializes the cosmology for which to perform the perturbation analysis.      
         """
-        self.transfer_cosmo = {"w_lam"   :-1,
-                               "omegab"   : 0.0456,
-                               "omegac"   : 0.2274,
-                               "omegav"   : 0.727,
+        self.transfer_cosmo = {"w_lam"    :-1,
+                               "omegab"   : 0.0455,
+                               "omegac"   : 0.226,
+                               "omegav"   : 0.728,
                                "omegan"   : 0.0,
-                               "H0"       : 70.0,
+                               "H0"       : 70.4,
                                'cs2_lam' : 0,
-                               'reion__optical_depth' : 0.09,
+                               #'reion__optical_depth' : 0.0085,
                                'TCMB'     : 2.725,
                                'yhe'      : 0.24,
                                'Num_Nu_massless' : 3.04,
                                }
         self.transfer_cosmo['omegak'] = 1 - self.transfer_cosmo['omegab'] - self.transfer_cosmo['omegav'] - self.transfer_cosmo['omegac'] - self.transfer_cosmo['omegan']
 
-        self.extra_cosmo = {"sigma_8":0.812,
-                            "n":1,
+        self.extra_cosmo = {"sigma_8":0.81,
+                            "n":967,
                             "delta_c":1.686}
 
         self.crit_dens = 27.755 * 10 ** 10
@@ -146,11 +146,12 @@ class Perturbations(object):
                                  'reion__reionization' : True,
                                  'reion__use_optical_depth' : True,
                                  'w_perturb'      : False,
-                                 'DoLensing'       : False ,
-                                 'ThreadNum':0 }
+                                 'DoLensing'       : False }
 
         if self.transfer_options['reion__use_optical_depth']:
-            self.transfer_cosmo['reion__optical_depth'] = 0.09
+            self.transfer_cosmo['reion__optical_depth'] = 0.085
+        else:
+            self.transfer_cosmo['reion__redshift'] = 10.3
 
         # Put together the transfer options and transfer_cosmo dictionaries
         self.camb_dict = dict(self.transfer_cosmo.items() + self.transfer_options.items())
@@ -308,6 +309,18 @@ class Perturbations(object):
                 return
 
         print "Warning: No variables were updated!"
+        for key, val in kwargs.iteritems():
+            if key not in set_transfer + set_kbounds + set_kbounds_extra_cosmo + set_WDM + set_z:
+                print "Warning: Variable entered (", key, ") is not a valid keyword"
+            if key in self.__dict__:
+                if val == self.__dict__[key]:
+                    print key, " was already ", val
+            if key in self.camb_dict:
+                if val == self.camb_dict[key]:
+                    print key, " was already ", val
+            if key in self.extra_cosmo:
+                if val == self.extra_cosmo[key]:
+                    print key, " was already ", val
         return
 
     def NewKGrid(self, k, extrapolate, k_bounds):

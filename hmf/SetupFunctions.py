@@ -37,17 +37,19 @@ def check_kR(min_m, max_m, mean_dens, mink, maxk):
     min_r = (3 * min_m / (4 * np.pi * mean_dens)) ** (1. / 3.)
     max_r = (3 * max_m / (4 * np.pi * mean_dens)) ** (1. / 3.)
 
-    errmsg1 = """
-            Please make sure the product of minimum radius and maximum k is > 3.
-            If it is not, then the mass variance could be extremely inaccurate.
+    errmsg1 = \
+"""
+Please make sure the product of minimum radius and maximum k is > 3.
+If it is not, then the mass variance could be extremely inaccurate.
                     
-            """
+"""
 
-    errmsg2 = """
-            Please make sure the product of maximum radius and minimum k is < 0.1
-            If it is not, then the mass variance could be inaccurate.
+    errmsg2 = \
+"""
+Please make sure the product of maximum radius and minimum k is < 0.1
+If it is not, then the mass variance could be inaccurate.
                     
-            """
+"""
 
     if maxk * min_r < 3:
         error1 = errmsg1 + "This means extrapolating k to " + str(3 / min_r) + " or using min_M > " + str(np.log10(M(3.0 / maxk)))

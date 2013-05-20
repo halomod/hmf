@@ -46,6 +46,10 @@ Check the docstring of Perturbations() for arguments allowed.
 
 HISTORY
 ---------------------------------------------------------------------------------------
+1.0.1 - May 20, 2013
+		Added better warnings for non-updated variables passed to update()
+		Made default cosmology WMAP7
+		
 0.9.99- May 10, 2013
 		Added warning for k*R limits
 		Couple of minor bugfixes
