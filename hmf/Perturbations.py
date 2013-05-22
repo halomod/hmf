@@ -4,7 +4,7 @@ methods that act upon a transfer function to gain functions such as the
 mass function.
 '''
 
-version = '1.0.1'
+version = '1.0.2'
 
 ###############################################################################
 # Some Imports
@@ -125,7 +125,7 @@ class Perturbations(object):
         self.transfer_cosmo['omegak'] = 1 - self.transfer_cosmo['omegab'] - self.transfer_cosmo['omegav'] - self.transfer_cosmo['omegac'] - self.transfer_cosmo['omegan']
 
         self.extra_cosmo = {"sigma_8":0.81,
-                            "n":967,
+                            "n":0.967,
                             "delta_c":1.686}
 
         self.crit_dens = 27.755 * 10 ** 10
@@ -236,6 +236,7 @@ class Perturbations(object):
             self.power_spectrum_0 = self.WDM_PS(self.WDM, self.power_base)
         else:
             self.power_spectrum_0 = self.power_base
+
         # Calculate Mass Variance at z=0
         self.sigma_0 = self.MassVariance(self.M, self.power_spectrum_0)
 
@@ -310,7 +311,7 @@ class Perturbations(object):
 
         print "Warning: No variables were updated!"
         for key, val in kwargs.iteritems():
-            if key not in set_transfer + set_kbounds + set_kbounds_extra_cosmo + set_WDM + set_z:
+            if key not in set_transfer + set_kbounds + set_kbounds_extra_cosmo + set_WDM + set_z + self.camb_dict + self.extra_cosmo:
                 print "Warning: Variable entered (", key, ") is not a valid keyword"
             if key in self.__dict__:
                 if val == self.__dict__[key]:
@@ -393,7 +394,6 @@ class Perturbations(object):
 
         # Normalize the previously calculated power spectrum.
         power = 2 * np.log(normalization) + unn_power
-
         return power, normalization
 
 
@@ -444,9 +444,9 @@ class Perturbations(object):
         kR = np.exp(self.k) * self.Radius(m)
 
         W_squared = (3 * (np.sin(kR) / kR ** 3 - np.cos(kR) / kR ** 2)) ** 2
-        W_squared[kR < 0.01] = 1.0
-        if W_squared[0] < 0.5 or W_squared[0] > 1.5:
-            print np.sin(kR[0]), kR[0] ** 3, np.cos(kR[0]), kR[0] ** 2, np.sin(kR[0]) / kR[0] ** 3, np.cos(kR[0]) / kR[0] ** 2, W_squared[0]
+        #W_squared[kR < 0.01] = 1.0
+        #if W_squared[0] < 0.5 or W_squared[0] > 1.5:
+        #    print np.sin(kR[0]), kR[0] ** 3, np.cos(kR[0]), kR[0] ** 2, np.sin(kR[0]) / kR[0] ** 3, np.cos(kR[0]) / kR[0] ** 2, W_squared[0]
         return W_squared
 
 
@@ -465,8 +465,9 @@ class Perturbations(object):
         # Calculate the integrand of the function. Note that the power spectrum and k values must be
         # 'un-logged' before use, and we multiply by k because our steps are in logk.
         sigma = np.zeros_like(M)
+        rest = np.exp(power + 3 * self.k)
         for i, m in enumerate(M):
-            integ = np.exp(power + 3 * self.k) * self.TopHat_WindowFunction(m)
+            integ = rest * self.TopHat_WindowFunction(m)
             sigma[i] = (0.5 / np.pi ** 2) * intg.romb(integ, dx=self.dlnk)
 
         return np.sqrt(sigma)

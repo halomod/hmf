@@ -5,3 +5,9 @@ build/
 dist/
 *egg*
 *.pyc
+profile.py
+
+stats
+
+output_file
+

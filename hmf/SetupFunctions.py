@@ -93,16 +93,10 @@ def Setup(transfer_file, camb_dict):
         k, T, sig8 = pycamb.transfers(**camb_dict)
         T = np.log(T[1, :, 0])
         k = np.log(k)
-        del sig8
-        #transfer_file = 'camb/'+camb_dict["output_root"]+'_transfer_out.dat'
 
     else:
         #Import the transfer file wherever it is.
         k, T = ImportTransferFunction(transfer_file)
 
-#    #If we just created it with CAMB, now delete it and other bits that have been made.
-#    if transfer_file.endswith('_transfer_out.dat'):
-#        os.system('rm -f '+camb_dict["output_root"]+'*')
-#
     return k, T
 
