@@ -11,3 +11,5 @@ stats
 
 output_file
 
+
+*.pyc
