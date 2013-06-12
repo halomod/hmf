@@ -27,9 +27,10 @@ set_z_time = timeit.repeat('pert.set_z(z=1.0)', setup=run_setup, number=50, repe
 
 print "For 50 M's:"
 print "----------------------------------------------------"
-print "setup             : ", setup_time
-print "set_transfer_cosmo: ", min(set_transfer_cosmo_time)
-print "set_kbounds       : ", min(set_kbounds_time)
-print "set_WDM           : ", min(set_WDM_time)
-print "set_z             : ", min(set_z_time)
+print "setup             : ", setup_time / 10
+print "set_transfer_cosmo: ", min(set_transfer_cosmo_time) / 30
+print "set_kbounds       : ", min(set_kbounds_time) / 30
+print "set_WDM           : ", min(set_WDM_time) / 30
+print "set_z             : ", min(set_z_time) / 50
+print "Get MF            : ", min(mf_time) / 200
 print "----------------------------------------------------"

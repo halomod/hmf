@@ -89,7 +89,6 @@ def Setup(transfer_file, camb_dict):
     """
     #If no transfer file uploaded, but it was custom, execute CAMB
     if transfer_file is None:
-        #camb_dict = CAMB(camb_dict,prefix)
         k, T, sig8 = pycamb.transfers(**camb_dict)
         T = np.log(T[1, :, 0])
         k = np.log(k)

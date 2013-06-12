@@ -4,7 +4,7 @@ methods that act upon a transfer function to gain functions such as the
 mass function.
 '''
 
-version = '1.0.2'
+version = '1.0.4'
 
 ###############################################################################
 # Some Imports
@@ -126,7 +126,8 @@ class Perturbations(object):
 
         self.extra_cosmo = {"sigma_8":0.81,
                             "n":0.967,
-                            "delta_c":1.686}
+                            "delta_c":1.686,
+                            'A_s':None}
 
         self.crit_dens = 27.755 * 10 ** 10
 
@@ -167,6 +168,7 @@ class Perturbations(object):
         self.z = z
         self.WDM = WDM
 
+
         # Start the cascade of variable setting.
         self.set_transfer_cosmo(**kwargs)
 
@@ -184,6 +186,7 @@ class Perturbations(object):
 
         # DO transfer-unique stuff
         self.k_original, self.Transfer = Setup(self.transfer_file, self.camb_dict)
+
         self.transfer_function = self.Interpolate(self.k_original, self.Transfer)
         self.dist = Distances(**kwargs)
         self.mean_dens = (self.camb_dict['omegac'] + self.camb_dict['omegab']) * self.crit_dens
@@ -203,7 +206,6 @@ class Perturbations(object):
         if 'sigma_8' in kwargs:
             self.extra_cosmo['sigma_8'] = kwargs.pop('sigma_8')
 
-
         # Set up a new grid for the transfer function (for romberg integration)
         self.k, self.dlnk = self.NewKGrid(self.k_original, self.extrapolate, self.k_bounds)
 
@@ -215,7 +217,7 @@ class Perturbations(object):
         if self.min_error:
             print self.min_error
 
-        # power_base is the power spectrum at z=0 and for CDM
+        # power_base is the unnormalized power spectrum at z=0 and for CDM
         power_base = self.extra_cosmo['n'] * self.k + 2.0 * self.transfer_function(self.k)
 
         # Normalize the Power Spectrum (power_base)
@@ -311,7 +313,7 @@ class Perturbations(object):
 
         print "Warning: No variables were updated!"
         for key, val in kwargs.iteritems():
-            if key not in set_transfer + set_kbounds + set_kbounds_extra_cosmo + set_WDM + set_z + self.camb_dict + self.extra_cosmo:
+            if key not in set_transfer + set_kbounds + set_kbounds_extra_cosmo + set_WDM + set_z + self.camb_dict.keys() + self.extra_cosmo.keys():
                 print "Warning: Variable entered (", key, ") is not a valid keyword"
             if key in self.__dict__:
                 if val == self.__dict__[key]:
@@ -520,6 +522,7 @@ class Perturbations(object):
             "Watson":self.nufnu_Watson,
             "Crocce":self.nufnu_Crocce,
             "Courtin":self.nufnu_Courtin,
+            "Bhattacharya": self.nufnu_Bhattacharya,
             "user_model":self.nufnu_user_model
             }
 
@@ -928,6 +931,18 @@ class Perturbations(object):
         vfv = A * np.sqrt(2 * a / np.pi) * (d_c / self.sigma) * (1 + (d_c / (self.sigma * np.sqrt(a))) ** (-2 * p)) * np.exp(-d_c ** 2 * a / (2 * self.sigma ** 2))
         return vfv
 
+    def nufnu_Bhattacharya(self):
+        A = 0.333 * (1 + self.z) ** -0.11
+        a = 0.788 * (1 + self.z) ** -0.01
+        p = 0.807
+        q = 1.795
+
+        nu = self.extra_cosmo['delta_c'] / self.sigma
+
+        vfv = A * np.sqrt(2.0 / np.pi) * np.exp(-(a * nu ** 2) / 2.0) * (1 + (1.0 / (a * nu ** 2)) ** p) * (nu * np.sqrt(a)) ** q
+        vfv[np.logical_or(self.M < 6 * 10 ** 11, self.M > 3 * 10 ** 15)] = np.NaN
+
+        return vfv
     def nufnu_user_model(self, user_model):
         """
         Calculates vfv based on a user-input model.

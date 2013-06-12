@@ -46,6 +46,9 @@ Check the docstring of Perturbations() for arguments allowed.
 
 HISTORY
 ---------------------------------------------------------------------------------------
+1.0.4 - June 6, 2013
+		Added Bhattacharya fitting function
+		
 1.0.2 - May 21, 2013
 		Fixed some warnings for non-updated variables passed to update()
 		
