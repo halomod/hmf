@@ -46,8 +46,22 @@ Check the docstring of Perturbations() for arguments allowed.
 
 HISTORY
 ---------------------------------------------------------------------------------------
+1.0.10- June 24, 2013
+		Added dependence on Delta_vir to Tinker
+		
+1.0.9 - June 19, 2013
+		Fixed an error with an extra ln(10) in the mass function (quoted as dn/dlnM but actually outputting dn/dlog10M)
+		
+1.0.8 - June 19, 2013
+		Took out log10 from cumulative mass functions
+		Better cumulative mass function logic
+		
+1.0.6 - June 19, 2013
+		Fixed cumulative mass functions (extra factor of M was in there)
+		
 1.0.4 - June 6, 2013
 		Added Bhattacharya fitting function
+		Fixed concatenation of list and dict issue
 		
 1.0.2 - May 21, 2013
 		Fixed some warnings for non-updated variables passed to update()

@@ -4,7 +4,7 @@ methods that act upon a transfer function to gain functions such as the
 mass function.
 '''
 
-version = '1.0.4'
+version = '1.0.10'
 
 ###############################################################################
 # Some Imports
@@ -12,7 +12,7 @@ version = '1.0.4'
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import scipy.integrate as intg
 import numpy as np
-from numpy import sin, cos, tan, abs, arctan, arccos, arcsin
+from numpy import sin, cos, tan, abs, arctan, arccos, arcsin, exp
 import collections
 # from scitools.std import sin,cos,tan,abs,arctan,arccos,arcsin #Must be in this form to work for some reason.
 
@@ -584,7 +584,7 @@ class Perturbations(object):
         self.overdensity = overdensity
         self.extra_cosmo['delta_c'] = delta_c
 
-        mass_function = np.log(10.0) * self.M * self.dndM()
+        mass_function = self.M * self.dndM()
 
         return mass_function
 
@@ -593,7 +593,7 @@ class Perturbations(object):
         Integrates the mass function above a certain mass to calculate the number of haloes above a certain mass
         
         INPUT:
-        mass_function: an array containing the mass function (log10)
+        mass_function: an array containing the mass function ( NOT log10)
         
         OUTPUT:
         ngtm: the number of haloes greater than M for all M in self.M
@@ -603,26 +603,37 @@ class Perturbations(object):
 
         # set M and mass_function within computed range
         M = self.M[np.logical_not(np.isnan(mass_function))]
-        mass_function = np.log10(mass_function[np.logical_not(np.isnan(mass_function))])
+        mass_function = np.log(mass_function[np.logical_not(np.isnan(mass_function))])
 
         # Interpolate the mass_function - this is in log-log space.
-        mf = spline(np.log10(M), mass_function, k=3)
+        mf = spline(np.log(M), mass_function, k=1)
 
-        # Define max_M as either 17 or the maximum set by user
-        max_M = np.max([17, np.log10(M[-1])])
+        # Define max_M as either 18 or the maximum set by user
+        max_M = np.log(np.max([10 ** 18, M[-1]]))
+
+        #M_new = np.arange(np.log(M[-1]), max_M, M[1] / M[0])
+#        if len(M_new) > 0:
+#            upper_bit = np.sum(np.exp(mf(M_new)) * M[1] / M[0])
+#        else:
+#            upper_bit = 0
+#        print "upper bit ", upper_bit
+#        for i, m in enumerate(self.M):
+#            if np.isnan(m):
+#                ngtm[i] = np.nan
+#            elif i == 0:
+#                ngtm[len(mass_function) - 1] = np.exp(mf(np.log(m))) * M[1] / M[0] + upper_bit
+#            else:
+#                ngtm[len(mass_function) - i - 1] = ngtm[len(mass_function) - i ] + np.exp(mf(np.log(m))) * M[1] / M[0]
 
         for i, m in enumerate(self.M):
             if np.isnan(m):
                 ngtm[i] = np.nan
             else:
                 # Set up new grid with 4097 steps from m to M=17
-                M_new, dlnM = np.linspace(np.log10(m), max_M, 4097, retstep=True)
+                M_new, dlnM = np.linspace(np.log(m), max_M, 4097, retstep=True)
                 mf_new = mf(M_new)
 
-                # Here we multiply by the mass because we are in log steps
-                integ = 10 ** (M_new + mf_new)
-                # Divide by ln(10) because we are in log10 steps
-                ngtm[i] = np.log10(intg.romb(integ, dx=dlnM) / np.log(10))
+                ngtm[i] = intg.romb(np.exp(mf_new), dx=dlnM)
         return ngtm
 
     def MgtM(self, mass_function):
@@ -641,13 +652,13 @@ class Perturbations(object):
 
         # set M and mass_function within computed range
         M = self.M[np.logical_not(np.isnan(mass_function))]
-        mass_function = np.log10(mass_function[np.logical_not(np.isnan(mass_function))])
+        mass_function = np.log(mass_function[np.logical_not(np.isnan(mass_function))])
 
         # Interpolate the mass_function - this is in log-log space.
-        mf = spline(np.log10(M), mass_function, k=3)
+        mf = spline(np.log(M), mass_function, k=1)
 
-        # Define max_M as either 17 or the maximum set by user
-        max_M = np.max([17, np.log10(M[-1])])
+        # Define max_M as either 18 or the maximum set by user
+        max_M = np.log(np.max([10 ** 17, M[-1]]))
 
         for i, m in enumerate(self.M):
             if np.isnan(m):
@@ -656,8 +667,7 @@ class Perturbations(object):
                 # Set up new grid with 4097 steps from m to M=17
                 M_new, dlnM = np.linspace(np.log10(m), max_M, 4097, retstep=True)
                 mf_new = mf(M_new)
-                integ = 10 ** (2 * M_new + mf_new)
-                mgtm[i] = np.log10(intg.romb(integ, dx=dlnM) / np.log(10))
+                mgtm[i] = intg.romb(np.exp(mf_new), dx=dlnM)
 
         return mgtm
 
@@ -677,13 +687,13 @@ class Perturbations(object):
 
         # set M and mass_function within computed range
         M = self.M[np.logical_not(np.isnan(mass_function))]
-        mass_function = np.log10(mass_function[np.logical_not(np.isnan(mass_function))])
+        mass_function = np.log(mass_function[np.logical_not(np.isnan(mass_function))])
 
         # Interpolate the mass_function - this is in log-log space.
-        mf = spline(np.log10(M), mass_function, k=3)
+        mf = spline(np.log(M), mass_function, k=3)
 
         # Define min_M as either 3 or the minimum set by user
-        min_M = np.min([3, np.log10(M[0])])
+        max_M = np.log(np.min([10 ** 3, M[0]]))
 
         for i, m in enumerate(self.M):
             if np.isnan(m):
@@ -692,8 +702,7 @@ class Perturbations(object):
                 # Set up new grid with 4097 steps from m to M=17
                 M_new, dlnM = np.linspace(min_M, np.log10(m), 4097, retstep=True)
                 mf_new = mf(M_new)
-                integ = 10 ** (M_new + mf_new)
-                nltm[i] = np.log10(intg.romb(integ, dx=dlnM) / np.log(10))
+                nltm[i] = intg.romb(np.exp(mf_new), dx=dlnM)
 
         return nltm
 
@@ -713,14 +722,14 @@ class Perturbations(object):
 
         # set M and mass_function within computed range
         M = self.M[np.logical_not(np.isnan(mass_function))]
-        mass_function = np.log10(mass_function[np.logical_not(np.isnan(mass_function))])
+        mass_function = np.log(mass_function[np.logical_not(np.isnan(mass_function))])
 
 
         # Interpolate the mass_function - this is in log-log space.
-        mf = spline(np.log10(M), mass_function, k=3)
+        mf = spline(np.log(M), mass_function, k=3)
 
         # Define max_M as either 17 or the maximum set by user
-        min_M = np.min([3, np.log10(M[0])])
+        max_M = np.log(np.min([10 ** 3, M[0]]))
 
         for i, m in enumerate(self.M):
             if np.isnan(m):
@@ -729,8 +738,7 @@ class Perturbations(object):
                 # Set up new grid with 4097 steps from m to M=17
                 M_new, dlnM = np.linspace(min_M, np.log10(m), 4097, retstep=True)
                 mf_new = mf(M_new)
-                integ = 10 ** (2 * M_new + mf_new)
-                mltm[i] = np.log10(intg.romb(integ, dx=dlnM) / np.log(10))
+                mltm[i] = intg.romb(np.exp(mf_new), dx=dlnM)
 
         return mltm
 
@@ -846,24 +854,63 @@ class Perturbations(object):
 
     def nufnu_Tinker(self):
 
-        # if self.overdensity==178:
-        A_0 = 0.186
-        a_0 = 1.47
-        b_0 = 2.57
-        c_0 = 1.19
-        # else:
-        #    a_0 = 1.43 + (np.log10(self.overdensity) - 2.3)**1.5
-        #    b_0 = 1.0 + (np.log10(self.overdensity) - 1.6)**(-1.5)
-        #    c_0 = 1.2 + (np.log10(self.overdensity) - 2.35)**1.6
-        #    if self.overdensity < 1600:
-        #        A_0 = 0.1*np.log10(self.overdensity) - 0.05
-        #    else:
-        #        A_0 = 0.26#
+        #The Tinker function is a bit tricky - we use the code from http://cosmo.nyu.edu/~tinker/massfunction/MF_code.tar
+        #to aide us.
+        delta_virs = np.array([200, 300, 400, 600, 800, 1200, 1600, 2400, 3200])
+        A_array = np.array([ 1.858659e-01,
+                            1.995973e-01,
+                            2.115659e-01,
+                            2.184113e-01,
+                            2.480968e-01,
+                            2.546053e-01,
+                            2.600000e-01,
+                            2.600000e-01,
+                            2.600000e-01])
 
-        # print "A_0: ", A_0
-        # print "a_0:", a_0
-        # print "b_0:", b_0
-        # print "c_0:", c_0
+        a_array = np.array([1.466904e+00,
+                            1.521782e+00,
+                            1.559186e+00,
+                            1.614585e+00,
+                            1.869936e+00,
+                            2.128056e+00,
+                            2.301275e+00,
+                            2.529241e+00,
+                            2.661983e+00])
+
+        b_array = np.array([2.571104e+00 ,
+                            2.254217e+00,
+                            2.048674e+00,
+                            1.869559e+00,
+                            1.588649e+00,
+                            1.507134e+00,
+                            1.464374e+00,
+                            1.436827e+00,
+                            1.405210e+00])
+
+        c_array = np.array([1.193958e+00,
+                            1.270316e+00,
+                            1.335191e+00,
+                            1.446266e+00,
+                            1.581345e+00,
+                            1.795050e+00,
+                            1.965613e+00,
+                            2.237466e+00,
+                            2.439729e+00])
+        A_func = spline(delta_virs, A_array)
+        a_func = spline(delta_virs, a_array)
+        b_func = spline(delta_virs, b_array)
+        c_func = spline(delta_virs, c_array)
+
+        A_0 = A_func(self.overdensity)
+        a_0 = a_func(self.overdensity)
+        b_0 = b_func(self.overdensity)
+        c_0 = c_func(self.overdensity)
+
+#        print "A_0: ", A_0
+#        print "a_0:", a_0
+#        print "b_0:", b_0
+#        print "c_0:", c_0
+
         A = A_0 * (1 + self.z) ** (-0.14)
         a = a_0 * (1 + self.z) ** (-0.06)
         alpha = np.exp(-(0.75 / np.log(self.overdensity / 75)) ** 1.2)
@@ -872,6 +919,7 @@ class Perturbations(object):
 
 
         vfv = A * ((self.sigma / b) ** (-a) + 1) * np.exp(-c / self.sigma ** 2)
+        vfv[np.logical_or(self.lnsigma < -0.6 , self.lnsigma > 0.4)] = np.nan
         return vfv
 
     def Watson_Gamma(self):
