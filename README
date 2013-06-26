@@ -46,6 +46,9 @@ Check the docstring of Perturbations() for arguments allowed.
 
 HISTORY
 ---------------------------------------------------------------------------------------
+1.1.0 - June 27, 2013
+		Massive overhaul of structure
+		Now dependencies are tracked throughout the program, making updates even faster
 1.0.10- June 24, 2013
 		Added dependence on Delta_vir to Tinker
 		

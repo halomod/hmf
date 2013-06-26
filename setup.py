@@ -1,5 +1,5 @@
 from setuptools import setup, find_packages
-from hmf.Perturbations import version
+from hmf.hmf import version
 import os
 def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
