@@ -283,7 +283,7 @@ class Perturbations(object):
                 self._transfer_options.update({key:val})
                 del self.camb_params
 
-            if key is 'M':
+            elif key is 'M':
                 self.M = kwargs['M']
             elif key is "mf_fit":
                 self.mf_fit = kwargs["mf_fit"]
@@ -292,7 +292,6 @@ class Perturbations(object):
             elif key is "transfer_file":
                 self._transfer_file = kwargs['transfer_file']
             elif key is 'z':
-                print "I'm setting z..."
                 self.z = kwargs['z']
             elif key is "wdm_mass":
                 self.wdm_mass = kwargs['wdm_mass']
@@ -305,12 +304,12 @@ class Perturbations(object):
             else:
                 print "WARNING: ", key, " is not a valid parameter for the Perturbations class"
 
-            #Some extra logic for deletes
-            if ('omegab' in kwargs or 'omegac' in kwargs or 'omegav' in kwargs) and self.z > 0:
+        #Some extra logic for deletes
+        if ('omegab' in kwargs or 'omegac' in kwargs or 'omegav' in kwargs) and self.z > 0:
+            del self.growth
+        elif 'z' in kwargs:
+            if kwargs['z'] == 0:
                 del self.growth
-            elif 'z' in kwargs:
-                if kwargs['z'] == 0:
-                    del self.growth
 
     @property
     def dlogM(self):
@@ -341,8 +340,10 @@ class Perturbations(object):
             return self.__cosmo_params
     @cosmo_params.deleter
     def cosmo_params(self):
-        del self.__cosmo_params
-
+        try:
+            del self.__cosmo_params
+        except AttributeError:
+            pass
     @property
     def camb_params(self):
         """
@@ -358,7 +359,8 @@ class Perturbations(object):
             self.__camb_params = dict(self._transfer_cosmo.items() + self._transfer_options.items())
 
             #Set some derivative parameters
-            self.__camb_params['omegak'] = 1 - self.__camb_params['omegab'] - self.__camb_params['omegac'] - self.__cosmo_params['omegav'] - self.__cosmo_params['omegan']
+            self.__camb_params['omegak'] = 1 - self.__camb_params['omegab'] - self.__camb_params['omegac'] - \
+             self.__camb_params['omegav'] - self.__camb_params['omegan']
 
             if self.__camb_params['reion__use_optical_depth']:
                 del self.__camb_params['reion__redshift']
@@ -369,11 +371,13 @@ class Perturbations(object):
 
     @camb_params.deleter
     def camb_params(self):
-        del self.__camb_params
+        try:
+            del self.__camb_params
 
-        #We also delete stuff that DIRECTLY depends on it
-        del self._lnk_original
-
+            #We also delete stuff that DIRECTLY depends on it
+            del self._lnk_original
+        except AttributeError:
+            pass
 
     @property
     def M(self):
@@ -675,6 +679,7 @@ class Perturbations(object):
             return self.__power_0
         except:
             if self.wdm_mass is not None:
+                print "Doing wdm with mass = ", self.wdm_mass
                 self.__power_0 = tools.wdm_transfer(self.wdm_mass, self._power_cdm_0, self.lnk,
                                                     self.cosmo_params["H0"], self.cosmo_params['omegac'])
             else:
@@ -820,7 +825,7 @@ class Perturbations(object):
         try:
             return self.__n_eff
         except:
-            self.__n_eff = tools.n_eff(self.dlnsdlnm)
+            self.__n_eff = tools.n_eff(self._dlnsdlnm)
             return self.__n_eff
 
     @n_eff.deleter
@@ -1068,7 +1073,7 @@ class Perturbations(object):
         Calculates how big a box must be to expect one halo in natural log mass interval M, for given mass function
         """
 
-        return self.dndlnm ** (-1. / 3.)
+        return self.ngtm ** (-1. / 3.)
 
     @how_big.deleter
     def how_big(self):
@@ -1251,7 +1256,7 @@ class Perturbations(object):
         vfv[np.logical_or(self.lnsigma < -0.6 , self.lnsigma > 0.4)] = np.nan
         return vfv
 
-    def Watson_Gamma(self):
+    def _watson_gamma(self):
         C = 0.947 * np.exp(0.023 * (self.delta_vir / 178 - 1))
         d = -0.456 * cosmography.omegam_z(self.z, self.cosmo_params['omegam'], self.cosmo_params['omegav'], self.cosmo_params['omegak']) - 0.139
         p = 0.072
@@ -1278,12 +1283,12 @@ class Perturbations(object):
             beta = 3.810
             gamma = 1.453
         else:
-            A = self.dist.Omega_M(self.z) * (1.097 * (1 + self.z) ** (-3.216) + 0.074)
-            alpha = self.dist.Omega_M(self.z) * (3.136 * (1 + self.z) ** (-3.058) + 2.349)
-            beta = self.dist.Omega_M(self.z) * (5.907 * (1 + self.z) ** (-3.599) + 2.344)
+            A = cosmography.omegam_z(self.z, self.cosmo_params['omegam'], self.cosmo_params['omegav'], self.cosmo_params['omegak']) * (1.097 * (1 + self.z) ** (-3.216) + 0.074)
+            alpha = cosmography.omegam_z(self.z, self.cosmo_params['omegam'], self.cosmo_params['omegav'], self.cosmo_params['omegak']) * (3.136 * (1 + self.z) ** (-3.058) + 2.349)
+            beta = cosmography.omegam_z(self.z, self.cosmo_params['omegam'], self.cosmo_params['omegav'], self.cosmo_params['omegak']) * (5.907 * (1 + self.z) ** (-3.599) + 2.344)
             gamma = 1.318
 
-        vfv = self.Watson_Gamma() * A * ((beta / self.sigma) ** alpha + 1) * np.exp(-gamma / self.sigma ** 2)
+        vfv = self._watson_gamma() * A * ((beta / self.sigma) ** alpha + 1) * np.exp(-gamma / self.sigma ** 2)
 
         vfv[np.logical_or(self.lnsigma < -0.55, self.lnsigma > 1.05)] = np.NaN
 
