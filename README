@@ -5,14 +5,14 @@ hmf is a python application that provides a flexible and simple way to calculate
 Halo Mass Function for any input cosmology, redshift, dark matter model, virial
 overdensity or several other variables. Addition of further variables should be simple. 
 
-It is also the backend to humf, the online hmf calculator at hmf.icrar.org
+It is also the backend to HMFcalc, the online hmf calculator at hmf.icrar.org
 
 
 INSTALLATION
 ---------------------------------------------------------------------------------------
 ---- Install Requirements ------
 1. Install Python
-2. Install numpy, scipy, scitools (easiest way is to pip install)
+2. Install numpy, scipy, scitools,cosmolopy (easiest way is to pip install)
 3. Install pycamb:
 	>>> cd <Directory that pycamb source will live in>
 	>>> git clone https://github.com/joezuntz/pycamb
@@ -21,10 +21,7 @@ INSTALLATION
 	>>> [sudo] python setup.py install --nonstop ** Only use --nonstop if using gfortran **
 	
 ---- Install hmf --------------
-    >>> cd <Directory that hmf source will live in>
-    >>> git clone https://github.com/steven-murray/hmf
-    >>> cd hmf
-    >>> [sudo] python setup.py install
+    >>> pip install hmf
     
     
 USAGE
@@ -33,19 +30,36 @@ hmf can be used interactively (for instance in ipython) or in a script.
 To use interactively, in ipython do something like the following:
 
 >>> from hmf import Perturbations
->>> import numpy as np
->>> M = np.arange(10,15,0.01)
->>> pert_object = Perturbations(M=M)
->>> mass_func = pert_object.MassFunction()
+>>> pert = Perturbations()
+>>> mass_func = pert.dndlnm
+>>> mass_variance = pert.sigma
+>>> ...
 
 This will return a Sheth-Tormen mass function between 10^10 and 10^15 M_sun, at redshift 0
-for a default cosmology. Cosmological parameters may be passed to the initialiser, Perturbations().
+for a default cosmology. Cosmological parameters may be passed to the initialiser, Perturbations()
 
-Check the docstring of Perturbations() for arguments allowed. 
+To change the parameters (cosmological or otherwise), one should use the update() method, 
+if a Perturbations() object already exists. For example
+ >>> pert = Perturbations()
+ >>> pert.update(omegab = 0.05,z=10) #update baryon density and redshift
+ >>> cumulative_mass_func = pert.ngtm
+
+Check the docstring of Perturbations() for all arguments allowed. 
 
 
 HISTORY
 ---------------------------------------------------------------------------------------
+1.1.2 - July 02, 2013
+		Ability to calculate fitting functions to whatever mass you want (BEWARE!!)
+		Small bugfix
+		
+1.1.1 - July 02, 2013
+		Corrections to Watson fitting function from latest update on arXiv
+		** Fixed units for k and transfer function **
+		Improved docstring for Perturbations class
+		Added Eisenstein-Hu fit to the transfer function
+		
+		
 1.1.0 - June 27, 2013
 		Massive overhaul of structure
 		Now dependencies are tracked throughout the program, making updates even faster

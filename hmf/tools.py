@@ -24,12 +24,57 @@ import numpy as np
 import scipy.integrate as intg
 import pycamb
 import collections
+import cosmolopy.perturbation as pert
 
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 
 ###############################################################################
 # The function definitions
 ###############################################################################
+def get_transfer(transfer_file, camb_dict, transfer_fit, k_bounds=None):
+    """
+    A convenience function used to fully setup the workspace in the 'usual' way
+    
+    We use either CAMB or the EH approximation to get the transfer function.
+    The transfer function is in terms of the wavenumber IN UNITS OF h/Mpc!!
+    """
+    #If no transfer file uploaded, but it was custom, execute CAMB
+    if transfer_file is None:
+        if transfer_fit == "CAMB":
+            k, T, sig8 = pycamb.transfers(**camb_dict)
+            T = np.log(T[[0, 1], :, 0])
+
+            del sig8, k
+        elif transfer_fit == "EH":
+            k = np.exp(np.linspace(np.log(k_bounds[0]), np.log(k_bounds[1]), 4097))
+            #Since the function natively calculates the transfer based on k in Mpc^-1,
+            # we need to multiply by h.
+            t, T = pert.transfer_function_EH(k * camb_dict['H0'] / 100,
+                                             omega_M_0=(camb_dict['omegac'] + camb_dict['omegab']), omega_lambda_0=camb_dict['omegav'],
+                                             h=camb_dict["H0"] / 100, omega_b_0=camb_dict['omegab'], omega_n_0=camb_dict['omegan'],
+                                             N_nu=camb_dict['Num_Nu_massive'])
+            T = np.vstack((np.log(k), np.log(T)))
+            del t
+    else:
+        #Import the transfer file wherever it is.
+        T = read_transfer(transfer_file)
+
+    return T
+
+def read_transfer(transfer_file):
+    """
+    Imports the Transfer Function file to be analysed, and returns the pair ln(k), ln(T)
+    
+    Input: "transfer_file": full path to the file containing the transfer function (from camb).
+    
+    Output: ln(k), ln(T)
+    """
+
+    transfer = np.loadtxt(transfer_file)
+    T = np.log(transfer[:, [0, 6]]).T
+
+    return T
+
 def check_kr(min_m, max_m, mean_dens, mink, maxk):
 
     #Define mass from radius function
@@ -65,44 +110,6 @@ If it is not, then the mass variance could be inaccurate.
         error2 = None
 
     return error1, error2
-
-def read_transfer(transfer_file):
-    """
-    Imports the Transfer Function file to be analysed, and returns the pair ln(k), ln(T)
-    
-    Input: "transfer_file": full path to the file containing the transfer function (from camb).
-    
-    Output: ln(k), ln(T)
-    """
-
-    transfer = np.loadtxt(transfer_file)
-    k = transfer[:, 0]
-    T = transfer[:, 1]
-
-    k = np.log(k)
-    T = np.log(T)
-
-
-    return k, T
-
-
-def get_transfer(transfer_file, camb_dict):
-    """
-    A convenience function used to fully setup the workspace in the 'usual' way
-    """
-    #If no transfer file uploaded, but it was custom, execute CAMB
-    if transfer_file is None:
-        k, T, sig8 = pycamb.transfers(**camb_dict)
-        T = np.log(T[1, :, 0])
-        k = np.log(k)
-        del sig8
-
-    else:
-        #Import the transfer file wherever it is.
-        k, T = read_transfer(transfer_file)
-
-    return k, T
-
 
 def interpolate_transfer(k, transfer, tol=0.01):
     """
