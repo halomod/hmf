@@ -207,7 +207,11 @@ def mass_to_radius(M, mean_dens):
     """
     return (3.*M / (4.*np.pi * mean_dens)) ** (1. / 3.)
 
-
+def radius_to_mass(R, mean_dens):
+    """
+    Calculates mass from radius given mean density
+    """
+    return 4 * np.pi * R ** 3 * mean_dens / 3
 def wdm_transfer(m_x, power_cdm, lnk, H0, omegac):
     """
     Tansforms the CDM Power Spectrum into a WDM power spectrum for a given warm particle mass m_x.
@@ -260,14 +264,37 @@ def new_k_grid(k, k_bounds=None):
     """
 
     # Determine the true k_bounds.
-    if k_bounds is not None:
-        min_k = np.log(k_bounds[0])
-        max_k = np.log(k_bounds[1])
-    else:
-        min_k = np.min(k)
-        max_k = np.max(k)
+    min_k = np.log(k_bounds[0])
+    max_k = np.log(k_bounds[1])
 
     # Setup the grid and fetch the grid-spacing as well
     k, dlnk = np.linspace(min_k, max_k, 4097, retstep=True)
 
     return k, dlnk
+
+def power_to_corr(lnP, lnk, R):
+    """
+    Calculates the correlation function given a power spectrum
+    
+    NOTE: no check is done to make sure k spans [0,Infinity] - make sure of this before you enter the arguments.
+    
+    INPUT
+        lnP: vector of values for the log power spectrum
+        lnk: vector of values (same length as lnP) giving the log wavenumbers for the power (EQUALLY SPACED)
+        r:   radi(us)(i) at which to calculate the correlation
+    """
+    k = np.exp(lnk)
+    P = np.exp(lnP)
+
+    if not isinstance(R, collections.Iterable):
+        R = [R]
+
+    corr = np.zeros_like(R)
+
+    for i, r in enumerate(R):
+        integrand = P * k ** 3 * np.sin(k * r) / (k * r)
+
+        corr[i] = (0.5 / np.pi ** 2) * intg.romb(integrand, dx=lnk[1] - lnk[0])
+
+    return corr
+

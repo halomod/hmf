@@ -88,7 +88,10 @@ class Perturbations(object):
                             11. 'Courtin': Courtin 2011
                             12. 'Angulo': Angulo 2012
                             13. 'Angulo_Bound': Angulo sub-halo function 2012
-                            14. 'user_model': A user-input string function
+                            14. "Bhattacharya": Bhattacharya empirical fit 2011
+                            15. "Behroozi": Behroozi extension to Tinker for high-z (NOTE: only applies to the cumulative mf 
+                                                                                     - differential will be same as Tinker).
+                            16. 'user_model': A user-input string function
         
         delta_vir:     The virial overdensity for the halo definition
                        Default: delta_vir = 200.0
@@ -103,6 +106,9 @@ class Perturbations(object):
         cut_fit:       Whether to forcibly cut the f(sigma) at bounds given by respective papers.
                        If False, will use function to calculate all values specified in M (may give ridiculous results)
                        Default: True
+                       
+        R:             The distances at which the dark matter correlation function is calculated in Mpc/h
+                       Default: np.linspace(1, 200, 200)
                        
         **kwargs:      There is a placeholder for any additional cosmological parameters, or camb
                        parameters, that one wishes to include. Parameters that aren't used won't
@@ -158,7 +164,8 @@ class Perturbations(object):
                  transfer_file=None,
                  z=0.0,
                  wdm_mass=None, k_bounds=[0.0000001, 20000.0],
-                 delta_vir=200.0, user_fit='', transfer_fit='CAMB', cut_fit=True, ** kwargs):
+                 delta_vir=200.0, user_fit='', transfer_fit='CAMB',
+                 cut_fit=True, ** kwargs):
         """
         Initializes the cosmology for which to perform the perturbation analysis.      
         """
@@ -222,6 +229,7 @@ class Perturbations(object):
             "Crocce":self._nufnu_Crocce,
             "Courtin":self._nufnu_Courtin,
             "Bhattacharya": self._nufnu_Bhattacharya,
+            "Behroozi": self._nufnu_Tinker,
             "user_model":self._nufnu_user_model
             }
 
@@ -292,6 +300,8 @@ class Perturbations(object):
                 self.transfer_fit = kwargs['transfer_fit']
             elif key is "cut_fit":
                 self.cut_fit = kwargs['cut_fit']
+            elif key is "R":
+                self.R = kwargs['R']
 
             else:
                 print "WARNING: ", key, " is not a valid parameter for the Perturbations class"
@@ -421,9 +431,6 @@ class Perturbations(object):
 
     @k_bounds.setter
     def k_bounds(self, val):
-        if val is None:
-            self.__k_bounds = val
-            return
         try:
             if len(val) != 2:
                 raise ValueError("k_bounds must be a sequence of length 2 (lower, upper)")
@@ -435,6 +442,12 @@ class Perturbations(object):
 
         #We delete stuff directly dependent on it
         del self.lnk
+        #Wrap the following in a try: except: because self.transfer_fit may not be set yet (at instantiation)
+        try:
+            if self.transfer_fit == "EH":
+                del self._transfer_original
+        except:
+            pass
 
 
         self.__k_bounds = val
@@ -571,6 +584,8 @@ class Perturbations(object):
 
         del self.fsigma
         self.__cut_fit = val
+
+
 
     #--------------------------------  START NON-SET PROPERTIES ----------------------------------------------
     @property
@@ -978,6 +993,12 @@ class Perturbations(object):
                     mf_new = mf(M_new)
 
                     self.__ngtm[i] = intg.romb(np.exp(mf_new), dx=dlnM)
+
+            #Here we add a correction for high-z for Tinker, by Behroozi.
+            if self.mf_fit == 'Behroozi':
+                pivot_factor = 0.144 / (1 + np.exp(14.79 * (1 / (1 + self.z)) - 0.213))
+                self.__ngtm = 10 ** (pivot_factor * (self.M / (10 ** 11.5)) ** (0.5 / (1 + np.exp(6.5 * (1 / (1 + self.z))))) + np.log10(self.__ngtm))
+
             return self.__ngtm
 
     @ngtm.deleter
@@ -1361,6 +1382,7 @@ class Perturbations(object):
             vfv[np.logical_or(self.M < 6 * 10 ** 11, self.M > 3 * 10 ** 15)] = np.NaN
 
         return vfv
+
     def _nufnu_user_model(self):
         """
         Calculates vfv based on a user-input model.
@@ -1371,8 +1393,6 @@ class Perturbations(object):
 
 
         return f(self.sigma)
-
-
 
 
 
