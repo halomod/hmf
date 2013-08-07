@@ -89,8 +89,7 @@ class Perturbations(object):
                             12. 'Angulo': Angulo 2012
                             13. 'Angulo_Bound': Angulo sub-halo function 2012
                             14. "Bhattacharya": Bhattacharya empirical fit 2011
-                            15. "Behroozi": Behroozi extension to Tinker for high-z (NOTE: only applies to the cumulative mf 
-                                                                                     - differential will be same as Tinker).
+                            15. "Behroozi": Behroozi extension to Tinker for high-z
                             16. 'user_model': A user-input string function
         
         delta_vir:     The virial overdensity for the halo definition
@@ -910,6 +909,14 @@ class Perturbations(object):
             return self.__dndm
         except:
             self.__dndm = self.fsigma * self.cosmo_params['mean_dens'] * np.abs(self._dlnsdlnm) / self.M ** 2
+            if self.mf_fit == 'Behroozi':
+                a = 1 / (1 + self.z)
+                theta = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (self.M / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)))
+                ngtm_tinker = self._ngtm()
+                ngtm_behroozi = 10 ** (theta + np.log10(ngtm_tinker))
+                dthetadM = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (0.5 / (1 + np.exp(6.5 * a))) * (self.M / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)) - 1) / (10 ** 11.5)
+                self.__dndm = self.__dndm * 10 ** theta - ngtm_behroozi * np.log(10) * dthetadM
+
             return self.__dndm
 
     @dndm.deleter
@@ -963,6 +970,31 @@ class Perturbations(object):
         except:
             pass
 
+    def _ngtm(self):
+        ngtm = np.zeros_like(self.dndlnm)
+
+        # set M and mass_function within computed range
+        M = self.M[np.logical_not(np.isnan(self.dndlnm))]
+        mass_function = np.log(self.dndlnm[np.logical_not(np.isnan(self.dndlnm))])
+
+        # Interpolate the mass_function - this is in log-log space.
+        mf = spline(np.log(M), mass_function, k=1)
+
+        # Define max_M as either 18 or the maximum set by user
+        max_M = np.log(np.max([10 ** 18, M[-1]]))
+
+        for i, m in enumerate(self.M):
+            if np.isnan(m):
+                ngtm[i] = np.nan
+            else:
+                # Set up new grid with 4097 steps from m to M=17
+                M_new, dlnM = np.linspace(np.log(m), max_M, 4097, retstep=True)
+                mf_new = mf(M_new)
+
+                ngtm[i] = intg.romb(np.exp(mf_new), dx=dlnM)
+
+        return ngtm
+
     @property
     def ngtm(self):
         """
@@ -972,33 +1004,33 @@ class Perturbations(object):
             return self.__ngtm
         except:
             # Initialize the function
-            self.__ngtm = np.zeros_like(self.dndlnm)
-
-            # set M and mass_function within computed range
-            M = self.M[np.logical_not(np.isnan(self.dndlnm))]
-            mass_function = np.log(self.dndlnm[np.logical_not(np.isnan(self.dndlnm))])
-
-            # Interpolate the mass_function - this is in log-log space.
-            mf = spline(np.log(M), mass_function, k=1)
-
-            # Define max_M as either 18 or the maximum set by user
-            max_M = np.log(np.max([10 ** 18, M[-1]]))
-
-            for i, m in enumerate(self.M):
-                if np.isnan(m):
-                    self.__ngtm[i] = np.nan
-                else:
-                    # Set up new grid with 4097 steps from m to M=17
-                    M_new, dlnM = np.linspace(np.log(m), max_M, 4097, retstep=True)
-                    mf_new = mf(M_new)
-
-                    self.__ngtm[i] = intg.romb(np.exp(mf_new), dx=dlnM)
-
-            #Here we add a correction for high-z for Tinker, by Behroozi.
-            if self.mf_fit == 'Behroozi':
-                pivot_factor = 0.144 / (1 + np.exp(14.79 * (1 / (1 + self.z)) - 0.213))
-                self.__ngtm = 10 ** (pivot_factor * (self.M / (10 ** 11.5)) ** (0.5 / (1 + np.exp(6.5 * (1 / (1 + self.z))))) + np.log10(self.__ngtm))
-
+#            self.__ngtm = np.zeros_like(self.dndlnm)
+#
+#            # set M and mass_function within computed range
+#            M = self.M[np.logical_not(np.isnan(self.dndlnm))]
+#            mass_function = np.log(self.dndlnm[np.logical_not(np.isnan(self.dndlnm))])
+#
+#            # Interpolate the mass_function - this is in log-log space.
+#            mf = spline(np.log(M), mass_function, k=1)
+#
+#            # Define max_M as either 18 or the maximum set by user
+#            max_M = np.log(np.max([10 ** 18, M[-1]]))
+#
+#            for i, m in enumerate(self.M):
+#                if np.isnan(m):
+#                    self.__ngtm[i] = np.nan
+#                else:
+#                    # Set up new grid with 4097 steps from m to M=17
+#                    M_new, dlnM = np.linspace(np.log(m), max_M, 4097, retstep=True)
+#                    mf_new = mf(M_new)
+#
+#                    self.__ngtm[i] = intg.romb(np.exp(mf_new), dx=dlnM)
+#
+#            #Here we add a correction for high-z for Tinker, by Behroozi.
+#            if self.mf_fit == 'Behroozi':
+#                pivot_factor = 0.144 / (1 + np.exp(14.79 * (1 / (1 + self.z)) - 0.213))
+#                self.__ngtm = 10 ** (pivot_factor * (self.M / (10 ** 11.5)) ** (0.5 / (1 + np.exp(6.5 * (1 / (1 + self.z))))) + np.log10(self.__ngtm))
+            self.__ngtm = self._ngtm()
             return self.__ngtm
 
     @ngtm.deleter

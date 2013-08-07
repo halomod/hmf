@@ -56,7 +56,7 @@ class HOD(Perturbations):
     
     '''
     def __init__(self, M_1=10 ** 13.5, alpha=1.27, M_min=10 ** 12.3,
-                 sigma=None, M_0=0, fca, fcb, fs, delta, x, HOD_model='zehavi',
+                 gauss_width=None, M_0=0, fca=0.5, fcb=0, fs=1, delta=None, x=1, HOD_model='zheng',
                  profile='nfw', cm_relation='duffy', bias_model='tinker',
                  r=np.linspace(1, 200, 200), central=False, ** kwargs):
 
@@ -71,7 +71,7 @@ class HOD(Perturbations):
         self.M_0 = M_0
         self.alpha = alpha
         self.M_min = M_min
-        self.sigma = sigma
+        self.gauss_width = gauss_width
         self.fca = fca
         self.fcb = fcb
         self.fs = fs
@@ -81,7 +81,7 @@ class HOD(Perturbations):
         self.central = central
 
         self.bias_model = bias_model
-        self.profile = profiles(self.cosmo_params['mean_dens'], self.cosmo_params['delta_vir'], profile=profile, cm_relation=cm_relation)
+        self.profile = profiles(self.cosmo_params['mean_dens'], self.delta_vir, profile=profile, cm_relation=cm_relation)
 
     def n_tot(self):
         """
@@ -113,7 +113,7 @@ class HOD(Perturbations):
             self.fca = 0.5
             self.fs = 1
             self.delta = None
-            self.sigma = None
+            self.gauss_width = None
             self.M_0 = 0
 
         if self.HOD_model in ['geach', 'contreras', 'zehavi', 'zheng']:
@@ -124,7 +124,7 @@ class HOD(Perturbations):
             raise ValueError("HOD model not implemented")
 
         if self.central:
-            n_tot = n_c(1 + n_s)
+            n_tot = n_c * (1 + n_s)
         else:
             n_tot = n_c + n_s
 
@@ -136,12 +136,12 @@ class HOD(Perturbations):
         """
         n_c = np.zeros_like(self.M)
 
-        if self.sigma is None:
+        if self.gauss_width is None:
             n_c[self.M > self.M_min] = 1
 
         else:
-            n_c = self.fcb * (1 - self.fca) * np.exp(np.log10(self.M / self.M_min) ** 2 / (2 * (self.x * self.sigma) ** 2)) + \
-                  self.fca * (1 + sp.erf(np.log10(self.M / self.M_min) / (self.x * self.sigma)))
+            n_c = self.fcb * (1 - self.fca) * np.exp(np.log10(self.M / self.M_min) ** 2 / (2 * (self.x * self.gauss_width) ** 2)) + \
+                  self.fca * (1 + sp.erf(np.log10(self.M / self.M_min) / (self.x * self.gauss_width)))
 
         return n_c
 
@@ -198,10 +198,10 @@ class HOD(Perturbations):
 
         for i, lnk in enumerate(self.lnk):
             if self.central:
-                integrand = n_c * (2 * self.n_s * self.profile.u(np.exp(lnk), m, self.z) + \
+                integrand = n_c * (2 * n_s * self.profile.u(np.exp(lnk), m, self.z) + \
                                    (n_s * self.profile.u(np.exp(lnk), m, self.z)) ** 2) * dndm
             else:
-                integrand = (n_c * 2 * self.n_s * self.profile.u(np.exp(lnk), m, self.z) + \
+                integrand = (n_c * 2 * n_s * self.profile.u(np.exp(lnk), m, self.z) + \
                              (n_s * self.profile.u(np.exp(lnk), m, self.z)) ** 2) * dndm
 
             integ = spline(np.log10(m), integrand, k=1)
@@ -222,10 +222,10 @@ class HOD(Perturbations):
         dndm = self.dndm[np.logical_not(np.isnan(self.dndm))]
         M_new, dlogM = np.linspace(8, 18, 4097, retstep=True)
         n_tot = self.n_tot()[np.logical_not(np.isnan(self.dndm))]
-        bias = self.bias()[np.logical_not(np.isnan(self.dndm))]
+        bias = self.bias_large_scale()[np.logical_not(np.isnan(self.dndm))]
 
         for i, lnk in enumerate(self.lnk):
-            integrand = n_tot * bias * dndm * self.profile.u * (np.exp(lnk), m, self.z)
+            integrand = n_tot * bias * dndm * self.profile.u(np.exp(lnk), m, self.z)
             integ = spline(np.log10(m), integrand, k=1)
             integrand = integ(M_new)
 
