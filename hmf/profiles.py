@@ -1,7 +1,7 @@
 """
 A few halo density profiles and their normalised  fourier-transform pairs, along with concentration-mass relations.
 
-Each density profile is a function of r,m,z. each fourier pair is afunction of k,m,z and each mass relation is a function of mass, and outputs r_s as well if you want it to.
+Each density profile is a function of r,m,z. each fourier pair is a function of k,m,z and each mass relation is a function of mass, and outputs r_s as well if you want it to.
 """
 import numpy as np
 import scipy.special as sp
@@ -41,10 +41,10 @@ class profiles(object):
         asi, ac = sp.sici((1 + c) * K)
         bs, bc = sp.sici(K)
 
-        return (np.sin(K) * (asi - bs) - np.sin(K) / ((1 + c) * K) + np.cos(K) * (ac - bc)) / (np.log(1 + c) - c / (1 + c))
+        return (np.sin(K) * (asi - bs) - np.sin(c * K) / ((1 + c) * K) + np.cos(K) * (ac - bc)) / (np.log(1 + c) - c / (1 + c))
 
     def cm_duffy(self, m, z, get_rs=True):
-        c = 6.71 * (m / (2 * 10 ** 12)) ** -0.091 * (1 + z) ** -0.44
+        c = 6.71 * (m / (2.0 * 10 ** 12)) ** -0.091 * (1 + z) ** -0.44
 
         rvir = self.mvir_to_rvir(m)
 

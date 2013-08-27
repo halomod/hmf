@@ -4,7 +4,7 @@ methods that act upon a transfer function to gain functions such as the
 mass function.
 '''
 
-version = '1.1.2'
+version = '1.1.4'
 
 ###############################################################################
 # Some Imports
@@ -153,6 +153,8 @@ class Perturbations(object):
                        w_perturb      :: False
                        DoLensing       :: False 
                        ThreadNum       :: 0 
+                       transfer__k_per_logint :: 0
+                       transfer__kmax :: 2
                                 
 
     """
@@ -189,8 +191,6 @@ class Perturbations(object):
                             "n":0.967,
                             "delta_c":1.686,
                             "crit_dens":27.755 * 10 ** 10
-#                            "mean_dens": (0.0455 + 0.226) * 27.755 * 10 ** 10,
-#                            "omegam":(0.0455 + 0.226)
                             }
 
         self._transfer_options = {'Num_Nu_massive'  : 0,
@@ -209,7 +209,9 @@ class Perturbations(object):
                                  'reion__reionization' : True,
                                  'reion__use_optical_depth' : True,
                                  'w_perturb'      : False,
-                                 'DoLensing'       : False }
+                                 'DoLensing'       : False,
+                                 'transfer__k_per_logint': 0,
+                                 'transfer__kmax':2}
 
 
         #A dictionary of available HMF fitting functions and their identifiers

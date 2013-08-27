@@ -6,6 +6,7 @@ Created on Aug 5, 2013
 '''
 A class containing the methods to do HOD modelling
 '''
+#TODO: figure out what to do when M<M_0 -- is it just 0?? I'd say so...
 ###############################################################################
 # Some Imports
 ###############################################################################
@@ -149,7 +150,9 @@ class HOD(Perturbations):
     def _n_sat(self):
 
         if self.delta is None:
-            n_s = ((self.M - self.M_0) / self.M_1) ** self.alpha
+            upper = self.M - self.M_1
+            upper[upper < 0] = 0.0
+            n_s = (upper / self.M_1) ** self.alpha
         else:
             n_s = self.fs * (1 + sp.erf(np.log10(self.M / self.M_1) / self.delta)) * (self.M / self.M_1) ** self.alpha
 
@@ -159,19 +162,32 @@ class HOD(Perturbations):
         """
         Gets the mean number density of galaxies
         """
+        #Integrand is just the density of galaxies at mass M
         integrand = self.dndm * self.n_tot()
+
+        #We must restrict the range of the vectors, because depending on the mf_fit, some values will be NaN
+        M = self.M[np.logical_not(np.isnan(self.dndm))]
+        integrand = integrand[np.logical_not(np.isnan(self.dndm))]
+
+        #We again restrict the range to non-zero values to make integration easier.
+        M = M[integrand > 0]
+        step_cut = len(M) < len(integrand)
+        integrand = np.log(integrand[integrand > 0])
+
+        if step_cut:
+            m_min = np.log10(M[0])
+        else:
+            m_min = -10
 
         #Now take the spline of the integrand and extrapolate to simulate integration
         # from 0 to infinity
-        M = self.M[np.logical_not(np.isnan(self.dndm))]
-        integrand = np.log(integrand[np.logical_not(np.isnan(self.dndm))])
-
         integ = spline(np.log10(M), integrand, k=1)
 
-        M_new, dlogM = np.linspace(8, 18, 4097, retstep=True)
-        integrand = integ(M_new)
+        #M_new, dlogM = np.linspace(8, 18, 4097, retstep=True)
+        #integrand = integ(M_new)
 
-        return intg.romb(np.exp(integrand) * 10 ** M_new, dx=dlogM)
+        #return intg.romb(np.exp(integrand) * 10 ** M_new, dx=dlogM)
+        return intg.quad(lambda m: np.exp(integ(m)) * 10 ** m, m_min, 20)[0]
 
 
     def galaxy_power(self):
@@ -194,23 +210,54 @@ class HOD(Perturbations):
         dndm = self.dndm[np.logical_not(np.isnan(self.dndm))]
         n_c = self._n_cen()[np.logical_not(np.isnan(self.dndm))]
         n_s = self._n_sat()[np.logical_not(np.isnan(self.dndm))]
-        M_new, dlogM = np.linspace(8, 18, 4097, retstep=True)
 
+        #To make things "simpler", we do a further restriction above 0
+        #n_s could be 0 for a range of M for some HOD models (eg. if there is an M_0)
+        m = m[n_s > 0]
+        dndm = dndm[n_s > 0]
+        n_c = n_c[n_s > 0]
+        step_cut = len(m) < len(n_s)  #bool to tell whether we've cut
+        n_s = n_s[n_s > 0]
+
+        #Also, n_c could be 0, and if we REQUIRE a central, then the integrand will be 0 also
+        if self.central:
+            m = m[n_c > 0]
+            dndm = dndm[n_c > 0]
+            n_s = n_s[n_c > 0]
+            step_cut = step_cut or len(m) < len(n_c)  #bool to tell whether its cut
+            n_c = n_c[n_c > 0]
+
+        #Now we find the lower value of our integration. Generally we just set it to 0 (or -infinity in log space)
+        #However, if the integrand is 0 below a certain value of M, then we use that value rather.
+        if step_cut:
+            m_min = np.log(m[0])
+        else:
+            m_min = -10
+
+        #Step through all values of wavenumber (k), to calculate the integrand for each (integrate over M)
         for i, lnk in enumerate(self.lnk):
+            prof = self.profile.u(np.exp(lnk), m, self.z)
             if self.central:
-                integrand = n_c * (2 * n_s * self.profile.u(np.exp(lnk), m, self.z) + \
-                                   (n_s * self.profile.u(np.exp(lnk), m, self.z)) ** 2) * dndm
+                integrand = n_c * (2 * n_s * prof + (n_s * prof) ** 2) * dndm
             else:
-                integrand = (n_c * 2 * n_s * self.profile.u(np.exp(lnk), m, self.z) + \
-                             (n_s * self.profile.u(np.exp(lnk), m, self.z)) ** 2) * dndm
-
-            integ = spline(np.log10(m), integrand, k=1)
+                integrand = (n_c * 2 * n_s * prof + (n_s * prof) ** 2) * dndm
 
 
-            integrand = integ(M_new)
-            pg1h[i] = intg.romb(integrand * 10 ** M_new, dx=dlogM)
+            integ = spline(np.log(m), np.log(integrand), k=1)
+            if i == 0:
+                self.m_test = m
+                self.n_c_test = n_c
+                self.n_s_test = n_s
+                self.prof_test = prof
+                self.integrand = lambda p: np.exp(integ(p) + p)
 
-        return pg1h / self.mean_gal_den() ** 2
+
+#            integrand = integ(M_new)
+            pg1h[i] = intg.quad(lambda p: np.exp(integ(p) + p) , m_min, 60)[0]
+#            pg1h[i] = intg.romb(integrand * 10 ** M_new, dx=dlogM)
+
+        mean_den = self.mean_gal_den()
+        return pg1h / mean_den ** 2
 
     def _power_2h(self):
         """
@@ -220,16 +267,35 @@ class HOD(Perturbations):
 
         m = self.M[np.logical_not(np.isnan(self.dndm))]
         dndm = self.dndm[np.logical_not(np.isnan(self.dndm))]
-        M_new, dlogM = np.linspace(8, 18, 4097, retstep=True)
+        #M_new, dlogM = np.linspace(8, 18, 4097, retstep=True)
         n_tot = self.n_tot()[np.logical_not(np.isnan(self.dndm))]
         bias = self.bias_large_scale()[np.logical_not(np.isnan(self.dndm))]
 
+        #To make things "simpler", we do a further restriction above 0
+        #n_tot could be 0 for a range of M for some HOD models (eg. if there is an M_0)
+        m = m[n_tot > 0]
+        dndm = dndm[n_tot > 0]
+        bias = bias[n_tot > 0]
+        step_cut = len(m) < len(n_tot)
+        n_tot = n_tot[n_tot > 0]
+
+        if step_cut:
+            m_min = np.log(m[0])
+        else:
+            m_min = -10
+        print "m_min: ", m_min
+
         for i, lnk in enumerate(self.lnk):
             integrand = n_tot * bias * dndm * self.profile.u(np.exp(lnk), m, self.z)
-            integ = spline(np.log10(m), integrand, k=1)
-            integrand = integ(M_new)
+            integ = spline(np.log(m), np.log(integrand), k=2)
+            #integrand = integ(M_new)
+            if i == 0:
+                self.p2_integ = integ
+                self.p2_integ_vec = integrand
+                self.p2_m = m
+            #pg2h[i] = intg.romb(integrand * 10 ** M_new, dx=dlogM)
 
-            pg2h[i] = intg.romb(integrand * 10 ** M_new, dx=dlogM)
+            pg2h[i] = intg.quad(lambda p: np.exp(integ(p) + p), m_min, 60)[0]
 
         return pg2h ** 2 / self.mean_gal_den() ** 2
 
