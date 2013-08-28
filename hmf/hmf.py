@@ -972,12 +972,38 @@ class Perturbations(object):
         except:
             pass
 
+#    def _upper_ngtm(self, M, mass_function, cut):
+#        ### WE CALCULATE THE MASS FUNCTION ABOVE THE COMPUTED RANGE ###
+#        # mass_function is logged already (not log10 though)
+#        m_upper = np.linspace(np.log(M[-1]), np.log(10 ** 18), 500)
+#        if cut:  #since its been cut, the best we can do is a power law
+#            mf_func = spline(np.log(M), mass_function)
+#            mf = mf_func(m_upper)
+#        else:
+#            #We try to calculate the hmf as far as we can normally
+#            dlnsdlnm = tools.dlnsdlnm(np.exp(m_upper), self._sigma_0, self._power_0, self.lnk, self.cosmo_params['mean_dens'])
+#            nufnu = self.mf_fits[self.mf_fit]
+#            cut_fit = self.cut_fit  #save value to put back later
+#            self.cut_fit = True  #Make sure we cut where appropriate
+#            fsigma = nufnu()
+#            dndm = fsigma * self.cosmo_params['mean_dens'] * np.abs(dlnsdlnm) / m_upper ** 2
+#            mf = m_upper * dndm
+#
+#            if np.isnan(mf[-1]):  #Then we couldn't get up all the way, so have to do linear ext.
+#                mfslice = mf[np.logical_not(np.isnan(dndlnm))]
+#                m_nan = m_upper[np.isnan(dndlnm)]
+#                m_true = m_upper[:-length(m_nan)]
+#                mf_func = spline(m_true, mfslice)
+#                mf[length(mfslice):] = mf_func(m_nan)
+#        return m_upper, mf
+
     def _ngtm(self):
         ngtm = np.zeros_like(self.dndlnm)
 
         # set M and mass_function within computed range
         M = self.M[np.logical_not(np.isnan(self.dndlnm))]
         mass_function = np.log(self.dndlnm[np.logical_not(np.isnan(self.dndlnm))])
+
 
         # Interpolate the mass_function - this is in log-log space.
         mf = spline(np.log(M), mass_function, k=1)
@@ -1055,7 +1081,7 @@ class Perturbations(object):
 
             # set M and mass_function within computed range
             M = self.M[np.logical_not(np.isnan(self.dndlnm))]
-            mass_function = np.log(self.dndlnm[np.logical_not(np.isnan(self.dndlnm))])
+            mass_function = np.log(M * self.dndlnm[np.logical_not(np.isnan(self.dndlnm))])
 
             # Interpolate the mass_function - this is in log-log space.
             mf = spline(np.log(M), mass_function, k=1)
@@ -1067,13 +1093,27 @@ class Perturbations(object):
                 if np.isnan(m):
                     self.__mgtm[i] = np.nan
                 else:
-                    # Set up new grid with 4097 steps from m to M=17
-                    M_new, dlnM = np.linspace(np.log10(m), max_M, 4097, retstep=True)
+                    # Set up new grid with 4097 steps from m to M=18
+                    M_new, dlnM = np.linspace(np.log(m), max_M, 4097, retstep=True)
                     mf_new = mf(M_new)
                     self.__mgtm[i] = intg.romb(np.exp(mf_new), dx=dlnM)
 
             return self.__mgtm
 
+#            self.__mgtm = np.zeros_like(self.dndlnm)
+#
+#            M = self.M[np.logical_not(np.isnan(self.dndlnm))]
+#            mass_function = self.dndlog10m[np.logical_not(np.isnan(self.dndlnm))]  # rather than dndlnm
+#
+#            for i, m in enumerate(M):
+#                if np.isnan(m):
+#                        self.__mgtm[i] = np.nan
+#                else:
+#                    integ = M[i:] * mass_function[i:]
+#                    self.__mgtm[i] = np.log(10) * intg.simps(integ, x=np.log10(M[i:]), even='first')
+#                    # integrate in m-space rather than lnm-space
+#
+#            return self.__mgtm
     @mgtm.deleter
     def mgtm(self):
         try:

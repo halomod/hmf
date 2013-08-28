@@ -182,7 +182,11 @@ def mass_variance(M, power, lnk, mean_dens):
     rest = np.exp(power + 3 * lnk)
     for i, m in enumerate(M):
         integ = rest * top_hat_window(m, lnk, mean_dens)
-        sigma[i] = (0.5 / np.pi ** 2) * intg.romb(integ, dx=dlnk)
+#        sum = 0
+#        for k in integ:
+#            sum += k * dlnk
+#            print sum
+        sigma[i] = (0.5 / np.pi ** 2) * intg.trapz(integ, dx=dlnk)
 
     return np.sqrt(sigma)
 
