@@ -24,12 +24,57 @@ import numpy as np
 import scipy.integrate as intg
 import pycamb
 import collections
+import cosmolopy.perturbation as pert
 
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 
 ###############################################################################
 # The function definitions
 ###############################################################################
+def get_transfer(transfer_file, camb_dict, transfer_fit, k_bounds=None):
+    """
+    A convenience function used to fully setup the workspace in the 'usual' way
+    
+    We use either CAMB or the EH approximation to get the transfer function.
+    The transfer function is in terms of the wavenumber IN UNITS OF h/Mpc!!
+    """
+    #If no transfer file uploaded, but it was custom, execute CAMB
+    if transfer_file is None:
+        if transfer_fit == "CAMB":
+            k, T, sig8 = pycamb.transfers(**camb_dict)
+            T = np.log(T[[0, 1], :, 0])
+
+            del sig8, k
+        elif transfer_fit == "EH":
+            k = np.exp(np.linspace(np.log(k_bounds[0]), np.log(k_bounds[1]), 4097))
+            #Since the function natively calculates the transfer based on k in Mpc^-1,
+            # we need to multiply by h.
+            t, T = pert.transfer_function_EH(k * camb_dict['H0'] / 100,
+                                             omega_M_0=(camb_dict['omegac'] + camb_dict['omegab']), omega_lambda_0=camb_dict['omegav'],
+                                             h=camb_dict["H0"] / 100, omega_b_0=camb_dict['omegab'], omega_n_0=camb_dict['omegan'],
+                                             N_nu=camb_dict['Num_Nu_massive'])
+            T = np.vstack((np.log(k), np.log(T)))
+            del t
+    else:
+        #Import the transfer file wherever it is.
+        T = read_transfer(transfer_file)
+
+    return T
+
+def read_transfer(transfer_file):
+    """
+    Imports the Transfer Function file to be analysed, and returns the pair ln(k), ln(T)
+    
+    Input: "transfer_file": full path to the file containing the transfer function (from camb).
+    
+    Output: ln(k), ln(T)
+    """
+
+    transfer = np.loadtxt(transfer_file)
+    T = np.log(transfer[:, [0, 6]]).T
+
+    return T
+
 def check_kr(min_m, max_m, mean_dens, mink, maxk):
 
     #Define mass from radius function
@@ -65,44 +110,6 @@ If it is not, then the mass variance could be inaccurate.
         error2 = None
 
     return error1, error2
-
-def read_transfer(transfer_file):
-    """
-    Imports the Transfer Function file to be analysed, and returns the pair ln(k), ln(T)
-    
-    Input: "transfer_file": full path to the file containing the transfer function (from camb).
-    
-    Output: ln(k), ln(T)
-    """
-
-    transfer = np.loadtxt(transfer_file)
-    k = transfer[:, 0]
-    T = transfer[:, 1]
-
-    k = np.log(k)
-    T = np.log(T)
-
-
-    return k, T
-
-
-def get_transfer(transfer_file, camb_dict):
-    """
-    A convenience function used to fully setup the workspace in the 'usual' way
-    """
-    #If no transfer file uploaded, but it was custom, execute CAMB
-    if transfer_file is None:
-        k, T, sig8 = pycamb.transfers(**camb_dict)
-        T = np.log(T[1, :, 0])
-        k = np.log(k)
-        del sig8
-
-    else:
-        #Import the transfer file wherever it is.
-        k, T = read_transfer(transfer_file)
-
-    return k, T
-
 
 def interpolate_transfer(k, transfer, tol=0.01):
     """
@@ -175,7 +182,11 @@ def mass_variance(M, power, lnk, mean_dens):
     rest = np.exp(power + 3 * lnk)
     for i, m in enumerate(M):
         integ = rest * top_hat_window(m, lnk, mean_dens)
-        sigma[i] = (0.5 / np.pi ** 2) * intg.romb(integ, dx=dlnk)
+#        sum = 0
+#        for k in integ:
+#            sum += k * dlnk
+#            print sum
+        sigma[i] = (0.5 / np.pi ** 2) * intg.trapz(integ, dx=dlnk)
 
     return np.sqrt(sigma)
 
@@ -200,7 +211,11 @@ def mass_to_radius(M, mean_dens):
     """
     return (3.*M / (4.*np.pi * mean_dens)) ** (1. / 3.)
 
-
+def radius_to_mass(R, mean_dens):
+    """
+    Calculates mass from radius given mean density
+    """
+    return 4 * np.pi * R ** 3 * mean_dens / 3
 def wdm_transfer(m_x, power_cdm, lnk, H0, omegac):
     """
     Tansforms the CDM Power Spectrum into a WDM power spectrum for a given warm particle mass m_x.
@@ -253,14 +268,46 @@ def new_k_grid(k, k_bounds=None):
     """
 
     # Determine the true k_bounds.
-    if k_bounds is not None:
-        min_k = np.log(k_bounds[0])
-        max_k = np.log(k_bounds[1])
-    else:
-        min_k = np.min(k)
-        max_k = np.max(k)
+    min_k = np.log(k_bounds[0])
+    max_k = np.log(k_bounds[1])
 
     # Setup the grid and fetch the grid-spacing as well
     k, dlnk = np.linspace(min_k, max_k, 4097, retstep=True)
 
     return k, dlnk
+
+def power_to_corr(lnP, lnk, R):
+    """
+    Calculates the correlation function given a power spectrum
+    
+    NOTE: no check is done to make sure k spans [0,Infinity] - make sure of this before you enter the arguments.
+    
+    INPUT
+        lnP: vector of values for the log power spectrum
+        lnk: vector of values (same length as lnP) giving the log wavenumbers for the power (EQUALLY SPACED)
+        r:   radi(us)(i) at which to calculate the correlation
+    """
+    import matplotlib.pyplot as plt
+    k = np.exp(lnk)
+    P = np.exp(lnP)
+
+    if not isinstance(R, collections.Iterable):
+        R = [R]
+
+    corr = np.zeros_like(R)
+
+    #We must do better than using just 4097 logarithmic bins for k, since
+    #we are integrating over a fast-oscillating function if r is big.
+    integrand_part = spline(lnk, P * k ** 2, k=1)
+    def integ(r, lnk):
+        return integrand_part(lnk) * np.sin(np.exp(lnk) * r) / r
+
+    for i, r in enumerate(R):
+        plt.plot(np.exp(lnk), integ(r, lnk))
+        plt.xscale('log')
+        plt.savefig("/Users/Steven/Documents/dm_corr_plots/" + str(r) + ".png")
+        plt.clf()
+        corr[i] = (0.5 / np.pi ** 2) * intg.quad(lambda k: integ(r, k), -10, 10, epsabs=0, epsrel=10 ** -2, limit=2000)[0]
+
+    return corr
+

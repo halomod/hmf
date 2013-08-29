@@ -4,7 +4,7 @@ methods that act upon a transfer function to gain functions such as the
 mass function.
 '''
 
-version = '1.1.0'
+version = '1.1.4'
 
 ###############################################################################
 # Some Imports
@@ -32,11 +32,31 @@ class Perturbations(object):
     methods of the class need no further input after the cosmology has been initialized.
     
     Contains an update() method which can be passed arguments to update, in the most optimal manner.
+    All output quantities are called as properties of the class, and are calculated at need (but
+    stored after first calculation for quick access).
     
-    Required Input:
-        M: a float or vector of floats containing the log10(Solar Masses) at which to perform analysis.
+    Output Quantities:
+        sigma:         The mass variance of spheres of the given radius/mass. NOTE: not sigma^2
+        lnsigma:       The natural logarithm of the inverse of sigma
+        lnk:           The natural log of the wavenumbers in the power spectrum [h/Mpc]
+        growth:        The growth factor for the given cosmology and redshift
+        power:         The natural log of the normalised power spectrum for the given cosmology (at lnk)
+        n_eff:         Effective spectral index at the radius of a halo
+        M:             The masses at which analysis is performed. (not log) [M/h]
+        fsigma:        The multiplicity function, or fitting function at M
+        dndm:          The comoving number density of halos in mass interval M [h**3/Mpc**3]
+        dndlnm:        The comoving number density of halos in log mass interval M [h**3/Mpc**3]
+        dndlog10m:     The comoving number density of halo in log10 mass interval M [h**3/Mpc**3]
+        ngtm:          Comoving number density of halos > M [h**3/Mpc**3]
+        nltm:          Comoving number density of halos < M [h**3/Mpc**3]
+        mgtm:          Comoving mass density of halos > M [h**3/Mpc**3]
+        mltm:          Comoving mass density of halos < M [h**3/Mpc**3]
+        how_big:       The requisite size of a simulation box, L, to have at least one halo > M [Mpc/h]
         
-    Optional Input:
+    Input:
+        M:             A vector of floats containing the log10(Solar Masses) at which to perform analysis.    
+                       Default: M = np.linspace(10,15,501)
+                       
         transfer_file: Either a string pointing to a file with a CAMB-produced transfer function,
                        or None. If None, will use CAMB on the fly to produce the function.
                        Default is None.
@@ -44,16 +64,51 @@ class Perturbations(object):
         z:             a float giving the redshift of the analysis.
                        Default z = 0.0
                    
-        WDM:           a float giving warm dark matter particle size in keV. 
-                       Default is None (corresponds to CDM)
+        wdm_mass:      a float giving warm dark matter particle size in keV, or None for CDM. 
+                       Default is wdm_mass = None
                                                        
         k_bounds:      a list/tuple defining two values: the lower and upper limit of k. Used to truncate/extend
                        the power spectrum. 
-                       Default [0.0000001,20000.0]
-   
-        extrapolate:   Whether to use the k_bounds for extrapolation/truncation
-                       Default: True
+                       Default k_bounds = [0.0000001,20000.0]
                      
+        mf_fit:        A string indicating which fitting function to use for f(sigma)
+                       Default: mf_fit = 'ST'
+                       
+                       Options:                               
+                            1. 'PS': Press-Schechter Approach
+                            2. 'ST': Sheth-Tormen
+                            3. 'Jenkins': Jenkins empirical fit
+                            4. 'Warren': Warren empirical fit
+                            5. 'Reed03': Reed empirical from 2003
+                            6. 'Reed07': Reed empirical from 2007
+                            7. 'Tinker': Tinker empirical from 2008
+                            8. 'Watson': Watson empirical 2012
+                            9. 'Watson_FoF': Watson Friend-of-friend fit 2012
+                            10. 'Crocce': Crocce 2010
+                            11. 'Courtin': Courtin 2011
+                            12. 'Angulo': Angulo 2012
+                            13. 'Angulo_Bound': Angulo sub-halo function 2012
+                            14. "Bhattacharya": Bhattacharya empirical fit 2011
+                            15. "Behroozi": Behroozi extension to Tinker for high-z
+                            16. 'user_model': A user-input string function
+        
+        delta_vir:     The virial overdensity for the halo definition
+                       Default: delta_vir = 200.0
+                       
+        user_fit:      A string defining a mathematical function in terms of 'x', used as the fitting function,
+                       where x is taken as sigma. Will only be applicable if mf_fit == "user_model".
+                       Default: user_fit = ""
+                       
+        transfer_fit:  A string defining which transfer function fit to use. Current options are 'CAMB' and 'EH' (Eistenstein-Hu)
+                       Default: transfer_fit = "CAMB"
+                       
+        cut_fit:       Whether to forcibly cut the f(sigma) at bounds given by respective papers.
+                       If False, will use function to calculate all values specified in M (may give ridiculous results)
+                       Default: True
+                       
+        R:             The distances at which the dark matter correlation function is calculated in Mpc/h
+                       Default: np.linspace(1, 200, 200)
+                       
         **kwargs:      There is a placeholder for any additional cosmological parameters, or camb
                        parameters, that one wishes to include. Parameters that aren't used won't
                        break the program, they will just be ignored. Here follows a list of parameters
@@ -98,31 +153,20 @@ class Perturbations(object):
                        w_perturb      :: False
                        DoLensing       :: False 
                        ThreadNum       :: 0 
+                       transfer__k_per_logint :: 0
+                       transfer__kmax :: 2
                                 
-                                
-                        1. 'PS': Press-Schechter Approach
-                        2. 'ST': Sheth-Tormen
-                        3. 'Jenkins': Jenkins empirical fit
-                        4. 'Warren': Warren empirical fit
-                        5. 'Reed03': Reed empirical from 2003
-                        6. 'Reed07': Reed empirical from 2007
-                        7. 'Tinker': Tinker empirical from 2008
-                        8. 'Watson': Watson empirical 2012
-                        9. 'Watson_FoF': Watson Friend-of-friend fit 2012
-                        10. 'Crocce': Crocce 2010
-                        11. 'Courtin': Courtin 2011
-                        12. 'Angulo': Angulo 2012
-                        13. 'Angulo_Bound': Angulo sub-halo function 2012
-                        14. 'user_model': A user-input string function
+
     """
 
 
-    def __init__(self, M,
+    def __init__(self, M=np.linspace(10, 15, 501),
                  mf_fit="ST",
                  transfer_file=None,
                  z=0.0,
                  wdm_mass=None, k_bounds=[0.0000001, 20000.0],
-                 delta_vir=200.0, user_fit='', **kwargs):
+                 delta_vir=200.0, user_fit='', transfer_fit='CAMB',
+                 cut_fit=True, ** kwargs):
         """
         Initializes the cosmology for which to perform the perturbation analysis.      
         """
@@ -147,8 +191,6 @@ class Perturbations(object):
                             "n":0.967,
                             "delta_c":1.686,
                             "crit_dens":27.755 * 10 ** 10
-#                            "mean_dens": (0.0455 + 0.226) * 27.755 * 10 ** 10,
-#                            "omegam":(0.0455 + 0.226)
                             }
 
         self._transfer_options = {'Num_Nu_massive'  : 0,
@@ -167,14 +209,10 @@ class Perturbations(object):
                                  'reion__reionization' : True,
                                  'reion__use_optical_depth' : True,
                                  'w_perturb'      : False,
-                                 'DoLensing'       : False }
+                                 'DoLensing'       : False,
+                                 'transfer__k_per_logint': 0,
+                                 'transfer__kmax':2}
 
-#        self.run_params = {'M':M,
-#                           'transfer_file':transfer_file,
-#                           'z':z,
-#                           'wdm_mass':wdm_mass,
-#                           'k_bounds':k_bounds
-#                           }
 
         #A dictionary of available HMF fitting functions and their identifiers
         self.mf_fits = {
@@ -192,52 +230,12 @@ class Perturbations(object):
             "Crocce":self._nufnu_Crocce,
             "Courtin":self._nufnu_Courtin,
             "Bhattacharya": self._nufnu_Bhattacharya,
+            "Behroozi": self._nufnu_Tinker,
             "user_model":self._nufnu_user_model
             }
-#        #Cosmo parameters for CAMB
-#        self.__w_lam = -1
-#        self.__omegab = 0.0455
-#        self.__omegac = 0.226
-#        self.__omegav = 0.728
-#        self.__omegan = 0.0
-#        self.__H0 = 70.4
-#        self.__cs2_lam = 0
-#        self.__TCMB = 2.725
-#        self.__yhe = 0.24
-#        self.__Num_Nu_massless = 3.04
-#        self.__reion__optical_depth = 0.085
-#        self.__reion__redshift = 10.3
-#        self.__omegak = 1 - self.__omegab - self.__omegav - self.__omegac - self.__omegan
-#
-#        #Other cosmological parameters
-#        self.__sigma_8 = 0.81
-#        self.__n = 0.967
-#        self.__delta_c = 1.686
-#        self.__crit_dens = 27.755 * 10 ** 10
-#        self.__mean_dens = (self.__omegac + self.__omegab) * 27.755 * 10 ** 10
-#
-#        #CAMB options
-#        self.__Num_Nu_massive = 0
-#        self.__reion__fraction = -1
-#        self.__reion__delta_redshift = 1.5
-#        self.__Scalar_initial_condition = 1
-#        self.__scalar_amp = 1
-#        self.__scalar_running = 0
-#        self.__tensor_index = 0
-#        self.__tensor_ratio = 1
-#        self.__lAccuracyBoost = 1
-#        self.__lSampleBoost = 1
-#        self.__AccuracyBoost = 1
-#        self.__WantScalars = True
-#        self.__WantTensors = False
-#        self.__reion__reionization = True
-#        self.__reion__use_optical_depth = True
-#        self.__w_perturb = False
-#        self.__DoLensing = False
 
-        # "Run" parameters
         self.update(M=M, mf_fit=mf_fit, k_bounds=k_bounds, transfer_file=transfer_file, wdm_mass=wdm_mass,
-                     delta_vir=delta_vir, user_fit=user_fit, z=z, ** kwargs)
+                     delta_vir=delta_vir, user_fit=user_fit, z=z, transfer_fit=transfer_fit, cut_fit=cut_fit, ** kwargs)
 
     def update(self, **kwargs):
         """
@@ -299,7 +297,12 @@ class Perturbations(object):
                 self.delta_vir = kwargs['delta_vir']
             elif key is "user_fit":
                 self.user_fit = kwargs['user_fit']
-
+            elif key is "transfer_fit":
+                self.transfer_fit = kwargs['transfer_fit']
+            elif key is "cut_fit":
+                self.cut_fit = kwargs['cut_fit']
+            elif key is "R":
+                self.R = kwargs['R']
 
             else:
                 print "WARNING: ", key, " is not a valid parameter for the Perturbations class"
@@ -311,9 +314,6 @@ class Perturbations(object):
             if kwargs['z'] == 0:
                 del self.growth
 
-    @property
-    def dlogM(self):
-        return self.M[1] - self.M[0]
 
     @property
     def cosmo_params(self):
@@ -432,9 +432,6 @@ class Perturbations(object):
 
     @k_bounds.setter
     def k_bounds(self, val):
-        if val is None:
-            self.__k_bounds = val
-            return
         try:
             if len(val) != 2:
                 raise ValueError("k_bounds must be a sequence of length 2 (lower, upper)")
@@ -446,6 +443,12 @@ class Perturbations(object):
 
         #We delete stuff directly dependent on it
         del self.lnk
+        #Wrap the following in a try: except: because self.transfer_fit may not be set yet (at instantiation)
+        try:
+            if self.transfer_fit == "EH":
+                del self._transfer_original
+        except:
+            pass
 
 
         self.__k_bounds = val
@@ -534,10 +537,10 @@ class Perturbations(object):
         try:
             open(val)
         except IOError:
-            raise IOError("The file ", val, " does not exist or cannot be opened")
+            raise IOError("The file " + val + " does not exist or cannot be opened")
 
         #Here we delete properties that are directly dependent on transfer_file
-        del self._lnk_original
+        del self._transfer_original
 
         self.__transfer_file = val
 
@@ -555,20 +558,57 @@ class Perturbations(object):
         del self.fsigma
 
     @property
-    def _lnk_original(self):
+    def transfer_fit(self):
+        """
+        A string specifying a method with which to calculate the transfer function.
+        
+        Currenty implemented are 'CAMB' (Code for anisotropies in the Microwave Background) and 'EH' (Eisenstein-Hu fit)
+        """
+        return self.__transfer_fit
+
+    @transfer_fit.setter
+    def transfer_fit(self, val):
+        if val not in ["CAMB", "EH"]:
+            raise ValueError("Sorry the transfer_fit has not been implemented for " + val + ". Please choose 'CAMB' or 'EH'")
+
+        del self._transfer_original
+        self.__transfer_fit = val
+
+    @property
+    def cut_fit(self):
+        return self.__cut_fit
+
+    @cut_fit.setter
+    def cut_fit(self, val):
+        if not isinstance(val, bool):
+            raise ValueError("cut_fit must be a bool, " + str(val))
+
+        del self.fsigma
+        self.__cut_fit = val
+
+
+
+    #--------------------------------  START NON-SET PROPERTIES ----------------------------------------------
+    @property
+    def dlogM(self):
+        return self.M[1] - self.M[0]
+
+    @property
+    def _transfer_original(self):
         """
         Original values of lnk from the call to the transfer function
         """
         try:
-            return self.__lnk_original
+            return self.__transfer_original
         except:
-            self.__lnk_original, self.__transfer_original = tools.get_transfer(self._transfer_file, self.camb_params)
-            return self.__lnk_original
+            self.__transfer_original = tools.get_transfer(self._transfer_file, self.camb_params,
+                                                          self.transfer_fit, self.k_bounds)
+            return self.__transfer_original
 
-    @_lnk_original.deleter
-    def _lnk_original(self):
+    @_transfer_original.deleter
+    def _transfer_original(self):
         try:
-            del self.__lnk_original
+            del self.__transfer_original
             del self._transfer_function_callable
         except:
             pass
@@ -581,8 +621,8 @@ class Perturbations(object):
         try:
             return self.__transfer_function_callable
         except:
-            lnk_orig = self._lnk_original
-            self.__transfer_function_callable = tools.interpolate_transfer(lnk_orig, self.__transfer_original)
+            self.__transfer_function_callable = tools.interpolate_transfer(self._transfer_original[0, :],
+                                                                           self._transfer_original[1, :])
             return self.__transfer_function_callable
 
     @_transfer_function_callable.deleter
@@ -592,7 +632,6 @@ class Perturbations(object):
 
             #Also delete things directly dependent on it (or other self variables defined in it)
             del self.lnk
-            del self._transfer_function_callable
         except:
             pass
 
@@ -604,7 +643,11 @@ class Perturbations(object):
         try:
             return self.__lnk
         except:
-            self.__lnk, dlnk = tools.new_k_grid(self._lnk_original, self.k_bounds)
+            if self.transfer_fit == "CAMB":
+                self.__lnk, dlnk = tools.new_k_grid(self._transfer_original[0, :], self.k_bounds)
+            elif self.transfer_fit == "EH":
+                self.__lnk = self._transfer_original[0, :]
+
             # CHECK KR_BOUNDS
             self.max_error, self.min_error = tools.check_kr(self.M[0], self.M[-1], self.cosmo_params['mean_dens'],
                                                             np.exp(self.__lnk[0]), np.exp(self.__lnk[-1]))
@@ -639,7 +682,10 @@ class Perturbations(object):
         try:
             return self.__unnormalized_power
         except:
-            self.__unnormalized_power = self.cosmo_params['n'] * self.lnk + 2.0 * self._transfer_function_callable(self.lnk)
+            if self.transfer_fit == "CAMB":
+                self.__unnormalized_power = self.cosmo_params['n'] * self.lnk + 2.0 * self._transfer_function_callable(self.lnk)
+            else:
+                self.__unnormalized_power = self.cosmo_params['n'] * self.lnk + 2.0 * self._transfer_original[1, :]
             return self.__unnormalized_power
     @_unnormalized_power.deleter
     def _unnormalized_power(self):
@@ -865,6 +911,14 @@ class Perturbations(object):
             return self.__dndm
         except:
             self.__dndm = self.fsigma * self.cosmo_params['mean_dens'] * np.abs(self._dlnsdlnm) / self.M ** 2
+            if self.mf_fit == 'Behroozi':
+                a = 1 / (1 + self.z)
+                theta = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (self.M / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)))
+                ngtm_tinker = self._ngtm()
+                ngtm_behroozi = 10 ** (theta + np.log10(ngtm_tinker))
+                dthetadM = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (0.5 / (1 + np.exp(6.5 * a))) * (self.M / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)) - 1) / (10 ** 11.5)
+                self.__dndm = self.__dndm * 10 ** theta - ngtm_behroozi * np.log(10) * dthetadM
+
             return self.__dndm
 
     @dndm.deleter
@@ -918,6 +972,57 @@ class Perturbations(object):
         except:
             pass
 
+#    def _upper_ngtm(self, M, mass_function, cut):
+#        ### WE CALCULATE THE MASS FUNCTION ABOVE THE COMPUTED RANGE ###
+#        # mass_function is logged already (not log10 though)
+#        m_upper = np.linspace(np.log(M[-1]), np.log(10 ** 18), 500)
+#        if cut:  #since its been cut, the best we can do is a power law
+#            mf_func = spline(np.log(M), mass_function)
+#            mf = mf_func(m_upper)
+#        else:
+#            #We try to calculate the hmf as far as we can normally
+#            dlnsdlnm = tools.dlnsdlnm(np.exp(m_upper), self._sigma_0, self._power_0, self.lnk, self.cosmo_params['mean_dens'])
+#            nufnu = self.mf_fits[self.mf_fit]
+#            cut_fit = self.cut_fit  #save value to put back later
+#            self.cut_fit = True  #Make sure we cut where appropriate
+#            fsigma = nufnu()
+#            dndm = fsigma * self.cosmo_params['mean_dens'] * np.abs(dlnsdlnm) / m_upper ** 2
+#            mf = m_upper * dndm
+#
+#            if np.isnan(mf[-1]):  #Then we couldn't get up all the way, so have to do linear ext.
+#                mfslice = mf[np.logical_not(np.isnan(dndlnm))]
+#                m_nan = m_upper[np.isnan(dndlnm)]
+#                m_true = m_upper[:-length(m_nan)]
+#                mf_func = spline(m_true, mfslice)
+#                mf[length(mfslice):] = mf_func(m_nan)
+#        return m_upper, mf
+
+    def _ngtm(self):
+        ngtm = np.zeros_like(self.dndlnm)
+
+        # set M and mass_function within computed range
+        M = self.M[np.logical_not(np.isnan(self.dndlnm))]
+        mass_function = np.log(self.dndlnm[np.logical_not(np.isnan(self.dndlnm))])
+
+
+        # Interpolate the mass_function - this is in log-log space.
+        mf = spline(np.log(M), mass_function, k=1)
+
+        # Define max_M as either 18 or the maximum set by user
+        max_M = np.log(np.max([10 ** 18, M[-1]]))
+
+        for i, m in enumerate(self.M):
+            if np.isnan(m):
+                ngtm[i] = np.nan
+            else:
+                # Set up new grid with 4097 steps from m to M=17
+                M_new, dlnM = np.linspace(np.log(m), max_M, 4097, retstep=True)
+                mf_new = mf(M_new)
+
+                ngtm[i] = intg.romb(np.exp(mf_new), dx=dlnM)
+
+        return ngtm
+
     @property
     def ngtm(self):
         """
@@ -927,27 +1032,33 @@ class Perturbations(object):
             return self.__ngtm
         except:
             # Initialize the function
-            self.__ngtm = np.zeros_like(self.dndlnm)
-
-            # set M and mass_function within computed range
-            M = self.M[np.logical_not(np.isnan(self.dndlnm))]
-            mass_function = np.log(self.dndlnm[np.logical_not(np.isnan(self.dndlnm))])
-
-            # Interpolate the mass_function - this is in log-log space.
-            mf = spline(np.log(M), mass_function, k=1)
-
-            # Define max_M as either 18 or the maximum set by user
-            max_M = np.log(np.max([10 ** 18, M[-1]]))
-
-            for i, m in enumerate(self.M):
-                if np.isnan(m):
-                    self.__ngtm[i] = np.nan
-                else:
-                    # Set up new grid with 4097 steps from m to M=17
-                    M_new, dlnM = np.linspace(np.log(m), max_M, 4097, retstep=True)
-                    mf_new = mf(M_new)
-
-                    self.__ngtm[i] = intg.romb(np.exp(mf_new), dx=dlnM)
+#            self.__ngtm = np.zeros_like(self.dndlnm)
+#
+#            # set M and mass_function within computed range
+#            M = self.M[np.logical_not(np.isnan(self.dndlnm))]
+#            mass_function = np.log(self.dndlnm[np.logical_not(np.isnan(self.dndlnm))])
+#
+#            # Interpolate the mass_function - this is in log-log space.
+#            mf = spline(np.log(M), mass_function, k=1)
+#
+#            # Define max_M as either 18 or the maximum set by user
+#            max_M = np.log(np.max([10 ** 18, M[-1]]))
+#
+#            for i, m in enumerate(self.M):
+#                if np.isnan(m):
+#                    self.__ngtm[i] = np.nan
+#                else:
+#                    # Set up new grid with 4097 steps from m to M=17
+#                    M_new, dlnM = np.linspace(np.log(m), max_M, 4097, retstep=True)
+#                    mf_new = mf(M_new)
+#
+#                    self.__ngtm[i] = intg.romb(np.exp(mf_new), dx=dlnM)
+#
+#            #Here we add a correction for high-z for Tinker, by Behroozi.
+#            if self.mf_fit == 'Behroozi':
+#                pivot_factor = 0.144 / (1 + np.exp(14.79 * (1 / (1 + self.z)) - 0.213))
+#                self.__ngtm = 10 ** (pivot_factor * (self.M / (10 ** 11.5)) ** (0.5 / (1 + np.exp(6.5 * (1 / (1 + self.z))))) + np.log10(self.__ngtm))
+            self.__ngtm = self._ngtm()
             return self.__ngtm
 
     @ngtm.deleter
@@ -970,7 +1081,7 @@ class Perturbations(object):
 
             # set M and mass_function within computed range
             M = self.M[np.logical_not(np.isnan(self.dndlnm))]
-            mass_function = np.log(self.dndlnm[np.logical_not(np.isnan(self.dndlnm))])
+            mass_function = np.log(M * self.dndlnm[np.logical_not(np.isnan(self.dndlnm))])
 
             # Interpolate the mass_function - this is in log-log space.
             mf = spline(np.log(M), mass_function, k=1)
@@ -982,13 +1093,27 @@ class Perturbations(object):
                 if np.isnan(m):
                     self.__mgtm[i] = np.nan
                 else:
-                    # Set up new grid with 4097 steps from m to M=17
-                    M_new, dlnM = np.linspace(np.log10(m), max_M, 4097, retstep=True)
+                    # Set up new grid with 4097 steps from m to M=18
+                    M_new, dlnM = np.linspace(np.log(m), max_M, 4097, retstep=True)
                     mf_new = mf(M_new)
                     self.__mgtm[i] = intg.romb(np.exp(mf_new), dx=dlnM)
 
             return self.__mgtm
 
+#            self.__mgtm = np.zeros_like(self.dndlnm)
+#
+#            M = self.M[np.logical_not(np.isnan(self.dndlnm))]
+#            mass_function = self.dndlog10m[np.logical_not(np.isnan(self.dndlnm))]  # rather than dndlnm
+#
+#            for i, m in enumerate(M):
+#                if np.isnan(m):
+#                        self.__mgtm[i] = np.nan
+#                else:
+#                    integ = M[i:] * mass_function[i:]
+#                    self.__mgtm[i] = np.log(10) * intg.simps(integ, x=np.log10(M[i:]), even='first')
+#                    # integrate in m-space rather than lnm-space
+#
+#            return self.__mgtm
     @mgtm.deleter
     def mgtm(self):
         try:
@@ -1118,7 +1243,9 @@ class Perturbations(object):
 
         vfv = 0.315 * np.exp(-np.abs(self.lnsigma + 0.61) ** 3.8)
         # Conditional on sigma range.
-        vfv[np.logical_or(self.lnsigma < -1.2, self.lnsigma > 1.05)] = np.NaN
+        if self.cut_fit:
+            vfv[np.logical_or(self.lnsigma < -1.2, self.lnsigma > 1.05)] = np.NaN
+
         return vfv
 
     def _nufnu_Warren(self):
@@ -1131,7 +1258,8 @@ class Perturbations(object):
 
         vfv = 0.7234 * ((1.0 / self.sigma) ** 1.625 + 0.2538) * np.exp(-1.1982 / self.sigma ** 2)
 
-        vfv[np.logical_or(self.M < 10 ** 10, self.M > 10 ** 15)] = np.NaN
+        if self.cut_fit:
+            vfv[np.logical_or(self.M < 10 ** 10, self.M > 10 ** 15)] = np.NaN
         return vfv
 
     def _nufnu_Reed03(self):
@@ -1148,7 +1276,8 @@ class Perturbations(object):
 
         vfv = ST_Fit * np.exp(-0.7 / (self.sigma * np.cosh(2.0 * self.sigma) ** 5))
 
-        vfv[np.logical_or(self.lnsigma < -1.7, self.lnsigma > 0.9)] = np.NaN
+        if self.cut_fit:
+            vfv[np.logical_or(self.lnsigma < -1.7, self.lnsigma > 0.9)] = np.NaN
         return vfv
 
     def _nufnu_Reed07(self):
@@ -1172,7 +1301,8 @@ class Perturbations(object):
 
         vfv = A * np.sqrt(2.0 * a / np.pi) * (1.0 + (1.0 / (a * nu ** 2)) ** p + 0.6 * G_1 + 0.4 * G_2) * nu * np.exp(-c * a * nu ** 2 / 2.0 - 0.03 * nu ** 0.6 / (self.n_eff + 3) ** 2)
 
-        vfv[np.logical_or(self.lnsigma < -0.5, self.lnsigma > 1.2)] = np.NaN
+        if self.cut_fit:
+            vfv[np.logical_or(self.lnsigma < -0.5, self.lnsigma > 1.2)] = np.NaN
 
         return vfv
 
@@ -1240,11 +1370,6 @@ class Perturbations(object):
         b_0 = b_func(self.delta_vir)
         c_0 = c_func(self.delta_vir)
 
-#        print "A_0: ", A_0
-#        print "a_0:", a_0
-#        print "b_0:", b_0
-#        print "c_0:", c_0
-
         A = A_0 * (1 + self.z) ** (-0.14)
         a = a_0 * (1 + self.z) ** (-0.06)
         alpha = np.exp(-(0.75 / np.log(self.delta_vir / 75)) ** 1.2)
@@ -1253,11 +1378,14 @@ class Perturbations(object):
 
 
         vfv = A * ((self.sigma / b) ** (-a) + 1) * np.exp(-c / self.sigma ** 2)
-        vfv[np.logical_or(self.lnsigma < -0.6 , self.lnsigma > 0.4)] = np.nan
+
+        if self.cut_fit:
+            vfv[np.logical_or(self.lnsigma < -0.6 , self.lnsigma > 0.4)] = np.nan
+
         return vfv
 
     def _watson_gamma(self):
-        C = 0.947 * np.exp(0.023 * (self.delta_vir / 178 - 1))
+        C = np.exp(0.023 * (self.delta_vir / 178 - 1))
         d = -0.456 * cosmography.omegam_z(self.z, self.cosmo_params['omegam'], self.cosmo_params['omegav'], self.cosmo_params['omegak']) - 0.139
         p = 0.072
         q = 2.13
@@ -1266,8 +1394,9 @@ class Perturbations(object):
 
 
     def _nufnu_Watson_FoF(self):
-        vfv = 0.282 * ((2.163 / self.sigma) ** 1.406 + 1) * np.exp(-1.21 / self.sigma ** 2)
-        vfv[np.logical_or(self.lnsigma < -0.55 , self.lnsigma > 1.31)] = np.NaN
+        vfv = 0.282 * ((1.406 / self.sigma) ** 2.163 + 1) * np.exp(-1.21 / self.sigma ** 2)
+        if self.cut_fit:
+            vfv[np.logical_or(self.lnsigma < -0.55 , self.lnsigma > 1.31)] = np.NaN
         return vfv
 
     def _nufnu_Watson(self):
@@ -1290,7 +1419,8 @@ class Perturbations(object):
 
         vfv = self._watson_gamma() * A * ((beta / self.sigma) ** alpha + 1) * np.exp(-gamma / self.sigma ** 2)
 
-        vfv[np.logical_or(self.lnsigma < -0.55, self.lnsigma > 1.05)] = np.NaN
+        if self.cut_fit:
+            vfv[np.logical_or(self.lnsigma < -0.55, self.lnsigma > 1.05)] = np.NaN
 
         return vfv
 
@@ -1322,9 +1452,11 @@ class Perturbations(object):
         nu = self.cosmo_params['delta_c'] / self.sigma
 
         vfv = A * np.sqrt(2.0 / np.pi) * np.exp(-(a * nu ** 2) / 2.0) * (1 + (1.0 / (a * nu ** 2)) ** p) * (nu * np.sqrt(a)) ** q
-        vfv[np.logical_or(self.M < 6 * 10 ** 11, self.M > 3 * 10 ** 15)] = np.NaN
+        if self.cut_fit:
+            vfv[np.logical_or(self.M < 6 * 10 ** 11, self.M > 3 * 10 ** 15)] = np.NaN
 
         return vfv
+
     def _nufnu_user_model(self):
         """
         Calculates vfv based on a user-input model.
@@ -1335,8 +1467,6 @@ class Perturbations(object):
 
 
         return f(self.sigma)
-
-
 
 
 
