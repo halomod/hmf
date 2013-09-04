@@ -5,9 +5,10 @@ Created on Aug 29, 2013
 '''
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
+import cosmography
 
 class fits(object):
-    def __init__(self, mf_fit, sigma, delta_c, z, delta_halo, user_fit=None, cut_fit=True):
+    def __init__(self, M, n_eff, mf_fit, sigma, delta_c, z, delta_halo, user_fit=None, cut_fit=True):
         self.sigma = sigma
         self.delta_c = delta_c
         self.z = z
@@ -16,6 +17,8 @@ class fits(object):
         self.user_fit = user_fit
         self.mf_fit = mf_fit
         self.cut_fit = cut_fit
+        self.n_eff = n_eff
+        self.M = M
 
         self.mf_fits = {
             "PS":self._nufnu_PS,
@@ -92,7 +95,8 @@ class fits(object):
         """
 
         vfv = 0.7234 * ((1.0 / self.sigma) ** 1.625 + 0.2538) * np.exp(-1.1982 / self.sigma ** 2)
-
+        print len(self.M)
+        print len(self.sigma)
         if self.cut_fit:
             vfv[np.logical_or(self.M < 10 ** 10, self.M > 10 ** 15)] = np.NaN
         return vfv
@@ -126,8 +130,8 @@ class fits(object):
         """
         nu = self.delta_c / self.sigma
 
-        G_1 = np.exp(-((1.0 / self.sigma - 0.4) ** 2) / (2 * 0.6 ** 2))
-        G_2 = np.exp(-((1.0 / self.sigma - 0.75) ** 2) / (2 * 0.2 ** 2))
+        G_1 = np.exp(-(self.lnsigma - 0.4) ** 2 / (2 * 0.6 ** 2))
+        G_2 = np.exp(-(self.lnsigma - 0.75) ** 2 / (2 * 0.2 ** 2))
 
         c = 1.08
         a = 0.764 / c
@@ -215,8 +219,10 @@ class fits(object):
         vfv = A * ((self.sigma / b) ** (-a) + 1) * np.exp(-c / self.sigma ** 2)
 
         if self.cut_fit:
-            vfv[np.logical_or(self.lnsigma < -0.6 , self.lnsigma > 0.4)] = np.nan
-
+            if self.z == 0.0:
+                vfv[np.logical_or(self.lnsigma / np.log(10) < -0.6 , self.lnsigma / np.log(10) > 0.4)] = np.nan
+            else:
+                vfv[np.logical_or(self.lnsigma / np.log(10) < -0.2 , self.lnsigma / np.log(10) > 0.4)] = np.nan
         return vfv
 
     def _watson_gamma(self):

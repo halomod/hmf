@@ -4,7 +4,7 @@ methods that act upon a transfer function to gain functions such as the
 mass function.
 '''
 
-version = '1.1.4'
+version = '1.1.5'
 
 ###############################################################################
 # Some Imports
@@ -20,6 +20,7 @@ import cosmography
 import tools
 from fitting_functions import fits
 
+#TODO: possibly implement weighting by survey volume: n(M,z1,z2) = \int n(M,z)*V(z) dz / \int V(z) dz
 ###############################################################################
 # The Class
 ###############################################################################
@@ -93,8 +94,11 @@ class Perturbations(object):
                             15. "Behroozi": Behroozi extension to Tinker for high-z
                             16. 'user_model': A user-input string function
         
-        delta_vir:     The virial overdensity for the halo definition
-                       Default: delta_vir = 200.0
+        delta_wrt:     Defines what the overdensity of a halo is with respect to, can take 'mean' or 'crit'
+                       Default: 'mean' 
+                       
+        delta_halo:    The overdensity for the halo definition, with respect to delta_wrt
+                       Default: delta_halo = 200.0
                        
         user_fit:      A string defining a mathematical function in terms of 'x', used as the fitting function,
                        where x is taken as sigma. Will only be applicable if mf_fit == "user_model".
@@ -166,7 +170,7 @@ class Perturbations(object):
                  transfer_file=None,
                  z=0.0,
                  wdm_mass=None, k_bounds=[0.0000001, 20000.0],
-                 delta_vir=200.0, user_fit='', transfer_fit='CAMB',
+                 delta_halo=200.0, delta_wrt='mean', user_fit='', transfer_fit='CAMB',
                  cut_fit=True, ** kwargs):
         """
         Initializes the cosmology for which to perform the perturbation analysis.      
@@ -179,7 +183,7 @@ class Perturbations(object):
                                "omegav"   : 0.728,
                                "omegan"   : 0.0,
                                "H0"       : 70.4,
-                               'cs2_lam' : 0,
+                               'cs2_lam' : 1,
                                'TCMB'     : 2.725,
                                'yhe'      : 0.24,
                                'Num_Nu_massless' : 3.04,
@@ -220,7 +224,8 @@ class Perturbations(object):
                         "Watson_FoF", "Watson", "Crocce", "Courtin", "Bhattacharya", "Behroozi", "user_model"]
 
         self.update(M=M, mf_fit=mf_fit, k_bounds=k_bounds, transfer_file=transfer_file, wdm_mass=wdm_mass,
-                     delta_vir=delta_vir, user_fit=user_fit, z=z, transfer_fit=transfer_fit, cut_fit=cut_fit, ** kwargs)
+                     delta_halo=delta_halo, delta_wrt=delta_wrt, user_fit=user_fit, z=z,
+                     transfer_fit=transfer_fit, cut_fit=cut_fit, ** kwargs)
 
     def update(self, **kwargs):
         """
@@ -278,8 +283,10 @@ class Perturbations(object):
                 self.z = kwargs['z']
             elif key is "wdm_mass":
                 self.wdm_mass = kwargs['wdm_mass']
-            elif key is 'delta_vir':
-                self.delta_vir = kwargs['delta_vir']
+            elif key is 'delta_halo':
+                self._delta_halo_base = kwargs['delta_halo']
+            elif key is 'delta_wrt':
+                self.delta_wrt = kwargs['delta_wrt']
             elif key is "user_fit":
                 self.user_fit = kwargs['user_fit']
             elif key is "transfer_fit":
@@ -464,26 +471,45 @@ class Perturbations(object):
         self.__wdm_mass = val
 
     @property
-    def delta_vir(self):
+    def _delta_halo_base(self):
         """
-        The virial overdensity with respect to the background
+        The overdensity given by user: undefined until it is given with respect to something
         """
-        return self.__delta_vir
+        return self.__delta_halo_base
 
-    @delta_vir.setter
-    def delta_vir(self, val):
+    @_delta_halo_base.setter
+    def _delta_halo_base(self, val):
         try:
             val = float(val)
         except ValueError:
-            raise ValueError("delta_vir must be a number: ", val)
+            raise ValueError("delta_halo must be a number: ", val)
 
         if val <= 0:
-            raise ValueError("delta_vir must be > 0 (", val, ")")
+            raise ValueError("delta_halo must be > 0 (", val, ")")
+        if val > 10000:
+            raise ValueError("delta_halo must be < 10,000 (", val, ")")
+
+        #Set the value
+
+        self.__delta_halo_base = val
 
         #Delete stuff dependent on it
-        del self.fsigma
-        self.__delta_vir = val
+        del self.delta_halo
 
+    @property
+    def delta_wrt(self):
+        """
+        Defines what the delta_halo is with respect to
+        """
+        return self.__delta_wrt
+
+    @delta_wrt.setter
+    def delta_wrt(self, val):
+        if val not in ['mean', 'crit']:
+            raise ValueError("delta_wrt must be either 'mean' or 'crit' (", val, ")")
+
+        self.__delta_wrt = val
+        del self.delta_halo
 
     @property
     def z(self):
@@ -574,6 +600,26 @@ class Perturbations(object):
 
 
     #--------------------------------  START NON-SET PROPERTIES ----------------------------------------------
+    @property
+    def delta_halo(self):
+        """ Overdensity of a halo wrt mean density"""
+        try:
+            return self.__delta_halo
+        except:
+            if self.delta_wrt == 'mean':
+                self.__delta_halo = self._delta_halo_base
+
+            elif self.delta_wrt == 'crit':
+                self.__delta_halo = self._delta_halo_base / cosmography.omegam_z(self.z, self.cosmo_params['omegam'], self.cosmo_params['omegav'],
+                                                                                self.cosmo_params['omegak'])
+            return self.__delta_halo
+    @delta_halo.deleter
+    def delta_halo(self):
+        try:
+            del self.__delta_halo
+            del self.fsigma
+        except:
+            pass
     @property
     def dlogM(self):
         return self.M[1] - self.M[0]
@@ -668,9 +714,9 @@ class Perturbations(object):
             return self.__unnormalized_power
         except:
             if self.transfer_fit == "CAMB":
-                self.__unnormalized_power = self.cosmo_params['n'] * self.lnk + 2.0 * self._transfer_function_callable(self.lnk)
+                self.__unnormalized_power = self.cosmo_params['n'] * self.lnk + 2.0 * self._transfer_function_callable(self.lnk) + np.log(2 * np.pi ** 2)
             else:
-                self.__unnormalized_power = self.cosmo_params['n'] * self.lnk + 2.0 * self._transfer_original[1, :]
+                self.__unnormalized_power = self.cosmo_params['n'] * self.lnk + 2.0 * self._transfer_original[1, :] + np.log(2 * np.pi ** 2)
             return self.__unnormalized_power
     @_unnormalized_power.deleter
     def _unnormalized_power(self):
@@ -826,6 +872,7 @@ class Perturbations(object):
         try:
             del self.__sigma
             del self.fsigma
+            del self.lnsigma
         except:
             pass
 
@@ -874,7 +921,7 @@ class Perturbations(object):
         try:
             return self.__fsigma
         except:
-            fits_class = fits(self.mf_fit, self.sigma, self.cosmo_params['delta_c'], self.z, self.delta_vir, self.user_fit, self.cut_fit)
+            fits_class = fits(self.M, self.n_eff, self.mf_fit, self.sigma, self.cosmo_params['delta_c'], self.z, self.delta_halo, self.user_fit, self.cut_fit)
             nufnu = fits_class.nufnu()
             self.__fsigma = nufnu()
             return self.__fsigma
@@ -944,15 +991,15 @@ class Perturbations(object):
         The differential mass function in terms of natural log of M
         """
         try:
-            return self.__dndlnm
+            return self.__dndlog10m
         except:
-            self.__dndlnm = self.M * self.dndm * np.log(10)
-            return self.__dndlnm
+            self.__dndlog10m = self.M * self.dndm * np.log(10)
+            return self.__dndlog10m
 
     @dndlog10m.deleter
     def dndlog10m(self):
         try:
-            del self.__dndlnm
+            del self.__dndlog10m
         except:
             pass
 
@@ -968,18 +1015,23 @@ class Perturbations(object):
             sigma_0 = tools.mass_variance(np.exp(m_upper), self._power_0, self.lnk, self.cosmo_params['mean_dens'])
             sigma = sigma_0 * self.growth
             dlnsdlnm = tools.dlnsdlnm(np.exp(m_upper), sigma_0, self._power_0, self.lnk, self.cosmo_params['mean_dens'])
-            fsigma = fits(self.mf_fit, sigma, self.cosmo_params['delta_c'],
-                          self.z, self.delta_vir, self.user_fit, cut_fit=True).nufnu()()
+            n_eff = tools.n_eff(dlnsdlnm)
+            fsigma = fits(m_upper, n_eff, self.mf_fit, sigma, self.cosmo_params['delta_c'],
+                          self.z, self.delta_halo, self.user_fit, cut_fit=True).nufnu()()
             #fsigma = nufnu()
             dndm = fsigma * self.cosmo_params['mean_dens'] * np.abs(dlnsdlnm) / np.exp(m_upper) ** 2
             mf = np.log(np.exp(m_upper) * dndm)
 
             if np.isnan(mf[-1]):  #Then we couldn't get up all the way, so have to do linear ext.
-                mfslice = mf[np.logical_not(np.isnan(mf))]
-                m_nan = m_upper[np.isnan(mf)]
-                m_true = m_upper[np.logical_not(np.isnan(mf))]
-                mf_func = spline(m_true, mfslice, k=1)
-                mf[len(mfslice):] = mf_func(m_nan)
+                if np.isnan(mf[1]):  #Then the whole extension is nan and we have to use the original (start at 1 because 1 val won't work either)
+                    mf_func = spline(np.log(M), mass_function, k=1)
+                    mf = mf_func(m_upper)
+                else:
+                    mfslice = mf[np.logical_not(np.isnan(mf))]
+                    m_nan = m_upper[np.isnan(mf)]
+                    m_true = m_upper[np.logical_not(np.isnan(mf))]
+                    mf_func = spline(m_true, mfslice, k=1)
+                    mf[len(mfslice):] = mf_func(m_nan)
         return m_upper, mf
 
     def _lower_ngtm(self, M, mass_function, cut):
@@ -994,8 +1046,9 @@ class Perturbations(object):
             sigma_0 = tools.mass_variance(np.exp(m_lower), self._power_0, self.lnk, self.cosmo_params['mean_dens'])
             sigma = sigma_0 * self.growth
             dlnsdlnm = tools.dlnsdlnm(np.exp(m_lower), sigma_0, self._power_0, self.lnk, self.cosmo_params['mean_dens'])
-            fsigma = fits(self.mf_fit, sigma, self.cosmo_params['delta_c'],
-                          self.z, self.delta_vir, self.user_fit, cut_fit=True).nufnu()()
+            n_eff = tools.n_eff(dlnsdlnm)
+            fsigma = fits(m_lower, n_eff, self.mf_fit, sigma, self.cosmo_params['delta_c'],
+                          self.z, self.delta_halo, self.user_fit, cut_fit=True).nufnu()()
             #fsigma = nufnu()
             dndm = fsigma * self.cosmo_params['mean_dens'] * np.abs(dlnsdlnm) / np.exp(m_lower) ** 2
             mf = np.log(np.exp(m_lower) * dndm)

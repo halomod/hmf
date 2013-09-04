@@ -7,7 +7,7 @@ def read(fname):
 setup(
     name="hmf",
     version=version,
-    packages=find_packages(),
+    packages=['hmf'],
     install_requires=[],
     requires=['numpy',
                 'scitools',

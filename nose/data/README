@@ -1,4 +1,0 @@
-Hey, just so you remember in future times... these files are from genmf. Well, the final_testin_ps.dat is a power spectrum, 
-produced by hmf with the following parameters: omegab = 0.05, omegac = 0.25, omegal=0.7, sigma_8=0.8,n=1, 
-k_bounds=[exp(-21),exp(21)]. The other two files are the output of genmf for this power spectrum and these parameters, 
-one at z=0 and one at z=2, with the Sheth-Tormen fit. So this should line up with my own calculations pretty well!!!

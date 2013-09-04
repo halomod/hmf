@@ -3,9 +3,9 @@ Created on May 16, 2013
 
 @author: Steven
 '''
-import nose
-from nose import with_setup
-from hmf.Perturbations import Perturbations
+#import nose
+#from nose import with_setup
+from hmf import Perturbations
 import numpy as np
 
 redshifts = [ 0, 10]

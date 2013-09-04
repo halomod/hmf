@@ -42,8 +42,7 @@ def get_transfer(transfer_file, camb_dict, transfer_fit, k_bounds=None):
     if transfer_file is None:
         if transfer_fit == "CAMB":
             k, T, sig8 = pycamb.transfers(**camb_dict)
-            T = np.log(T[[0, 1], :, 0])
-            print "CAMBS unnormalised sig8: ", sig8
+            T = np.log(T[[0, 6], :, 0])
             del sig8, k
         elif transfer_fit == "EH":
             k = np.exp(np.linspace(np.log(k_bounds[0]), np.log(k_bounds[1]), 4097))
@@ -155,8 +154,7 @@ def normalize(norm_sigma_8, unn_power, lnk, mean_dens):
 
     sigma_8 = mass_variance(4.*np.pi * 8 ** 3 * mean_dens / 3., unn_power, lnk, mean_dens)[0]
 
-    print "Unnormalized sigma_8", sigma_8
-    # Calculate the normalization factor A.
+    # Calculate the normalization factor
     normalization = norm_sigma_8 / sigma_8
 
     # Normalize the previously calculated power spectrum.
@@ -182,11 +180,7 @@ def mass_variance(M, power, lnk, mean_dens):
     rest = np.exp(power + 3 * lnk)
     for i, m in enumerate(M):
         integ = rest * top_hat_window(m, lnk, mean_dens)
-#        sum = 0
-#        for k in integ:
-#            sum += k * dlnk
-#            print sum
-        sigma[i] = (0.5 / np.pi ** 2) * intg.trapz(integ, dx=dlnk)
+        sigma[i] = (0.5 / np.pi ** 2) * intg.simps(integ, dx=dlnk, even='first')
 
     return np.sqrt(sigma)
 
@@ -200,10 +194,8 @@ def top_hat_window(M, lnk, mean_dens):
 
     # Calculate the factor kR, minding to un-log k before use.
     kR = np.exp(lnk) * mass_to_radius(M, mean_dens)
-
     W_squared = (3 * (np.sin(kR) / kR ** 3 - np.cos(kR) / kR ** 2)) ** 2
     W_squared[kR < 0.01] = 1.0
-    #if W_squared[0]<0.5 or W_squared[0]>1.5:
 
     return W_squared
 

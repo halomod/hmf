@@ -48,27 +48,39 @@ Check the docstring of Perturbations() for all arguments allowed.
 
 HISTORY
 ---------------------------------------------------------------------------------------
+1.1.6 - 
+		Included an option to use delta_halo as compared to critical rather than mean density (thanks to A. Vikhlinin and anonymous referree)
+		Fixed mass range of Tinker (thanks to J. Tinker and anonymous referee for this)
+		
+1.1.5 - September 03, 2013
+		Fixed bug in mgtm (thanks to J. Mirocha)
+		Fixed an embarrassing error in Reed07 fitting function
+		Fixed a bug in which dndlnm and its dependents (ngtm, etc..) were calculated wrong
+		if dndlog10m was called first.
+		Added a whole suite of tests against genmf that actually work
+		Fixed error in which for some choices of M, the whole extension in ngtm would be NAN and give error
+		
 1.1.4 - August 27, 2013
 		Added ability to change resolution in CAMB from hmf interface
 		(This requires a re-install of pycamb to the newest version on the fork)
 		
 1.1.3 - August 7, 2013
-		Added Behroozi Fit
+		Added Behroozi Fit (thanks to P. Behroozi)
 		
 1.1.2 - July 02, 2013
 		Ability to calculate fitting functions to whatever mass you want (BEWARE!!)
 		Small bugfix
 		
 1.1.1 - July 02, 2013
-		Corrections to Watson fitting function from latest update on arXiv
-		** Fixed units for k and transfer function **
+		Corrections to Watson fitting function from latest update on arXiv (thanks to W. Watson)
+		** Fixed units for k and transfer function ** (Thanks to A. Knebe)
 		Improved docstring for Perturbations class
 		Added Eisenstein-Hu fit to the transfer function
-		
 		
 1.1.0 - June 27, 2013
 		Massive overhaul of structure
 		Now dependencies are tracked throughout the program, making updates even faster
+		
 1.0.10- June 24, 2013
 		Added dependence on Delta_vir to Tinker
 		
