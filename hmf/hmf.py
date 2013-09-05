@@ -44,19 +44,19 @@ class Perturbations(object):
         growth:        The growth factor for the given cosmology and redshift
         power:         The natural log of the normalised power spectrum for the given cosmology (at lnk)
         n_eff:         Effective spectral index at the radius of a halo
-        M:             The masses at which analysis is performed. (not log) [M/h]
+        M:             The masses at which analysis is performed. (not log) [M_sun/h]
         fsigma:        The multiplicity function, or fitting function at M
         dndm:          The comoving number density of halos in mass interval M [h**3/Mpc**3]
         dndlnm:        The comoving number density of halos in log mass interval M [h**3/Mpc**3]
         dndlog10m:     The comoving number density of halo in log10 mass interval M [h**3/Mpc**3]
         ngtm:          Comoving number density of halos > M [h**3/Mpc**3]
         nltm:          Comoving number density of halos < M [h**3/Mpc**3]
-        mgtm:          Comoving mass density of halos > M [h**3/Mpc**3]
-        mltm:          Comoving mass density of halos < M [h**3/Mpc**3]
+        mgtm:          Comoving mass density of halos > M [M_sun h**3/Mpc**3]
+        mltm:          Comoving mass density of halos < M [M_sun h**3/Mpc**3]
         how_big:       The requisite size of a simulation box, L, to have at least one halo > M [Mpc/h]
         
     Input:
-        M:             A vector of floats containing the log10(Solar Masses) at which to perform analysis.    
+        M:             A vector of floats containing the log10(Solar Masses/h) at which to perform analysis.    
                        Default: M = np.linspace(10,15,501)
                        
         transfer_file: Either a string pointing to a file with a CAMB-produced transfer function,
@@ -77,10 +77,10 @@ class Perturbations(object):
                        Default: mf_fit = 'ST'
                        
                        Options:                               
-                            1. 'PS': Press-Schechter Approach
-                            2. 'ST': Sheth-Tormen
-                            3. 'Jenkins': Jenkins empirical fit
-                            4. 'Warren': Warren empirical fit
+                            1. 'PS': Press-Schechter form from 1974
+                            2. 'ST': Sheth-Mo-Tormen empirical fit from 2001
+                            3. 'Jenkins': Jenkins empirical fit from 2001
+                            4. 'Warren': Warren empirical fit from 2006
                             5. 'Reed03': Reed empirical from 2003
                             6. 'Reed07': Reed empirical from 2007
                             7. 'Tinker': Tinker empirical from 2008
@@ -91,7 +91,7 @@ class Perturbations(object):
                             12. 'Angulo': Angulo 2012
                             13. 'Angulo_Bound': Angulo sub-halo function 2012
                             14. "Bhattacharya": Bhattacharya empirical fit 2011
-                            15. "Behroozi": Behroozi extension to Tinker for high-z
+                            15. "Behroozi": Behroozi extension to Tinker for high-z 2013
                             16. 'user_model': A user-input string function
         
         delta_wrt:     Defines what the overdensity of a halo is with respect to, can take 'mean' or 'crit'
@@ -111,8 +111,6 @@ class Perturbations(object):
                        If False, will use function to calculate all values specified in M (may give ridiculous results)
                        Default: True
                        
-        R:             The distances at which the dark matter correlation function is calculated in Mpc/h
-                       Default: np.linspace(1, 200, 200)
                        
         **kwargs:      There is a placeholder for any additional cosmological parameters, or camb
                        parameters, that one wishes to include. Parameters that aren't used won't
@@ -373,6 +371,9 @@ class Perturbations(object):
 
     @property
     def M(self):
+        """
+        Mass in units of M_sun/h
+        """
         return self.__M
 
     @M.setter
@@ -921,7 +922,7 @@ class Perturbations(object):
         try:
             return self.__fsigma
         except:
-            fits_class = fits(self.M, self.n_eff, self.mf_fit, self.sigma, self.cosmo_params['delta_c'], self.z, self.delta_halo, self.user_fit, self.cut_fit)
+            fits_class = fits(self.M, self.n_eff, self.mf_fit, self.sigma, self.cosmo_params['delta_c'], self.z, self.delta_halo, self.cosmo_params, self.user_fit, self.cut_fit)
             nufnu = fits_class.nufnu()
             self.__fsigma = nufnu()
             return self.__fsigma
@@ -1017,7 +1018,7 @@ class Perturbations(object):
             dlnsdlnm = tools.dlnsdlnm(np.exp(m_upper), sigma_0, self._power_0, self.lnk, self.cosmo_params['mean_dens'])
             n_eff = tools.n_eff(dlnsdlnm)
             fsigma = fits(m_upper, n_eff, self.mf_fit, sigma, self.cosmo_params['delta_c'],
-                          self.z, self.delta_halo, self.user_fit, cut_fit=True).nufnu()()
+                          self.z, self.delta_halo, self.cosmo_params, self.user_fit, cut_fit=True).nufnu()()
             #fsigma = nufnu()
             dndm = fsigma * self.cosmo_params['mean_dens'] * np.abs(dlnsdlnm) / np.exp(m_upper) ** 2
             mf = np.log(np.exp(m_upper) * dndm)
@@ -1048,7 +1049,7 @@ class Perturbations(object):
             dlnsdlnm = tools.dlnsdlnm(np.exp(m_lower), sigma_0, self._power_0, self.lnk, self.cosmo_params['mean_dens'])
             n_eff = tools.n_eff(dlnsdlnm)
             fsigma = fits(m_lower, n_eff, self.mf_fit, sigma, self.cosmo_params['delta_c'],
-                          self.z, self.delta_halo, self.user_fit, cut_fit=True).nufnu()()
+                          self.z, self.delta_halo, self.cosmo_params, self.user_fit, cut_fit=True).nufnu()()
             #fsigma = nufnu()
             dndm = fsigma * self.cosmo_params['mean_dens'] * np.abs(dlnsdlnm) / np.exp(m_lower) ** 2
             mf = np.log(np.exp(m_lower) * dndm)

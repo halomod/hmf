@@ -8,7 +8,7 @@ from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import cosmography
 
 class fits(object):
-    def __init__(self, M, n_eff, mf_fit, sigma, delta_c, z, delta_halo, user_fit=None, cut_fit=True):
+    def __init__(self, M, n_eff, mf_fit, sigma, delta_c, z, delta_halo, cosmo_params, user_fit=None, cut_fit=True):
         self.sigma = sigma
         self.delta_c = delta_c
         self.z = z
@@ -19,6 +19,7 @@ class fits(object):
         self.cut_fit = cut_fit
         self.n_eff = n_eff
         self.M = M
+        self.cosmo_params = cosmo_params
 
         self.mf_fits = {
             "PS":self._nufnu_PS,
