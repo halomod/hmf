@@ -4,7 +4,7 @@ methods that act upon a transfer function to gain functions such as the
 mass function.
 '''
 
-version = '1.1.5'
+version = '1.1.6'
 
 ###############################################################################
 # Some Imports
@@ -115,21 +115,22 @@ class Perturbations(object):
         **kwargs:      There is a placeholder for any additional cosmological parameters, or camb
                        parameters, that one wishes to include. Parameters that aren't used won't
                        break the program, they will just be ignored. Here follows a list of parameters
-                       that will be used by various parts of the program, and their respective defaults:
+                       that will be used by various parts of the program, and their respective defaults,
+                       note that cosmological parameters follow PLANCK1 results:
                        
                        PARAMETERS USED OUTSIDE OF CAMB ONLY:
-                       sigma_8         :: 0.812
-                       n               :: 1
+                       sigma_8         :: 0.8347
+                       n               :: 0.9619
                        delta_c         :: 1.686
                        
                        PARAMETERS USED IN CAMB AND OUTSIDE:
-                       omegab          :: 0.0456
-                       omegac          :: 0.2274
-                       omegav          :: 0.727
+                       omegab          :: 0.049
+                       omegac          :: 0.2678
+                       omegav          :: 0.6817
                        omegak          :: 1 - omegab - omegac - omegal - omegan
                        
                        PARAMETERS USED ONLY IN CAMB
-                       H0              :: 70.0
+                       H0              :: 67.04
                        omegan          :: 0.0
                        TCMB            :: 2.725
                        yhe             :: 0.24
@@ -156,8 +157,8 @@ class Perturbations(object):
                        w_perturb      :: False
                        DoLensing       :: False 
                        ThreadNum       :: 0 
-                       transfer__k_per_logint :: 0
-                       transfer__kmax :: 2
+                       transfer__k_per_logint :: 11
+                       transfer__kmax :: 0.25
                                 
 
     """
@@ -193,7 +194,7 @@ class Perturbations(object):
         self._extra_cosmo = {"sigma_8":0.81,
                             "n":0.967,
                             "delta_c":1.686,
-                            "crit_dens":27.755 * 10 ** 10
+                            "crit_dens":27.755e10
                             }
 
         self._transfer_options = {'Num_Nu_massive'  : 0,
@@ -213,8 +214,8 @@ class Perturbations(object):
                                  'reion__use_optical_depth' : True,
                                  'w_perturb'      : False,
                                  'DoLensing'       : False,
-                                 'transfer__k_per_logint': 0,
-                                 'transfer__kmax':2}
+                                 'transfer__k_per_logint': 11,
+                                 'transfer__kmax':0.25}
 
 
         #A list of available HMF fitting functions and their identifiers

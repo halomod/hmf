@@ -271,38 +271,4 @@ def new_k_grid(k, k_bounds=None):
 
     return k, dlnk
 
-def power_to_corr(lnP, lnk, R):
-    """
-    Calculates the correlation function given a power spectrum
-    
-    NOTE: no check is done to make sure k spans [0,Infinity] - make sure of this before you enter the arguments.
-    
-    INPUT
-        lnP: vector of values for the log power spectrum
-        lnk: vector of values (same length as lnP) giving the log wavenumbers for the power (EQUALLY SPACED)
-        r:   radi(us)(i) at which to calculate the correlation
-    """
-    import matplotlib.pyplot as plt
-    k = np.exp(lnk)
-    P = np.exp(lnP)
-
-    if not isinstance(R, collections.Iterable):
-        R = [R]
-
-    corr = np.zeros_like(R)
-
-    #We must do better than using just 4097 logarithmic bins for k, since
-    #we are integrating over a fast-oscillating function if r is big.
-    integrand_part = spline(lnk, P * k ** 2, k=1)
-    def integ(r, lnk):
-        return integrand_part(lnk) * np.sin(np.exp(lnk) * r) / r
-
-    for i, r in enumerate(R):
-        plt.plot(np.exp(lnk), integ(r, lnk))
-        plt.xscale('log')
-        plt.savefig("/Users/Steven/Documents/dm_corr_plots/" + str(r) + ".png")
-        plt.clf()
-        corr[i] = (0.5 / np.pi ** 2) * intg.quad(lambda k: integ(r, k), -10, 10, epsabs=0, epsrel=10 ** -2, limit=2000)[0]
-
-    return corr
 

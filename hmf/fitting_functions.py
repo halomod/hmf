@@ -146,6 +146,12 @@ class fits(object):
 
         return vfv
 
+    def _nufnu_Peacock(self):
+        """
+        Finds the Peacock 2007 fit (which is a fit to Warren but deriv=0 at small M)
+        """
+
+        pass
 
     def _nufnu_Angulo(self):
 

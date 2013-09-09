@@ -48,7 +48,9 @@ Check the docstring of Perturbations() for all arguments allowed.
 
 HISTORY
 ---------------------------------------------------------------------------------------
-1.1.6 - 
+1.1.6 - September 05, 2013
+		Modified comments to reflect parameters
+		Couple of bugfixes for fitting_functions.py
 		Included an option to use delta_halo as compared to critical rather than mean density (thanks to A. Vikhlinin and anonymous referree)
 		Fixed mass range of Tinker (thanks to J. Tinker and anonymous referee for this)
 		
