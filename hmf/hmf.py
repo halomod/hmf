@@ -220,7 +220,8 @@ class Perturbations(object):
 
         #A list of available HMF fitting functions and their identifiers
         self.mf_fits = ["PS", "ST", "Warren", "Jenkins", "Reed03", "Reed07", "Angulo", "Angulo_Bound", "Tinker",
-                        "Watson_FoF", "Watson", "Crocce", "Courtin", "Bhattacharya", "Behroozi", "user_model"]
+                        "Watson_FoF", "Watson", "Crocce", "Courtin", "Bhattacharya", "Behroozi", "user_model",
+                        "Peacock"]
 
         self.update(M=M, mf_fit=mf_fit, k_bounds=k_bounds, transfer_file=transfer_file, wdm_mass=wdm_mass,
                      delta_halo=delta_halo, delta_wrt=delta_wrt, user_fit=user_fit, z=z,
@@ -1106,6 +1107,7 @@ class Perturbations(object):
     def ngtm(self):
         try:
             del self.__ngtm
+            del self.how_big
         except:
             pass
 

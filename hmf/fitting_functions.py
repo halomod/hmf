@@ -28,6 +28,7 @@ class fits(object):
             "Jenkins":self._nufnu_Jenkins,
             "Reed03":self._nufnu_Reed03,
             "Reed07":self._nufnu_Reed07,
+            "Peacock":self._nufnu_Peacock,
             "Angulo":self._nufnu_Angulo,
             "Angulo_Bound":self._nufnu_Angulo_Bound,
             "Tinker":self._nufnu_Tinker,
@@ -96,8 +97,7 @@ class fits(object):
         """
 
         vfv = 0.7234 * ((1.0 / self.sigma) ** 1.625 + 0.2538) * np.exp(-1.1982 / self.sigma ** 2)
-        print len(self.M)
-        print len(self.sigma)
+
         if self.cut_fit:
             vfv[np.logical_or(self.M < 10 ** 10, self.M > 10 ** 15)] = np.NaN
         return vfv
@@ -149,9 +149,22 @@ class fits(object):
     def _nufnu_Peacock(self):
         """
         Finds the Peacock 2007 fit (which is a fit to Warren but deriv=0 at small M)
+        
+        It is defined as f_coll=(1+a*nu**b)**-1 * exp(-c*nu**2)
         """
 
-        pass
+        nu = self.delta_c / self.sigma
+        a = 1.529
+        b = 0.704
+        c = 0.412
+
+        d = 1 + a * nu ** b
+        vfv = nu * np.exp(-c * nu ** 2) * (2 * c * d * nu + b * a * nu ** (b - 1)) / d ** 2
+
+        if self.cut_fit:
+            vfv[np.logical_or(self.M < 10 ** 10, self.M > 10 ** 15)] = np.NaN
+
+        return vfv
 
     def _nufnu_Angulo(self):
 
