@@ -33,10 +33,8 @@ from scipy.interpolate import InterpolatedUnivariateSpline as spline
 ###############################################################################
 def get_transfer(transfer_file, camb_dict, transfer_fit, k_bounds=None):
     """
-    A convenience function used to fully setup the workspace in the 'usual' way
-    
     We use either CAMB or the EH approximation to get the transfer function.
-    The transfer function is in terms of the wavenumber IN UNITS OF h/Mpc!!
+    The transfer function is in terms of k/h -- IN UNITS OF h/Mpc??!!
     """
     #If no transfer file uploaded, but it was custom, execute CAMB
     if transfer_file is None:
@@ -45,7 +43,7 @@ def get_transfer(transfer_file, camb_dict, transfer_fit, k_bounds=None):
             T = np.log(T[[0, 6], :, 0])
             del sig8, k
         elif transfer_fit == "EH":
-            k = np.exp(np.linspace(np.log(k_bounds[0]), np.log(k_bounds[1]), 4097))
+            k = np.exp(np.linspace(np.log(k_bounds[0]), np.log(k_bounds[1]), 250))
             #Since the function natively calculates the transfer based on k in Mpc^-1,
             # we need to multiply by h.
             t, T = pert.transfer_function_EH(k * camb_dict['H0'] / 100,
@@ -55,7 +53,7 @@ def get_transfer(transfer_file, camb_dict, transfer_fit, k_bounds=None):
             T = np.vstack((np.log(k), np.log(T)))
             del t
     else:
-        #Import the transfer file wherever it is.
+        #Import the transfer file
         T = read_transfer(transfer_file)
 
     return T
@@ -159,7 +157,7 @@ def normalize(norm_sigma_8, unn_power, lnk, mean_dens):
 
     # Normalize the previously calculated power spectrum.
     power = 2 * np.log(normalization) + unn_power
-    return power
+    return power, normalization
 
 def mass_variance(M, power, lnk, mean_dens):
     """
@@ -180,7 +178,7 @@ def mass_variance(M, power, lnk, mean_dens):
     rest = np.exp(power + 3 * lnk)
     for i, m in enumerate(M):
         integ = rest * top_hat_window(m, lnk, mean_dens)
-        sigma[i] = (0.5 / np.pi ** 2) * intg.simps(integ, dx=dlnk, even='first')
+        sigma[i] = (0.5 / np.pi ** 2) * intg.trapz(integ, dx=dlnk)
 
     return np.sqrt(sigma)
 
@@ -236,7 +234,7 @@ def dlnsdlnm(M, sigma, power, lnk, mean_dens):
         g = np.exp(lnk) * r
         w = dw2dm(g)  # Derivative of W^2
         integ = w * np.exp(power - lnk)
-        dlnsdlnM[i] = (3.0 / (2.0 * sigma[i] ** 2 * np.pi ** 2 * r ** 4)) * intg.romb(integ, dx=dlnk)
+        dlnsdlnM[i] = (3.0 / (2.0 * sigma[i] ** 2 * np.pi ** 2 * r ** 4)) * intg.trapz(integ, dx=dlnk)
     return dlnsdlnM
 
 def dw2dm(kR):
@@ -267,7 +265,7 @@ def new_k_grid(k, k_bounds=None):
     max_k = np.log(k_bounds[1])
 
     # Setup the grid and fetch the grid-spacing as well
-    k, dlnk = np.linspace(min_k, max_k, 4097, retstep=True)
+    k, dlnk = np.linspace(min_k, max_k, 250, retstep=True)
 
     return k, dlnk
 

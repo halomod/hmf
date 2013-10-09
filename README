@@ -48,6 +48,20 @@ Check the docstring of Perturbations() for all arguments allowed.
 
 HISTORY
 ---------------------------------------------------------------------------------------
+1.1.9 - October 4, 2013
+		Fixed some issues with n(<m) and M(<m) causing them to give NaN's
+		
+1.1.85- October 2, 2013
+		The normalization of the power spectrum now saved as an attribute (mostly
+		for use with the hod package... coming soon ;)
+		
+1.1.8 - September 19, 2013
+		Fixed small bug in SMT function which made it crash
+		
+1.1.7 - September 19, 2013
+		Updated "ST" fit to "SMT" fit to avoid confusion. "ST" is still available for now.
+		Now uses trapezoid rule for integration as it is faster.
+		
 1.1.6 - September 05, 2013
 		Modified comments to reflect parameters
 		Couple of bugfixes for fitting_functions.py

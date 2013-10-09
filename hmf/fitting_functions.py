@@ -23,6 +23,7 @@ class fits(object):
 
         self.mf_fits = {
             "PS":self._nufnu_PS,
+            "SMT":self._nufnu_ST,
             "ST":self._nufnu_ST,
             "Warren":self._nufnu_Warren,
             "Jenkins":self._nufnu_Jenkins,
@@ -178,7 +179,7 @@ class fits(object):
     def _nufnu_Tinker(self):
 
         #The Tinker function is a bit tricky - we use the code from http://cosmo.nyu.edu/~tinker/massfunction/MF_code.tar
-        #to aide us.
+        #to aid us.
         delta_virs = np.array([200, 300, 400, 600, 800, 1200, 1600, 2400, 3200])
         A_array = np.array([ 1.858659e-01,
                             1.995973e-01,

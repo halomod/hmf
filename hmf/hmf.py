@@ -4,7 +4,7 @@ methods that act upon a transfer function to gain functions such as the
 mass function.
 '''
 
-version = '1.1.6'
+version = '1.1.9'
 
 ###############################################################################
 # Some Imports
@@ -141,7 +141,7 @@ class Perturbations(object):
                        reion__fraction :: -1
                        reion__delta_redshift :: 1.5
                        Scalar_initial_condition :: 1
-                       scalar_amp      :: 1
+                       scalar_amp      :: 1E-9
                        scalar_running  :: 0
                        tensor_index    :: 0
                        tensor_ratio    :: 1
@@ -201,7 +201,7 @@ class Perturbations(object):
                                  'reion__fraction' :-1,
                                  'reion__delta_redshift' : 1.5,
                                  'Scalar_initial_condition' : 1,
-                                 'scalar_amp'      : 1,
+                                 'scalar_amp'      : 1E-9,
                                  'scalar_running'  : 0,
                                  'tensor_index'    : 0,
                                  'tensor_ratio'    : 1,
@@ -219,7 +219,7 @@ class Perturbations(object):
 
 
         #A list of available HMF fitting functions and their identifiers
-        self.mf_fits = ["PS", "ST", "Warren", "Jenkins", "Reed03", "Reed07", "Angulo", "Angulo_Bound", "Tinker",
+        self.mf_fits = ["PS", "ST", "SMT", "Warren", "Jenkins", "Reed03", "Reed07", "Angulo", "Angulo_Bound", "Tinker",
                         "Watson_FoF", "Watson", "Crocce", "Courtin", "Bhattacharya", "Behroozi", "user_model",
                         "Peacock"]
 
@@ -309,12 +309,8 @@ class Perturbations(object):
 
     @property
     def cosmo_params(self):
-        """
-        All the cosmological parameters
-        """
+        """All the cosmological parameters"""
         try:
-            #If it is defined already, just return it.
-            #Whenever a parameter is modified, the dictionary is deleted and so will be remade here
             return self.__cosmo_params
         except:
             #Piece together the cosmo dictionaries
@@ -338,13 +334,9 @@ class Perturbations(object):
             pass
     @property
     def camb_params(self):
-        """
-        Here we track the camb parameters
-        """
+        """Every parameter that is passed to camb"""
 
         try:
-            #If it is defined already, just return it.
-            #Whenever a parameter is modified, the dictionary is deleted and so will be remade here
             return self.__camb_params
         except:
             #Piece together the cosmo dictionaries
@@ -359,6 +351,11 @@ class Perturbations(object):
             else:
                 del self.__camb_params['reion__optical_depth']
 
+            if self.__camb_params['transfer__kmax'] < 0.2:
+                print "WARNING: transfer__kmax may be too low for accuracy"
+
+            if self.__camb_params['transfer__k_per_logint'] < 11 and self.__camb_params['transfer__k_per_logint'] != 0:
+                print "WARNING: transfer__k_per_logint may be too low for accuracy"
             return self.__camb_params
 
     @camb_params.deleter
@@ -670,21 +667,21 @@ class Perturbations(object):
             pass
 
     @property
-    def lnk(self):
+    def lnkh(self):
         """
-        The logarithmic bins in k-space
+        The logarithmic bins in k-space - this is k/h (ie h/Mpc)
         """
         try:
-            return self.__lnk
+            return self.__lnkh
         except:
             if self.transfer_fit == "CAMB":
-                self.__lnk, dlnk = tools.new_k_grid(self._transfer_original[0, :], self.k_bounds)
+                self.__lnkh, dlnk = tools.new_k_grid(self._transfer_original[0, :], self.k_bounds)
             elif self.transfer_fit == "EH":
-                self.__lnk = self._transfer_original[0, :]
+                self.__lnkh = self._transfer_original[0, :]
 
             # CHECK KR_BOUNDS
             self.max_error, self.min_error = tools.check_kr(self.M[0], self.M[-1], self.cosmo_params['mean_dens'],
-                                                            np.exp(self.__lnk[0]), np.exp(self.__lnk[-1]))
+                                                            np.exp(self.__lnkh[0]), np.exp(self.__lnkh[-1]))
 
             if self.max_error:
                 print self.max_error
@@ -692,18 +689,35 @@ class Perturbations(object):
                 print self.min_error
 
 
-            return self.__lnk
+            return self.__lnkh
 
-    @lnk.deleter
-    def lnk(self):
+    @lnkh.deleter
+    def lnkh(self):
         try:
-            del self.__lnk
+            del self.__lnkh
 
             del self._unnormalized_power
             del self._power_cdm_0
             del self._power_0
             del self._sigma_0
             del self._dlnsdlnm
+            del self.lnk
+        except:
+            pass
+
+    @property
+    def lnk(self):
+        """ Logarithmic k-bins. This is NOT k/h, just k (ie. 1/Mpc)"""
+        try:
+            return self.__lnk
+        except:
+            self.__lnk = self.lnkh + np.log(self.cosmo_params['H0'] / 100.0)
+            return self.__lnk
+
+    @lnk.deleter
+    def lnk(self):
+        try:
+            del self.__lnk
         except:
             pass
 
@@ -717,9 +731,9 @@ class Perturbations(object):
             return self.__unnormalized_power
         except:
             if self.transfer_fit == "CAMB":
-                self.__unnormalized_power = self.cosmo_params['n'] * self.lnk + 2.0 * self._transfer_function_callable(self.lnk) + np.log(2 * np.pi ** 2)
+                self.__unnormalized_power = self.cosmo_params['n'] * self.lnkh + 2.0 * self._transfer_function_callable(self.lnkh) + np.log(2 * np.pi ** 2)
             else:
-                self.__unnormalized_power = self.cosmo_params['n'] * self.lnk + 2.0 * self._transfer_original[1, :] + np.log(2 * np.pi ** 2)
+                self.__unnormalized_power = self.cosmo_params['n'] * self.lnkh + 2.0 * self._transfer_original[1, :] + np.log(2 * np.pi ** 2)
             return self.__unnormalized_power
     @_unnormalized_power.deleter
     def _unnormalized_power(self):
@@ -738,8 +752,8 @@ class Perturbations(object):
         try:
             return self.__power_cdm_0
         except:
-            self.__power_cdm_0 = tools.normalize(self.cosmo_params['sigma_8'], self._unnormalized_power,
-                                                                self.lnk, self.cosmo_params['mean_dens'])
+            self.__power_cdm_0, self._normalization = tools.normalize(self.cosmo_params['sigma_8'], self._unnormalized_power,
+                                                                self.lnkh, self.cosmo_params['mean_dens'])
             return self.__power_cdm_0
 
     @_power_cdm_0.deleter
@@ -760,7 +774,7 @@ class Perturbations(object):
         except:
             if self.wdm_mass is not None:
                 print "Doing wdm with mass = ", self.wdm_mass
-                self.__power_0 = tools.wdm_transfer(self.wdm_mass, self._power_cdm_0, self.lnk,
+                self.__power_0 = tools.wdm_transfer(self.wdm_mass, self._power_cdm_0, self.lnkh,
                                                     self.cosmo_params["H0"], self.cosmo_params['omegac'])
             else:
                 self.__power_0 = self._power_cdm_0
@@ -786,7 +800,7 @@ class Perturbations(object):
         try:
             return self.__sigma_0
         except:
-            self.__sigma_0 = tools.mass_variance(self.M, self._power_0, self.lnk, self.cosmo_params['mean_dens'])
+            self.__sigma_0 = tools.mass_variance(self.M, self._power_0, self.lnkh, self.cosmo_params['mean_dens'])
             return self.__sigma_0
 
     @_sigma_0.deleter
@@ -806,7 +820,7 @@ class Perturbations(object):
         try:
             return self.__dlnsdlnm
         except:
-            self.__dlnsdlnm = tools.dlnsdlnm(self.M, self._sigma_0, self._power_0, self.lnk, self.cosmo_params['mean_dens'])
+            self.__dlnsdlnm = tools.dlnsdlnm(self.M, self._sigma_0, self._power_0, self.lnkh, self.cosmo_params['mean_dens'])
             return self.__dlnsdlnm
 
     @_dlnsdlnm.deleter
@@ -1015,9 +1029,9 @@ class Perturbations(object):
             mf = mf_func(m_upper)
         else:
             #We try to calculate the hmf as far as we can normally
-            sigma_0 = tools.mass_variance(np.exp(m_upper), self._power_0, self.lnk, self.cosmo_params['mean_dens'])
+            sigma_0 = tools.mass_variance(np.exp(m_upper), self._power_0, self.lnkh, self.cosmo_params['mean_dens'])
             sigma = sigma_0 * self.growth
-            dlnsdlnm = tools.dlnsdlnm(np.exp(m_upper), sigma_0, self._power_0, self.lnk, self.cosmo_params['mean_dens'])
+            dlnsdlnm = tools.dlnsdlnm(np.exp(m_upper), sigma_0, self._power_0, self.lnkh, self.cosmo_params['mean_dens'])
             n_eff = tools.n_eff(dlnsdlnm)
             fsigma = fits(m_upper, n_eff, self.mf_fit, sigma, self.cosmo_params['delta_c'],
                           self.z, self.delta_halo, self.cosmo_params, self.user_fit, cut_fit=True).nufnu()()
@@ -1040,15 +1054,15 @@ class Perturbations(object):
     def _lower_ngtm(self, M, mass_function, cut):
         ### WE CALCULATE THE MASS FUNCTION BELOW THE COMPUTED RANGE ###
         # mass_function is logged already (not log10 though)
-        m_lower = np.linspace(np.log(10 ** 3), M[0], 500)
+        m_lower = np.linspace(np.log(10 ** 3), np.log(M[0]), 500)
         if cut:  #since its been cut, the best we can do is a power law
             mf_func = spline(np.log(M), mass_function, k=1)
             mf = mf_func(m_lower)
         else:
             #We try to calculate the hmf as far as we can normally
-            sigma_0 = tools.mass_variance(np.exp(m_lower), self._power_0, self.lnk, self.cosmo_params['mean_dens'])
+            sigma_0 = tools.mass_variance(np.exp(m_lower), self._power_0, self.lnkh, self.cosmo_params['mean_dens'])
             sigma = sigma_0 * self.growth
-            dlnsdlnm = tools.dlnsdlnm(np.exp(m_lower), sigma_0, self._power_0, self.lnk, self.cosmo_params['mean_dens'])
+            dlnsdlnm = tools.dlnsdlnm(np.exp(m_lower), sigma_0, self._power_0, self.lnkh, self.cosmo_params['mean_dens'])
             n_eff = tools.n_eff(dlnsdlnm)
             fsigma = fits(m_lower, n_eff, self.mf_fit, sigma, self.cosmo_params['delta_c'],
                           self.z, self.delta_halo, self.cosmo_params, self.user_fit, cut_fit=True).nufnu()()
@@ -1158,15 +1172,16 @@ class Perturbations(object):
             M = self.M[np.logical_not(np.isnan(self.dndlnm))]
             mass_function = self.dndlnm[np.logical_not(np.isnan(self.dndlnm))]
 
-            #Calculate the mass function (and its integral) from the highest M up to 10**18
-            if M[-1] < 10 ** 18:
+            #Calculate the mass function (and its integral) from 10**3 up to lowest M
+            if M[0] > 10 ** 3:
                 m_lower, mf = self._lower_ngtm(M, np.log(mass_function), M[0] > self.M[0])
 
                 int_lower = intg.simps(np.exp(mf), dx=m_lower[2] - m_lower[1], even='first')
             else:
                 int_lower = 0
 
-            #Calculate the cumulative integral (backwards) of mass_function (Adding on the upper integral)
+            print "INT LOWER = ", int_lower
+            #Calculate the cumulative integral of mass_function (Adding on the lower integral)
             self.__nltm = intg.cumtrapz(mass_function, dx=np.log(M[1]) - np.log(M[0]), initial=0) + int_lower
 
             #We need to set ngtm back in the original length vector with nans where they were originally
@@ -1175,7 +1190,6 @@ class Perturbations(object):
                 nltm_temp[:] = np.nan
                 nltm_temp[np.logical_not(np.isnan(self.dndlnm))] = self.__nltm
                 self.__nltm = nltm_temp
-
 
             return self.__nltm
     @nltm.deleter
@@ -1197,15 +1211,15 @@ class Perturbations(object):
             M = self.M[np.logical_not(np.isnan(self.dndlnm))]
             mass_function = self.dndlnm[np.logical_not(np.isnan(self.dndlnm))]
 
-            #Calculate the mass function (and its integral) from the highest M up to 10**18
-            if M[-1] < 10 ** 18:
+            #Calculate the mass function (and its integral) from 10**3 up to lowest M
+            if M[0] > 10 ** 3:
                 m_lower, mf = self._lower_ngtm(M, np.log(mass_function), M[0] > self.M[0])
 
                 int_lower = intg.simps(np.exp(mf + m_lower), dx=m_lower[2] - m_lower[1], even='first')
             else:
                 int_lower = 0
 
-            #Calculate the cumulative integral (backwards) of mass_function (Adding on the upper integral)
+            #Calculate the cumulative integral of mass_function (Adding on the upper integral)
             self.__mltm = intg.cumtrapz(mass_function * M, dx=np.log(M[1]) - np.log(M[0]), initial=0) + int_lower
 
             #We need to set ngtm back in the original length vector with nans where they were originally
@@ -1232,18 +1246,6 @@ class Perturbations(object):
         except:
             pass
 
-
-
-
-
-if __name__ == "__main__":
-    M = np.arange(10, 15, 0.01)
-    pert = Perturbations(M)
-    pert.dndlnm
-    pert.how_big
-
-    pert.update(z=1, omegac=0.2)
-    pert.dndlog10m
 
 
 
