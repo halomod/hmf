@@ -48,6 +48,9 @@ Check the docstring of Perturbations() for all arguments allowed.
 
 HISTORY
 ---------------------------------------------------------------------------------------
+1.1.10- October 29, 2013
+		Fixed critical/mean density of Universe. It was lacking H^2 dependence.
+		
 1.1.9 - October 4, 2013
 		Fixed some issues with n(<m) and M(<m) causing them to give NaN's
 		

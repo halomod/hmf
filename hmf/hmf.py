@@ -215,7 +215,8 @@ class Perturbations(object):
                                  'w_perturb'      : False,
                                  'DoLensing'       : False,
                                  'transfer__k_per_logint': 11,
-                                 'transfer__kmax':0.25}
+                                 'transfer__kmax':0.25,
+                                 'ThreadNum':0}
 
 
         #A list of available HMF fitting functions and their identifiers
@@ -319,7 +320,8 @@ class Perturbations(object):
             #Set some derivative parameters
             self.__cosmo_params['omegam'] = self.__cosmo_params['omegab'] + self.__cosmo_params['omegac']
             self.__cosmo_params['omegak'] = 1 - self.__cosmo_params['omegam'] - self.__cosmo_params['omegav'] - self.__cosmo_params['omegan']
-            self.__cosmo_params['mean_dens'] = self.__cosmo_params['omegam'] * 27.755 * 10 ** 10
+            self.__cosmo_params['crit_dens'] = 2.7755E7 * self.__cosmo_params["H0"] ** 2
+            self.__cosmo_params['mean_dens'] = self.__cosmo_params['omegam'] * self.__cosmo_params['crit_dens']  #FIXME redshift evolution?
             if self._transfer_options['reion__use_optical_depth']:
                 del self.__cosmo_params['reion__redshift']
             else:

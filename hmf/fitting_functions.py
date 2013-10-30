@@ -21,6 +21,12 @@ class fits(object):
         self.M = M
         self.cosmo_params = cosmo_params
 
+        #A dictionary mapping labels to base functions.
+        #I might have to be careful with this layout in terms of being able
+        #to pickle the class. At the moment, hmf never saves the fits class
+        #as an instance attribute, so Perturbations is still picklable even
+        #though fits isn't. If this changes, we'll have to try a different
+        #tactic here.
         self.mf_fits = {
             "PS":self._nufnu_PS,
             "SMT":self._nufnu_ST,
