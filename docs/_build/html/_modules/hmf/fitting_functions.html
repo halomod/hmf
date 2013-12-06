@@ -1,0 +1,434 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>hmf.fitting_functions &mdash; hmf 1.1.10 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.1.10',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="hmf 1.1.10 documentation" href="../../index.html" />
+    <link rel="up" title="hmf" href="../hmf.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">hmf 1.1.10 documentation</a> &raquo;</li>
+          <li><a href="../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../hmf.html" accesskey="U">hmf</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for hmf.fitting_functions</h1><div class="highlight"><pre>
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">Created on Aug 29, 2013</span>
+
+<span class="sd">@author: Steven</span>
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">scipy.interpolate</span> <span class="kn">import</span> <span class="n">InterpolatedUnivariateSpline</span> <span class="k">as</span> <span class="n">spline</span>
+<span class="kn">import</span> <span class="nn">cosmography</span>
+
+<div class="viewcode-block" id="fits"><a class="viewcode-back" href="../../api.html#hmf.fitting_functions.fits">[docs]</a><span class="k">class</span> <span class="nc">fits</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">M</span><span class="p">,</span> <span class="n">n_eff</span><span class="p">,</span> <span class="n">mf_fit</span><span class="p">,</span> <span class="n">sigma</span><span class="p">,</span> <span class="n">delta_c</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">delta_halo</span><span class="p">,</span> <span class="n">cosmo_params</span><span class="p">,</span> <span class="n">user_fit</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">cut_fit</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span> <span class="o">=</span> <span class="n">sigma</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">delta_c</span> <span class="o">=</span> <span class="n">delta_c</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">z</span> <span class="o">=</span> <span class="n">z</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">delta_halo</span> <span class="o">=</span> <span class="n">delta_halo</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lnsigma</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">1.0</span> <span class="o">/</span> <span class="n">sigma</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">user_fit</span> <span class="o">=</span> <span class="n">user_fit</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mf_fit</span> <span class="o">=</span> <span class="n">mf_fit</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cut_fit</span> <span class="o">=</span> <span class="n">cut_fit</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_eff</span> <span class="o">=</span> <span class="n">n_eff</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">M</span> <span class="o">=</span> <span class="n">M</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cosmo_params</span> <span class="o">=</span> <span class="n">cosmo_params</span>
+
+        <span class="c">#A dictionary mapping labels to base functions.</span>
+        <span class="c">#I might have to be careful with this layout in terms of being able</span>
+        <span class="c">#to pickle the class. At the moment, hmf never saves the fits class</span>
+        <span class="c">#as an instance attribute, so Perturbations is still picklable even</span>
+        <span class="c">#though fits isn&#39;t. If this changes, we&#39;ll have to try a different</span>
+        <span class="c">#tactic here.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mf_fits</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s">&quot;PS&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">_nufnu_PS</span><span class="p">,</span>
+            <span class="s">&quot;SMT&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">_nufnu_ST</span><span class="p">,</span>
+            <span class="s">&quot;ST&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">_nufnu_ST</span><span class="p">,</span>
+            <span class="s">&quot;Warren&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">_nufnu_Warren</span><span class="p">,</span>
+            <span class="s">&quot;Jenkins&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">_nufnu_Jenkins</span><span class="p">,</span>
+            <span class="s">&quot;Reed03&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">_nufnu_Reed03</span><span class="p">,</span>
+            <span class="s">&quot;Reed07&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">_nufnu_Reed07</span><span class="p">,</span>
+            <span class="s">&quot;Peacock&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">_nufnu_Peacock</span><span class="p">,</span>
+            <span class="s">&quot;Angulo&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">_nufnu_Angulo</span><span class="p">,</span>
+            <span class="s">&quot;Angulo_Bound&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">_nufnu_Angulo_Bound</span><span class="p">,</span>
+            <span class="s">&quot;Tinker&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">_nufnu_Tinker</span><span class="p">,</span>
+            <span class="s">&quot;Watson_FoF&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">_nufnu_Watson_FoF</span><span class="p">,</span>
+            <span class="s">&quot;Watson&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">_nufnu_Watson</span><span class="p">,</span>
+            <span class="s">&quot;Crocce&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">_nufnu_Crocce</span><span class="p">,</span>
+            <span class="s">&quot;Courtin&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">_nufnu_Courtin</span><span class="p">,</span>
+            <span class="s">&quot;Bhattacharya&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nufnu_Bhattacharya</span><span class="p">,</span>
+            <span class="s">&quot;Behroozi&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nufnu_Tinker</span><span class="p">,</span>
+            <span class="s">&quot;user_model&quot;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">_nufnu_user_model</span>
+            <span class="p">}</span>
+
+<div class="viewcode-block" id="fits.nufnu"><a class="viewcode-back" href="../../api.html#hmf.fitting_functions.fits.nufnu">[docs]</a>    <span class="k">def</span> <span class="nf">nufnu</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Merely chooses the correct function from those available</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">mf_fits</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">mf_fit</span><span class="p">]</span>
+</div>
+    <span class="k">def</span> <span class="nf">_nufnu_PS</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Computes the function nu*f(nu) for the Press-Schechter approach at a given radius.</span>
+<span class="sd">        </span>
+<span class="sd">        Input R: radius of the top-hat function</span>
+<span class="sd">        Output: f_of_nu: the function nu*f(nu) for the PS approach.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">vfv</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mf">2.0</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">delta_c</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">delta_c</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">vfv</span>
+
+    <span class="k">def</span> <span class="nf">_nufnu_ST</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Finds the Sheth Tormen vf(v) </span>
+<span class="sd">        </span>
+<span class="sd">        Input R: radius of the top-hat function</span>
+<span class="sd">        Output: vfv: the Sheth-Tormen mass function fit.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">nu</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">delta_c</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="mf">0.707</span>
+
+        <span class="n">vfv</span> <span class="o">=</span> <span class="mf">0.3222</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">a</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span> <span class="o">*</span> <span class="n">nu</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="n">a</span> <span class="o">*</span> <span class="n">nu</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="mf">2.0</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">/</span> <span class="p">(</span><span class="n">a</span> <span class="o">*</span> <span class="n">nu</span> <span class="o">**</span> <span class="mi">2</span><span class="p">))</span> <span class="o">**</span> <span class="mf">0.3</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">vfv</span>
+
+    <span class="k">def</span> <span class="nf">_nufnu_Jenkins</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Finds the Jenkins empirical vf(v) </span>
+<span class="sd">        </span>
+<span class="sd">        Output: vfv: the Jenkins mass function fit.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">vfv</span> <span class="o">=</span> <span class="mf">0.315</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lnsigma</span> <span class="o">+</span> <span class="mf">0.61</span><span class="p">)</span> <span class="o">**</span> <span class="mf">3.8</span><span class="p">)</span>
+        <span class="c"># Conditional on sigma range.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cut_fit</span><span class="p">:</span>
+            <span class="n">vfv</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">logical_or</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lnsigma</span> <span class="o">&lt;</span> <span class="o">-</span><span class="mf">1.2</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lnsigma</span> <span class="o">&gt;</span> <span class="mf">1.05</span><span class="p">)]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">NaN</span>
+
+        <span class="k">return</span> <span class="n">vfv</span>
+
+    <span class="k">def</span> <span class="nf">_nufnu_Warren</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Finds the Warren empirical vf(v) </span>
+<span class="sd">        </span>
+<span class="sd">        Input R: radius of the top-hat function</span>
+<span class="sd">        Output: vfv: the Warren mass function fit.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">vfv</span> <span class="o">=</span> <span class="mf">0.7234</span> <span class="o">*</span> <span class="p">((</span><span class="mf">1.0</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span><span class="p">)</span> <span class="o">**</span> <span class="mf">1.625</span> <span class="o">+</span> <span class="mf">0.2538</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mf">1.1982</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cut_fit</span><span class="p">:</span>
+            <span class="n">vfv</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">logical_or</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">M</span> <span class="o">&lt;</span> <span class="mi">10</span> <span class="o">**</span> <span class="mi">10</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">M</span> <span class="o">&gt;</span> <span class="mi">10</span> <span class="o">**</span> <span class="mi">15</span><span class="p">)]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">NaN</span>
+        <span class="k">return</span> <span class="n">vfv</span>
+
+    <span class="k">def</span> <span class="nf">_nufnu_Reed03</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Finds the Reed 2003 empirical vf(v) </span>
+<span class="sd">        </span>
+<span class="sd">        Input R: radius of the top-hat function</span>
+<span class="sd">        Output: vfv: the Reed 2003 mass function fit.</span>
+<span class="sd">        </span>
+<span class="sd">        NOTE: Only valid from -1.7 &lt; ln sigma^-1 &lt; 0.9</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">ST_Fit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nufnu_ST</span><span class="p">()</span>
+
+        <span class="n">vfv</span> <span class="o">=</span> <span class="n">ST_Fit</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mf">0.7</span> <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sigma</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">cosh</span><span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span><span class="p">)</span> <span class="o">**</span> <span class="mi">5</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cut_fit</span><span class="p">:</span>
+            <span class="n">vfv</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">logical_or</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lnsigma</span> <span class="o">&lt;</span> <span class="o">-</span><span class="mf">1.7</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lnsigma</span> <span class="o">&gt;</span> <span class="mf">0.9</span><span class="p">)]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">NaN</span>
+        <span class="k">return</span> <span class="n">vfv</span>
+
+    <span class="k">def</span> <span class="nf">_nufnu_Reed07</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Finds the Reed 2007 empirical vf(v) </span>
+<span class="sd">        </span>
+<span class="sd">        Input R: radius of the top-hat function</span>
+<span class="sd">        Output: vfv: the Reed 2003 mass function fit.</span>
+<span class="sd">        </span>
+<span class="sd">        NOTE: Only valid from -1.7 &lt; ln sigma^-1 &lt; 0.9</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">nu</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">delta_c</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span>
+
+        <span class="n">G_1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lnsigma</span> <span class="o">-</span> <span class="mf">0.4</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">/</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="mf">0.6</span> <span class="o">**</span> <span class="mi">2</span><span class="p">))</span>
+        <span class="n">G_2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lnsigma</span> <span class="o">-</span> <span class="mf">0.75</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">/</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="mf">0.2</span> <span class="o">**</span> <span class="mi">2</span><span class="p">))</span>
+
+        <span class="n">c</span> <span class="o">=</span> <span class="mf">1.08</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="mf">0.764</span> <span class="o">/</span> <span class="n">c</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="mf">0.3222</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="mf">0.3</span>
+
+        <span class="n">vfv</span> <span class="o">=</span> <span class="n">A</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">a</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">+</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">/</span> <span class="p">(</span><span class="n">a</span> <span class="o">*</span> <span class="n">nu</span> <span class="o">**</span> <span class="mi">2</span><span class="p">))</span> <span class="o">**</span> <span class="n">p</span> <span class="o">+</span> <span class="mf">0.6</span> <span class="o">*</span> <span class="n">G_1</span> <span class="o">+</span> <span class="mf">0.4</span> <span class="o">*</span> <span class="n">G_2</span><span class="p">)</span> <span class="o">*</span> <span class="n">nu</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">c</span> <span class="o">*</span> <span class="n">a</span> <span class="o">*</span> <span class="n">nu</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">/</span> <span class="mf">2.0</span> <span class="o">-</span> <span class="mf">0.03</span> <span class="o">*</span> <span class="n">nu</span> <span class="o">**</span> <span class="mf">0.6</span> <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_eff</span> <span class="o">+</span> <span class="mi">3</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cut_fit</span><span class="p">:</span>
+            <span class="n">vfv</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">logical_or</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lnsigma</span> <span class="o">&lt;</span> <span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lnsigma</span> <span class="o">&gt;</span> <span class="mf">1.2</span><span class="p">)]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">NaN</span>
+
+        <span class="k">return</span> <span class="n">vfv</span>
+
+    <span class="k">def</span> <span class="nf">_nufnu_Peacock</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Finds the Peacock 2007 fit (which is a fit to Warren but deriv=0 at small M)</span>
+<span class="sd">        </span>
+<span class="sd">        It is defined as f_coll=(1+a*nu**b)**-1 * exp(-c*nu**2)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">nu</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">delta_c</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="mf">1.529</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="mf">0.704</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="mf">0.412</span>
+
+        <span class="n">d</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">+</span> <span class="n">a</span> <span class="o">*</span> <span class="n">nu</span> <span class="o">**</span> <span class="n">b</span>
+        <span class="n">vfv</span> <span class="o">=</span> <span class="n">nu</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">c</span> <span class="o">*</span> <span class="n">nu</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">c</span> <span class="o">*</span> <span class="n">d</span> <span class="o">*</span> <span class="n">nu</span> <span class="o">+</span> <span class="n">b</span> <span class="o">*</span> <span class="n">a</span> <span class="o">*</span> <span class="n">nu</span> <span class="o">**</span> <span class="p">(</span><span class="n">b</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span> <span class="o">/</span> <span class="n">d</span> <span class="o">**</span> <span class="mi">2</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cut_fit</span><span class="p">:</span>
+            <span class="n">vfv</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">logical_or</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">M</span> <span class="o">&lt;</span> <span class="mi">10</span> <span class="o">**</span> <span class="mi">10</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">M</span> <span class="o">&gt;</span> <span class="mi">10</span> <span class="o">**</span> <span class="mi">15</span><span class="p">)]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">NaN</span>
+
+        <span class="k">return</span> <span class="n">vfv</span>
+
+    <span class="k">def</span> <span class="nf">_nufnu_Angulo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+
+        <span class="n">vfv</span> <span class="o">=</span> <span class="mf">0.201</span> <span class="o">*</span> <span class="p">((</span><span class="mf">2.08</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span><span class="p">)</span> <span class="o">**</span> <span class="mf">1.7</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mf">1.172</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">vfv</span>
+
+    <span class="k">def</span> <span class="nf">_nufnu_Angulo_Bound</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">vfv</span> <span class="o">=</span> <span class="mf">0.265</span> <span class="o">*</span> <span class="p">((</span><span class="mf">1.675</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span><span class="p">)</span> <span class="o">**</span> <span class="mf">1.9</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mf">1.4</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">vfv</span>
+
+    <span class="k">def</span> <span class="nf">_nufnu_Tinker</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+
+        <span class="c">#The Tinker function is a bit tricky - we use the code from http://cosmo.nyu.edu/~tinker/massfunction/MF_code.tar</span>
+        <span class="c">#to aid us.</span>
+        <span class="n">delta_virs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">200</span><span class="p">,</span> <span class="mi">300</span><span class="p">,</span> <span class="mi">400</span><span class="p">,</span> <span class="mi">600</span><span class="p">,</span> <span class="mi">800</span><span class="p">,</span> <span class="mi">1200</span><span class="p">,</span> <span class="mi">1600</span><span class="p">,</span> <span class="mi">2400</span><span class="p">,</span> <span class="mi">3200</span><span class="p">])</span>
+        <span class="n">A_array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span> <span class="mf">1.858659e-01</span><span class="p">,</span>
+                            <span class="mf">1.995973e-01</span><span class="p">,</span>
+                            <span class="mf">2.115659e-01</span><span class="p">,</span>
+                            <span class="mf">2.184113e-01</span><span class="p">,</span>
+                            <span class="mf">2.480968e-01</span><span class="p">,</span>
+                            <span class="mf">2.546053e-01</span><span class="p">,</span>
+                            <span class="mf">2.600000e-01</span><span class="p">,</span>
+                            <span class="mf">2.600000e-01</span><span class="p">,</span>
+                            <span class="mf">2.600000e-01</span><span class="p">])</span>
+
+        <span class="n">a_array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1.466904e+00</span><span class="p">,</span>
+                            <span class="mf">1.521782e+00</span><span class="p">,</span>
+                            <span class="mf">1.559186e+00</span><span class="p">,</span>
+                            <span class="mf">1.614585e+00</span><span class="p">,</span>
+                            <span class="mf">1.869936e+00</span><span class="p">,</span>
+                            <span class="mf">2.128056e+00</span><span class="p">,</span>
+                            <span class="mf">2.301275e+00</span><span class="p">,</span>
+                            <span class="mf">2.529241e+00</span><span class="p">,</span>
+                            <span class="mf">2.661983e+00</span><span class="p">])</span>
+
+        <span class="n">b_array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">2.571104e+00</span> <span class="p">,</span>
+                            <span class="mf">2.254217e+00</span><span class="p">,</span>
+                            <span class="mf">2.048674e+00</span><span class="p">,</span>
+                            <span class="mf">1.869559e+00</span><span class="p">,</span>
+                            <span class="mf">1.588649e+00</span><span class="p">,</span>
+                            <span class="mf">1.507134e+00</span><span class="p">,</span>
+                            <span class="mf">1.464374e+00</span><span class="p">,</span>
+                            <span class="mf">1.436827e+00</span><span class="p">,</span>
+                            <span class="mf">1.405210e+00</span><span class="p">])</span>
+
+        <span class="n">c_array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1.193958e+00</span><span class="p">,</span>
+                            <span class="mf">1.270316e+00</span><span class="p">,</span>
+                            <span class="mf">1.335191e+00</span><span class="p">,</span>
+                            <span class="mf">1.446266e+00</span><span class="p">,</span>
+                            <span class="mf">1.581345e+00</span><span class="p">,</span>
+                            <span class="mf">1.795050e+00</span><span class="p">,</span>
+                            <span class="mf">1.965613e+00</span><span class="p">,</span>
+                            <span class="mf">2.237466e+00</span><span class="p">,</span>
+                            <span class="mf">2.439729e+00</span><span class="p">])</span>
+        <span class="n">A_func</span> <span class="o">=</span> <span class="n">spline</span><span class="p">(</span><span class="n">delta_virs</span><span class="p">,</span> <span class="n">A_array</span><span class="p">)</span>
+        <span class="n">a_func</span> <span class="o">=</span> <span class="n">spline</span><span class="p">(</span><span class="n">delta_virs</span><span class="p">,</span> <span class="n">a_array</span><span class="p">)</span>
+        <span class="n">b_func</span> <span class="o">=</span> <span class="n">spline</span><span class="p">(</span><span class="n">delta_virs</span><span class="p">,</span> <span class="n">b_array</span><span class="p">)</span>
+        <span class="n">c_func</span> <span class="o">=</span> <span class="n">spline</span><span class="p">(</span><span class="n">delta_virs</span><span class="p">,</span> <span class="n">c_array</span><span class="p">)</span>
+
+        <span class="n">A_0</span> <span class="o">=</span> <span class="n">A_func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">delta_halo</span><span class="p">)</span>
+        <span class="n">a_0</span> <span class="o">=</span> <span class="n">a_func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">delta_halo</span><span class="p">)</span>
+        <span class="n">b_0</span> <span class="o">=</span> <span class="n">b_func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">delta_halo</span><span class="p">)</span>
+        <span class="n">c_0</span> <span class="o">=</span> <span class="n">c_func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">delta_halo</span><span class="p">)</span>
+
+        <span class="n">A</span> <span class="o">=</span> <span class="n">A_0</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">z</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.14</span><span class="p">)</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="n">a_0</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">z</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.06</span><span class="p">)</span>
+        <span class="n">alpha</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="mf">0.75</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">delta_halo</span> <span class="o">/</span> <span class="mi">75</span><span class="p">))</span> <span class="o">**</span> <span class="mf">1.2</span><span class="p">)</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">b_0</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">z</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="n">alpha</span><span class="p">)</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">c_0</span>
+
+
+        <span class="n">vfv</span> <span class="o">=</span> <span class="n">A</span> <span class="o">*</span> <span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">sigma</span> <span class="o">/</span> <span class="n">b</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="n">a</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">c</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cut_fit</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">z</span> <span class="o">==</span> <span class="mf">0.0</span><span class="p">:</span>
+                <span class="n">vfv</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">logical_or</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lnsigma</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span> <span class="o">&lt;</span> <span class="o">-</span><span class="mf">0.6</span> <span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lnsigma</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mf">0.4</span><span class="p">)]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">vfv</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">logical_or</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lnsigma</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span> <span class="o">&lt;</span> <span class="o">-</span><span class="mf">0.2</span> <span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lnsigma</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mf">0.4</span><span class="p">)]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+        <span class="k">return</span> <span class="n">vfv</span>
+
+    <span class="k">def</span> <span class="nf">_watson_gamma</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">C</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="mf">0.023</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">delta_halo</span> <span class="o">/</span> <span class="mi">178</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="o">-</span><span class="mf">0.456</span> <span class="o">*</span> <span class="n">cosmography</span><span class="o">.</span><span class="n">omegam_z</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">z</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cosmo_params</span><span class="p">[</span><span class="s">&#39;omegam&#39;</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">cosmo_params</span><span class="p">[</span><span class="s">&#39;omegav&#39;</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">cosmo_params</span><span class="p">[</span><span class="s">&#39;omegak&#39;</span><span class="p">])</span> <span class="o">-</span> <span class="mf">0.139</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="mf">0.072</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="mf">2.13</span>
+
+        <span class="k">return</span> <span class="n">C</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">delta_halo</span> <span class="o">/</span> <span class="mi">178</span><span class="p">)</span> <span class="o">**</span> <span class="n">d</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">p</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">delta_halo</span> <span class="o">/</span> <span class="mi">178</span><span class="p">)</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span> <span class="o">**</span> <span class="n">q</span><span class="p">)</span>
+
+
+    <span class="k">def</span> <span class="nf">_nufnu_Watson_FoF</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">vfv</span> <span class="o">=</span> <span class="mf">0.282</span> <span class="o">*</span> <span class="p">((</span><span class="mf">1.406</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span><span class="p">)</span> <span class="o">**</span> <span class="mf">2.163</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mf">1.21</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cut_fit</span><span class="p">:</span>
+            <span class="n">vfv</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">logical_or</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lnsigma</span> <span class="o">&lt;</span> <span class="o">-</span><span class="mf">0.55</span> <span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lnsigma</span> <span class="o">&gt;</span> <span class="mf">1.31</span><span class="p">)]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">NaN</span>
+        <span class="k">return</span> <span class="n">vfv</span>
+
+    <span class="k">def</span> <span class="nf">_nufnu_Watson</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">z</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">A</span> <span class="o">=</span> <span class="mf">0.194</span>
+            <span class="n">alpha</span> <span class="o">=</span> <span class="mf">2.267</span>
+            <span class="n">beta</span> <span class="o">=</span> <span class="mf">1.805</span>
+            <span class="n">gamma</span> <span class="o">=</span> <span class="mf">1.287</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">z</span> <span class="o">&gt;</span> <span class="mi">6</span><span class="p">:</span>
+            <span class="n">A</span> <span class="o">=</span> <span class="mf">0.563</span>
+            <span class="n">alpha</span> <span class="o">=</span> <span class="mf">0.874</span>
+            <span class="n">beta</span> <span class="o">=</span> <span class="mf">3.810</span>
+            <span class="n">gamma</span> <span class="o">=</span> <span class="mf">1.453</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">A</span> <span class="o">=</span> <span class="n">cosmography</span><span class="o">.</span><span class="n">omegam_z</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">z</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cosmo_params</span><span class="p">[</span><span class="s">&#39;omegam&#39;</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">cosmo_params</span><span class="p">[</span><span class="s">&#39;omegav&#39;</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">cosmo_params</span><span class="p">[</span><span class="s">&#39;omegak&#39;</span><span class="p">])</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.097</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">z</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="mf">3.216</span><span class="p">)</span> <span class="o">+</span> <span class="mf">0.074</span><span class="p">)</span>
+            <span class="n">alpha</span> <span class="o">=</span> <span class="n">cosmography</span><span class="o">.</span><span class="n">omegam_z</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">z</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cosmo_params</span><span class="p">[</span><span class="s">&#39;omegam&#39;</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">cosmo_params</span><span class="p">[</span><span class="s">&#39;omegav&#39;</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">cosmo_params</span><span class="p">[</span><span class="s">&#39;omegak&#39;</span><span class="p">])</span> <span class="o">*</span> <span class="p">(</span><span class="mf">3.136</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">z</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="mf">3.058</span><span class="p">)</span> <span class="o">+</span> <span class="mf">2.349</span><span class="p">)</span>
+            <span class="n">beta</span> <span class="o">=</span> <span class="n">cosmography</span><span class="o">.</span><span class="n">omegam_z</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">z</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cosmo_params</span><span class="p">[</span><span class="s">&#39;omegam&#39;</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">cosmo_params</span><span class="p">[</span><span class="s">&#39;omegav&#39;</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">cosmo_params</span><span class="p">[</span><span class="s">&#39;omegak&#39;</span><span class="p">])</span> <span class="o">*</span> <span class="p">(</span><span class="mf">5.907</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">z</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="mf">3.599</span><span class="p">)</span> <span class="o">+</span> <span class="mf">2.344</span><span class="p">)</span>
+            <span class="n">gamma</span> <span class="o">=</span> <span class="mf">1.318</span>
+
+        <span class="n">vfv</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_watson_gamma</span><span class="p">()</span> <span class="o">*</span> <span class="n">A</span> <span class="o">*</span> <span class="p">((</span><span class="n">beta</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span><span class="p">)</span> <span class="o">**</span> <span class="n">alpha</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">gamma</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cut_fit</span><span class="p">:</span>
+            <span class="n">vfv</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">logical_or</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lnsigma</span> <span class="o">&lt;</span> <span class="o">-</span><span class="mf">0.55</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lnsigma</span> <span class="o">&gt;</span> <span class="mf">1.05</span><span class="p">)]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">NaN</span>
+
+        <span class="k">return</span> <span class="n">vfv</span>
+
+    <span class="k">def</span> <span class="nf">_nufnu_Crocce</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+
+        <span class="n">A</span> <span class="o">=</span> <span class="mf">0.58</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">z</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.13</span><span class="p">)</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="mf">1.37</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">z</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.15</span><span class="p">)</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="mf">0.3</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">z</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.084</span><span class="p">)</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="mf">1.036</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">z</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.024</span><span class="p">)</span>
+
+        <span class="n">vfv</span> <span class="o">=</span> <span class="n">A</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sigma</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="n">a</span><span class="p">)</span> <span class="o">+</span> <span class="n">b</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">c</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">vfv</span>
+
+    <span class="k">def</span> <span class="nf">_nufnu_Courtin</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="mf">0.348</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="mf">0.695</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="mf">0.1</span>
+        <span class="n">d_c</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">delta_c</span>  <span class="c"># Note for WMAP5 they find delta_c = 1.673</span>
+
+        <span class="n">vfv</span> <span class="o">=</span> <span class="n">A</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">a</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">d_c</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="p">(</span><span class="n">d_c</span> <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sigma</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">a</span><span class="p">)))</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="mi">2</span> <span class="o">*</span> <span class="n">p</span><span class="p">))</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">d_c</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">a</span> <span class="o">/</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span> <span class="o">**</span> <span class="mi">2</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">vfv</span>
+
+    <span class="k">def</span> <span class="nf">_nufnu_Bhattacharya</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="mf">0.333</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">z</span><span class="p">)</span> <span class="o">**</span> <span class="o">-</span><span class="mf">0.11</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="mf">0.788</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">z</span><span class="p">)</span> <span class="o">**</span> <span class="o">-</span><span class="mf">0.01</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="mf">0.807</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="mf">1.795</span>
+
+        <span class="n">nu</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">delta_c</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span>
+
+        <span class="n">vfv</span> <span class="o">=</span> <span class="n">A</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mf">2.0</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="n">a</span> <span class="o">*</span> <span class="n">nu</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="mf">2.0</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">/</span> <span class="p">(</span><span class="n">a</span> <span class="o">*</span> <span class="n">nu</span> <span class="o">**</span> <span class="mi">2</span><span class="p">))</span> <span class="o">**</span> <span class="n">p</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">nu</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">a</span><span class="p">))</span> <span class="o">**</span> <span class="n">q</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cut_fit</span><span class="p">:</span>
+            <span class="n">vfv</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">logical_or</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">M</span> <span class="o">&lt;</span> <span class="mi">6</span> <span class="o">*</span> <span class="mi">10</span> <span class="o">**</span> <span class="mi">11</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">M</span> <span class="o">&gt;</span> <span class="mi">3</span> <span class="o">*</span> <span class="mi">10</span> <span class="o">**</span> <span class="mi">15</span><span class="p">)]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">NaN</span>
+
+        <span class="k">return</span> <span class="n">vfv</span>
+
+    <span class="k">def</span> <span class="nf">_nufnu_user_model</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculates vfv based on a user-input model.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">scitools.StringFunction</span> <span class="kn">import</span> <span class="n">StringFunction</span>
+
+        <span class="n">f</span> <span class="o">=</span> <span class="n">StringFunction</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">user_fit</span><span class="p">,</span> <span class="nb">globals</span><span class="o">=</span><span class="nb">globals</span><span class="p">())</span>
+
+
+        <span class="k">return</span> <span class="n">f</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sigma</span><span class="p">)</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">hmf 1.1.10 documentation</a> &raquo;</li>
+          <li><a href="../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../hmf.html" >hmf</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2013, Steven Murray.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>

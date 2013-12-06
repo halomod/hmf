@@ -1,0 +1,254 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>hmf.cosmography &mdash; hmf 1.1.10 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.1.10',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="hmf 1.1.10 documentation" href="../../index.html" />
+    <link rel="up" title="hmf" href="../hmf.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">hmf 1.1.10 documentation</a> &raquo;</li>
+          <li><a href="../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../hmf.html" accesskey="U">hmf</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for hmf.cosmography</h1><div class="highlight"><pre>
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">Created on Jan 21, 2013</span>
+
+<span class="sd">@author: Steven</span>
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">scipy.integrate</span> <span class="kn">as</span> <span class="nn">intg</span>
+<span class="c">#import cosmolopy.density as cd</span>
+<span class="c">#import cosmolopy.distance as cd</span>
+<span class="c">#import cosmolopy.constants as cc</span>
+
+
+
+<div class="viewcode-block" id="mean_dens"><a class="viewcode-back" href="../../api.html#hmf.cosmography.mean_dens">[docs]</a><span class="k">def</span> <span class="nf">mean_dens</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">omegam</span><span class="p">,</span> <span class="n">omegav</span><span class="p">,</span> <span class="n">omegak</span><span class="p">,</span> <span class="n">crit_dens</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">omegam_z</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">omegam</span><span class="p">,</span> <span class="n">omegav</span><span class="p">,</span> <span class="n">omegak</span><span class="p">)</span> <span class="o">*</span> <span class="n">crit_dens</span>
+</div>
+<div class="viewcode-block" id="a_from_z"><a class="viewcode-back" href="../../api.html#hmf.cosmography.a_from_z">[docs]</a><span class="k">def</span> <span class="nf">a_from_z</span><span class="p">(</span><span class="n">z</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculates the scale factor at a given redshift</span>
+<span class="sd">    </span>
+<span class="sd">    Input: z: the redshift.</span>
+<span class="sd">    Output a: the scale factor at the given redshift.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">a</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">+</span> <span class="n">z</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">a</span>
+</div>
+<div class="viewcode-block" id="z_from_a"><a class="viewcode-back" href="../../api.html#hmf.cosmography.z_from_a">[docs]</a><span class="k">def</span> <span class="nf">z_from_a</span><span class="p">(</span><span class="n">a</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns the redshift of a particular scale factor</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">z</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">a</span> <span class="o">-</span> <span class="mf">1.0</span>
+
+    <span class="k">return</span> <span class="n">z</span>
+</div>
+<div class="viewcode-block" id="hubble_z"><a class="viewcode-back" href="../../api.html#hmf.cosmography.hubble_z">[docs]</a><span class="k">def</span> <span class="nf">hubble_z</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">omegam</span><span class="p">,</span> <span class="n">omegak</span><span class="p">,</span> <span class="n">omegav</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Finds the hubble parameter at z normalized by the current hubble constant: E(z).</span>
+<span class="sd">    </span>
+<span class="sd">    Source: Hogg 1999, Eq. 14</span>
+<span class="sd">    </span>
+<span class="sd">    Input: z: redshift</span>
+<span class="sd">           omegam: matter density</span>
+<span class="sd">           omegak: curvature density</span>
+<span class="sd">           omegav: dark energy density</span>
+<span class="sd">    Output: hubble: the hubble parameter at z divided by H_0 (ie. we don&#39;t need H_0)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">hubble</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">omegam</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">z</span><span class="p">)</span> <span class="o">**</span> <span class="mi">3</span> <span class="o">+</span> <span class="n">omegak</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">z</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">+</span> <span class="n">omegav</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">hubble</span>
+
+</div>
+<div class="viewcode-block" id="omegam_z"><a class="viewcode-back" href="../../api.html#hmf.cosmography.omegam_z">[docs]</a><span class="k">def</span> <span class="nf">omegam_z</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">omegam</span><span class="p">,</span> <span class="n">omegav</span><span class="p">,</span> <span class="n">omegak</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Finds Omega_M as a function of redshift</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">top</span> <span class="o">=</span> <span class="n">omegam</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">z</span><span class="p">)</span> <span class="o">**</span> <span class="mi">3</span>
+    <span class="n">bottom</span> <span class="o">=</span> <span class="n">omegam</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">z</span><span class="p">)</span> <span class="o">**</span> <span class="mi">3</span> <span class="o">+</span> <span class="n">omegav</span> <span class="o">+</span> <span class="n">omegak</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">z</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span>
+
+    <span class="k">return</span> <span class="n">top</span> <span class="o">/</span> <span class="n">bottom</span>
+</div>
+<div class="viewcode-block" id="d_plus"><a class="viewcode-back" href="../../api.html#hmf.cosmography.d_plus">[docs]</a><span class="k">def</span> <span class="nf">d_plus</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">omegam</span><span class="p">,</span> <span class="n">omegak</span><span class="p">,</span> <span class="n">omegav</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Finds the factor D+(a), from Lukic et. al. 2007, eq. 8.</span>
+<span class="sd">    </span>
+<span class="sd">    Uses romberg integration with a suitable step-size. </span>
+<span class="sd">    </span>
+<span class="sd">    Input: z: redshift.</span>
+<span class="sd">    </span>
+<span class="sd">    Output: dplus: the factor.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">stepsize</span> <span class="o">=</span> <span class="n">step_size</span><span class="p">(</span><span class="mf">0.0000001</span><span class="p">,</span> <span class="n">a_from_z</span><span class="p">(</span><span class="n">z</span><span class="p">))</span>
+    <span class="n">a_vector</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mf">0.0000001</span><span class="p">,</span> <span class="n">a_from_z</span><span class="p">(</span><span class="n">z</span><span class="p">),</span> <span class="n">stepsize</span><span class="p">)</span>
+    <span class="n">integrand</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="p">(</span><span class="n">a_vector</span> <span class="o">*</span> <span class="n">hubble_z</span><span class="p">(</span><span class="n">z_from_a</span><span class="p">(</span><span class="n">a_vector</span><span class="p">),</span> <span class="n">omegam</span><span class="p">,</span> <span class="n">omegak</span><span class="p">,</span> <span class="n">omegav</span><span class="p">))</span> <span class="o">**</span> <span class="mi">3</span>
+
+    <span class="n">integral</span> <span class="o">=</span> <span class="n">intg</span><span class="o">.</span><span class="n">romb</span><span class="p">(</span><span class="n">integrand</span><span class="p">,</span> <span class="n">dx</span><span class="o">=</span><span class="n">stepsize</span><span class="p">)</span>
+    <span class="n">dplus</span> <span class="o">=</span> <span class="mf">5.0</span> <span class="o">*</span> <span class="n">omegam</span> <span class="o">*</span> <span class="n">hubble_z</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">omegam</span><span class="p">,</span> <span class="n">omegak</span><span class="p">,</span> <span class="n">omegav</span><span class="p">)</span> <span class="o">*</span> <span class="n">integral</span> <span class="o">/</span> <span class="mf">2.0</span>
+
+    <span class="k">return</span> <span class="n">dplus</span>
+</div>
+<div class="viewcode-block" id="growth_factor"><a class="viewcode-back" href="../../api.html#hmf.cosmography.growth_factor">[docs]</a><span class="k">def</span> <span class="nf">growth_factor</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">omegam</span><span class="p">,</span> <span class="n">omegak</span><span class="p">,</span> <span class="n">omegav</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Finds the factor d(a) = D+(a)/D+(a=1), from Lukic et. al. 2007, eq. 8.</span>
+<span class="sd">    </span>
+<span class="sd">    Input: z: redshift.</span>
+<span class="sd">    </span>
+<span class="sd">    Output: growth: the growth factor.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">growth</span> <span class="o">=</span> <span class="n">d_plus</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">omegam</span><span class="p">,</span> <span class="n">omegak</span><span class="p">,</span> <span class="n">omegav</span><span class="p">)</span> <span class="o">/</span> <span class="n">d_plus</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">omegam</span><span class="p">,</span> <span class="n">omegak</span><span class="p">,</span> <span class="n">omegav</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">growth</span>
+</div>
+<div class="viewcode-block" id="step_size"><a class="viewcode-back" href="../../api.html#hmf.cosmography.step_size">[docs]</a><span class="k">def</span> <span class="nf">step_size</span><span class="p">(</span><span class="n">mini</span><span class="p">,</span> <span class="n">maxi</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculates a suitable step size for romberg integration given data limits</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">p</span> <span class="o">=</span> <span class="mi">13</span>
+
+    <span class="k">while</span> <span class="p">(</span><span class="n">maxi</span> <span class="o">-</span> <span class="n">mini</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="mi">2</span> <span class="o">**</span> <span class="n">p</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">10</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="mi">5</span><span class="p">):</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="n">p</span> <span class="o">-</span> <span class="mi">1</span>
+
+    <span class="n">step_size</span> <span class="o">=</span> <span class="p">(</span><span class="n">maxi</span> <span class="o">-</span> <span class="n">mini</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="mi">2</span> <span class="o">**</span> <span class="n">p</span> <span class="o">+</span> <span class="mf">1.0</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">step_size</span>
+<span class="c">#</span>
+<span class="c">#def z_last_scattering(omega_b, omega_m, h):</span>
+<span class="c">#    &quot;&quot;&quot;</span>
+<span class="c">#    Defines the redshift of the surface of last scattering via Hu and White 1997</span>
+<span class="c">#    &quot;&quot;&quot;</span>
+<span class="c">#    ob = omega_b * h ** 2</span>
+<span class="c">#    om = omega_m * h ** 2</span>
+<span class="c">#    b1 = 0.0783 * ob ** -0.238 / (1 + 39.5 * ob ** 0.763)</span>
+<span class="c">#    b2 = 0.560 * (1 + 21.1 * ob ** 1.81) ** -1</span>
+<span class="c">#    return 1048 * (1 + 0.00124 * ob ** -0.738) * (1 + b1 * om ** b2)</span>
+<span class="c">#</span>
+<span class="c">#def r_s(omega_m, z_ls, h):</span>
+<span class="c">#    age = cd.age(z_ls, use_flat=True, omega_M_0=omega_m, omega_lambda_0=1 - omega_m, h=h)</span>
+<span class="c">#    return age * cc.c_light_Mpc_s</span>
+<span class="c">#</span>
+<span class="c">#def d_ls_dist(omega_m, z_ls, h):</span>
+<span class="c">#    ang_size = cd.angular_diameter_distance(z_ls, omega_M_0=omega_m, omega_lambda_0=1 - omega_m, omega_k_0=0, h=h)</span>
+<span class="c">#    return ang_size</span>
+<span class="c">#</span>
+<span class="c">#def theta(omega_m, omega_b, h):</span>
+<span class="c">#    z = z_last_scattering(omega_b, omega_m, h=h)</span>
+<span class="c">#</span>
+<span class="c">#    r = r_s(omega_m, z, h)</span>
+<span class="c">#    d = d_ls_dist(omega_m, z, h)</span>
+<span class="c">#</span>
+<span class="c">#    return r / d</span>
+<span class="c">#def d_ls(omega_m, h, z_ls):</span>
+<span class="c">#</span>
+<span class="c">#    om = omega_m * h ** 2</span>
+<span class="c">#    aeq = (4.17 * 10 ** -5 / om) * (2.7255 / 2.728) ** 4</span>
+<span class="c">#    a_ls = 1.0 / (1 + z_ls)</span>
+<span class="c">#</span>
+<span class="c">#    eta_0 = (2.0 / np.sqrt(omega_m * (100 * h) ** 2)) * (np.sqrt(1 + aeq) - np.sqrt(aeq)) * (1 - 0.0841 * np.log(omega_m))</span>
+<span class="c">#    eta_star = (2.0 / np.sqrt(omega_m * (100 * h) ** 2)) * (np.sqrt(astar + aeq) - np.sqrt(aeq))</span>
+<span class="c">#    return eta_0 - eta_star</span>
+<span class="c">#</span>
+<span class="c">#def ang_scale(omega_m, omega_b, h):</span>
+<span class="c">#    z_ls = z_last_scattering(omega_b, omega_m, h)</span>
+<span class="c">#</span>
+<span class="c">#    om = omega_m * h ** 2</span>
+<span class="c">#    aeq = (4.17 * 10 ** -5 / om) * (2.7255 / 2.728) ** 4</span>
+<span class="c">#    a_ls = 1.0 / (1 + z_ls)</span>
+<span class="c">#</span>
+<span class="c">#    eta_0 = (2.0 / np.sqrt(omega_m * (100 * h) ** 2)) * (np.sqrt(1 + aeq) - np.sqrt(aeq)) * (1 - 0.0841 * np.log(omega_m))</span>
+<span class="c">#    eta_star = (2.0 / np.sqrt(omega_m * (100 * h) ** 2)) * (np.sqrt(a_ls + aeq) - np.sqrt(aeq))</span>
+<span class="c">#</span>
+<span class="c">#    return np.pi * (eta_0 / eta_star - 1)</span>
+</pre></div></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">hmf 1.1.10 documentation</a> &raquo;</li>
+          <li><a href="../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../hmf.html" >hmf</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2013, Steven Murray.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>

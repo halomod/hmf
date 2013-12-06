@@ -31,29 +31,30 @@ from scipy.interpolate import InterpolatedUnivariateSpline as spline
 ###############################################################################
 # The function definitions
 ###############################################################################
-def get_transfer(transfer_file, camb_dict, transfer_fit, k_bounds=None):
+def get_transfer(transfer_file, cosmo_params, transfer_fit,
+                 camb_options=None, k_bounds=None):
     """
     We use either CAMB or the EH approximation to get the transfer function.
-    The transfer function is in terms of k/h -- IN UNITS OF h/Mpc??!!
+    The transfer function is in terms of k/h.
     """
-    #If no transfer file uploaded, but it was custom, execute CAMB
+    # If no transfer file uploaded, but it was custom, execute CAMB
     if transfer_file is None:
         if transfer_fit == "CAMB":
-            k, T, sig8 = pycamb.transfers(**camb_dict)
+            cdict = dict(cosmo_params.pycamb_dict(),
+                         **camb_options)
+            k, T, sig8 = pycamb.transfers(**cdict)
             T = np.log(T[[0, 6], :, 0])
             del sig8, k
         elif transfer_fit == "EH":
             k = np.exp(np.linspace(np.log(k_bounds[0]), np.log(k_bounds[1]), 250))
-            #Since the function natively calculates the transfer based on k in Mpc^-1,
+            # Since the function natively calculates the transfer based on k in Mpc^-1,
             # we need to multiply by h.
-            t, T = pert.transfer_function_EH(k * camb_dict['H0'] / 100,
-                                             omega_M_0=(camb_dict['omegac'] + camb_dict['omegab']), omega_lambda_0=camb_dict['omegav'],
-                                             h=camb_dict["H0"] / 100, omega_b_0=camb_dict['omegab'], omega_n_0=camb_dict['omegan'],
-                                             N_nu=camb_dict['Num_Nu_massive'])
+            t, T = pert.transfer_function_EH(k * cosmo_params.h,
+                                             **cosmo_params.comolopy_dict())
             T = np.vstack((np.log(k), np.log(T)))
             del t
     else:
-        #Import the transfer file
+        # Import the transfer file
         T = read_transfer(transfer_file)
 
     return T
@@ -74,11 +75,11 @@ def read_transfer(transfer_file):
 
 def check_kr(min_m, max_m, mean_dens, mink, maxk):
 
-    #Define mass from radius function
+    # Define mass from radius function
     def M(r):
         return 4 * np.pi * r ** 3 * mean_dens / 3
 
-    #Define min and max radius
+    # Define min and max radius
     min_r = (3 * min_m / (4 * np.pi * mean_dens)) ** (1. / 3.)
     max_r = (3 * max_m / (4 * np.pi * mean_dens)) ** (1. / 3.)
 
@@ -209,14 +210,13 @@ def radius_to_mass(R, mean_dens):
     Calculates mass from radius given mean density
     """
     return 4 * np.pi * R ** 3 * mean_dens / 3
-def wdm_transfer(m_x, power_cdm, lnk, H0, omegac):
+
+def wdm_transfer(m_x, power_cdm, lnk, h, omegac):
     """
-    Tansforms the CDM Power Spectrum into a WDM power spectrum for a given warm particle mass m_x.
+    Transforms the CDM Power Spectrum into a WDM power spectrum for a given warm particle mass m_x.
     
     NOTE: formula from Bode et. al. 2001 eq. A9
     """
-
-    h = H0 / 100
     g_x = 1.5
     nu = 1.12
 
@@ -254,10 +254,7 @@ def n_eff(dlnsdlnm):
 
 def new_k_grid(k, k_bounds=None):
     """
-    Creates a new grid for the transfer function, for application of Romberg integration.
-    
-    Note: for Romberg integration, the number of steps must be 2**p+1 where p is an integer, which is why this scaling
-            should be performed. We choose 4097 bins for ln(k). This could possibly be optimized or made variable.
+    Creates a new grid for the transfer function.
     """
 
     # Determine the true k_bounds.

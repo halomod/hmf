@@ -1,10 +1,11 @@
 '''
-Perturbations.py contains a single class (Perturbations), which contains
-methods that act upon a transfer function to gain functions such as the
-mass function.
+This is the primary module for user-interaction with the `hmf` package.
+
+The module contains a single class, `Perturbations`, which wraps almost all the
+functionality of `hmf` in an easy-to-use way.
 '''
 
-version = '1.1.9'
+version = '1.2.1'
 
 ###############################################################################
 # Some Imports
@@ -13,367 +14,373 @@ from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import scipy.integrate as intg
 import numpy as np
 from numpy import sin, cos, tan, abs, arctan, arccos, arcsin, exp
+import copy
 
 # from scitools.std import sin,cos,tan,abs,arctan,arccos,arcsin #Must be in this form to work for some reason.
-
+from cosmolopy import distance as cd
 import cosmography
+from cosmo import Cosmology
 import tools
-from fitting_functions import fits
+from fitting_functions import Fits
 
-#TODO: possibly implement weighting by survey volume: n(M,z1,z2) = \int n(M,z)*V(z) dz / \int V(z) dz
-###############################################################################
-# The Class
-###############################################################################
 class Perturbations(object):
-    """
-    A class which contains the functions necessary to evaluate the HMF and Mass Variance.
+    r"""
+    An object containing all relevant quantities for the mass function.
     
-    The purpose and idea behind the class is to be able to calculate many quantities associated
-    with perturbations in the early Universe. The class is initialized to form a cosmology and
-    takes in various options as to how to calculate the various quantities. Most non-initial 
-    methods of the class need no further input after the cosmology has been initialized.
+    The purpose of this class is to calculate many quantities associated with 
+    perturbations in the early Universe. The class is initialized to form a 
+    cosmology and takes in various options as to how to calculate all
+    further quantities. 
     
-    Contains an update() method which can be passed arguments to update, in the most optimal manner.
-    All output quantities are called as properties of the class, and are calculated at need (but
-    stored after first calculation for quick access).
+    All required outputs are provided as ``@property`` attributes for ease of 
+    access.
     
-    Output Quantities:
-        sigma:         The mass variance of spheres of the given radius/mass. NOTE: not sigma^2
-        lnsigma:       The natural logarithm of the inverse of sigma
-        lnk:           The natural log of the wavenumbers in the power spectrum [h/Mpc]
-        growth:        The growth factor for the given cosmology and redshift
-        power:         The natural log of the normalised power spectrum for the given cosmology (at lnk)
-        n_eff:         Effective spectral index at the radius of a halo
-        M:             The masses at which analysis is performed. (not log) [M_sun/h]
-        fsigma:        The multiplicity function, or fitting function at M
-        dndm:          The comoving number density of halos in mass interval M [h**3/Mpc**3]
-        dndlnm:        The comoving number density of halos in log mass interval M [h**3/Mpc**3]
-        dndlog10m:     The comoving number density of halo in log10 mass interval M [h**3/Mpc**3]
-        ngtm:          Comoving number density of halos > M [h**3/Mpc**3]
-        nltm:          Comoving number density of halos < M [h**3/Mpc**3]
-        mgtm:          Comoving mass density of halos > M [M_sun h**3/Mpc**3]
-        mltm:          Comoving mass density of halos < M [M_sun h**3/Mpc**3]
-        how_big:       The requisite size of a simulation box, L, to have at least one halo > M [Mpc/h]
+    Contains an update() method which can be passed arguments to update, in the
+    most optimal manner. All output quantities are calculated only when needed 
+    (but stored after first calculation for quick access).
+    
+    Parameters
+    ----------
+    M : array_like, optional, Default ``np.linspace(10,15,501)``
+        The masses at which to perform analysis [units :math:`\log_{10}M_\odot h^{-1}`].    
         
-    Input:
-        M:             A vector of floats containing the log10(Solar Masses/h) at which to perform analysis.    
-                       Default: M = np.linspace(10,15,501)
+        
+    transfer_file : str, optional, default ``None``
+        Either a string pointing to a file with a CAMB-produced transfer function,
+        or ``None``. If ``None``, will use CAMB on the fly to produce the function.
                        
-        transfer_file: Either a string pointing to a file with a CAMB-produced transfer function,
-                       or None. If None, will use CAMB on the fly to produce the function.
-                       Default is None.
-                       
-        z:             a float giving the redshift of the analysis.
-                       Default z = 0.0
+    z : float, optional, default ``0.0``
+        The redshift of the analysis.
                    
-        wdm_mass:      a float giving warm dark matter particle size in keV, or None for CDM. 
-                       Default is wdm_mass = None
+    wdm_mass : float, optional, default ``None``
+        The warm dark matter particle size in *keV*, or ``None`` for CDM.
                                                        
-        k_bounds:      a list/tuple defining two values: the lower and upper limit of k. Used to truncate/extend
-                       the power spectrum. 
-                       Default k_bounds = [0.0000001,20000.0]
+    k_bounds : sequence (``len=2``), optional, default ``[1e-8,2e4]``
+        Defines the lower and upper limit of the wavenumber, *k* [units :math:`h^3Mpc^{-3}`]. 
+        Used to truncate/extend the power spectrum. 
                      
-        mf_fit:        A string indicating which fitting function to use for f(sigma)
-                       Default: mf_fit = 'ST'
+    mf_fit : str, optional, default ``"SMT"``
+        A string indicating which fitting function to use for :math:`f(\sigma)`
                        
-                       Options:                               
-                            1. 'PS': Press-Schechter form from 1974
-                            2. 'ST': Sheth-Mo-Tormen empirical fit from 2001
-                            3. 'Jenkins': Jenkins empirical fit from 2001
-                            4. 'Warren': Warren empirical fit from 2006
-                            5. 'Reed03': Reed empirical from 2003
-                            6. 'Reed07': Reed empirical from 2007
-                            7. 'Tinker': Tinker empirical from 2008
-                            8. 'Watson': Watson empirical 2012
-                            9. 'Watson_FoF': Watson Friend-of-friend fit 2012
-                            10. 'Crocce': Crocce 2010
-                            11. 'Courtin': Courtin 2011
-                            12. 'Angulo': Angulo 2012
-                            13. 'Angulo_Bound': Angulo sub-halo function 2012
-                            14. "Bhattacharya": Bhattacharya empirical fit 2011
-                            15. "Behroozi": Behroozi extension to Tinker for high-z 2013
-                            16. 'user_model': A user-input string function
+        Available options:
+                                           
+        1. ``'PS'``: Press-Schechter form from 1974
+        #. ``'SMT'``: Sheth-Mo-Tormen empirical fit from 2001
+        #. ``'Jenkins'``: Jenkins empirical fit from 2001
+        #. ``'Warren'``: Warren empirical fit from 2006
+        #. ``'Reed03'``: Reed empirical from 2003
+        #. ``'Reed07'``: Reed empirical from 2007
+        #. ``'Tinker'``: Tinker empirical from 2008
+        #. ``'Watson'``: Watson empirical 2012
+        #. ``'Watson_FoF'``: Watson Friend-of-friend fit 2012
+        #. ``'Crocce'``: Crocce 2010
+        #. ``'Courtin'``: Courtin 2011
+        #. ``'Angulo'``: Angulo 2012
+        #. ``'Angulo_Bound'``: Angulo sub-halo function 2012
+        #. ``'Bhattacharya'``: Bhattacharya empirical fit 2011
+        #. ``'Behroozi'``: Behroozi extension to Tinker for high-z 2013
+        #. ``'user_model'``: A user-input string function
         
-        delta_wrt:     Defines what the overdensity of a halo is with respect to, can take 'mean' or 'crit'
-                       Default: 'mean' 
+    delta_wrt : str, {``"mean"``,``"crit"``}
+        Defines what the overdensity of a halo is with respect to.
+        Can take ``'mean'`` or ``'crit'``
                        
-        delta_halo:    The overdensity for the halo definition, with respect to delta_wrt
-                       Default: delta_halo = 200.0
+    delta_halo : float, optional, default ``200.0``
+        The overdensity for the halo definition, with respect to ``delta_wrt``
                        
-        user_fit:      A string defining a mathematical function in terms of 'x', used as the fitting function,
-                       where x is taken as sigma. Will only be applicable if mf_fit == "user_model".
-                       Default: user_fit = ""
+    user_fit : str, optional, default ``""``
+        A string defining a mathematical function in terms of `x`, used as
+        the fitting function, where `x` is taken as :math:`\( \sigma \)`. Will only
+        be applicable if ``mf_fit == "user_model"``.
                        
-        transfer_fit:  A string defining which transfer function fit to use. Current options are 'CAMB' and 'EH' (Eistenstein-Hu)
-                       Default: transfer_fit = "CAMB"
+    transfer_fit : str, {``"CAMB"``, ``"EH"``} 
+        Defines which transfer function fit to use. 
+                    
+    cut_fit : bool, optional, default ``True``
+        Whether to forcibly cut :math:`f(\sigma)` at bounds given by respective papers.
+        If `False`, will use whole range of `M`(may give ridiculous results).
+           
+           
+    Other Parameters (for CAMB)
+    ---------------------------
+    Scalar_initial_condition : int, {1,2,3,4,5}
+        Initial scalar perturbation mode (adiabatic=1, CDM iso=2, Baryon iso=3, 
+        neutrino density iso =4, neutrino velocity iso = 5) 
+        
+    lAccuracyBoost : float, optional, default ``1.0``
+        Larger to keep more terms in the hierarchy evolution
+    
+    AccuracyBoost : float, optional, default ``1.0``
+        Increase accuracy_boost to decrease time steps, use more k values,  etc.
+        Decrease to speed up at cost of worse accuracy. Suggest 0.8 to 3.
+        
+    w_perturb : bool, optional, default ``False``
+        
+    transfer__k_per_logint : int, optional, default ``11``
+        Number of wavenumbers estimated per log interval by CAMB
+        Default of 11 gets best performance for requisite accuracy of mass function.
+        
+    transfer__kmax : float, optional, default ``0.25``
+        Maximum value of the wavenumber.
+        Default of 0.25 is high enough for requisite accuracy of mass function.
+        
+    ThreadNum : int, optional, default ``0``
+        Number of threads to use for calculation of transfer function by CAMB
+        Default 0 automatically determines the number.
                        
-        cut_fit:       Whether to forcibly cut the f(sigma) at bounds given by respective papers.
-                       If False, will use function to calculate all values specified in M (may give ridiculous results)
-                       Default: True
-                       
-                       
-        **kwargs:      There is a placeholder for any additional cosmological parameters, or camb
-                       parameters, that one wishes to include. Parameters that aren't used won't
-                       break the program, they will just be ignored. Here follows a list of parameters
-                       that will be used by various parts of the program, and their respective defaults,
-                       note that cosmological parameters follow PLANCK1 results:
-                       
-                       PARAMETERS USED OUTSIDE OF CAMB ONLY:
-                       sigma_8         :: 0.8347
-                       n               :: 0.9619
-                       delta_c         :: 1.686
-                       
-                       PARAMETERS USED IN CAMB AND OUTSIDE:
-                       omegab          :: 0.049
-                       omegac          :: 0.2678
-                       omegav          :: 0.6817
-                       omegak          :: 1 - omegab - omegac - omegal - omegan
-                       
-                       PARAMETERS USED ONLY IN CAMB
-                       H0              :: 67.04
-                       omegan          :: 0.0
-                       TCMB            :: 2.725
-                       yhe             :: 0.24
-                       Num_Nu_massless :: 3.04 
-                       Num_Nu_massive  :: 0
-                       reion__redshift :: 10.3 
-                       reion__optical_depth :: 0.09
-                       reion__fraction :: -1
-                       reion__delta_redshift :: 1.5
-                       Scalar_initial_condition :: 1
-                       scalar_amp      :: 1E-9
-                       scalar_running  :: 0
-                       tensor_index    :: 0
-                       tensor_ratio    :: 1
-                       lAccuracyBoost :: 1
-                       lSampleBoost   :: 1
-                       w_lam          :: -1
-                       cs2_lam        :: 0
-                       AccuracyBoost  :: 1
-                       WantScalars     :: True
-                       WantTensors     :: False
-                       reion__reionization :: True
-                       reion__use_optical_depth :: True
-                       w_perturb      :: False
-                       DoLensing       :: False 
-                       ThreadNum       :: 0 
-                       transfer__k_per_logint :: 11
-                       transfer__kmax :: 0.25
-                                
+    Available \*\*kwargs
+    --------------------
+    The ``**kwargs`` takes any cosmological parameters desired, which are input 
+    to the `hmf.cosmo.Cosmology` class. `hmf.Perturbations` uses a default 
+    parameter set from the first-year PLANCK mission, with optional modifications
+    by the user.       
+                 
+    sigma_8 : default 0.8344
+        The normalisation. Mass variance in top-hat spheres with :math:`R=8`Mpc:math:`h^{-1}`
+        
+    n : default 0.9624
+        The spectral index
+        
+    w : default -1
+        The dark-energy equation of state
+        
+    cs2_lam : default 1
+        The constant comoving sound speed of dark energy
+        
+    t_cmb : default 2.725 
+        Temperature of the CMB
+        
+    y_he : default 0.24 
+        Helium fraction
+        
+        
+    N_nu : default 3.04 
+        Number of massless neutrino species
+        
+    N_nu_massive : default 0
+        Number of massive neutrino species
+        
+    delta_c : default 1.686
+        The critical overdensity for collapse
+        
+    h : default ``H0/100.0``
+        The hubble parameter
+        
+    H0 : default 67.11
+        The hubble constant
+        
+    omegan : default 0 
+        The normalised density of neutrinos
+        
+    omegam : default ``(omegab_h2 + omegac_h2)/h**2`` 
+        The normalised density of matter
+        
+    omegav : default 0.6825 
+        The normalised density of dark energy
+        
+    omegab: default ``omegab_h2/h**2`` 
+        The normalised baryon density
 
+    omegac : default ``omegac_h2/h**2``
+        The normalised CDM density
+        
+    omegab_h2 : default 0.022068 
+        The normalised baryon density by ``h**2``
+        
+    omegac_h2 : default 0.12029 
+        The normalised CDM density by ``h**2``
+           
+    force_flat : bool, default False
+        Whether to force the cosmology to be flat (affects only ``omegav``)
     """
 
 
-    def __init__(self, M=np.linspace(10, 15, 501),
-                 mf_fit="ST",
-                 transfer_file=None,
-                 z=0.0,
-                 wdm_mass=None, k_bounds=[0.0000001, 20000.0],
-                 delta_halo=200.0, delta_wrt='mean', user_fit='', transfer_fit='CAMB',
-                 cut_fit=True, ** kwargs):
+    def __init__(self, M=None, mf_fit="ST", transfer_file=None, z=0.0,
+                 wdm_mass=None, k_bounds=[1e-8, 2e4], delta_halo=200.0,
+                 delta_wrt='mean', user_fit='', transfer_fit='CAMB',
+                 cut_fit=True, Scalar_initial_condition=1, lAccuracyBoost=1,
+                 AccuracyBoost=1, w_perturb=False, transfer__k_per_logint=11,
+                 transfer__kmax=0.25, ThreadNum=0, z2=None, nz=None, **kwargs):
         """
         Initializes the cosmology for which to perform the perturbation analysis.      
         """
-        #All cosmological parameters that affect the transfer function (CAMB)
-        #Extra derivative parameters are omegak, reion__optical_depth or reion__redshift
-        self._transfer_cosmo = {"w_lam"    :-1,
-                               "omegab"   : 0.0455,
-                               "omegac"   : 0.226,
-                               "omegav"   : 0.728,
-                               "omegan"   : 0.0,
-                               "H0"       : 70.4,
-                               'cs2_lam' : 1,
-                               'TCMB'     : 2.725,
-                               'yhe'      : 0.24,
-                               'Num_Nu_massless' : 3.04,
-                               'reion__redshift': 10.3,
-                               'reion__optical_depth': 0.085
-                               }
+        # A list of all available kwargs (these are sent to the Cosmology class)
+        self._cp = ["sigma_8", "n", "w", "cs2_lam", "t_cmb", "y_he", "N_nu",
+                    "omegan", "delta_c", "H0", "h", "omegab",
+                    "omegac", "omegav", "omegab_h2", "omegac_h2",
+                    "force_flat"]
 
-        #All other cosmological parameters, derivative parameters are mean_dens and omegam
-        self._extra_cosmo = {"sigma_8":0.81,
-                            "n":0.967,
-                            "delta_c":1.686,
-                            "crit_dens":27.755e10
-                            }
+        # Set up a simple dictionary of kwargs which can be later updated
+        self._cpdict = {k:v for k, v in kwargs.iteritems() if k in self._cp}
 
-        self._transfer_options = {'Num_Nu_massive'  : 0,
-                                 'reion__fraction' :-1,
-                                 'reion__delta_redshift' : 1.5,
-                                 'Scalar_initial_condition' : 1,
-                                 'scalar_amp'      : 1E-9,
-                                 'scalar_running'  : 0,
-                                 'tensor_index'    : 0,
-                                 'tensor_ratio'    : 1,
-                                 'lAccuracyBoost' : 1,
-                                 'lSampleBoost'   : 1,
-                                 'AccuracyBoost'  : 1,
-                                 'WantScalars'     : True,
-                                 'WantTensors'     : False,
-                                 'reion__reionization' : True,
-                                 'reion__use_optical_depth' : True,
-                                 'w_perturb'      : False,
-                                 'DoLensing'       : False,
-                                 'transfer__k_per_logint': 11,
-                                 'transfer__kmax':0.25,
-                                 'ThreadNum':0}
+        if M is None:
+            M = np.linspace(10, 15, 501)
+
+        self._camb_options = {'Scalar_initial_condition' : Scalar_initial_condition,
+                              'scalar_amp'      : 1E-9,
+                              'lAccuracyBoost' : lAccuracyBoost,
+                              'AccuracyBoost'  : AccuracyBoost,
+                              'w_perturb'      : w_perturb,
+                              'transfer__k_per_logint': transfer__k_per_logint,
+                              'transfer__kmax':transfer__kmax,
+                              'ThreadNum':ThreadNum}
 
 
-        #A list of available HMF fitting functions and their identifiers
-        self.mf_fits = ["PS", "ST", "SMT", "Warren", "Jenkins", "Reed03", "Reed07", "Angulo", "Angulo_Bound", "Tinker",
-                        "Watson_FoF", "Watson", "Crocce", "Courtin", "Bhattacharya", "Behroozi", "user_model",
-                        "Peacock"]
+        # Set all given parameters -- annoying but has to be done for best updating
+        self.M = M
+        self.mf_fit = mf_fit
+        self.k_bounds = k_bounds
+        self._transfer_file = transfer_file
+        self.wdm_mass = wdm_mass
+        self._delta_halo_base = delta_halo
+        self.delta_wrt = delta_wrt
+        self.user_fit = user_fit
+        self.z = z
+        self.transfer_fit = transfer_fit
+        self.cut_fit = cut_fit
+        self.z2 = z2
+        self.nz = nz
+        self.cosmo_params = Cosmology(default="planck1_base", **self._cpdict)
 
-        self.update(M=M, mf_fit=mf_fit, k_bounds=k_bounds, transfer_file=transfer_file, wdm_mass=wdm_mass,
-                     delta_halo=delta_halo, delta_wrt=delta_wrt, user_fit=user_fit, z=z,
-                     transfer_fit=transfer_fit, cut_fit=cut_fit, ** kwargs)
+        # Now update them all
+#         self.update(M=M, mf_fit=mf_fit, k_bounds=k_bounds, transfer_file=transfer_file, wdm_mass=wdm_mass,
+#                      delta_halo=delta_halo, delta_wrt=delta_wrt, user_fit=user_fit, z=z,
+#                      transfer_fit=transfer_fit, cut_fit=cut_fit, z2=z2, nz=nz, ** kwargs)
 
     def update(self, **kwargs):
         """
-        This is a convenience method to update any variable that is meant to be in the class in an optimal manner
+        Update the class with the given arguments in an optimal manner.
+        
+        Accepts any argument that the constructor takes.
         """
 
-        #First update the basic dictionaries
+        # First update the cosmology
+        cp = {k:v for k, v in kwargs.iteritems() if k in self._cp}
+        if cp:
+            true_cp = {}
+            for k, v in cp.iteritems():
+                if k not in self._cpdict:
+                    true_cp[k] = v
+                elif k in self._cpdict:
+                    if v != self._cpdict[k]:
+                        true_cp[k] = v
+
+            self._cpdict.update(true_cp)
+
+            # Delete the entries we've used from kwargs
+            for k in cp:
+                del kwargs[k]
+
+            # Now actually update the Cosmology class
+            self.cosmo_params = Cosmology(default="planck1_base", **self._cpdict)
+
+            if "n" in true_cp:
+                del self._unnormalized_power
+            if "sigma_8" in true_cp:
+                del self._power_cdm_0
+            if "delta_c" in true_cp:
+                del self.fsigma
+
+            if "omegab" in true_cp:
+                del self._transfer_original
+                del self._power_cdm_0
+                del self._sigma_0
+                del self._dlnsdlnm
+                del self.dndm
+            if "omegac" in true_cp:
+                del self._transfer_original
+                del self._power_cdm_0
+                del self._power_0
+                del self._sigma_0
+                del self._dlnsdlnm
+                del self.dndm
+            if "h" in cp or "H0" in true_cp:
+                del self._transfer_original
+                del self._power_0
+                if "omegab" not in self._cpdict:
+                    del self.camb_params
+                    del self._power_cdm_0
+                    del self._power_0
+                    del self._sigma_0
+                    del self._dlnsdlnm
+                    del self.dndm
+            if "omegab_h2" in true_cp:
+                del self._transfer_original
+                del self._power_cdm_0
+                del self._sigma_0
+                del self._dlnsdlnm
+                del self.dndm
+            if "omegac_h2" in true_cp:
+                del self._transfer_original
+                del self._power_cdm_0
+                del self._power_0
+                del self._sigma_0
+                del self._dlnsdlnm
+                del self.dndm
+
+        # Now do rest of the parameters
         for key, val in kwargs.iteritems():
-            if key in self._transfer_cosmo:
-                self._transfer_cosmo.update({key:val})
-                del self.cosmo_params
-                del self.camb_params
 
-                if key is 'omegab':
-                    del self._power_cdm_0
-                    del self._sigma_0
-                    del self._dlnsdlnm
-                    del self.dndm
-                elif key is 'omegac':
-                    del self._power_cdm_0
-                    del self._power_0
-                    del self._sigma_0
-                    del self._dlnsdlnm
-                    del self.dndm
-                elif key is 'H0':
-                    del self._power_0
-
-            elif key in self._extra_cosmo:
-                self._extra_cosmo.update({key:val})
-                del self.cosmo_params
-                if key is 'n':
-                    del self._unnormalized_power
-                elif key is 'sigma_8':
-                    del self._power_cdm_0
-                elif key is 'crit_dens':
-                    del self._power_cdm_0
-                    del self._sigma_0
-                    del self._dlnsdlnm
-                    del self.dndm
-                elif key is 'delta_c':
-                    del self.fsigma
-            elif key in self._transfer_options:
-                self._transfer_options.update({key:val})
-                del self.camb_params
+            if key in self._camb_options:
+                if self._camb_options[key] != val:
+                    self._camb_options.update({key:val})
+                    if key != "ThreadNum":
+                        del self._transfer_original
 
             elif key is 'M':
-                self.M = kwargs['M']
+                if np.any(self.M != kwargs["M"]):
+                    self.M = kwargs['M']
             elif key is "mf_fit":
-                self.mf_fit = kwargs["mf_fit"]
+                if self.mf_fit != kwargs["mf_fit"]:
+                    self.mf_fit = kwargs["mf_fit"]
             elif key is "k_bounds":
-                self.k_bounds = kwargs['k_bounds']
+                if self.k_bounds[0] != kwargs["k_bounds"][0] or self.k_bounds[1] != kwargs["k_bounds"][1]:
+                    self.k_bounds = kwargs['k_bounds']
             elif key is "transfer_file":
-                self._transfer_file = kwargs['transfer_file']
+                if self._transfer_file != kwargs['transfer_file']:
+                    self._transfer_file = kwargs['transfer_file']
             elif key is 'z':
-                self.z = kwargs['z']
+                if self.z != kwargs['z']:
+                    self.z = kwargs['z']
             elif key is "wdm_mass":
-                self.wdm_mass = kwargs['wdm_mass']
+                if self.wdm_mass != kwargs["wdm_mass"]:
+                    self.wdm_mass = kwargs['wdm_mass']
             elif key is 'delta_halo':
-                self._delta_halo_base = kwargs['delta_halo']
+                if self._delta_halo_base != kwargs['delta_halo']:
+                    self._delta_halo_base = kwargs['delta_halo']
             elif key is 'delta_wrt':
-                self.delta_wrt = kwargs['delta_wrt']
+                if self.delta_wrt != kwargs['delta_wrt']:
+                    self.delta_wrt = kwargs['delta_wrt']
             elif key is "user_fit":
-                self.user_fit = kwargs['user_fit']
+                if self.user_fit != kwargs['user_fit']:
+                    self.user_fit = kwargs['user_fit']
             elif key is "transfer_fit":
-                self.transfer_fit = kwargs['transfer_fit']
+                if self.transfer_fit != kwargs['transfer_fit']:
+                    self.transfer_fit = kwargs['transfer_fit']
             elif key is "cut_fit":
-                self.cut_fit = kwargs['cut_fit']
-            elif key is "R":
-                self.R = kwargs['R']
+                if self.cut_fit != kwargs['cut_fit']:
+                    self.cut_fit = kwargs['cut_fit']
+            elif key is "z2":  # must be set after z for comparison
+                if self.z2 != kwargs['z2']:
+                    self.z2 = kwargs["z2"]
+            elif key is "nz":
+                if self.nz != kwargs['nz']:
+                    self.nz = kwargs["nz"]
 
             else:
                 print "WARNING: ", key, " is not a valid parameter for the Perturbations class"
 
-        #Some extra logic for deletes
-        if ('omegab' in kwargs or 'omegac' in kwargs or 'omegav' in kwargs) and self.z > 0:
+        # Some extra logic for deletes
+        if ('omegab' in cp or 'omegac' in cp or 'omegav' in cp) and self.z > 0:
             del self.growth
         elif 'z' in kwargs:
             if kwargs['z'] == 0:
                 del self.growth
 
-
-    @property
-    def cosmo_params(self):
-        """All the cosmological parameters"""
-        try:
-            return self.__cosmo_params
-        except:
-            #Piece together the cosmo dictionaries
-            self.__cosmo_params = dict(self._transfer_cosmo.items() + self._extra_cosmo.items())
-
-            #Set some derivative parameters
-            self.__cosmo_params['omegam'] = self.__cosmo_params['omegab'] + self.__cosmo_params['omegac']
-            self.__cosmo_params['omegak'] = 1 - self.__cosmo_params['omegam'] - self.__cosmo_params['omegav'] - self.__cosmo_params['omegan']
-            self.__cosmo_params['crit_dens'] = 2.7755E7 * self.__cosmo_params["H0"] ** 2
-            self.__cosmo_params['mean_dens'] = self.__cosmo_params['omegam'] * self.__cosmo_params['crit_dens']  #FIXME redshift evolution?
-            if self._transfer_options['reion__use_optical_depth']:
-                del self.__cosmo_params['reion__redshift']
-            else:
-                del self.__cosmo_params['reion__optical_depth']
-
-            return self.__cosmo_params
-    @cosmo_params.deleter
-    def cosmo_params(self):
-        try:
-            del self.__cosmo_params
-        except AttributeError:
-            pass
-    @property
-    def camb_params(self):
-        """Every parameter that is passed to camb"""
-
-        try:
-            return self.__camb_params
-        except:
-            #Piece together the cosmo dictionaries
-            self.__camb_params = dict(self._transfer_cosmo.items() + self._transfer_options.items())
-
-            #Set some derivative parameters
-            self.__camb_params['omegak'] = 1 - self.__camb_params['omegab'] - self.__camb_params['omegac'] - \
-             self.__camb_params['omegav'] - self.__camb_params['omegan']
-
-            if self.__camb_params['reion__use_optical_depth']:
-                del self.__camb_params['reion__redshift']
-            else:
-                del self.__camb_params['reion__optical_depth']
-
-            if self.__camb_params['transfer__kmax'] < 0.2:
-                print "WARNING: transfer__kmax may be too low for accuracy"
-
-            if self.__camb_params['transfer__k_per_logint'] < 11 and self.__camb_params['transfer__k_per_logint'] != 0:
-                print "WARNING: transfer__k_per_logint may be too low for accuracy"
-            return self.__camb_params
-
-    @camb_params.deleter
-    def camb_params(self):
-        try:
-            del self.__camb_params
-
-            #We also delete stuff that DIRECTLY depends on it
-            del self._lnk_original
-        except AttributeError:
-            pass
-
     @property
     def M(self):
         """
-        Mass in units of M_sun/h
+        Mass vector [units of :math:`M_\odot h^{-1}`]
         """
         return self.__M
 
@@ -385,7 +392,7 @@ class Perturbations(object):
         except TypeError:
             raise TypeError("M must be a sequence of length > 1")
 
-        #Delete stuff dependent on it
+        # Delete stuff dependent on it
         del self._sigma_0
         del self._dlnsdlnm
         del self.dndm
@@ -397,7 +404,7 @@ class Perturbations(object):
     @property
     def mf_fit(self):
         """
-        The mass function fitting function
+        String identifier of the fitting function used.
         """
         return self.__mf_fit
 
@@ -409,10 +416,10 @@ class Perturbations(object):
         except:
             raise ValueError("mf_fit must be a string, got ", val)
 
-        if val not in self.mf_fits:
+        if val not in Fits.mf_fits + ["Behroozi"]:
             raise ValueError("mf_fit is not in the list of available fitting functions: ", val)
 
-        #Also delete stuff dependent on it
+        # Also delete stuff dependent on it
         del self.fsigma
 
         self.__mf_fit = val
@@ -420,7 +427,7 @@ class Perturbations(object):
     @property
     def k_bounds(self):
         """
-        The fourier-space limits of the transfer function in wavenumber k
+        The bounds of the final transfer function in wavenumber *k* [units *h*/Mpc]
         """
         return self.__k_bounds
 
@@ -435,9 +442,9 @@ class Perturbations(object):
         if val[0] > val[1]:
             raise ValueError("k_bounds must be in the form (lower, upper)")
 
-        #We delete stuff directly dependent on it
+        # We delete stuff directly dependent on it
         del self.lnk
-        #Wrap the following in a try: except: because self.transfer_fit may not be set yet (at instantiation)
+        # Wrap the following in a try: except: because self.transfer_fit may not be set yet (at instantiation)
         try:
             if self.transfer_fit == "EH":
                 del self._transfer_original
@@ -450,7 +457,7 @@ class Perturbations(object):
     @property
     def wdm_mass(self):
         """
-        The WDM particle mass for a single-species model
+        The WDM particle mass for a single-species model [units keV]
         """
         return self.__wdm_mass
 
@@ -467,7 +474,7 @@ class Perturbations(object):
         if val <= 0:
             raise ValueError("wdm_mass must be > 0 (", val, ")")
 
-        #Also delete stuff dependent on it
+        # Also delete stuff dependent on it
         del self._power_0
 
         self.__wdm_mass = val
@@ -491,17 +498,15 @@ class Perturbations(object):
         if val > 10000:
             raise ValueError("delta_halo must be < 10,000 (", val, ")")
 
-        #Set the value
-
         self.__delta_halo_base = val
 
-        #Delete stuff dependent on it
+        # Delete stuff dependent on it
         del self.delta_halo
 
     @property
     def delta_wrt(self):
         """
-        Defines what the delta_halo is with respect to
+        Defines what `delta_halo` is with respect to (``mean`` or ``crit``)
         """
         return self.__delta_wrt
 
@@ -530,15 +535,58 @@ class Perturbations(object):
         if val < 0:
             raise ValueError("z must be > 0 (", val, ")")
 
-        #Delete stuff dependent on it
+        # Delete stuff dependent on it
         del self.growth
         self.__z = val
+
+    @property
+    def z2(self):
+        """ Upper redshift for survey volume weighting """
+        return self.__z2
+
+    @z2.setter
+    def z2(self, val):
+        if val is None:
+            self.__z2 = val
+            return
+
+        try:
+            val = float(val)
+        except ValueError:
+            raise ValueError("z must be a number (", val, ")")
+
+        if val <= self.z:
+            raise ValueError("z2 must be larger than z")
+        else:
+            self.__z2 = val
+
+    @property
+    def nz(self):
+        """ Number of redshift bins (if using survey volume weighting) """
+        return self.__nz
+
+    @nz.setter
+    def nz(self, val):
+        if val is None:
+            self.__nz = val
+            return
+
+        try:
+            val = int(val)
+        except ValueError:
+            raise ValueError("nz must be an integer")
+
+        if val < 1:
+            raise ValueError("nz must be >= 1")
+        else:
+            self.__nz = val
 
     @property
     def _transfer_file(self):
         """
         The path to the file where the transfer function is.
-        If None, triggers on-the-fly calculation by CAMB
+        
+        If ``None``, triggers on-the-fly calculation by CAMB
         """
         return self.__transfer_file
 
@@ -552,7 +600,7 @@ class Perturbations(object):
         except IOError:
             raise IOError("The file " + val + " does not exist or cannot be opened")
 
-        #Here we delete properties that are directly dependent on transfer_file
+        # Here we delete properties that are directly dependent on transfer_file
         del self._transfer_original
 
         self.__transfer_file = val
@@ -560,7 +608,7 @@ class Perturbations(object):
     @property
     def user_fit(self):
         """
-        A string specifying a mathematical function in terms of x, counted as the mass variance, which defines a fitting function
+        User-specified string equation for the fitting function.
         """
         return self.__user_fit
 
@@ -574,8 +622,6 @@ class Perturbations(object):
     def transfer_fit(self):
         """
         A string specifying a method with which to calculate the transfer function.
-        
-        Currenty implemented are 'CAMB' (Code for anisotropies in the Microwave Background) and 'EH' (Eisenstein-Hu fit)
         """
         return self.__transfer_fit
 
@@ -604,7 +650,7 @@ class Perturbations(object):
     #--------------------------------  START NON-SET PROPERTIES ----------------------------------------------
     @property
     def delta_halo(self):
-        """ Overdensity of a halo wrt mean density"""
+        """ Overdensity of a halo w.r.t mean density"""
         try:
             return self.__delta_halo
         except:
@@ -612,9 +658,11 @@ class Perturbations(object):
                 self.__delta_halo = self._delta_halo_base
 
             elif self.delta_wrt == 'crit':
-                self.__delta_halo = self._delta_halo_base / cosmography.omegam_z(self.z, self.cosmo_params['omegam'], self.cosmo_params['omegav'],
-                                                                                self.cosmo_params['omegak'])
+                self.__delta_halo = self._delta_halo_base / cosmography.omegam_z(self.z, self.cosmo_params.omegam,
+                                                                                 self.cosmo_params.omegav,
+                                                                                 self.cosmo_params.omegak)
             return self.__delta_halo
+
     @delta_halo.deleter
     def delta_halo(self):
         try:
@@ -622,20 +670,29 @@ class Perturbations(object):
             del self.fsigma
         except:
             pass
+
     @property
     def dlogM(self):
+        """Logarithmic intervals between values of `M` (should be constant)"""
         return self.M[1] - self.M[0]
 
     @property
     def _transfer_original(self):
         """
-        Original values of lnk from the call to the transfer function
+        Original values of the transfer function from the call to CAMB/EH
+        
+        Length of matrix unknown prior to computation if CAMB used (0th index has len 2).
+        If EH used, length is 250 and spans the k_bounds range.
+        
+        First column is wavenumber in units *h*/Mpc and second column is the
+        transfer function.
         """
         try:
             return self.__transfer_original
         except:
-            self.__transfer_original = tools.get_transfer(self._transfer_file, self.camb_params,
-                                                          self.transfer_fit, self.k_bounds)
+            self.__transfer_original = tools.get_transfer(self._transfer_file, self.cosmo_params,
+                                                          self.transfer_fit, self._camb_options,
+                                                          self.k_bounds)
             return self.__transfer_original
 
     @_transfer_original.deleter
@@ -649,7 +706,7 @@ class Perturbations(object):
     @property
     def _transfer_function_callable(self):
         """
-        Returns a callable function which is the interpolation of the transfer function
+        A callable linear interpolation of the transfer function
         """
         try:
             return self.__transfer_function_callable
@@ -662,81 +719,63 @@ class Perturbations(object):
     def _transfer_function_callable(self):
         try:
             del self.__transfer_function_callable
-
-            #Also delete things directly dependent on it (or other self variables defined in it)
             del self.lnk
         except:
             pass
 
     @property
-    def lnkh(self):
+    def lnk(self):
         """
-        The logarithmic bins in k-space - this is k/h (ie h/Mpc)
+        The logarithmic wavenumbers for final transfer function [units *h*/Mpc]
         """
         try:
-            return self.__lnkh
+            return self.__lnk
         except:
             if self.transfer_fit == "CAMB":
-                self.__lnkh, dlnk = tools.new_k_grid(self._transfer_original[0, :], self.k_bounds)
+                self.__lnk, dlnk = tools.new_k_grid(self._transfer_original[0, :], self.k_bounds)
             elif self.transfer_fit == "EH":
-                self.__lnkh = self._transfer_original[0, :]
+                self.__lnk = self._transfer_original[0, :]
 
             # CHECK KR_BOUNDS
-            self.max_error, self.min_error = tools.check_kr(self.M[0], self.M[-1], self.cosmo_params['mean_dens'],
-                                                            np.exp(self.__lnkh[0]), np.exp(self.__lnkh[-1]))
+            self.max_error, self.min_error = tools.check_kr(self.M[0], self.M[-1], self.cosmo_params.mean_dens,
+                                                            np.exp(self.__lnk[0]), np.exp(self.__lnk[-1]))
 
             if self.max_error:
                 print self.max_error
             if self.min_error:
                 print self.min_error
 
-
-            return self.__lnkh
-
-    @lnkh.deleter
-    def lnkh(self):
-        try:
-            del self.__lnkh
-
-            del self._unnormalized_power
-            del self._power_cdm_0
-            del self._power_0
-            del self._sigma_0
-            del self._dlnsdlnm
-            del self.lnk
-        except:
-            pass
-
-    @property
-    def lnk(self):
-        """ Logarithmic k-bins. This is NOT k/h, just k (ie. 1/Mpc)"""
-        try:
-            return self.__lnk
-        except:
-            self.__lnk = self.lnkh + np.log(self.cosmo_params['H0'] / 100.0)
             return self.__lnk
 
     @lnk.deleter
     def lnk(self):
         try:
             del self.__lnk
+
+            del self._unnormalized_power
+            del self._power_cdm_0
+            del self._power_0
+            del self._sigma_0
+            del self._dlnsdlnm
         except:
             pass
 
     @property
     def _unnormalized_power(self):
         """
-        The unnormalized power spectrum at z=0 for CDM
+        Un-normalized power spectrum at z=0 for CDM, ``len=len(lnk)`` [units Mpc:math:`^3/h^3`]
         """
-
         try:
             return self.__unnormalized_power
         except:
             if self.transfer_fit == "CAMB":
-                self.__unnormalized_power = self.cosmo_params['n'] * self.lnkh + 2.0 * self._transfer_function_callable(self.lnkh) + np.log(2 * np.pi ** 2)
+                self.__unnormalized_power = self.cosmo_params.n * self.lnk + 2.0 * \
+                 self._transfer_function_callable(self.lnk) + np.log(2 * np.pi ** 2)
             else:
-                self.__unnormalized_power = self.cosmo_params['n'] * self.lnkh + 2.0 * self._transfer_original[1, :] + np.log(2 * np.pi ** 2)
+                self.__unnormalized_power = self.cosmo_params.n * self.lnk + 2.0 * \
+                 self._transfer_original[1, :] + np.log(2 * np.pi ** 2)
             return self.__unnormalized_power
+
     @_unnormalized_power.deleter
     def _unnormalized_power(self):
         try:
@@ -749,13 +788,14 @@ class Perturbations(object):
     @property
     def _power_cdm_0(self):
         """
-        The power spectrum at z=0 for CDM (normalised)
+        The normalised power spectrum at z=0 for CDM, ``len=len(lnk)`` [units Mpc:math:`^3/h^3`]
         """
         try:
             return self.__power_cdm_0
         except:
-            self.__power_cdm_0, self._normalization = tools.normalize(self.cosmo_params['sigma_8'], self._unnormalized_power,
-                                                                self.lnkh, self.cosmo_params['mean_dens'])
+            self.__power_cdm_0, self._normalization = \
+                tools.normalize(self.cosmo_params.sigma_8, self._unnormalized_power,
+                                self.lnk, self.cosmo_params.mean_dens)
             return self.__power_cdm_0
 
     @_power_cdm_0.deleter
@@ -769,15 +809,15 @@ class Perturbations(object):
     @property
     def _power_0(self):
         """
-        The CDM/WDM power spectrum at z=0
+        The CDM/WDM power spectrum at z=0, ``len=len(lnk)`` [units Mpc:math:`^3/h^3`]
         """
         try:
             return self.__power_0
         except:
             if self.wdm_mass is not None:
                 print "Doing wdm with mass = ", self.wdm_mass
-                self.__power_0 = tools.wdm_transfer(self.wdm_mass, self._power_cdm_0, self.lnkh,
-                                                    self.cosmo_params["H0"], self.cosmo_params['omegac'])
+                self.__power_0 = tools.wdm_transfer(self.wdm_mass, self._power_cdm_0, self.lnk,
+                                                    self.cosmo_params.h, self.cosmo_params.omegac)
             else:
                 self.__power_0 = self._power_cdm_0
 
@@ -796,13 +836,20 @@ class Perturbations(object):
     @property
     def _sigma_0(self):
         """
-        The mass variance at z=0, sigma (NOTE: not sigma^2)
+        The normalised mass variance at z=0 :math:`\sigma`, ``len=len(M)``
+        
+        Notes
+        -----
+        
+        .. math:: \sigma^2(R) = \frac{1}{2\pi^2}\int_0^\infty{k^2P(k)W^2(kR)dk}
+        
         """
 
         try:
             return self.__sigma_0
         except:
-            self.__sigma_0 = tools.mass_variance(self.M, self._power_0, self.lnkh, self.cosmo_params['mean_dens'])
+            self.__sigma_0 = tools.mass_variance(self.M, self._power_0, self.lnk,
+                                                 self.cosmo_params.mean_dens)
             return self.__sigma_0
 
     @_sigma_0.deleter
@@ -817,12 +864,19 @@ class Perturbations(object):
     @property
     def _dlnsdlnm(self):
         """
-        The derivative of the natural log of sigma with respect to the natural log of mass (absolute value)
+        The value of :math:`\left|\frac{\d \ln \sigma}{\d \ln M}\right|`, ``len=len(M)``
+        
+        Notes
+        -----
+        
+        .. math:: frac{d\ln\sigma}{d\ln M} = \frac{3}{2\sigma^2\pi^2R^4}\int_0^\infty \frac{dW^2(kR)}{dM}\frac{P(k)}{k^2}dk
+        
         """
         try:
             return self.__dlnsdlnm
         except:
-            self.__dlnsdlnm = tools.dlnsdlnm(self.M, self._sigma_0, self._power_0, self.lnkh, self.cosmo_params['mean_dens'])
+            self.__dlnsdlnm = tools.dlnsdlnm(self.M, self._sigma_0, self._power_0,
+                                             self.lnk, self.cosmo_params.mean_dens)
             return self.__dlnsdlnm
 
     @_dlnsdlnm.deleter
@@ -830,20 +884,35 @@ class Perturbations(object):
         try:
             del self.__dlnsdlnm
             del self.dndm
+            del self.n_eff
         except:
             pass
 
     @property
     def growth(self):
-        """
-        The growth factor d(z)
+        r"""
+        The growth factor :math:`d(z)`
+        
+        This is calculated (see Lukic 2007) as
+        
+        .. math:: d(z) = \frac{D^+(z)}{D^+(z=0)}
+                
+        where
+        
+        .. math:: D^+(z) = \frac{5\Omega_m}{2}\frac{H(z)}{H_0}\int_z^{\infty}{\frac{(1+z')dz'}{[H(z')/H_0]^3}}
+        
+        and
+        
+        .. math:: H(z) = H_0\sqrt{\Omega_m (1+z)^3 + (1-\Omega_m)}
+        
         """
         try:
             return self.__growth
         except:
             if self.z > 0:
-                self.__growth = cosmography.growth_factor(self.z, self.cosmo_params['omegam'],
-                                                           self.cosmo_params['omegak'], self.cosmo_params['omegav'])
+                self.__growth = cosmography.growth_factor(self.z, self.cosmo_params.omegam,
+                                                          self.cosmo_params.omegak,
+                                                          self.cosmo_params.omegav)
             else:
                 self.__growth = 1
             return self.__growth
@@ -861,7 +930,7 @@ class Perturbations(object):
     @property
     def power(self):
         """
-        The fully realised power spectrum (with all parameters applied)
+        The fully realised power spectrum (with all parameters applied),``len=len(lnk)`` [units Mpc:math:`^3/h^3`]
         """
         try:
             return self.__power
@@ -878,7 +947,9 @@ class Perturbations(object):
     @property
     def sigma(self):
         """
-        The mass variance at arbitrary redshift (specified in instantiated object)
+        The mass variance at `z`, ``len=len(M)``
+        
+        Redshift dependece simply enters by multplying `_sigma_0` by `growth`.
         """
         try:
             return self.__sigma
@@ -898,7 +969,7 @@ class Perturbations(object):
     @property
     def lnsigma(self):
         """
-        Natural log of inverse mass variance
+        Natural log of inverse mass variance, ``len=len(M)``
         """
         try:
             return self.__lnsigma
@@ -917,7 +988,7 @@ class Perturbations(object):
     @property
     def n_eff(self):
         """
-        Effective spectral index at scale of halo radius
+        Effective spectral index at scale of halo radius, ``len=len(M)``
         """
         try:
             return self.__n_eff
@@ -935,14 +1006,21 @@ class Perturbations(object):
     @property
     def fsigma(self):
         """
-        The multiplicity function f(sigma) for the fitting function specified as mf_fit
+        The multiplicity function, :math:`f(\sigma)`, for `mf_fit`. ``len=len(M)``
         """
         try:
             return self.__fsigma
         except:
-            fits_class = fits(self.M, self.n_eff, self.mf_fit, self.sigma, self.cosmo_params['delta_c'], self.z, self.delta_halo, self.cosmo_params, self.user_fit, self.cut_fit)
-            nufnu = fits_class.nufnu()
-            self.__fsigma = nufnu()
+            fits_class = Fits(self, self.cut_fit)
+            self.__fsigma = fits_class.nufnu()
+
+            if np.sum(np.isnan(self.__fsigma)) > 0.8 * len(self.__fsigma):
+                # the input mass range is almost completely outside the cut
+                self.massrange_error = "The specified mass-range was almost entirely outside of the limits from the fit. Ignored fit range..."
+                self.cut_fit = False
+                fits_class.cut_fit = False
+                self.__fsigma = fits_class.nufnu()
+
             return self.__fsigma
     @fsigma.deleter
     def fsigma(self):
@@ -955,20 +1033,50 @@ class Perturbations(object):
     @property
     def dndm(self):
         """
-        The derivative of the number density of haloes with respect to mass for the range of masses
+        The number density of haloes, ``len=len(M)`` [units :math:`h^4 M_\odot^{-1} Mpc^{-3}`]
         """
         try:
             return self.__dndm
         except:
-            self.__dndm = self.fsigma * self.cosmo_params['mean_dens'] * np.abs(self._dlnsdlnm) / self.M ** 2
-            if self.mf_fit == 'Behroozi':
-                a = 1 / (1 + self.z)
-                theta = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (self.M / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)))
-                ngtm_tinker = self._ngtm()
-                ngtm_behroozi = 10 ** (theta + np.log10(ngtm_tinker))
-                dthetadM = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (0.5 / (1 + np.exp(6.5 * a))) * (self.M / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)) - 1) / (10 ** 11.5)
-                self.__dndm = self.__dndm * 10 ** theta - ngtm_behroozi * np.log(10) * dthetadM
+            if self.z2 is None:  # #This is normally the case
+                self.__dndm = self.fsigma * self.cosmo_params.mean_dens * np.abs(self._dlnsdlnm) / self.M ** 2
+                if self.mf_fit == 'Behroozi':
+                    a = 1 / (1 + self.z)
+                    theta = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (self.M / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)))
+                    ngtm_tinker = self._ngtm()
+                    ngtm_behroozi = 10 ** (theta + np.log10(ngtm_tinker))
+                    dthetadM = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * \
+                        (0.5 / (1 + np.exp(6.5 * a))) * (self.M / 10 ** 11.5) ** \
+                        (0.5 / (1 + np.exp(6.5 * a)) - 1) / (10 ** 11.5)
+                    self.__dndm = self.__dndm * 10 ** theta - ngtm_behroozi * np.log(10) * dthetadM
+            else:  # #This is for a survey-volume weighted calculation
+                if self.nz is None:
+                    self.nz = 10
+                zedges = np.linspace(self.z, self.z2, self.nz)
+                zcentres = (zedges[:-1] + zedges[1:]) / 2
+                dndm = np.zeros_like(zcentres)
+                vol = np.zeros_like(zedges)
+                vol[0] = cd.comoving_volume(self.z,
+                                            **self.cosmo_params.cosmolopy_dict())
+                for i, zz in enumerate(zcentres):
+                    self.update(z=zz)
+                    dndm[i] = self.fsigma * self.cosmo_params.mean_dens * np.abs(self._dlnsdlnm) / self.M ** 2
+                    if self.mf_fit == 'Behroozi':
+                        a = 1 / (1 + self.z)
+                        theta = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (self.M / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)))
+                        ngtm_tinker = self._ngtm()
+                        ngtm_behroozi = 10 ** (theta + np.log10(ngtm_tinker))
+                        dthetadM = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (0.5 / (1 + np.exp(6.5 * a))) * (self.M / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)) - 1) / (10 ** 11.5)
+                        dndm[i] = dndm[i] * 10 ** theta - ngtm_behroozi * np.log(10) * dthetadM
 
+                    vol[i + 1] = cd.comoving_volume(z=zedges[i + 1],
+                                                    **self.cosmo_params.cosmolopy_dict())
+
+                vol = vol[1:] - vol[:-1]  # Volume in shells
+                integrand = vol * dndm
+                numerator = intg.simps(integrand, x=zcentres)
+                denom = intg.simps(vol, zcentres)
+                self.__dndm = numerator / denom
             return self.__dndm
 
     @dndm.deleter
@@ -984,7 +1092,7 @@ class Perturbations(object):
     @property
     def dndlnm(self):
         """
-        The differential mass function in terms of natural log of M
+        The differential mass function in terms of natural log of `M`, ``len=len(M)`` [units :math:`h^3 Mpc^{-3}`]
         """
         try:
             return self.__dndlnm
@@ -1007,7 +1115,7 @@ class Perturbations(object):
     @property
     def dndlog10m(self):
         """
-        The differential mass function in terms of natural log of M
+        The differential mass function in terms of log of `M`, ``len=len(M)`` [units :math:`h^3 Mpc^{-3}`]
         """
         try:
             return self.__dndlog10m
@@ -1023,26 +1131,30 @@ class Perturbations(object):
             pass
 
     def _upper_ngtm(self, M, mass_function, cut):
+        """Calculate the mass function above given range of `M` in order to integrate"""
+        # TODO: a massive tidy-up
         ### WE CALCULATE THE MASS FUNCTION ABOVE THE COMPUTED RANGE ###
         # mass_function is logged already (not log10 though)
         m_upper = np.linspace(np.log(M[-1]), np.log(10 ** 18), 500)
-        if cut:  #since its been cut, the best we can do is a power law
+        if cut:  # since its been cut, the best we can do is a power law
             mf_func = spline(np.log(M), mass_function, k=1)
             mf = mf_func(m_upper)
         else:
-            #We try to calculate the hmf as far as we can normally
-            sigma_0 = tools.mass_variance(np.exp(m_upper), self._power_0, self.lnkh, self.cosmo_params['mean_dens'])
-            sigma = sigma_0 * self.growth
-            dlnsdlnm = tools.dlnsdlnm(np.exp(m_upper), sigma_0, self._power_0, self.lnkh, self.cosmo_params['mean_dens'])
-            n_eff = tools.n_eff(dlnsdlnm)
-            fsigma = fits(m_upper, n_eff, self.mf_fit, sigma, self.cosmo_params['delta_c'],
-                          self.z, self.delta_halo, self.cosmo_params, self.user_fit, cut_fit=True).nufnu()()
-            #fsigma = nufnu()
-            dndm = fsigma * self.cosmo_params['mean_dens'] * np.abs(dlnsdlnm) / np.exp(m_upper) ** 2
-            mf = np.log(np.exp(m_upper) * dndm)
+            # We try to calculate the hmf as far as we can normally
+            new_pert = copy.deepcopy(self)
+            new_pert.update(M=np.log10(np.exp(m_upper)))
+#             sigma_0 = tools.mass_variance(np.exp(m_upper), self._power_0, self.lnk, self.cosmo_params.mean_dens)
+#             sigma = sigma_0 * self.growth
+#             dlnsdlnm = tools.dlnsdlnm(np.exp(m_upper), sigma_0, self._power_0, self.lnk, self.cosmo_params.mean_dens)
+#             n_eff = tools.n_eff(dlnsdlnm)
+#             fsigma = fits(m_upper, n_eff, self.mf_fit, sigma, self.cosmo_params.delta_c,
+#                           self.z, self.delta_halo, self.cosmo_params, self.user_fit, cut_fit=True).nufnu()()
+#             # fsigma = nufnu()
+#             dndm = fsigma * self.cosmo_params['mean_dens'] * np.abs(dlnsdlnm) / np.exp(m_upper) ** 2
+            mf = np.log(np.exp(m_upper) * new_pert.dndm)
 
-            if np.isnan(mf[-1]):  #Then we couldn't get up all the way, so have to do linear ext.
-                if np.isnan(mf[1]):  #Then the whole extension is nan and we have to use the original (start at 1 because 1 val won't work either)
+            if np.isnan(mf[-1]):  # Then we couldn't get up all the way, so have to do linear ext.
+                if np.isnan(mf[1]):  # Then the whole extension is nan and we have to use the original (start at 1 because 1 val won't work either)
                     mf_func = spline(np.log(M), mass_function, k=1)
                     mf = mf_func(m_upper)
                 else:
@@ -1057,22 +1169,24 @@ class Perturbations(object):
         ### WE CALCULATE THE MASS FUNCTION BELOW THE COMPUTED RANGE ###
         # mass_function is logged already (not log10 though)
         m_lower = np.linspace(np.log(10 ** 3), np.log(M[0]), 500)
-        if cut:  #since its been cut, the best we can do is a power law
+        if cut:  # since its been cut, the best we can do is a power law
             mf_func = spline(np.log(M), mass_function, k=1)
             mf = mf_func(m_lower)
         else:
-            #We try to calculate the hmf as far as we can normally
-            sigma_0 = tools.mass_variance(np.exp(m_lower), self._power_0, self.lnkh, self.cosmo_params['mean_dens'])
-            sigma = sigma_0 * self.growth
-            dlnsdlnm = tools.dlnsdlnm(np.exp(m_lower), sigma_0, self._power_0, self.lnkh, self.cosmo_params['mean_dens'])
-            n_eff = tools.n_eff(dlnsdlnm)
-            fsigma = fits(m_lower, n_eff, self.mf_fit, sigma, self.cosmo_params['delta_c'],
-                          self.z, self.delta_halo, self.cosmo_params, self.user_fit, cut_fit=True).nufnu()()
-            #fsigma = nufnu()
-            dndm = fsigma * self.cosmo_params['mean_dens'] * np.abs(dlnsdlnm) / np.exp(m_lower) ** 2
-            mf = np.log(np.exp(m_lower) * dndm)
+            # We try to calculate the hmf as far as we can normally
+            new_pert = copy.deepcopy(self)
+            new_pert.update(M=np.log10(np.exp(m_lower)))
+#             sigma_0 = tools.mass_variance(np.exp(m_lower), self._power_0, self.lnk, self.cosmo_params['mean_dens'])
+#             sigma = sigma_0 * self.growth
+#             dlnsdlnm = tools.dlnsdlnm(np.exp(m_lower), sigma_0, self._power_0, self.lnk, self.cosmo_params['mean_dens'])
+#             n_eff = tools.n_eff(dlnsdlnm)
+#             fsigma = fits(m_lower, n_eff, self.mf_fit, sigma, self.cosmo_params['delta_c'],
+#                           self.z, self.delta_halo, self.cosmo_params, self.user_fit, cut_fit=True).nufnu()()
+#             # fsigma = nufnu()
+#             dndm = fsigma * self.cosmo_params['mean_dens'] * np.abs(dlnsdlnm) / np.exp(m_lower) ** 2
+            mf = np.log(np.exp(m_lower) * new_pert.dndm)
 
-            if np.isnan(mf[0]):  #Then we couldn't go down all the way, so have to do linear ext.
+            if np.isnan(mf[0]):  # Then we couldn't go down all the way, so have to do linear ext.
                 mfslice = mf[np.logical_not(np.isnan(mf))]
                 m_nan = m_lower[np.isnan(mf)]
                 m_true = m_lower[np.logical_not(np.isnan(mf))]
@@ -1082,13 +1196,15 @@ class Perturbations(object):
 
     def _ngtm(self):
         """
+        Calculate n(>m).
+        
         This function is separated from the property because of the Behroozi fit
         """
         # set M and mass_function within computed range
         M = self.M[np.logical_not(np.isnan(self.dndlnm))]
         mass_function = self.dndlnm[np.logical_not(np.isnan(self.dndlnm))]
 
-        #Calculate the mass function (and its integral) from the highest M up to 10**18
+        # Calculate the mass function (and its integral) from the highest M up to 10**18
         if M[-1] < 10 ** 18:
             m_upper, mf = self._upper_ngtm(M, np.log(mass_function), M[-1] < self.M[-1])
 
@@ -1096,10 +1212,10 @@ class Perturbations(object):
         else:
             int_upper = 0
 
-        #Calculate the cumulative integral (backwards) of mass_function (Adding on the upper integral)
+        # Calculate the cumulative integral (backwards) of mass_function (Adding on the upper integral)
         ngtm = intg.cumtrapz(mass_function[::-1], dx=np.log(M[1]) - np.log(M[0]), initial=0)[::-1] + int_upper
 
-        #We need to set ngtm back in the original length vector with nans where they were originally
+        # We need to set ngtm back in the original length vector with nans where they were originally
         if len(ngtm) < len(self.M):
             ngtm_temp = np.zeros_like(self.dndlnm)
             ngtm_temp[:] = np.nan
@@ -1111,7 +1227,7 @@ class Perturbations(object):
     @property
     def ngtm(self):
         """
-        Integrates the mass function above a certain mass to calculate the number of haloes above a certain mass
+        The cumulative mass function above `M`, ``len=len(M)`` [units :math:`h^3 Mpc^{-3}`]
         """
         try:
             return self.__ngtm
@@ -1130,7 +1246,7 @@ class Perturbations(object):
     @property
     def mgtm(self):
         """
-        Integrates the mass function above a certain mass to calculate the mass in haloes above a certain mass
+        Mass in haloes >`M`, ``len=len(M)`` [units :math:`M_\odot h^2 Mpc^{-3}`]
         """
         try:
             return self.__mgtm
@@ -1138,17 +1254,17 @@ class Perturbations(object):
             M = self.M[np.logical_not(np.isnan(self.dndlnm))]
             mass_function = self.dndlnm[np.logical_not(np.isnan(self.dndlnm))]
 
-            #Calculate the mass function (and its integral) from the highest M up to 10**18
+            # Calculate the mass function (and its integral) from the highest M up to 10**18
             if M[-1] < 10 ** 18:
                 m_upper, mf = self._upper_ngtm(M, np.log(mass_function), M[-1] < self.M[-1])
                 int_upper = intg.simps(np.exp(mf + m_upper) , dx=m_upper[2] - m_upper[1], even='first')
             else:
                 int_upper = 0
 
-            #Calculate the cumulative integral (backwards) of mass_function (Adding on the upper integral)
+            # Calculate the cumulative integral (backwards) of mass_function (Adding on the upper integral)
             self.__mgtm = intg.cumtrapz(mass_function[::-1] * M[::-1], dx=np.log(M[1]) - np.log(M[0]), initial=0)[::-1] + int_upper
 
-            #We need to set ngtm back in the original length vector with nans where they were originally
+            # We need to set ngtm back in the original length vector with nans where they were originally
             if len(self.__mgtm) < len(self.M):
                 mgtm_temp = np.zeros_like(self.dndlnm)
                 mgtm_temp[:] = np.nan
@@ -1165,7 +1281,7 @@ class Perturbations(object):
     @property
     def nltm(self):
         """
-        Integrates the mass function below a certain mass to calculate the number of haloes below that mass
+        Lower cumulative mass function, , ``len=len(M)`` [units :math:`h^3 Mpc^{-3}`]
         """
         try:
             return self.__nltm
@@ -1174,7 +1290,7 @@ class Perturbations(object):
             M = self.M[np.logical_not(np.isnan(self.dndlnm))]
             mass_function = self.dndlnm[np.logical_not(np.isnan(self.dndlnm))]
 
-            #Calculate the mass function (and its integral) from 10**3 up to lowest M
+            # Calculate the mass function (and its integral) from 10**3 up to lowest M
             if M[0] > 10 ** 3:
                 m_lower, mf = self._lower_ngtm(M, np.log(mass_function), M[0] > self.M[0])
 
@@ -1183,10 +1299,10 @@ class Perturbations(object):
                 int_lower = 0
 
             print "INT LOWER = ", int_lower
-            #Calculate the cumulative integral of mass_function (Adding on the lower integral)
+            # Calculate the cumulative integral of mass_function (Adding on the lower integral)
             self.__nltm = intg.cumtrapz(mass_function, dx=np.log(M[1]) - np.log(M[0]), initial=0) + int_lower
 
-            #We need to set ngtm back in the original length vector with nans where they were originally
+            # We need to set ngtm back in the original length vector with nans where they were originally
             if len(self.__nltm) < len(self.M):
                 nltm_temp = np.zeros_like(self.dndlnm)
                 nltm_temp[:] = np.nan
@@ -1204,7 +1320,7 @@ class Perturbations(object):
     @property
     def mltm(self):
         """
-        Integrates the mass function above a certain mass to calculate the mass in haloes below a certain mass
+        Total mass in haloes <`M`, ``len=len(M)`` [units :math:`M_\odot h^2 Mpc^{-3}`]
         """
         try:
             return self.__mltm
@@ -1213,7 +1329,7 @@ class Perturbations(object):
             M = self.M[np.logical_not(np.isnan(self.dndlnm))]
             mass_function = self.dndlnm[np.logical_not(np.isnan(self.dndlnm))]
 
-            #Calculate the mass function (and its integral) from 10**3 up to lowest M
+            # Calculate the mass function (and its integral) from 10**3 up to lowest M
             if M[0] > 10 ** 3:
                 m_lower, mf = self._lower_ngtm(M, np.log(mass_function), M[0] > self.M[0])
 
@@ -1221,11 +1337,11 @@ class Perturbations(object):
             else:
                 int_lower = 0
 
-            #Calculate the cumulative integral of mass_function (Adding on the upper integral)
+            # Calculate the cumulative integral of mass_function (Adding on the upper integral)
             self.__mltm = intg.cumtrapz(mass_function * M, dx=np.log(M[1]) - np.log(M[0]), initial=0) + int_lower
 
-            #We need to set ngtm back in the original length vector with nans where they were originally
-            if len(self.__nltm) < len(self.M):
+            # We need to set ngtm back in the original length vector with nans where they were originally
+            if len(self.__mltm) < len(self.M):
                 nltm_temp = np.zeros_like(self.dndlnm)
                 nltm_temp[:] = np.nan
                 nltm_temp[np.logical_not(np.isnan(self.dndlnm))] = self.__mltm
@@ -1236,7 +1352,7 @@ class Perturbations(object):
     @property
     def how_big(self):
         """ 
-        Calculates how big a box must be to expect one halo in natural log mass interval M, for given mass function
+        Size of simulation volume in which to expect one halo of mass M, ``len=len(M)`` [units :math:`Mpch^{-1}`]
         """
 
         return self.ngtm ** (-1. / 3.)

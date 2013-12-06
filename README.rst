@@ -1,5 +1,6 @@
-THIS IS THE README FOR hmf
----------------------------------------------------------------------------------------
+==========
+hmf Readme
+==========
 
 hmf is a python application that provides a flexible and simple way to calculate the 
 Halo Mass Function for any input cosmology, redshift, dark matter model, virial
@@ -9,22 +10,17 @@ It is also the backend to HMFcalc, the online hmf calculator at hmf.icrar.org
 
 
 INSTALLATION
----------------------------------------------------------------------------------------
----- Install Requirements ------
-1. Install Python
-2. Install numpy, scipy, scitools,cosmolopy (easiest way is to pip install)
-3. Install pycamb:
+------------
+1. Install pycamb:
 	>>> cd <Directory that pycamb source will live in>
 	>>> git clone https://github.com/steven-murray/pycamb
 	>>> cd pycamb
 	>>> [sudo] python setup.py install
-	
----- Install hmf --------------
-    >>> pip install hmf
+2.	>>> pip install hmf
     
     
 USAGE
----------------------------------------------------------------------------------------
+-----
 hmf can be used interactively (for instance in ipython) or in a script. 
 To use interactively, in ipython do something like the following:
 
@@ -34,22 +30,33 @@ To use interactively, in ipython do something like the following:
 >>> mass_variance = pert.sigma
 >>> ...
 
-This will return a Sheth-Tormen mass function between 10^10 and 10^15 M_sun, at redshift 0
-for a default cosmology. Cosmological parameters may be passed to the initialiser, Perturbations()
+This will return a Sheth-Tormen mass function between 10^10 and 10^15 M_sun, 
+at redshift 0 for a default cosmology. Cosmological parameters may be passed 
+to the initialiser, ``Perturbations()``
 
-To change the parameters (cosmological or otherwise), one should use the update() method, 
-if a Perturbations() object already exists. For example
+To change the parameters (cosmological or otherwise), one should use the 
+`update()` method, if a Perturbations() object already exists. For example
  >>> pert = Perturbations()
  >>> pert.update(omegab = 0.05,z=10) #update baryon density and redshift
  >>> cumulative_mass_func = pert.ngtm
 
-Check the docstring of Perturbations() for all arguments allowed. 
+Check the docstring of `Perturbations()` for all arguments allowed. 
 
 
 HISTORY
----------------------------------------------------------------------------------------
+-------
+1.2.1 - December 6, 2013
+		Small bugfixes to update() method
+		
+1.2.0 - December 5, 2013
+		Major documentation overhaul -- most docstrings are now in Sphinx/numpydoc format
+		Addition of cosmo module, which deals with the cosmological parameters in a cleaner way
+		Some tidying up of several functions.
+		
 1.1.10- October 29, 2013
-		Fixed critical/mean density of Universe. It was lacking H^2 dependence.
+		Fixed bug in mltm property
+		Better updating -- checks if update value is actually different.
+		Now performs a check to see if mass range is inside fit range.
 		
 1.1.9 - October 4, 2013
 		Fixed some issues with n(<m) and M(<m) causing them to give NaN's
