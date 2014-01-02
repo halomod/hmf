@@ -5,7 +5,7 @@ The module contains a single class, `Perturbations`, which wraps almost all the
 functionality of `hmf` in an easy-to-use way.
 '''
 
-version = '1.2.1'
+version = '1.2.2'
 
 ###############################################################################
 # Some Imports
@@ -212,7 +212,6 @@ class Perturbations(object):
 
         # Set up a simple dictionary of kwargs which can be later updated
         self._cpdict = {k:v for k, v in kwargs.iteritems() if k in self._cp}
-
         if M is None:
             M = np.linspace(10, 15, 501)
 
@@ -242,11 +241,6 @@ class Perturbations(object):
         self.nz = nz
         self.cosmo_params = Cosmology(default="planck1_base", **self._cpdict)
 
-        # Now update them all
-#         self.update(M=M, mf_fit=mf_fit, k_bounds=k_bounds, transfer_file=transfer_file, wdm_mass=wdm_mass,
-#                      delta_halo=delta_halo, delta_wrt=delta_wrt, user_fit=user_fit, z=z,
-#                      transfer_fit=transfer_fit, cut_fit=cut_fit, z2=z2, nz=nz, ** kwargs)
-
     def update(self, **kwargs):
         """
         Update the class with the given arguments in an optimal manner.
@@ -266,14 +260,12 @@ class Perturbations(object):
                         true_cp[k] = v
 
             self._cpdict.update(true_cp)
-
             # Delete the entries we've used from kwargs
             for k in cp:
                 del kwargs[k]
 
             # Now actually update the Cosmology class
             self.cosmo_params = Cosmology(default="planck1_base", **self._cpdict)
-
             if "n" in true_cp:
                 del self._unnormalized_power
             if "sigma_8" in true_cp:
@@ -281,42 +273,9 @@ class Perturbations(object):
             if "delta_c" in true_cp:
                 del self.fsigma
 
-            if "omegab" in true_cp:
-                del self._transfer_original
-                del self._power_cdm_0
-                del self._sigma_0
-                del self._dlnsdlnm
-                del self.dndm
-            if "omegac" in true_cp:
-                del self._transfer_original
-                del self._power_cdm_0
-                del self._power_0
-                del self._sigma_0
-                del self._dlnsdlnm
-                del self.dndm
-            if "h" in cp or "H0" in true_cp:
-                del self._transfer_original
-                del self._power_0
-                if "omegab" not in self._cpdict:
-                    del self.camb_params
-                    del self._power_cdm_0
-                    del self._power_0
-                    del self._sigma_0
-                    del self._dlnsdlnm
-                    del self.dndm
-            if "omegab_h2" in true_cp:
-                del self._transfer_original
-                del self._power_cdm_0
-                del self._sigma_0
-                del self._dlnsdlnm
-                del self.dndm
-            if "omegac_h2" in true_cp:
-                del self._transfer_original
-                del self._power_cdm_0
-                del self._power_0
-                del self._sigma_0
-                del self._dlnsdlnm
-                del self.dndm
+            for item in ["omegab", "omegac", "h", "H0", "omegab_h2", "omegac_h2"]:
+                if item in true_cp:
+                    del self._transfer_original
 
         # Now do rest of the parameters
         for key, val in kwargs.iteritems():
@@ -394,10 +353,6 @@ class Perturbations(object):
 
         # Delete stuff dependent on it
         del self._sigma_0
-        del self._dlnsdlnm
-        del self.dndm
-        del self.dndlnm
-        del self.dndlog10m
 
         self.__M = 10 ** val
 
@@ -731,10 +686,9 @@ class Perturbations(object):
         try:
             return self.__lnk
         except:
-            if self.transfer_fit == "CAMB":
-                self.__lnk, dlnk = tools.new_k_grid(self._transfer_original[0, :], self.k_bounds)
-            elif self.transfer_fit == "EH":
-                self.__lnk = self._transfer_original[0, :]
+            self.__lnk, dlnk = np.linspace(np.log(self.k_bounds[0]),
+                                           np.log(self.k_bounds[1]),
+                                           250, retstep=True)
 
             # CHECK KR_BOUNDS
             self.max_error, self.min_error = tools.check_kr(self.M[0], self.M[-1], self.cosmo_params.mean_dens,
@@ -751,12 +705,7 @@ class Perturbations(object):
     def lnk(self):
         try:
             del self.__lnk
-
             del self._unnormalized_power
-            del self._power_cdm_0
-            del self._power_0
-            del self._sigma_0
-            del self._dlnsdlnm
         except:
             pass
 
@@ -780,7 +729,6 @@ class Perturbations(object):
     def _unnormalized_power(self):
         try:
             del self.__unnormalized_power
-
             del self._power_cdm_0
         except:
             pass
@@ -828,7 +776,6 @@ class Perturbations(object):
         try:
             del self.__power_0
             del self._sigma_0
-            del self._dlnsdlnm
             del self.power
         except:
             pass
@@ -910,9 +857,7 @@ class Perturbations(object):
             return self.__growth
         except:
             if self.z > 0:
-                self.__growth = cosmography.growth_factor(self.z, self.cosmo_params.omegam,
-                                                          self.cosmo_params.omegak,
-                                                          self.cosmo_params.omegav)
+                self.__growth = cosmography.growth_factor(self.z, **self.cosmo_params.cosmolopy_dict())
             else:
                 self.__growth = 1
             return self.__growth

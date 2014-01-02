@@ -45,6 +45,18 @@ Check the docstring of `Perturbations()` for all arguments allowed.
 
 HISTORY
 -------
+1.2.3 - 
+		A few more documentation updates (especially tools.py)
+		Removed new_k_bounds function from tools.py
+		Added `w` parameter to cosmolopy dictionary in `cosmo.py`
+		Changed cosmography significantly to use cosmolopy in general
+		Fixed a pretty bad bug where updating h/H0 would crash the program if
+		only one of omegab/omegac was updated alongside it
+		Generally tidied up some of the update mechanisms.
+		
+1.2.2 - December 10, 2013
+		Bug in "EH" transfer function call
+		
 1.2.1 - December 6, 2013
 		Small bugfixes to update() method
 		

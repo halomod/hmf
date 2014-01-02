@@ -61,7 +61,7 @@
 functionality of <cite>hmf</cite> in an easy-to-use way.</p>
 <dl class="class">
 <dt id="hmf.hmf.Perturbations">
-<em class="property">class </em><tt class="descclassname">hmf.hmf.</tt><tt class="descname">Perturbations</tt><big>(</big><em>M=None, mf_fit='ST', transfer_file=None, z=0.0, wdm_mass=None, k_bounds=[1e-08, 20000.0], delta_halo=200.0, delta_wrt='mean', user_fit='', transfer_fit='CAMB', cut_fit=True, Scalar_initial_condition=1, lAccuracyBoost=1, w_perturb=False, transfer__k_per_logint=11, transfer__kmax=0.25, ThreadNum=0, z2=None, nz=None, **kwargs</em><big>)</big><a class="reference internal" href="_modules/hmf/hmf.html#Perturbations"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.hmf.Perturbations" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><tt class="descclassname">hmf.hmf.</tt><tt class="descname">Perturbations</tt><big>(</big><em>M=None, mf_fit='ST', transfer_file=None, z=0.0, wdm_mass=None, k_bounds=[1e-08, 20000.0], delta_halo=200.0, delta_wrt='mean', user_fit='', transfer_fit='CAMB', cut_fit=True, Scalar_initial_condition=1, lAccuracyBoost=1, AccuracyBoost=1, w_perturb=False, transfer__k_per_logint=11, transfer__kmax=0.25, ThreadNum=0, z2=None, nz=None, **kwargs</em><big>)</big><a class="reference internal" href="_modules/hmf/hmf.html#Perturbations"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.hmf.Perturbations" title="Permalink to this definition">¶</a></dt>
 <dd><p>An object containing all relevant quantities for the mass function.</p>
 <p>The purpose of this class is to calculate many quantities associated with 
 perturbations in the early Universe. The class is initialized to form a 
@@ -232,7 +232,7 @@ If <cite>False</cite>, will use whole range of <a href="#id3"><span class="probl
 <dl class="attribute">
 <dt id="hmf.hmf.Perturbations.how_big">
 <tt class="descname">how_big</tt><a class="reference internal" href="_modules/hmf/hmf.html#Perturbations.how_big"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.hmf.Perturbations.how_big" title="Permalink to this definition">¶</a></dt>
-<dd><p>Size of simulation volume in which to expect one halo of mass M, <tt class="docutils literal"><span class="pre">len=len(M)</span></tt> [units <span class="math">\(Mpc^{3}h^{-3}\)</span>]</p>
+<dd><p>Size of simulation volume in which to expect one halo of mass M, <tt class="docutils literal"><span class="pre">len=len(M)</span></tt> [units <span class="math">\(Mpch^{-1}\)</span>]</p>
 </dd></dl>
 
 <dl class="attribute">
@@ -350,120 +350,390 @@ If <cite>False</cite>, will use whole range of <a href="#id3"><span class="probl
 </div>
 <div class="section" id="module-hmf.tools">
 <span id="tools"></span><h2>tools<a class="headerlink" href="#module-hmf.tools" title="Permalink to this headline">¶</a></h2>
-<p>Created on Apr 20, 2012</p>
-<p>&#64;author: Steven Murray
-&#64;contact: <a class="reference external" href="mailto:steven&#46;murray&#37;&#52;&#48;uwa&#46;edu&#46;au">steven<span>&#46;</span>murray<span>&#64;</span>uwa<span>&#46;</span>edu<span>&#46;</span>au</a></p>
-<p>Last Updated: 12 March 2013</p>
-<p>This module contains 4 functions which all have the purpose of importing the
-transfer function (or running CAMB on the fly) for
-input to the Perturbations class (in Perturbations.py)</p>
-<dl class="docutils">
-<dt>The functions are:</dt>
-<dd><ol class="first last arabic simple">
-<li>SetParameter: modifies the params.ini file for use in CAMB with specified parameters</li>
-<li>ImportTransferFunction: Merely reads a CAMB transfer file and outputs ln(k) and ln(T).</li>
-<li>CAMB: runs CAMB through the OS (camb must be compiled previously)</li>
-<li>Setup: A driver for the above functions. Returns ln(k) and ln(T)</li>
-</ol>
-</dd>
-</dl>
+<p>A collection of functions which do some of the core work of the HMF calculation.</p>
 <dl class="function">
 <dt id="hmf.tools.check_kr">
 <tt class="descclassname">hmf.tools.</tt><tt class="descname">check_kr</tt><big>(</big><em>min_m</em>, <em>max_m</em>, <em>mean_dens</em>, <em>mink</em>, <em>maxk</em><big>)</big><a class="reference internal" href="_modules/hmf/tools.html#check_kr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.tools.check_kr" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Check the bounds of the product of k*r</p>
+<p>If the bounds are not high/low enough, then there can be information loss
+in the calculation of the mass variance.</p>
+<p>See <a class="reference external" href="http://arxiv.org/abs/1306.6721">http://arxiv.org/abs/1306.6721</a></p>
+</dd></dl>
 
 <dl class="function">
 <dt id="hmf.tools.dlnsdlnm">
 <tt class="descclassname">hmf.tools.</tt><tt class="descname">dlnsdlnm</tt><big>(</big><em>M</em>, <em>sigma</em>, <em>power</em>, <em>lnk</em>, <em>mean_dens</em><big>)</big><a class="reference internal" href="_modules/hmf/tools.html#dlnsdlnm"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.tools.dlnsdlnm" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Calculate the derivative of log sigma with log M</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>M</strong> : array</p>
+<blockquote>
+<div><p>The masses</p>
+</div></blockquote>
+<p><strong>sigma</strong> : array</p>
+<blockquote>
+<div><p>Mass variance at M</p>
+</div></blockquote>
+<p><strong>power</strong> : array</p>
+<blockquote>
+<div><p>The power spectrum at <tt class="docutils literal"><span class="pre">lnk</span></tt></p>
+</div></blockquote>
+<p><strong>lnk</strong> : array</p>
+<blockquote>
+<div><p>The wavenumbers <em>k/h</em> corresponding to the power</p>
+</div></blockquote>
+<p><strong>mean_dens</strong> : float</p>
+<blockquote>
+<div><p>Mean density of the universe.</p>
+</div></blockquote>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns :</th><td class="field-body"><p class="first last"><strong>dlnsdlnM</strong> : array</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
 
 <dl class="function">
 <dt id="hmf.tools.dw2dm">
 <tt class="descclassname">hmf.tools.</tt><tt class="descname">dw2dm</tt><big>(</big><em>kR</em><big>)</big><a class="reference internal" href="_modules/hmf/tools.html#dw2dm"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.tools.dw2dm" title="Permalink to this definition">¶</a></dt>
 <dd><p>The derivative of the top-hat window function squared</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>kR</strong> : array</p>
+<blockquote>
+<div><p>Product of wavenumber with R [final product is unitless]</p>
+</div></blockquote>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns :</th><td class="field-body"><p class="first"><strong>dw2dm</strong> : array</p>
+<blockquote class="last">
+<div><p>The derivative of the top-hat window function squared.</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="function">
 <dt id="hmf.tools.get_transfer">
 <tt class="descclassname">hmf.tools.</tt><tt class="descname">get_transfer</tt><big>(</big><em>transfer_file</em>, <em>cosmo_params</em>, <em>transfer_fit</em>, <em>camb_options=None</em>, <em>k_bounds=None</em><big>)</big><a class="reference internal" href="_modules/hmf/tools.html#get_transfer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.tools.get_transfer" title="Permalink to this definition">¶</a></dt>
-<dd><p>We use either CAMB or the EH approximation to get the transfer function.
-The transfer function is in terms of k/h.</p>
+<dd><p>Calculate a transfer function.</p>
+<p>Uses either CAMB or the EH transfer functions.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>transfer_file</strong> : <cite>str</cite> or <tt class="docutils literal"><span class="pre">None</span></tt></p>
+<blockquote>
+<div><p>A full or relative path to a file containing the transfer function.
+The file must be in the same format as CAMB transfer function output,
+ie. 7 columns, the first being k/h and the 7th being the total transfer.</p>
+</div></blockquote>
+<p><strong>cosmo_params</strong> : <cite>Cosmology</cite> instance</p>
+<blockquote>
+<div><p>An instance of the <cite>Cosmology</cite> class from this package. Contains all 
+cosmological parameters.</p>
+</div></blockquote>
+<p><strong>transfer_fit</strong> : <cite>str</cite> {<tt class="docutils literal"><span class="pre">&quot;CAMB&quot;</span></tt>,``&#8221;EH&#8221;<a href="#id5"><span class="problematic" id="id6">``</span></a>}</p>
+<blockquote>
+<div><p>A string identifier specifying which transfer function fit to use.</p>
+</div></blockquote>
+<p><strong>camb_options</strong> : <cite>dict</cite>, default <tt class="docutils literal"><span class="pre">None</span></tt></p>
+<blockquote>
+<div><p>A dictionary of options to send to the <cite>pycamb.transfers</cite> routine. Does
+not include cosmological parameters.</p>
+</div></blockquote>
+<p><strong>k_bounds</strong> : sequence, len=2</p>
+<blockquote>
+<div><p>Minimum and maximum bounds on <em>k/h</em>. Only used for the EH transfer fit.</p>
+</div></blockquote>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns :</th><td class="field-body"><p class="first"><strong>T</strong> : array_like</p>
+<blockquote class="last">
+<div><p>An array with the first column containing values of ln*(k/h)* and the second
+the natural log of the total transfer function.</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="function">
 <dt id="hmf.tools.interpolate_transfer">
 <tt class="descclassname">hmf.tools.</tt><tt class="descname">interpolate_transfer</tt><big>(</big><em>k</em>, <em>transfer</em>, <em>tol=0.01</em><big>)</big><a class="reference internal" href="_modules/hmf/tools.html#interpolate_transfer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.tools.interpolate_transfer" title="Permalink to this definition">¶</a></dt>
-<dd><p>Interpolates the given Transfer function and transforms it into a Power Spectrum.</p>
-<dl class="docutils">
-<dt>Input: k <span class="classifier-delimiter">:</span> <span class="classifier">an array of values of lnk</span></dt>
-<dd>Transfer : an array of values of lnT
-step_size: the step_size between values of lnk required in interpolation.</dd>
-<dt>Notes: the power spectrum is calculated using P(k) =  A.k^n.T^2, with A=1 in this method</dt>
-<dd>(which leaves the power spectrum un-normalized). The interpolation is done using
-cubic splines.</dd>
-</dl>
+<dd><p>Interpolate the given transfer function</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>k</strong> : array_like</p>
+<blockquote>
+<div><p>Value of lnk</p>
+</div></blockquote>
+<p><strong>transfer</strong> : array_like</p>
+<blockquote>
+<div><p>values of lnT</p>
+</div></blockquote>
+<p><strong>tol</strong> : float, default 0.01</p>
+<blockquote class="last">
+<div><p>The routine performs a check that at low-k the slope asymptotes to a 
+slope of zero. If this is not true the transfer function is cut when the 
+slope is out by tol.</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Notes</p>
+<p>Interpolation is linear as we may have to extrapolate.</p>
 </dd></dl>
 
 <dl class="function">
 <dt id="hmf.tools.mass_to_radius">
 <tt class="descclassname">hmf.tools.</tt><tt class="descname">mass_to_radius</tt><big>(</big><em>M</em>, <em>mean_dens</em><big>)</big><a class="reference internal" href="_modules/hmf/tools.html#mass_to_radius"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.tools.mass_to_radius" title="Permalink to this definition">¶</a></dt>
-<dd><p>Calculates radius from mass given mean density.</p>
+<dd><p>Calculate radius of a region of space from its mass.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>M</strong> : float or array of floats</p>
+<blockquote>
+<div><p>Masses</p>
+</div></blockquote>
+<p><strong>mean_dens</strong> : float</p>
+<blockquote>
+<div><p>The mean density of the universe</p>
+</div></blockquote>
+<p><strong>Returns</strong> :</p>
+<p><strong>&#8212;&#8212;</strong> :</p>
+<p><strong>R</strong> : float or array of floats</p>
+<blockquote class="last">
+<div><p>The corresponding radii to M</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Notes</p>
+<p>The units of <tt class="docutils literal"><span class="pre">M</span></tt> don&#8217;t matter as long as they are consistent with 
+<tt class="docutils literal"><span class="pre">mean_dens</span></tt>.</p>
 </dd></dl>
 
 <dl class="function">
 <dt id="hmf.tools.mass_variance">
 <tt class="descclassname">hmf.tools.</tt><tt class="descname">mass_variance</tt><big>(</big><em>M</em>, <em>power</em>, <em>lnk</em>, <em>mean_dens</em><big>)</big><a class="reference internal" href="_modules/hmf/tools.html#mass_variance"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.tools.mass_variance" title="Permalink to this definition">¶</a></dt>
-<dd><p>Finds the Mass Variance of M using the top-hat window function.</p>
-<p>Input: M: the radius(mass) of the top-hat function (vector).
-Output: sigma: the mass variance.</p>
+<dd><p>Calculate the Mass Variance of M using the top-hat window function.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>M</strong> : float or array_like</p>
+<blockquote>
+<div><p>The mass of the sphere at which to calculate the mass variance.</p>
+</div></blockquote>
+<p><strong>power</strong> : array_like</p>
+<blockquote>
+<div><p>The (normalised) natural log of the power spectrum</p>
+</div></blockquote>
+<p><strong>lnk</strong> : array_like</p>
+<blockquote>
+<div><p>The natural logarithm of the values of <em>k/h</em> at which <cite>power</cite> is 
+defined.</p>
+</div></blockquote>
+<p><strong>mean_dens</strong> : float</p>
+<blockquote>
+<div><p>Mean density of the Universe</p>
+</div></blockquote>
+<p><strong>Returns</strong> :</p>
+<p><strong>sigma</strong> : array_like (len(M))</p>
+<blockquote class="last">
+<div><p>The mass variance at <tt class="docutils literal"><span class="pre">M</span></tt></p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="function">
 <dt id="hmf.tools.n_eff">
 <tt class="descclassname">hmf.tools.</tt><tt class="descname">n_eff</tt><big>(</big><em>dlnsdlnm</em><big>)</big><a class="reference internal" href="_modules/hmf/tools.html#n_eff"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.tools.n_eff" title="Permalink to this definition">¶</a></dt>
-<dd><p>Calculates the power spectral slope at the scale of the halo radius, using eq. 42 in Lukic et. al 2007.</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="hmf.tools.new_k_grid">
-<tt class="descclassname">hmf.tools.</tt><tt class="descname">new_k_grid</tt><big>(</big><em>k</em>, <em>k_bounds=None</em><big>)</big><a class="reference internal" href="_modules/hmf/tools.html#new_k_grid"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.tools.new_k_grid" title="Permalink to this definition">¶</a></dt>
-<dd><p>Creates a new grid for the transfer function.</p>
+<dd><p>Return the power spectral slope at the scale of the halo radius,</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>dlnsdlnm</strong> : array</p>
+<blockquote>
+<div><p>The derivative of log sigma with log M</p>
+</div></blockquote>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns :</th><td class="field-body"><p class="first last"><strong>n_eff</strong> : float</p>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Notes</p>
+<p>Uses eq. 42 in Lukic et. al 2007.</p>
 </dd></dl>
 
 <dl class="function">
 <dt id="hmf.tools.normalize">
 <tt class="descclassname">hmf.tools.</tt><tt class="descname">normalize</tt><big>(</big><em>norm_sigma_8</em>, <em>unn_power</em>, <em>lnk</em>, <em>mean_dens</em><big>)</big><a class="reference internal" href="_modules/hmf/tools.html#normalize"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.tools.normalize" title="Permalink to this definition">¶</a></dt>
 <dd><p>Normalize the power spectrum to a given sigma_8</p>
-<p>Input: norm_sigma_8: The sigma_8 value to normalize to.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>norm_sigma_8</strong> : float</p>
+<blockquote>
+<div><p>The value of <span class="math">\(\sigma_8\)</span> to normalize to.</p>
+</div></blockquote>
+<p><strong>unn_power</strong> : array_like</p>
+<blockquote>
+<div><p>The natural logarithm of the unnormalised power spectrum</p>
+</div></blockquote>
+<p><strong>lnk</strong> : array_like</p>
+<blockquote>
+<div><p>The natural logarithm of the values of <em>k/h</em> at which <cite>unn_power</cite> is 
+defined.</p>
+</div></blockquote>
+<p><strong>mean_dens</strong> : float</p>
+<blockquote>
+<div><p>The mean density of the Universe.</p>
+</div></blockquote>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns :</th><td class="field-body"><p class="first"><strong>power</strong> : array_like</p>
+<blockquote>
+<div><p>An array of the same length as <cite>unn_power</cite> in which the values are 
+normalised to :math:<a href="#id7"><span class="problematic" id="id8">``</span></a>sigma_8`</p>
+</div></blockquote>
+<p><strong>normalisation</strong> : float</p>
+<blockquote class="last">
+<div><p>The normalisation constant.</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="function">
 <dt id="hmf.tools.radius_to_mass">
 <tt class="descclassname">hmf.tools.</tt><tt class="descname">radius_to_mass</tt><big>(</big><em>R</em>, <em>mean_dens</em><big>)</big><a class="reference internal" href="_modules/hmf/tools.html#radius_to_mass"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.tools.radius_to_mass" title="Permalink to this definition">¶</a></dt>
-<dd><p>Calculates mass from radius given mean density</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="hmf.tools.read_transfer">
-<tt class="descclassname">hmf.tools.</tt><tt class="descname">read_transfer</tt><big>(</big><em>transfer_file</em><big>)</big><a class="reference internal" href="_modules/hmf/tools.html#read_transfer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.tools.read_transfer" title="Permalink to this definition">¶</a></dt>
-<dd><p>Imports the Transfer Function file to be analysed, and returns the pair ln(k), ln(T)</p>
-<p>Input: &#8220;transfer_file&#8221;: full path to the file containing the transfer function (from camb).</p>
-<p>Output: ln(k), ln(T)</p>
+<dd><p>Calculates mass of a region of space from its radius</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>R</strong> : float or array of floats</p>
+<blockquote>
+<div><p>Radii</p>
+</div></blockquote>
+<p><strong>mean_dens</strong> : float</p>
+<blockquote>
+<div><p>The mean density of the universe</p>
+</div></blockquote>
+<p><strong>Returns</strong> :</p>
+<p><strong>&#8212;&#8212;</strong> :</p>
+<p><strong>M</strong> : float or array of floats</p>
+<blockquote class="last">
+<div><p>The corresponding masses in R</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Notes</p>
+<p>The units of <tt class="docutils literal"><span class="pre">R</span></tt> don&#8217;t matter as long as they are consistent with 
+<tt class="docutils literal"><span class="pre">mean_dens</span></tt>.</p>
 </dd></dl>
 
 <dl class="function">
 <dt id="hmf.tools.top_hat_window">
 <tt class="descclassname">hmf.tools.</tt><tt class="descname">top_hat_window</tt><big>(</big><em>M</em>, <em>lnk</em>, <em>mean_dens</em><big>)</big><a class="reference internal" href="_modules/hmf/tools.html#top_hat_window"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.tools.top_hat_window" title="Permalink to this definition">¶</a></dt>
-<dd><p>Constructs the window function squared in Fourier space for given radii</p>
-<p>Input: R: The radius of the top-hat function
-Output: W_squared: The square of the top-hat window function in Fourier space.</p>
+<dd><p>The fourier-space top-hat window function</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>M</strong> : float or array of floats</p>
+<blockquote>
+<div><p>The masses at which to evaluate the function</p>
+</div></blockquote>
+<p><strong>lnk</strong> : float or array of floats</p>
+<blockquote>
+<div><p>The natural log of <em>k/h</em> at which to evaluate the function. Only one 
+of lnk or M may be an array.</p>
+</div></blockquote>
+<p><strong>mean_dens</strong> : float</p>
+<blockquote>
+<div><p>The mean density of the universe.</p>
+</div></blockquote>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns :</th><td class="field-body"><p class="first"><strong>W_squared</strong> : float or array of floats</p>
+<blockquote class="last">
+<div><p>The square of the top-hat window function in fourier space</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="function">
 <dt id="hmf.tools.wdm_transfer">
 <tt class="descclassname">hmf.tools.</tt><tt class="descname">wdm_transfer</tt><big>(</big><em>m_x</em>, <em>power_cdm</em>, <em>lnk</em>, <em>h</em>, <em>omegac</em><big>)</big><a class="reference internal" href="_modules/hmf/tools.html#wdm_transfer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.tools.wdm_transfer" title="Permalink to this definition">¶</a></dt>
-<dd><p>Transforms the CDM Power Spectrum into a WDM power spectrum for a given warm particle mass m_x.</p>
-<p>NOTE: formula from Bode et. al. 2001 eq. A9</p>
+<dd><p>Transform a CDM Power Spectrum into WDM.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>m_x</strong> : float</p>
+<blockquote>
+<div><p>The mass of the single-species WDM particle in <em>keV</em></p>
+</div></blockquote>
+<p><strong>power_cdm</strong> : array</p>
+<blockquote>
+<div><p>The normalised power spectrum of CDM.</p>
+</div></blockquote>
+<p><strong>lnk</strong> : array</p>
+<blockquote>
+<div><p>The wavenumbers <em>k/h</em> corresponding to  <tt class="docutils literal"><span class="pre">power_cdm</span></tt>.</p>
+</div></blockquote>
+<p><strong>h</strong> : float</p>
+<blockquote>
+<div><p>Hubble parameter</p>
+</div></blockquote>
+<p><strong>omegac</strong> : float</p>
+<blockquote>
+<div><p>The dark matter density as a ratio of critical density at the current 
+epoch.</p>
+</div></blockquote>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns :</th><td class="field-body"><p class="first"><strong>power_wdm</strong> : array</p>
+<blockquote class="last">
+<div><p>The normalised WDM power spectrum at <tt class="docutils literal"><span class="pre">lnk</span></tt>.</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Notes</p>
+<p>Formula from Bode et. al. 2001 eq. A9</p>
 </dd></dl>
 
 </div>

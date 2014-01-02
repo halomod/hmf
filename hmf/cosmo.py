@@ -1,7 +1,5 @@
 '''
-Created on Jun 7, 2013
-
-@author: Steven
+Deals with cosmological parameters in a nice way.
 '''
 import numpy as _np
 
@@ -77,7 +75,7 @@ class Cosmology(object):
     """
     # A dictionary of bounds for each parameter
     # This also forms a list of all parameters possible
-    bounds = {"sigma_8":[0.1, 10],
+    _bounds = {"sigma_8":[0.1, 10],
               "n":[-3, 4],
               "w":[-1.5, 0],
               "cs2_lam":[-1, 2],
@@ -114,14 +112,14 @@ class Cosmology(object):
         # Check values in kwargs
         #=======================================================================
         for k in kwargs:
-            if k not in Cosmology.bounds:
+            if k not in Cosmology._bounds:
                 raise ValueError(k + " is not a valid parameter for Cosmology")
 
         #=======================================================================
         # First set the "easy" values (no dependence on anything else
         #=======================================================================
         easy_params = ["sigma_8", "n", 'w', 'cs2_lam', 't_cmb', 'y_he', "N_nu",
-                       "z_reion", "tau", "omegan", 'delta_c']
+                       "z_reion", "tau", "omegan", 'delta_c', "N_nu_massive"]
         for p in easy_params:
             if p in kwargs:
                 self.__dict__.update({p:kwargs.pop(p)})
@@ -186,7 +184,7 @@ class Cosmology(object):
             self.omegam = self.omegab + self.omegac
 
         else:
-            raise AttributeError("your input omegaXXX arguments were invalid")
+            raise AttributeError("your input omegaXXX arguments were invalid" + str(kwargs))
 
         if hasattr(self, "omegam"):
             self.mean_dens = self.crit_dens * self.omegam
@@ -200,7 +198,7 @@ class Cosmology(object):
                 self.omegak = 1 - self.omegav - self.omegam
 
         # Check all their values
-        for k, v in Cosmology.bounds.iteritems():
+        for k, v in Cosmology._bounds.iteritems():
             if k in self.__dict__:
                 self._check_bounds(k, v[0], v[1])
 
@@ -256,7 +254,9 @@ class Cosmology(object):
                "sigma_8":"sigma_8",
                "omegam":"omega_M_0",
                "n":"n",
-               "N_nu_massive":"N_nu"}
+               "omegan":"omega_n_0",
+               "N_nu_massive":"N_nu",
+               "w":"w"}
         return_dict = {}
         for k, v in self.__dict__.iteritems():
             if k in map:
