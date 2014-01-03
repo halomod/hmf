@@ -3,15 +3,14 @@ python:
   - "2.6"
   - "2.7"
 virtualenv:
-  - system_site_packages: true
+  system_site_packages: true
 before_install:
   - sudo apt-get install gfortran
 install:
   - git clone https://github.com/steven-murray/pycamb.git
   - cd pycamb
   - python setup.py install --get=http://camb.info/CAMB.tar.gz
-  - sudo apt-get install -qq python-numpy
-  - sudo apt-get install -qq python-scipy
+  - sudo apt-get install python-numpy python-scipy
   - pip install scitools
   - pip install cosmolopy
   - pip install emcee
