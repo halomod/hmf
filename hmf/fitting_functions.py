@@ -5,7 +5,7 @@ Created on Aug 29, 2013
 '''
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
-import cosmography
+from cosmolopy import density as cden
 
 # TODO: check out units for boundaries (ie. whether they should be log or ln 1/sigma or M/h or M)
 class Fits(object):
@@ -368,8 +368,7 @@ class Fits(object):
         Calculate :math:`\Gamma` for the Watson fit.
         """
         C = np.exp(0.023 * (self.pert.delta_halo / 178 - 1))
-        d = -0.456 * cosmography.omegam_z(self.pert.z, self._cp.omegam,
-                                          self._cp.omegav, self._cp.omegak) - 0.139
+        d = -0.456 * cden.omega_M_z(self.z, **self.pert.cosmo_params.cosmolopy_dict()) - 0.139
         p = 0.072
         q = 2.13
 
@@ -421,8 +420,7 @@ class Fits(object):
             beta = 3.810
             gamma = 1.453
         else:
-            omz = cosmography.omegam_z(self.pert.z, self._cp.omegam,
-                                       self._cp.omegav, self._cp.omegak)
+            omz = cden.omega_M_z(self.z, **self.pert.cosmo_params.cosmolopy_dict())
             A = omz * (1.097 * (1 + self.pert.z) ** (-3.216) + 0.074)
             alpha = omz * (3.136 * (1 + self.pert.z) ** (-3.058) + 2.349)
             beta = omz * (5.907 * (1 + self.pert.z) ** (-3.599) + 2.344)
