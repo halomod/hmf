@@ -3,7 +3,7 @@ python:
   - "2.6"
   - "2.7"
 before_install:
-  - sudo apt-get install gfortran g77
+  - sudo apt-get install gfortran
 install:
   - git clone https://github.com/steven-murray/pycamb.git
   - cd pycamb
