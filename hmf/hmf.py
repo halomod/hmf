@@ -1157,7 +1157,7 @@ class Perturbations(object):
             int_upper = 0
 
         # Calculate the cumulative integral (backwards) of mass_function (Adding on the upper integral)
-        ngtm = intg.cumtrapz(mass_function[::-1], dx=np.log(M[1]) - np.log(M[0]), initial=0)[::-1] + int_upper
+        ngtm = np.concatenate((intg.cumtrapz(mass_function[::-1], dx=np.log(M[1]) - np.log(M[0]))[::-1], np.zeros(1))) + int_upper
 
         # We need to set ngtm back in the original length vector with nans where they were originally
         if len(ngtm) < len(self.M):
@@ -1206,7 +1206,7 @@ class Perturbations(object):
                 int_upper = 0
 
             # Calculate the cumulative integral (backwards) of mass_function (Adding on the upper integral)
-            self.__mgtm = intg.cumtrapz(mass_function[::-1] * M[::-1], dx=np.log(M[1]) - np.log(M[0]), initial=0)[::-1] + int_upper
+            self.__mgtm = np.concatenate((intg.cumtrapz(mass_function[::-1] * M[::-1], dx=np.log(M[1]) - np.log(M[0]))[::-1], np.zeros(1))) + int_upper
 
             # We need to set ngtm back in the original length vector with nans where they were originally
             if len(self.__mgtm) < len(self.M):
@@ -1244,7 +1244,7 @@ class Perturbations(object):
 
             print "INT LOWER = ", int_lower
             # Calculate the cumulative integral of mass_function (Adding on the lower integral)
-            self.__nltm = intg.cumtrapz(mass_function, dx=np.log(M[1]) - np.log(M[0]), initial=0) + int_lower
+            self.__nltm = np.concatenate((intg.cumtrapz(mass_function, dx=np.log(M[1]) - np.log(M[0])), np.zeros(1))) + int_lower
 
             # We need to set ngtm back in the original length vector with nans where they were originally
             if len(self.__nltm) < len(self.M):
@@ -1282,7 +1282,7 @@ class Perturbations(object):
                 int_lower = 0
 
             # Calculate the cumulative integral of mass_function (Adding on the upper integral)
-            self.__mltm = intg.cumtrapz(mass_function * M, dx=np.log(M[1]) - np.log(M[0]), initial=0) + int_lower
+            self.__mltm = np.concatenate((intg.cumtrapz(mass_function * M, dx=np.log(M[1]) - np.log(M[0])), np.zeros(1))) + int_lower
 
             # We need to set ngtm back in the original length vector with nans where they were originally
             if len(self.__mltm) < len(self.M):

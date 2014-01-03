@@ -74,7 +74,10 @@ To be more explicit, the power spectrum in all cases is produced with the follow
 import numpy as np
 from hmf import Perturbations
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
+import inspect
+import os
 
+LOCATION = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 #=======================================================================
 # Some general functions used in tests
 #=======================================================================
@@ -111,14 +114,14 @@ class TestPower(object):
         self.pert = Perturbations(omegab=0.05, omegac=0.25, omegav=0.7, sigma_8=0.8, n=1, H0=70.0,
                                   k_bounds=[np.exp(-21), np.exp(21)], transfer__kmax=10, transfer__k_per_logint=50)
 
-        #Get the camb transfer
-        self.camb_transfer = np.genfromtxt("data/camb_transfer")
+        # Get the camb transfer
+        self.camb_transfer = np.genfromtxt(LOCATION + "/data/camb_transfer")
 
-        #Get the camb power spec
-        self.camb_power = np.genfromtxt('data/camb_power')
+        # Get the camb power spec
+        self.camb_power = np.genfromtxt(LOCATION + '/data/camb_power')
 
-        #Get the genmf power (ie. camb power normalised by genmf)
-        self.genmf_power = np.genfromtxt('data/genmf_power')
+        # Get the genmf power (ie. camb power normalised by genmf)
+        self.genmf_power = np.genfromtxt(LOCATION + '/data/genmf_power')
 
     def test_transfer(self):
         """ Testing whether the transfer function calculated by pycamb is the same as that of camb (via CLI)"""
@@ -142,12 +145,12 @@ class TestGenMF(object):
         """ Able to check all columns only dependent on base cosmology (not fit) """
 
 
-        data = np.genfromtxt("data/" + fit + '_' + str(int(redshift)) + '_' + origin)[::-1][400:1201]
+        data = np.genfromtxt(LOCATION + "/data/" + fit + '_' + str(int(redshift)) + '_' + origin)[::-1][400:1201]
 
-        #We have to do funky stuff to the data if its been cut by genmf
+        # We have to do funky stuff to the data if its been cut by genmf
         if col is "sigma":
             assert max_diff_rel(pert.sigma, data[:, 5], 0.01)
-        elif col is "lnsigma":  #We just do diff on this one because it passes through 0
+        elif col is "lnsigma":  # We just do diff on this one because it passes through 0
             assert max_diff(pert.lnsigma, data[:, 3], 0.01)
         elif col is "n_eff":
             assert max_diff_rel(pert.n_eff, data[:, 6], 0.01)

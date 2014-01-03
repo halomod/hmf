@@ -16,3 +16,8 @@ install:
   - pip install cosmolopy
   - pip install emcee
 script: nosetests
+notifications:
+  email:
+    - steven.murray@uwa.edu.au
+    on_success: never
+    on_failure: always
