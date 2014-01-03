@@ -10,7 +10,7 @@ import scipy.integrate as intg
 import pycamb
 import collections
 import cosmolopy.perturbation as pert
-
+import cosmolopy.distance as cdist
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 
 #===============================================================================
@@ -429,4 +429,55 @@ def n_eff(dlnsdlnm):
     return n_eff
 
 
+def d_plus(z, cosmo):
+    """
+    Finds the factor :math:`D^+(a)`, from Lukic et. al. 2007, eq. 8.
+    
+    Uses simpson's rule to integrate, with 1000 steps.
+    
+    Parameters
+    ----------
+    z : float
+        The redshift
+        
+    cosmo : ``Cosmology()`` object
+        Cosmological parameters 
+    
+    Returns
+    -------
+    dplus : float
+        The un-normalised growth factor.
+    """
+    cdict = cosmo.cosmolopy_dict()
+    a_upper = 1.0 / (1.0 + z)
+    lna = np.linspace(np.log(1e-8), np.log(a_upper), 1000)
+    z_vec = 1.0 / np.exp(lna) - 1.0
 
+    integrand = 1.0 / (np.exp(lna) * cdist.e_z(z_vec, **cdict)) ** 3
+
+    integral = intg.simps(np.exp(lna) * integrand, dx=lna[1] - lna[0])
+    dplus = 5.0 * cosmo.omegam * cdist.e_z(z, **cdict) * integral / 2.0
+
+    return dplus
+
+def growth_factor(z, cosmo):
+    """
+    Calculate :math:`d(a) = D^+(a)/D^+(a=1)`, from Lukic et. al. 2007, eq. 7.
+    
+    Parameters
+    ----------
+    z : float
+        The redshift
+        
+    cosmo : ``Cosmology()`` object
+        Cosmological parameters 
+    
+    Returns
+    -------
+    growth : float
+        The normalised growth factor.
+    """
+
+    growth = d_plus(z, cosmo) / d_plus(0.0, cosmo)
+
+    return growth

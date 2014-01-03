@@ -5,7 +5,7 @@ The module contains a single class, `Perturbations`, which wraps almost all the
 functionality of `hmf` in an easy-to-use way.
 '''
 
-version = '1.2.2'
+version = '1.3.0'
 
 ###############################################################################
 # Some Imports
@@ -18,7 +18,8 @@ import copy
 
 # from scitools.std import sin,cos,tan,abs,arctan,arccos,arcsin #Must be in this form to work for some reason.
 from cosmolopy import distance as cd
-import cosmography
+from cosmolopy import density as cden
+# import cosmography
 from cosmo import Cosmology
 import tools
 from fitting_functions import Fits
@@ -613,9 +614,7 @@ class Perturbations(object):
                 self.__delta_halo = self._delta_halo_base
 
             elif self.delta_wrt == 'crit':
-                self.__delta_halo = self._delta_halo_base / cosmography.omegam_z(self.z, self.cosmo_params.omegam,
-                                                                                 self.cosmo_params.omegav,
-                                                                                 self.cosmo_params.omegak)
+                self.__delta_halo = self._delta_halo_base / cden.omega_M_z(self.z, **self.cosmo_params.cosmolopy_dict())
             return self.__delta_halo
 
     @delta_halo.deleter
@@ -857,7 +856,7 @@ class Perturbations(object):
             return self.__growth
         except:
             if self.z > 0:
-                self.__growth = cosmography.growth_factor(self.z, **self.cosmo_params.cosmolopy_dict())
+                self.__growth = tools.growth_factor(self.z, self.cosmo_params)
             else:
                 self.__growth = 1
             return self.__growth
