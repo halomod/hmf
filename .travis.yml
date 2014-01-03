@@ -11,7 +11,7 @@ install:
   - cd pycamb
   - python setup.py install --get=http://camb.info/CAMB.tar.gz
   - cd ..
-  - rm -r pycamb
+  - sudo rm -rf pycamb
   - sudo apt-get install python-numpy python-scipy
   - pip install scitools
   - pip install cosmolopy
