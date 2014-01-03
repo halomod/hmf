@@ -10,6 +10,8 @@ install:
   - git clone https://github.com/steven-murray/pycamb.git
   - cd pycamb
   - python setup.py install --get=http://camb.info/CAMB.tar.gz
+  - cd ..
+  - rm -r pycamb
   - sudo apt-get install python-numpy python-scipy
   - pip install scitools
   - pip install cosmolopy
