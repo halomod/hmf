@@ -643,7 +643,7 @@ class Perturbations(object):
         """
         try:
             return self.__transfer_original
-        except:
+        except AttributeError:
             self.__transfer_original = tools.get_transfer(self._transfer_file, self.cosmo_params,
                                                           self.transfer_fit, self._camb_options,
                                                           self.k_bounds)

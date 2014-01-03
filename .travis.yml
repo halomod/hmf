@@ -8,7 +8,7 @@ before_install:
 install:
   - git clone https://github.com/steven-murray/pycamb.git
   - cd pycamb
-  - python setup.py install --get=http://camb.info/CAMB.tar.gz
+  - python setup.py install --get=http://camb.info/CAMB_Mar13.tar.gz
   - cd ..
   - sudo rm -rf pycamb
   - sudo apt-get install python-numpy python-scipy
