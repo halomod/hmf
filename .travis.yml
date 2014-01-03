@@ -18,6 +18,5 @@ install:
 script: nosetests
 notifications:
   email:
-    - steven.murray@uwa.edu.au
-    on_success: never
-    on_failure: always
+    recipients:
+      - steven.murray@uwa.edu.au
