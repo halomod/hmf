@@ -68,9 +68,8 @@ def get_transfer(transfer_file, cosmo_params, transfer_fit,
             del t
     else:
         # Import the transfer file
-        transfer = np.log(np.genfromtxt(transfer_file)[:, [0, 6]].T)
-        k = transfer[0, :]
-        T = transfer[1, :]
+        T = np.log(np.genfromtxt(transfer_file)[:, [0, 6]].T)
+
     return T
 
 def check_kr(min_m, max_m, mean_dens, mink, maxk):
