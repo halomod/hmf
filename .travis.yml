@@ -16,7 +16,7 @@ install:
 - pip install scitools
 - pip install cosmolopy
 - pip install emcee
-depoloy: 
+deploy: 
   user: stevenjeanette
   on: 
     tags: true
