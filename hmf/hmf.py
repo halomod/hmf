@@ -5,7 +5,7 @@ The module contains a single class, `Perturbations`, which wraps almost all the
 functionality of `hmf` in an easy-to-use way.
 '''
 
-version = '1.3.0'
+version = '1.3.1'
 
 ###############################################################################
 # Some Imports
@@ -1225,7 +1225,7 @@ class Perturbations(object):
     @property
     def nltm(self):
         """
-        Lower cumulative mass function, , ``len=len(M)`` [units :math:`h^3 Mpc^{-3}`]
+        Lower cumulative mass function, ``len=len(M)`` [units :math:`h^3 Mpc^{-3}`]
         """
         try:
             return self.__nltm

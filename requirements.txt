@@ -1,0 +1,6 @@
+numpy >= 1.6.2
+scitools
+scipy >= 0.12.0
+cosmolopy
+emcee
+pycamb

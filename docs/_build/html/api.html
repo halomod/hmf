@@ -361,6 +361,35 @@ in the calculation of the mass variance.</p>
 </dd></dl>
 
 <dl class="function">
+<dt id="hmf.tools.d_plus">
+<tt class="descclassname">hmf.tools.</tt><tt class="descname">d_plus</tt><big>(</big><em>z</em>, <em>cosmo</em><big>)</big><a class="headerlink" href="#hmf.tools.d_plus" title="Permalink to this definition">¶</a></dt>
+<dd><p>Finds the factor <span class="math">\(D^+(a)\)</span>, from Lukic et. al. 2007, eq. 8.</p>
+<p>Uses simpson&#8217;s rule to integrate, with 1000 steps.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>z</strong> : float</p>
+<blockquote>
+<div><p>The redshift</p>
+</div></blockquote>
+<p><strong>cosmo</strong> : <tt class="docutils literal"><span class="pre">Cosmology()</span></tt> object</p>
+<blockquote>
+<div><p>Cosmological parameters</p>
+</div></blockquote>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns :</th><td class="field-body"><p class="first"><strong>dplus</strong> : float</p>
+<blockquote class="last">
+<div><p>The un-normalised growth factor.</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
 <dt id="hmf.tools.dlnsdlnm">
 <tt class="descclassname">hmf.tools.</tt><tt class="descname">dlnsdlnm</tt><big>(</big><em>M</em>, <em>sigma</em>, <em>power</em>, <em>lnk</em>, <em>mean_dens</em><big>)</big><a class="reference internal" href="_modules/hmf/tools.html#dlnsdlnm"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.tools.dlnsdlnm" title="Permalink to this definition">¶</a></dt>
 <dd><p>Calculate the derivative of log sigma with log M</p>
@@ -460,6 +489,34 @@ not include cosmological parameters.</p>
 <blockquote class="last">
 <div><p>An array with the first column containing values of ln*(k/h)* and the second
 the natural log of the total transfer function.</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="hmf.tools.growth_factor">
+<tt class="descclassname">hmf.tools.</tt><tt class="descname">growth_factor</tt><big>(</big><em>z</em>, <em>cosmo</em><big>)</big><a class="headerlink" href="#hmf.tools.growth_factor" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculate <span class="math">\(d(a) = D^+(a)/D^+(a=1)\)</span>, from Lukic et. al. 2007, eq. 7.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>z</strong> : float</p>
+<blockquote>
+<div><p>The redshift</p>
+</div></blockquote>
+<p><strong>cosmo</strong> : <tt class="docutils literal"><span class="pre">Cosmology()</span></tt> object</p>
+<blockquote>
+<div><p>Cosmological parameters</p>
+</div></blockquote>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns :</th><td class="field-body"><p class="first"><strong>growth</strong> : float</p>
+<blockquote class="last">
+<div><p>The normalised growth factor.</p>
 </div></blockquote>
 </td>
 </tr>
@@ -794,77 +851,12 @@ flexibility.</p>
 </dd></dl>
 
 </div>
-<div class="section" id="module-hmf.cosmography">
-<span id="cosmography"></span><h2>cosmography<a class="headerlink" href="#module-hmf.cosmography" title="Permalink to this headline">¶</a></h2>
-<p>Created on Jan 21, 2013</p>
-<p>&#64;author: Steven</p>
-<dl class="function">
-<dt id="hmf.cosmography.a_from_z">
-<tt class="descclassname">hmf.cosmography.</tt><tt class="descname">a_from_z</tt><big>(</big><em>z</em><big>)</big><a class="reference internal" href="_modules/hmf/cosmography.html#a_from_z"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.cosmography.a_from_z" title="Permalink to this definition">¶</a></dt>
-<dd><p>Calculates the scale factor at a given redshift</p>
-<p>Input: z: the redshift.
-Output a: the scale factor at the given redshift.</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="hmf.cosmography.d_plus">
-<tt class="descclassname">hmf.cosmography.</tt><tt class="descname">d_plus</tt><big>(</big><em>z</em>, <em>omegam</em>, <em>omegak</em>, <em>omegav</em><big>)</big><a class="reference internal" href="_modules/hmf/cosmography.html#d_plus"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.cosmography.d_plus" title="Permalink to this definition">¶</a></dt>
-<dd><p>Finds the factor D+(a), from Lukic et. al. 2007, eq. 8.</p>
-<p>Uses romberg integration with a suitable step-size.</p>
-<p>Input: z: redshift.</p>
-<p>Output: dplus: the factor.</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="hmf.cosmography.growth_factor">
-<tt class="descclassname">hmf.cosmography.</tt><tt class="descname">growth_factor</tt><big>(</big><em>z</em>, <em>omegam</em>, <em>omegak</em>, <em>omegav</em><big>)</big><a class="reference internal" href="_modules/hmf/cosmography.html#growth_factor"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.cosmography.growth_factor" title="Permalink to this definition">¶</a></dt>
-<dd><p>Finds the factor d(a) = D+(a)/D+(a=1), from Lukic et. al. 2007, eq. 8.</p>
-<p>Input: z: redshift.</p>
-<p>Output: growth: the growth factor.</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="hmf.cosmography.hubble_z">
-<tt class="descclassname">hmf.cosmography.</tt><tt class="descname">hubble_z</tt><big>(</big><em>z</em>, <em>omegam</em>, <em>omegak</em>, <em>omegav</em><big>)</big><a class="reference internal" href="_modules/hmf/cosmography.html#hubble_z"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.cosmography.hubble_z" title="Permalink to this definition">¶</a></dt>
-<dd><p>Finds the hubble parameter at z normalized by the current hubble constant: E(z).</p>
-<p>Source: Hogg 1999, Eq. 14</p>
-<dl class="docutils">
-<dt>Input: z: redshift</dt>
-<dd>omegam: matter density
-omegak: curvature density
-omegav: dark energy density</dd>
-</dl>
-<p>Output: hubble: the hubble parameter at z divided by H_0 (ie. we don&#8217;t need H_0)</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="hmf.cosmography.mean_dens">
-<tt class="descclassname">hmf.cosmography.</tt><tt class="descname">mean_dens</tt><big>(</big><em>z</em>, <em>omegam</em>, <em>omegav</em>, <em>omegak</em>, <em>crit_dens</em><big>)</big><a class="reference internal" href="_modules/hmf/cosmography.html#mean_dens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.cosmography.mean_dens" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="function">
-<dt id="hmf.cosmography.omegam_z">
-<tt class="descclassname">hmf.cosmography.</tt><tt class="descname">omegam_z</tt><big>(</big><em>z</em>, <em>omegam</em>, <em>omegav</em>, <em>omegak</em><big>)</big><a class="reference internal" href="_modules/hmf/cosmography.html#omegam_z"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.cosmography.omegam_z" title="Permalink to this definition">¶</a></dt>
-<dd><p>Finds Omega_M as a function of redshift</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="hmf.cosmography.step_size">
-<tt class="descclassname">hmf.cosmography.</tt><tt class="descname">step_size</tt><big>(</big><em>mini</em>, <em>maxi</em><big>)</big><a class="reference internal" href="_modules/hmf/cosmography.html#step_size"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.cosmography.step_size" title="Permalink to this definition">¶</a></dt>
-<dd><p>Calculates a suitable step size for romberg integration given data limits</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="hmf.cosmography.z_from_a">
-<tt class="descclassname">hmf.cosmography.</tt><tt class="descname">z_from_a</tt><big>(</big><em>a</em><big>)</big><a class="reference internal" href="_modules/hmf/cosmography.html#z_from_a"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.cosmography.z_from_a" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns the redshift of a particular scale factor</p>
-</dd></dl>
-
+<div class="section" id="cosmography">
+<h2>cosmography<a class="headerlink" href="#cosmography" title="Permalink to this headline">¶</a></h2>
 </div>
 <div class="section" id="module-hmf.cosmo">
 <span id="cosmo"></span><h2>cosmo<a class="headerlink" href="#module-hmf.cosmo" title="Permalink to this headline">¶</a></h2>
-<p>Created on Jun 7, 2013</p>
-<p>&#64;author: Steven</p>
+<p>Deals with cosmological parameters in a nice way.</p>
 <dl class="class">
 <dt id="hmf.cosmo.Cosmology">
 <em class="property">class </em><tt class="descclassname">hmf.cosmo.</tt><tt class="descname">Cosmology</tt><big>(</big><em>default=None</em>, <em>force_flat=False</em>, <em>**kwargs</em><big>)</big><a class="reference internal" href="_modules/hmf/cosmo.html#Cosmology"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.cosmo.Cosmology" title="Permalink to this definition">¶</a></dt>
@@ -947,11 +939,6 @@ This will modify <tt class="docutils literal"><span class="pre">omegav</span></t
 </tr>
 </tbody>
 </table>
-<dl class="attribute">
-<dt id="hmf.cosmo.Cosmology.bounds">
-<tt class="descname">bounds</tt><em class="property"> = {'omegam': [0.01, 2], 'tau': [0, 1], 'N_nu': [1, 10], 'sigma_8': [0.1, 10], 'omegan': [0, 1], 'H0': [5, 500], 'omegab_h2': [0, 1], 'omegac_h2': [0, 2], 'omegav': [0, 2], 'omegac': [0, 2], 'n': [-3, 4], 'z_reion': [2, 1000], 'w': [-1.5, 0], 'h': [0.05, 5], 'cs2_lam': [-1, 2], 'N_nu_massive': [0, 3], 'omegab': [0.01, 1], 'y_he': [0, 1], 't_cmb': [0, 10.0], 'delta_c': [1.2, 2.2]}</em><a class="headerlink" href="#hmf.cosmo.Cosmology.bounds" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
 <dl class="method">
 <dt id="hmf.cosmo.Cosmology.cosmolopy_dict">
 <tt class="descname">cosmolopy_dict</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/hmf/cosmo.html#Cosmology.cosmolopy_dict"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.cosmo.Cosmology.cosmolopy_dict" title="Permalink to this definition">¶</a></dt>
@@ -1009,7 +996,7 @@ This will modify <tt class="docutils literal"><span class="pre">omegav</span></t
 <li><a class="reference internal" href="#module-hmf.fitting_functions">fitting_functions</a><ul>
 </ul>
 </li>
-<li><a class="reference internal" href="#module-hmf.cosmography">cosmography</a></li>
+<li><a class="reference internal" href="#cosmography">cosmography</a></li>
 <li><a class="reference internal" href="#module-hmf.cosmo">cosmo</a><ul>
 </ul>
 </li>
