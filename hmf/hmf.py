@@ -16,10 +16,8 @@ import numpy as np
 from numpy import sin, cos, tan, abs, arctan, arccos, arcsin, exp
 import copy
 
-# from scitools.std import sin,cos,tan,abs,arctan,arccos,arcsin #Must be in this form to work for some reason.
 from cosmolopy import distance as cd
 from cosmolopy import density as cden
-# import cosmography
 from cosmo import Cosmology
 import tools
 from fitting_functions import Fits
