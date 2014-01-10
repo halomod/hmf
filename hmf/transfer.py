@@ -5,10 +5,8 @@ related quantities.
 """
 import numpy as np
 from cosmo import Cosmology
-import cosmolopy.perturbation as eh
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
-from cosmolopy import density as cden
-from cosmolopy import distance as cd
+import cosmolopy as cp
 import scipy.integrate as integ
 
 # import cosmolopy.density as cden
@@ -348,7 +346,7 @@ class Transfer(object):
         .. note :: This should not be called by the user!
         """
 
-        T = np.log(eh.transfer_function_EH(np.exp(k) * self.cosmo.h,
+        T = np.log(cp.perturbation.transfer_function_EH(np.exp(k) * self.cosmo.h,
                                     **self.cosmo.cosmolopy_dict())[1])
         return T
 
@@ -599,8 +597,8 @@ class Transfer(object):
             delta_k = np.exp(self.delta_k)
 
             # Define the cosmology at redshift
-            omegam = cden.omega_M_z(self.z, **self.cosmo.cosmolopy_dict())
-            omegav = self.cosmo.omegav / cd.e_z(self.z, **self.cosmo.cosmolopy_dict()) ** 2
+            omegam = cp.density.omega_M_z(self.z, **self.cosmo.cosmolopy_dict())
+            omegav = self.cosmo.omegav / cp.distance.e_z(self.z, **self.cosmo.cosmolopy_dict()) ** 2
             w = self.cosmo.w
 
             f1 = omegam ** -0.0307

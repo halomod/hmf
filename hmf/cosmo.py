@@ -1,5 +1,3 @@
-import numpy as _np
-
 class Cosmology(object):
     """
     A class that nicely deals with cosmological parameters.

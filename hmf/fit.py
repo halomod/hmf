@@ -7,7 +7,7 @@ It uses MCMC techniques to do so.
 #===============================================================================
 import numpy as np
 import emcee
-from hmf import Perturbations
+from hmf import MassFunction
 from scipy.stats import norm
 import sys
 # from scipy.optimize import minimize
