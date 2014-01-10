@@ -303,8 +303,8 @@ class MassFunction(object):
     #--------------------------------  START NON-SET PROPERTIES ----------------------------------------------
     @property
     def cosmo(self):
-        """ :class:`hmf.cosmo.Cosmology` object aliased from `self.cosmo`"""
-        return self.cosmo
+        """ :class:`hmf.cosmo.Cosmology` object aliased from `self.transfer.cosmo`"""
+        return self.transfer.cosmo
 
     @property
     def delta_halo(self):
