@@ -36,6 +36,12 @@ See LICENSE.txt for details.
 
 HISTORY
 -------
+1.4.2 - January 10, 2014
+		Mocked imports of cosmolopy, scipy and numpy for setup
+		
+1.4.1 - January 10,2014
+		Updated setup requirements and fixed a few tests
+		
 1.4.0 - January 10, 2014
 		Upgraded API once more. 
 		Now Perturbations --> MassFunction

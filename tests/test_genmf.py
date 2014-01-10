@@ -103,26 +103,6 @@ def max_diff(vec1, vec2, tol):
 #===============================================================================
 # The Test Classes
 #===============================================================================
-class TestPower(object):
-    def __init__(self):
-        # Make a hmf class
-        self.hmf = MassFunction(omegab=0.05, omegac=0.25, omegav=0.7, sigma_8=0.8, n=1, H0=70.0,
-                                lnk=np.linspace(-21, 21, 500), kmax=10, k_per_logint=50)
-
-        # Get the camb transfer
-        self.camb_transfer = np.genfromtxt(LOCATION + "/data/camb_transfer")
-
-        # Get the camb power spec
-        self.camb_power = np.genfromtxt(LOCATION + '/data/camb_power')
-
-        # Get the genmf power (ie. camb power normalised by genmf)
-        self.genmf_power = np.genfromtxt(LOCATION + '/data/genmf_power')
-
-    def test_transfer(self):
-        """ Testing whether the transfer function calculated by pycamb is the same as that of camb (via CLI)"""
-        my_T_vec = self.hmf.transfer._transfer_callable(np.log(self.camb_transfer[:, 0]))
-        assert rms_diff(my_T_vec, np.log(self.camb_transfer[:, 1]), 1E-3)
-
 class TestGenMF(object):
     def check_col(self, pert, fit, redshift, origin, col):
         """ Able to check all columns only dependent on base cosmology (not fit) """
