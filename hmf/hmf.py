@@ -248,7 +248,7 @@ class MassFunction(object):
         except ValueError:
             raise ValueError("z must be a number (", val, ")")
 
-        if val <= self.z:
+        if val <= self.transfer.z:
             raise ValueError("z2 must be larger than z")
         else:
             self.__z2 = val
@@ -316,7 +316,9 @@ class MassFunction(object):
                 self.__delta_halo = self.delta_h
 
             elif self.delta_wrt == 'crit':
-                self.__delta_halo = self.delta_h / cden.omega_M_z(self.z, **self.cosmo_params.cosmolopy_dict())
+                print cden.omega_M_z(self.transfer.z, **self.cosmo.cosmolopy_dict())
+                print self.cosmo.cosmolopy_dict()
+                self.__delta_halo = self.delta_h / cden.omega_M_z(self.transfer.z, **self.cosmo.cosmolopy_dict())
             return self.__delta_halo
 
     @delta_halo.deleter
@@ -477,10 +479,10 @@ class MassFunction(object):
         try:
             return self.__dndm
         except:
-            if self.z2 is None:  # #This is normally the case
+            if self.transfer.z2 is None:  # #This is normally the case
                 self.__dndm = self.fsigma * self.cosmo.mean_dens * np.abs(self._dlnsdlnm) / self.M ** 2
                 if self.mf_fit == 'Behroozi':
-                    a = 1 / (1 + self.z)
+                    a = 1 / (1 + self.transfer.z)
                     theta = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (self.M / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)))
                     ngtm_tinker = self._ngtm()
                     ngtm_behroozi = 10 ** (theta + np.log10(ngtm_tinker))
@@ -491,17 +493,17 @@ class MassFunction(object):
             else:  # #This is for a survey-volume weighted calculation
                 if self.nz is None:
                     self.nz = 10
-                zedges = np.linspace(self.z, self.z2, self.nz)
+                zedges = np.linspace(self.transfer.z, self.transfer.z2, self.nz)
                 zcentres = (zedges[:-1] + zedges[1:]) / 2
                 dndm = np.zeros_like(zcentres)
                 vol = np.zeros_like(zedges)
-                vol[0] = cd.comoving_volume(self.z,
+                vol[0] = cd.comoving_volume(self.transfer.z,
                                             **self.cosmo.cosmolopy_dict())
                 for i, zz in enumerate(zcentres):
                     self.update(z=zz)
                     dndm[i] = self.fsigma * self.cosmo.mean_dens * np.abs(self._dlnsdlnm) / self.M ** 2
                     if self.mf_fit == 'Behroozi':
-                        a = 1 / (1 + self.z)
+                        a = 1 / (1 + self.transfer.z)
                         theta = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (self.M / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)))
                         ngtm_tinker = self._ngtm()
                         ngtm_behroozi = 10 ** (theta + np.log10(ngtm_tinker))
@@ -509,7 +511,7 @@ class MassFunction(object):
                         dndm[i] = dndm[i] * 10 ** theta - ngtm_behroozi * np.log(10) * dthetadM
 
                     vol[i + 1] = cd.comoving_volume(z=zedges[i + 1],
-                                                    **self.cosmo_params.cosmolopy_dict())
+                                                    **self.cosmo.cosmolopy_dict())
 
                 vol = vol[1:] - vol[:-1]  # Volume in shells
                 integrand = vol * dndm
