@@ -1,2 +1,3 @@
 hmf
+cosmolopy
 numpydoc
