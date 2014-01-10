@@ -8,7 +8,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>transfer &mdash; hmf 1.1.10 documentation</title>
+    <title>transfer &mdash; hmf 1.3.1 documentation</title>
     
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
@@ -16,7 +16,7 @@
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '1.1.10',
+        VERSION:     '1.3.1',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -26,7 +26,7 @@
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
     <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
-    <link rel="top" title="hmf 1.1.10 documentation" href="../index.html" />
+    <link rel="top" title="hmf 1.3.1 documentation" href="../index.html" />
     <link rel="up" title="API" href="../api.html" /> 
   </head>
   <body>
@@ -42,7 +42,7 @@
         <li class="right" >
           <a href="../np-modindex.html" title="Python Module Index"
              >modules</a> |</li>
-        <li><a href="../index.html">hmf 1.1.10 documentation</a> &raquo;</li>
+        <li><a href="../index.html">hmf 1.3.1 documentation</a> &raquo;</li>
           <li><a href="../api.html" accesskey="U">API</a> &raquo;</li> 
       </ul>
     </div>  
@@ -54,9 +54,8 @@
             
   <div class="section" id="module-hmf.transfer">
 <span id="transfer"></span><h1>transfer<a class="headerlink" href="#module-hmf.transfer" title="Permalink to this headline">¶</a></h1>
-<p>This module contains a single class, <cite>Transfer</cite>, which provides methods to 
-calculate the transfer function, matter power spectrum and several other 
-related quantities.</p>
+<p>An object that deals with calculating transfer functions for the matter power
+spectrum.</p>
 <dl class="class">
 <dt id="hmf.transfer.Transfer">
 <em class="property">class </em><tt class="descclassname">hmf.transfer.</tt><tt class="descname">Transfer</tt><big>(</big><em>z=0.0</em>, <em>lnk=None</em>, <em>wdm_mass=None</em>, <em>transfer_fit='CAMB'</em>, <em>initial_mode=1</em>, <em>lAccuracyBoost=1</em>, <em>AccuracyBoost=1</em>, <em>w_perturb=False</em>, <em>k_per_logint=11</em>, <em>kmax=0.25</em>, <em>ThreadNum=0</em>, <em>**kwargs</em><big>)</big><a class="reference internal" href="../_modules/hmf/transfer.html#Transfer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.transfer.Transfer" title="Permalink to this definition">¶</a></dt>
@@ -64,26 +63,18 @@ related quantities.</p>
 <p>The purpose of this class is to calculate transfer functions, power spectra
 and several tightly associated quantities using many of the available fits
 from the literature.</p>
-<p>Importantly, it contains the means to calculate the transfer function using the
-popular CAMB code, the Eisenstein-Hu fit (1998), the BBKS fit or the Bond and
-Efstathiou fit (1984). Furthermore, it can calculate non-linear corrections
-using the halofit model (with updated parameters from Takahashi2012).</p>
-<p>The primary feature of this class is to wrap all the methods into a unified
-interface. On top of this, the class implements optimized updates of 
-parameters which is useful in, for example, MCMC code which covers a
-large parameter-space. Calling the <cite>nonlinear_power</cite> does not re-evaluate
-the entire transfer function, rather it just calculates the corrections, 
-improving performance.</p>
-<p>To update parameters optimally, use the update() method. 
-All output quantities are calculated only when needed (but stored after 
-first calculation for quick access).</p>
+<p>All outputs are provided as functions of the single variable <tt class="docutils literal"><span class="pre">lnk</span></tt>, which
+is in logarithmic units of <span class="math">\(h/Mpc\)</span>.</p>
+<p>Contains an update() method which can be passed arguments to update, in the
+most optimal manner. All output quantities are calculated only when needed 
+(but stored after first calculation for quick access).</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>lnk</strong> : array_like, default <tt class="docutils literal"><span class="pre">linspace(log(1e-8),log(2e4),250)</span></tt></p>
 <blockquote>
-<div><p>Defines logarithmic wavenumbers, <em>k</em> [units <span class="math">\(h Mpc^{-1}\)</span>]. 
+<div><p>Defines logarithmic wavenumbers, <em>k</em> [units <span class="math">\(h^3Mpc^{-3}\)</span>]. 
 This array is integrated over for normalisation.</p>
 </div></blockquote>
 <p><strong>z</strong> : float, optional, default <tt class="docutils literal"><span class="pre">0.0</span></tt></p>
@@ -141,49 +132,48 @@ input to the <cite>hmf.cosmo.Cosmology</cite> class. <cite>hmf.Perturbations</ci
 default parameter set from the first-year PLANCK mission, with optional 
 modifications by the user. Here is a list of parameters currently 
 available (and their defaults in <cite>Transfer</cite>):</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">sigma_8:</th><td class="field-body">[0.8344] The normalisation. Mass variance in top-hat spheres 
-with <span class="math">\(R=8Mpc h^{-1}\)</span></td>
-</tr>
-<tr class="field-even field"><th class="field-name">n:</th><td class="field-body">[0.9624] The spectral index</td>
-</tr>
-<tr class="field-odd field"><th class="field-name">w:</th><td class="field-body">[-1] The dark-energy equation of state</td>
-</tr>
-<tr class="field-even field"><th class="field-name">cs2_lam:</th><td class="field-body">[1] The constant comoving sound speed of dark energy</td>
-</tr>
-<tr class="field-odd field"><th class="field-name">t_cmb:</th><td class="field-body">[2.725] Temperature of the CMB</td>
-</tr>
-<tr class="field-even field"><th class="field-name">y_he:</th><td class="field-body">[0.24] Helium fraction</td>
-</tr>
-<tr class="field-odd field"><th class="field-name">N_nu:</th><td class="field-body">[3.04] Number of massless neutrino species</td>
-</tr>
-<tr class="field-even field"><th class="field-name">N_nu_massive:</th><td class="field-body">[0] Number of massive neutrino species</td>
-</tr>
-<tr class="field-odd field"><th class="field-name">delta_c:</th><td class="field-body">[1.686] The critical overdensity for collapse</td>
-</tr>
-<tr class="field-even field"><th class="field-name">H0:</th><td class="field-body">[67.11] The hubble constant</td>
-</tr>
-<tr class="field-odd field"><th class="field-name">h:</th><td class="field-body">[<tt class="docutils literal"><span class="pre">H0/100.0</span></tt>] The hubble parameter</td>
-</tr>
-<tr class="field-even field"><th class="field-name">omegan:</th><td class="field-body">[0] The normalised density of neutrinos</td>
-</tr>
-<tr class="field-odd field"><th class="field-name">omegab_h2:</th><td class="field-body">[0.022068] The normalised baryon density by <tt class="docutils literal"><span class="pre">h**2</span></tt></td>
-</tr>
-<tr class="field-even field"><th class="field-name">omegac_h2:</th><td class="field-body">[0.12029] The normalised CDM density by <tt class="docutils literal"><span class="pre">h**2</span></tt></td>
-</tr>
-<tr class="field-odd field"><th class="field-name">omegav:</th><td class="field-body">[0.6825] The normalised density of dark energy</td>
-</tr>
-<tr class="field-even field"><th class="field-name">omegab:</th><td class="field-body">[<tt class="docutils literal"><span class="pre">omegab_h2/h**2</span></tt>] The normalised baryon density</td>
-</tr>
-<tr class="field-odd field"><th class="field-name">omegac:</th><td class="field-body">[<tt class="docutils literal"><span class="pre">omegac_h2/h**2</span></tt>] The normalised CDM density</td>
-</tr>
-<tr class="field-even field"><th class="field-name">force_flat:</th><td class="field-body">[False] Whether to force the cosmology to be flat (affects only <tt class="docutils literal"><span class="pre">omegav</span></tt>)</td>
-</tr>
-</tbody>
-</table>
+<ul>
+<li><dl class="first docutils">
+<dt>sigma_8 <span class="classifier-delimiter">:</span> <span class="classifier">[0.8344] The normalisation. Mass variance in top-hat spheres </span></dt>
+<dd><p class="first last">with <span class="math">\(R=8`Mpc :math:`h^{-1}\)</span></p>
+</dd>
+</dl>
+</li>
+<li><p class="first">n : [0.9624] The spectral index</p>
+</li>
+<li><p class="first">w : [-1] The dark-energy equation of state</p>
+</li>
+<li><p class="first">cs2_lam : [1] The constant comoving sound speed of dark energy</p>
+</li>
+<li><p class="first">t_cmb : [2.725] Temperature of the CMB</p>
+</li>
+<li><p class="first">y_he : [0.24] Helium fraction</p>
+</li>
+<li><p class="first">N_nu : [3.04] Number of massless neutrino species</p>
+</li>
+<li><p class="first">N_nu_massive : [0] Number of massive neutrino species</p>
+</li>
+<li><p class="first">delta_c : [1.686] The critical overdensity for collapse</p>
+</li>
+<li><p class="first">H0 : [67.11] The hubble constant</p>
+</li>
+<li><p class="first">h : [<tt class="docutils literal"><span class="pre">H0/100.0</span></tt>] The hubble parameter</p>
+</li>
+<li><p class="first">omegan : [0] The normalised density of neutrinos</p>
+</li>
+<li><p class="first">omegab_h2 : [0.022068] The normalised baryon density by <tt class="docutils literal"><span class="pre">h**2</span></tt></p>
+</li>
+<li><p class="first">omegac_h2 : [0.12029] The normalised CDM density by <tt class="docutils literal"><span class="pre">h**2</span></tt></p>
+</li>
+<li><p class="first">omegav : [0.6825] The normalised density of dark energy</p>
+</li>
+<li><p class="first">omegab: [<tt class="docutils literal"><span class="pre">omegab_h2/h**2</span></tt>] The normalised baryon density</p>
+</li>
+<li><p class="first">omegac : [<tt class="docutils literal"><span class="pre">omegac_h2/h**2</span></tt>] The normalised CDM density</p>
+</li>
+<li><p class="first">force_flat : [False] Whether to force the cosmology to be flat (affects only <tt class="docutils literal"><span class="pre">omegav</span></tt>)</p>
+</li>
+</ul>
 </div></blockquote>
 </td>
 </tr>
@@ -204,46 +194,62 @@ with <span class="math">\(R=8Mpc h^{-1}\)</span></td>
 <dl class="attribute">
 <dt id="hmf.transfer.Transfer.delta_k">
 <tt class="descname">delta_k</tt><a class="reference internal" href="../_modules/hmf/transfer.html#Transfer.delta_k"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.transfer.Transfer.delta_k" title="Permalink to this definition">¶</a></dt>
-<dd><p>Dimensionless power spectrum, <span class="math">\(\Delta_k = \frac{k^3 P(k)}{2\pi^2}\)</span></p>
+<dd><p>Dimensionless power spectrum</p>
 </dd></dl>
 
 <dl class="attribute">
 <dt id="hmf.transfer.Transfer.growth">
 <tt class="descname">growth</tt><a class="reference internal" href="../_modules/hmf/transfer.html#Transfer.growth"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.transfer.Transfer.growth" title="Permalink to this definition">¶</a></dt>
-<dd><p>The growth factor <span class="math">\(d(z)\)</span></p>
+<dd><blockquote>
+<div><p>The growth factor <span class="math">\(d(z)\)</span></p>
 <p>This is calculated (see Lukic 2007) as</p>
 <div class="math">
-\[d(z) = \frac{D^+(z)}{D^+(z=0)}\]</div>
-<p>where</p>
+\[d(z) = \]</div>
+</div></blockquote>
+<p>rac{D^+(z)}{D^+(z=0)}</p>
+<blockquote>
+<div><p>where</p>
 <div class="math">
-\[D^+(z) = \frac{5\Omega_m}{2}\frac{H(z)}{H_0}\int_z^{\infty}{\frac{(1+z')dz'}{[H(z')/H_0]^3}}\]</div>
-<p>and</p>
+\[D^+(z) = \]</div>
+</div></blockquote>
+<p>rac{5Omega_m}{2}
+rac{H(z)}{H_0}int_z^{infty}{
+rac{(1+z&#8217;)dz&#8217;}{[H(z&#8217;)/H_0]^3}}</p>
+<blockquote>
+<div><p>and</p>
 <div class="math">
 \[H(z) = H_0\sqrt{\Omega_m (1+z)^3 + (1-\Omega_m)}\]</div>
+</div></blockquote>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hmf.transfer.Transfer.lnk">
+<tt class="descname">lnk</tt><a class="reference internal" href="../_modules/hmf/transfer.html#Transfer.lnk"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.transfer.Transfer.lnk" title="Permalink to this definition">¶</a></dt>
+<dd><p>The logarithmic wavenumber <em>k</em> [units <em>h</em>/Mpc]</p>
 </dd></dl>
 
 <dl class="attribute">
 <dt id="hmf.transfer.Transfer.nonlinear_power">
 <tt class="descname">nonlinear_power</tt><a class="reference internal" href="../_modules/hmf/transfer.html#Transfer.nonlinear_power"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.transfer.Transfer.nonlinear_power" title="Permalink to this definition">¶</a></dt>
-<dd><p>Non-linear log power [units <span class="math">\(Mpc^3/h^3\)</span>]</p>
-<p>Non-linear corrections come from HALOFIT (Smith2003) with updated
-parameters from Takahashi2012.</p>
-<p>This code was heavily influenced by the HaloFit class from the 
-<cite>chomp</cite> python package by Christopher Morrison, Ryan Scranton 
-and Michael Schneider (<a class="reference external" href="https://code.google.com/p/chomp/">https://code.google.com/p/chomp/</a>). It has 
-been modified to improve its integration with this package.</p>
+<dd><p>The nonlinear power from halofit</p>
 </dd></dl>
 
 <dl class="attribute">
 <dt id="hmf.transfer.Transfer.power">
 <tt class="descname">power</tt><a class="reference internal" href="../_modules/hmf/transfer.html#Transfer.power"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.transfer.Transfer.power" title="Permalink to this definition">¶</a></dt>
-<dd><p>Normalised log power spectrum [units <span class="math">\(Mpc^3/h^3\)</span>]</p>
+<dd><p>The normalised log power spectrum</p>
 </dd></dl>
 
 <dl class="attribute">
 <dt id="hmf.transfer.Transfer.transfer">
 <tt class="descname">transfer</tt><a class="reference internal" href="../_modules/hmf/transfer.html#Transfer.transfer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.transfer.Transfer.transfer" title="Permalink to this definition">¶</a></dt>
-<dd><p>Normalised log transfer function for CDM/WDM</p>
+<dd><p>Normalised transfer function (logged) for CDM/WDM</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hmf.transfer.Transfer.transfer_fit">
+<tt class="descname">transfer_fit</tt><a class="reference internal" href="../_modules/hmf/transfer.html#Transfer.transfer_fit"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.transfer.Transfer.transfer_fit" title="Permalink to this definition">¶</a></dt>
+<dd><p>A string specifying a method with which to calculate the transfer function.</p>
 </dd></dl>
 
 <dl class="method">
@@ -251,6 +257,18 @@ been modified to improve its integration with this package.</p>
 <tt class="descname">update</tt><big>(</big><em>**kwargs</em><big>)</big><a class="reference internal" href="../_modules/hmf/transfer.html#Transfer.update"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.transfer.Transfer.update" title="Permalink to this definition">¶</a></dt>
 <dd><p>Update the class optimally with given arguments.</p>
 <p>Accepts any argument that the constructor takes</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hmf.transfer.Transfer.wdm_mass">
+<tt class="descname">wdm_mass</tt><a class="reference internal" href="../_modules/hmf/transfer.html#Transfer.wdm_mass"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.transfer.Transfer.wdm_mass" title="Permalink to this definition">¶</a></dt>
+<dd><p>The WDM particle mass for a single-species model [units keV]</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hmf.transfer.Transfer.z">
+<tt class="descname">z</tt><a class="reference internal" href="../_modules/hmf/transfer.html#Transfer.z"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.transfer.Transfer.z" title="Permalink to this definition">¶</a></dt>
+<dd><p>The redshift</p>
 </dd></dl>
 
 </dd></dl>
@@ -297,12 +315,12 @@ been modified to improve its integration with this package.</p>
         <li class="right" >
           <a href="../np-modindex.html" title="Python Module Index"
              >modules</a> |</li>
-        <li><a href="../index.html">hmf 1.1.10 documentation</a> &raquo;</li>
+        <li><a href="../index.html">hmf 1.3.1 documentation</a> &raquo;</li>
           <li><a href="../api.html" >API</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
-        &copy; Copyright 2013, Steven Murray.
+        &copy; Copyright 2014, Steven Murray.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
     </div>
   </body>

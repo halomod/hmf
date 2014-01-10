@@ -302,6 +302,11 @@ class MassFunction(object):
 
     #--------------------------------  START NON-SET PROPERTIES ----------------------------------------------
     @property
+    def cosmo(self):
+        """ :class:`hmf.cosmo.Cosmology` object aliased from `self.cosmo`"""
+        return self.cosmo
+
+    @property
     def delta_halo(self):
         """ Overdensity of a halo w.r.t mean density"""
         try:
@@ -339,7 +344,7 @@ class MassFunction(object):
         except:
             self.__sigma_0 = tools.mass_variance(self.M, self.transfer._lnP_0,
                                                  self.transfer.lnk,
-                                                 self.transfer.cosmo.mean_dens)
+                                                 self.cosmo.mean_dens)
             return self.__sigma_0
 
     @_sigma_0.deleter
@@ -367,7 +372,7 @@ class MassFunction(object):
         except:
             self.__dlnsdlnm = tools.dlnsdlnm(self.M, self._sigma_0, self.transfer._lnP_0,
                                              self.transfer.lnk,
-                                             self.transfer.cosmo.mean_dens)
+                                             self.cosmo.mean_dens)
             return self.__dlnsdlnm
 
     @_dlnsdlnm.deleter
@@ -473,7 +478,7 @@ class MassFunction(object):
             return self.__dndm
         except:
             if self.z2 is None:  # #This is normally the case
-                self.__dndm = self.fsigma * self.transfer.cosmo.mean_dens * np.abs(self._dlnsdlnm) / self.M ** 2
+                self.__dndm = self.fsigma * self.cosmo.mean_dens * np.abs(self._dlnsdlnm) / self.M ** 2
                 if self.mf_fit == 'Behroozi':
                     a = 1 / (1 + self.z)
                     theta = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (self.M / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)))
@@ -491,10 +496,10 @@ class MassFunction(object):
                 dndm = np.zeros_like(zcentres)
                 vol = np.zeros_like(zedges)
                 vol[0] = cd.comoving_volume(self.z,
-                                            **self.transfer.cosmo.cosmolopy_dict())
+                                            **self.cosmo.cosmolopy_dict())
                 for i, zz in enumerate(zcentres):
                     self.update(z=zz)
-                    dndm[i] = self.fsigma * self.transfer.cosmo.mean_dens * np.abs(self._dlnsdlnm) / self.M ** 2
+                    dndm[i] = self.fsigma * self.cosmo.mean_dens * np.abs(self._dlnsdlnm) / self.M ** 2
                     if self.mf_fit == 'Behroozi':
                         a = 1 / (1 + self.z)
                         theta = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (self.M / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)))
