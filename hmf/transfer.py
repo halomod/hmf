@@ -382,31 +382,6 @@ class Transfer(object):
         return np.log((1 + (a * k + (b * k) ** 1.5 + (c * k) ** 2) ** nu) ** (-1 / nu))
 
     @property
-    def _transfer_callable(self):
-        """
-        An un-normalised transfer function, with the single argument lnk
-        """
-        try:
-            return self.__transfer_callable
-        except AttributeError:
-            if self.transfer_fit in Transfer.fits:
-                self.__transfer_callable = lambda lnk: getattr(self, "_" + self.transfer_fit)(lnk)
-            else:
-                try:
-                    self.__transfer_callable = lambda lnk: self._from_file(lnk)
-                except IOError:
-                    raise IOError(self.transfer_fit + " could not be found. Make sure it is either a transfer fit or a valid filename")
-            return self.__transfer_callable
-
-    @_transfer_callable.deleter
-    def _transfer_callable(self):
-        try:
-            del self.__transfer_callable
-            del self._unnormalised_lnT
-        except AttributeError:
-            pass
-
-    @property
     def _unnormalised_lnT(self):
         """
         The un-normalised transfer function
@@ -416,7 +391,7 @@ class Transfer(object):
         try:
             return self.__unnormalised_lnT
         except AttributeError:
-            self.__unnormalised_lnT = self._transfer_callable(self.lnk)
+            self.__unnormalised_lnT = getattr(self, "_" + self.transfer_fit)(self.lnk)
 
             return self.__unnormalised_lnT
 
