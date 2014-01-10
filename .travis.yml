@@ -19,8 +19,7 @@ deploy:
     tags: true
   provider: pypi
   password:
-    secure: lAM0ScaCdOTbixtJf908INAKIpVCIPLSu4ZpqSxdp0zzMsTJJoTLo00wlmzzjeQDsxqgpiUIvjnwlpdur7Q+IPmwFa9hkg4VX4M\
-qe0keoDaoUQaUzpypZqYF0w4egVgc62NnXCGg3B/JuqUFuyM692uvmjvokGmadXLevXvPaxM=
+    secure: lAM0ScaCdOTbixtJf908INAKIpVCIPLSu4ZpqSxdp0zzMsTJJoTLo00wlmzzjeQDsxqgpiUIvjnwlpdur7Q+IPmwFa9hkg4VX4Mqe0keoDaoUQaUzpypZqYF0w4egVgc62NnXCGg3B/JuqUFuyM692uvmjvokGmadXLevXvPaxM=
 virtualenv: 
   system_site_packages: true
 language: python

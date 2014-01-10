@@ -36,7 +36,11 @@ See LICENSE.txt for details.
 
 HISTORY
 -------
-1.3.2 - 
+1.4.0 - January 10, 2014
+		Upgraded API once more. 
+		Now Perturbations --> MassFunction
+		Added transfer.py which handles all k-based quantities
+		Upgraded docs significantly.
 		
 1.3.1 - January 06, 2014
 		Fixed bug in transfer read-in introduced in 1.3.0
