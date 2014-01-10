@@ -5,33 +5,16 @@ API
 We here list the modules within the `hmf` package, and the objects in each.
 
 
-hmf
----
+.. toctree::
+   :maxdepth: 2
+   
+   api_docs/hmf
+   api_docs/transfer
+   api_docs/cosmo
+   api_docs/fitting_functions
+   api_docs/tools
 
-.. automodule:: hmf.hmf
-   :members:
-   :undoc-members:
    
-tools
------
-.. automodule:: hmf.tools
-   :members:
-   :undoc-members:
+
    
-fitting_functions
------------------
-.. automodule:: hmf.fitting_functions
-   :members:
-   :undoc-members:
-   
-cosmography
------------
-.. automodule:: hmf.cosmography
-   :members:
-   :undoc-members:
-   
-cosmo
------
-.. automodule:: hmf.cosmo
-   :members:
-   :undoc-members:
+

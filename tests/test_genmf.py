@@ -1,9 +1,4 @@
 '''
-Created on Jun 20, 2013
-
-@author: Steven
-
-
 This module contains a number of tests that check hmf's results against those of genmf and/or CAMB.
 
 Firstly we test transfer functions/power spectra against the output from CAMB to make sure we
@@ -72,8 +67,8 @@ To be more explicit, the power spectrum in all cases is produced with the follow
 # Some Imports
 #===============================================================================
 import numpy as np
-from hmf import Perturbations
-from scipy.interpolate import InterpolatedUnivariateSpline as spline
+from hmf import MassFunction
+# from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import inspect
 import os
 
@@ -110,9 +105,9 @@ def max_diff(vec1, vec2, tol):
 #===============================================================================
 class TestPower(object):
     def __init__(self):
-        # Make a pert class
-        self.pert = Perturbations(omegab=0.05, omegac=0.25, omegav=0.7, sigma_8=0.8, n=1, H0=70.0,
-                                  k_bounds=[np.exp(-21), np.exp(21)], transfer__kmax=10, transfer__k_per_logint=50)
+        # Make a hmf class
+        self.hmf = MassFunction(omegab=0.05, omegac=0.25, omegav=0.7, sigma_8=0.8, n=1, H0=70.0,
+                                lnk=np.linspace(-21, 21, 500), kmax=10, k_per_logint=50)
 
         # Get the camb transfer
         self.camb_transfer = np.genfromtxt(LOCATION + "/data/camb_transfer")
@@ -125,20 +120,8 @@ class TestPower(object):
 
     def test_transfer(self):
         """ Testing whether the transfer function calculated by pycamb is the same as that of camb (via CLI)"""
-        my_T_vec = self.pert._transfer_function_callable(np.log(self.camb_transfer[:, 0]))
+        my_T_vec = self.hmf.transfer._transfer_callable(np.log(self.camb_transfer[:, 0]))
         assert rms_diff(my_T_vec, np.log(self.camb_transfer[:, 1]), 1E-3)
-
-#    def test_camb_power(self):
-#        """ Tests if the power spec given by camb is the same as that of hmf (ie. if conversion to power is good)"""
-#        lnp_camb = spline(np.log(self.camb_power[:, 0]), np.log(self.camb_power[:, 1]), k=1)
-#        camb_p_vec = lnp_camb(self.pert.lnk)
-#        assert rms_diff(self.pert._unnormalized_power, camb_p_vec, 1E-3)
-#
-#    def test_genmf_power(self):
-#        """ Tests if power spec of genmf is same as hmf (ie. the normalisation is correct)"""
-#        lnp_genmf = spline(self.genmf_power[:, 0], self.genmf_power[:, 1], k=1)
-#        genmf_p_vec = lnp_genmf(self.pert.lnk)
-#        assert rms_diff(self.pert.power, genmf_p_vec, 1E-3)
 
 class TestGenMF(object):
     def check_col(self, pert, fit, redshift, origin, col):
@@ -162,24 +145,26 @@ class TestGenMF(object):
             assert rms_diff(pert.ngtm, 10 ** data[:, 2], 0.05)
 
     def test_sigmas(self):
-        pert = Perturbations(M=np.linspace(7, 15, 801), omegab=0.05, omegac=0.25, omegav=0.7, sigma_8=0.8, n=1, H0=70.0,
-                              k_bounds=[np.exp(-21), np.exp(21)], transfer__kmax=10, transfer__k_per_logint=50, mf_fit='ST',
-                              z=0.0)
+        hmf = MassFunction(M=np.linspace(7, 15, 801), omegab=0.05, omegac=0.25,
+                            omegav=0.7, sigma_8=0.8, n=1, H0=70.0,
+                            lnk=np.linspace(-21, 21, 500), kmax=10,
+                            k_per_logint=50, mf_fit='ST', z=0.0)
         for redshift in [0.0, 2.0]:
-            pert.update(z=redshift)
+            hmf.update(z=redshift)
             for origin in ['camb', 'hmf']:
                 for col in ['sigma', 'lnsigma', 'n_eff']:
-                    yield self.check_col, pert, "ST", redshift, origin, col
+                    yield self.check_col, hmf, "ST", redshift, origin, col
 
     def test_fits(self):
-        pert = Perturbations(M=np.linspace(7, 15, 801), omegab=0.05, omegac=0.25, omegav=0.7, sigma_8=0.8, n=1, H0=70.0,
-                              k_bounds=[np.exp(-21), np.exp(21)], transfer__kmax=10, transfer__k_per_logint=50, mf_fit='ST',
-                              z=0.0)
+        hmf = MassFunction(M=np.linspace(7, 15, 801), omegab=0.05, omegac=0.25,
+                           omegav=0.7, sigma_8=0.8, n=1, H0=70.0,
+                           lnk=np.linspace(-21, 21, 500), kmax=10,
+                           k_per_logint=50, mf_fit='ST', z=0.0)
         for redshift in [0.0, 2.0]:
-            pert.update(z=redshift)
+            hmf.update(z=redshift)
             for fit in ["ST", "PS", "Reed03", "Warren", "Jenkins", "Reed07"]:
-                pert.update(mf_fit=fit)
+                hmf.update(mf_fit=fit)
                 for origin in ['camb', 'hmf']:
                     for col in ['dndlog10m', 'ngtm', 'fsigma']:
-                        yield self.check_col, pert, fit, redshift, origin, col
+                        yield self.check_col, hmf, fit, redshift, origin, col
 

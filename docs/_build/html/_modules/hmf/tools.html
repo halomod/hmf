@@ -27,7 +27,7 @@
     <script type="text/javascript" src="../../_static/doctools.js"></script>
     <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
     <link rel="top" title="hmf 1.1.10 documentation" href="../../index.html" />
-    <link rel="up" title="hmf" href="../hmf.html" /> 
+    <link rel="up" title="Module code" href="../index.html" /> 
   </head>
   <body>
     <div class="related">
@@ -39,9 +39,11 @@
         <li class="right" >
           <a href="../../py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
+        <li class="right" >
+          <a href="../../np-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
         <li><a href="../../index.html">hmf 1.1.10 documentation</a> &raquo;</li>
-          <li><a href="../index.html" >Module code</a> &raquo;</li>
-          <li><a href="../hmf.html" accesskey="U">hmf</a> &raquo;</li> 
+          <li><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
       </ul>
     </div>  
 
@@ -52,86 +54,35 @@
             
   <h1>Source code for hmf.tools</h1><div class="highlight"><pre>
 <span class="sd">&#39;&#39;&#39;</span>
-<span class="sd">Created on Apr 20, 2012</span>
-
-<span class="sd">@author: Steven Murray</span>
-<span class="sd">@contact: steven.murray@uwa.edu.au</span>
-
-<span class="sd">Last Updated: 12 March 2013</span>
-
-<span class="sd">This module contains 4 functions which all have the purpose of importing the</span>
-<span class="sd">transfer function (or running CAMB on the fly) for</span>
-<span class="sd">input to the Perturbations class (in Perturbations.py)</span>
-
-<span class="sd">The functions are:</span>
-<span class="sd">    1. SetParameter: modifies the params.ini file for use in CAMB with specified parameters</span>
-<span class="sd">    2. ImportTransferFunction: Merely reads a CAMB transfer file and outputs ln(k) and ln(T).</span>
-<span class="sd">    3. CAMB: runs CAMB through the OS (camb must be compiled previously)</span>
-<span class="sd">    4. Setup: A driver for the above functions. Returns ln(k) and ln(T)</span>
+<span class="sd">A collection of functions which do some of the core work of the HMF calculation.</span>
 <span class="sd">&#39;&#39;&#39;</span>
 
-<span class="c">###############################################################################</span>
-<span class="c"># Some simple imports</span>
-<span class="c">###############################################################################</span>
+<span class="c">#===============================================================================</span>
+<span class="c"># Imports</span>
+<span class="c">#===============================================================================</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">scipy.integrate</span> <span class="kn">as</span> <span class="nn">intg</span>
-<span class="kn">import</span> <span class="nn">pycamb</span>
 <span class="kn">import</span> <span class="nn">collections</span>
-<span class="kn">import</span> <span class="nn">cosmolopy.perturbation</span> <span class="kn">as</span> <span class="nn">pert</span>
-
+<span class="kn">import</span> <span class="nn">cosmolopy.distance</span> <span class="kn">as</span> <span class="nn">cdist</span>
 <span class="kn">from</span> <span class="nn">scipy.interpolate</span> <span class="kn">import</span> <span class="n">InterpolatedUnivariateSpline</span> <span class="k">as</span> <span class="n">spline</span>
 
-<span class="c">###############################################################################</span>
-<span class="c"># The function definitions</span>
-<span class="c">###############################################################################</span>
-<div class="viewcode-block" id="get_transfer"><a class="viewcode-back" href="../../api.html#hmf.tools.get_transfer">[docs]</a><span class="k">def</span> <span class="nf">get_transfer</span><span class="p">(</span><span class="n">transfer_file</span><span class="p">,</span> <span class="n">camb_dict</span><span class="p">,</span> <span class="n">transfer_fit</span><span class="p">,</span> <span class="n">k_bounds</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+<span class="c">#===============================================================================</span>
+<span class="c"># Functions</span>
+<span class="c">#===============================================================================</span>
+<div class="viewcode-block" id="check_kr"><a class="viewcode-back" href="../../api_docs/tools.html#hmf.tools.check_kr">[docs]</a><span class="k">def</span> <span class="nf">check_kr</span><span class="p">(</span><span class="n">min_m</span><span class="p">,</span> <span class="n">max_m</span><span class="p">,</span> <span class="n">mean_dens</span><span class="p">,</span> <span class="n">mink</span><span class="p">,</span> <span class="n">maxk</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    We use either CAMB or the EH approximation to get the transfer function.</span>
-<span class="sd">    The transfer function is in terms of k/h -- IN UNITS OF h/Mpc??!!</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="c">#If no transfer file uploaded, but it was custom, execute CAMB</span>
-    <span class="k">if</span> <span class="n">transfer_file</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
-        <span class="k">if</span> <span class="n">transfer_fit</span> <span class="o">==</span> <span class="s">&quot;CAMB&quot;</span><span class="p">:</span>
-            <span class="n">k</span><span class="p">,</span> <span class="n">T</span><span class="p">,</span> <span class="n">sig8</span> <span class="o">=</span> <span class="n">pycamb</span><span class="o">.</span><span class="n">transfers</span><span class="p">(</span><span class="o">**</span><span class="n">camb_dict</span><span class="p">)</span>
-            <span class="n">T</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">T</span><span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">6</span><span class="p">],</span> <span class="p">:,</span> <span class="mi">0</span><span class="p">])</span>
-            <span class="k">del</span> <span class="n">sig8</span><span class="p">,</span> <span class="n">k</span>
-        <span class="k">elif</span> <span class="n">transfer_fit</span> <span class="o">==</span> <span class="s">&quot;EH&quot;</span><span class="p">:</span>
-            <span class="n">k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">k_bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">k_bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="mi">250</span><span class="p">))</span>
-            <span class="c">#Since the function natively calculates the transfer based on k in Mpc^-1,</span>
-            <span class="c"># we need to multiply by h.</span>
-            <span class="n">t</span><span class="p">,</span> <span class="n">T</span> <span class="o">=</span> <span class="n">pert</span><span class="o">.</span><span class="n">transfer_function_EH</span><span class="p">(</span><span class="n">k</span> <span class="o">*</span> <span class="n">camb_dict</span><span class="p">[</span><span class="s">&#39;H0&#39;</span><span class="p">]</span> <span class="o">/</span> <span class="mi">100</span><span class="p">,</span>
-                                             <span class="n">omega_M_0</span><span class="o">=</span><span class="p">(</span><span class="n">camb_dict</span><span class="p">[</span><span class="s">&#39;omegac&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="n">camb_dict</span><span class="p">[</span><span class="s">&#39;omegab&#39;</span><span class="p">]),</span> <span class="n">omega_lambda_0</span><span class="o">=</span><span class="n">camb_dict</span><span class="p">[</span><span class="s">&#39;omegav&#39;</span><span class="p">],</span>
-                                             <span class="n">h</span><span class="o">=</span><span class="n">camb_dict</span><span class="p">[</span><span class="s">&quot;H0&quot;</span><span class="p">]</span> <span class="o">/</span> <span class="mi">100</span><span class="p">,</span> <span class="n">omega_b_0</span><span class="o">=</span><span class="n">camb_dict</span><span class="p">[</span><span class="s">&#39;omegab&#39;</span><span class="p">],</span> <span class="n">omega_n_0</span><span class="o">=</span><span class="n">camb_dict</span><span class="p">[</span><span class="s">&#39;omegan&#39;</span><span class="p">],</span>
-                                             <span class="n">N_nu</span><span class="o">=</span><span class="n">camb_dict</span><span class="p">[</span><span class="s">&#39;Num_Nu_massive&#39;</span><span class="p">])</span>
-            <span class="n">T</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">k</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">T</span><span class="p">)))</span>
-            <span class="k">del</span> <span class="n">t</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="c">#Import the transfer file</span>
-        <span class="n">T</span> <span class="o">=</span> <span class="n">read_transfer</span><span class="p">(</span><span class="n">transfer_file</span><span class="p">)</span>
-
-    <span class="k">return</span> <span class="n">T</span>
-</div>
-<div class="viewcode-block" id="read_transfer"><a class="viewcode-back" href="../../api.html#hmf.tools.read_transfer">[docs]</a><span class="k">def</span> <span class="nf">read_transfer</span><span class="p">(</span><span class="n">transfer_file</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Imports the Transfer Function file to be analysed, and returns the pair ln(k), ln(T)</span>
+<span class="sd">    Check the bounds of the product of k*r</span>
 <span class="sd">    </span>
-<span class="sd">    Input: &quot;transfer_file&quot;: full path to the file containing the transfer function (from camb).</span>
+<span class="sd">    If the bounds are not high/low enough, then there can be information loss</span>
+<span class="sd">    in the calculation of the mass variance.</span>
 <span class="sd">    </span>
-<span class="sd">    Output: ln(k), ln(T)</span>
+<span class="sd">    See &lt;http://arxiv.org/abs/1306.6721&gt; </span>
 <span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="n">transfer</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span><span class="n">transfer_file</span><span class="p">)</span>
-    <span class="n">T</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">transfer</span><span class="p">[:,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">6</span><span class="p">]])</span><span class="o">.</span><span class="n">T</span>
-
-    <span class="k">return</span> <span class="n">T</span>
-</div>
-<div class="viewcode-block" id="check_kr"><a class="viewcode-back" href="../../api.html#hmf.tools.check_kr">[docs]</a><span class="k">def</span> <span class="nf">check_kr</span><span class="p">(</span><span class="n">min_m</span><span class="p">,</span> <span class="n">max_m</span><span class="p">,</span> <span class="n">mean_dens</span><span class="p">,</span> <span class="n">mink</span><span class="p">,</span> <span class="n">maxk</span><span class="p">):</span>
-
-    <span class="c">#Define mass from radius function</span>
+    <span class="c"># Define mass from radius function</span>
     <span class="k">def</span> <span class="nf">M</span><span class="p">(</span><span class="n">r</span><span class="p">):</span>
         <span class="k">return</span> <span class="mi">4</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">r</span> <span class="o">**</span> <span class="mi">3</span> <span class="o">*</span> <span class="n">mean_dens</span> <span class="o">/</span> <span class="mi">3</span>
 
-    <span class="c">#Define min and max radius</span>
+    <span class="c"># Define min and max radius</span>
     <span class="n">min_r</span> <span class="o">=</span> <span class="p">(</span><span class="mi">3</span> <span class="o">*</span> <span class="n">min_m</span> <span class="o">/</span> <span class="p">(</span><span class="mi">4</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">mean_dens</span><span class="p">))</span> <span class="o">**</span> <span class="p">(</span><span class="mf">1.</span> <span class="o">/</span> <span class="mf">3.</span><span class="p">)</span>
     <span class="n">max_r</span> <span class="o">=</span> <span class="p">(</span><span class="mi">3</span> <span class="o">*</span> <span class="n">max_m</span> <span class="o">/</span> <span class="p">(</span><span class="mi">4</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">mean_dens</span><span class="p">))</span> <span class="o">**</span> <span class="p">(</span><span class="mf">1.</span> <span class="o">/</span> <span class="mf">3.</span><span class="p">)</span>
 
@@ -161,44 +112,33 @@
 
     <span class="k">return</span> <span class="n">error1</span><span class="p">,</span> <span class="n">error2</span>
 </div>
-<div class="viewcode-block" id="interpolate_transfer"><a class="viewcode-back" href="../../api.html#hmf.tools.interpolate_transfer">[docs]</a><span class="k">def</span> <span class="nf">interpolate_transfer</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">transfer</span><span class="p">,</span> <span class="n">tol</span><span class="o">=</span><span class="mf">0.01</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Interpolates the given Transfer function and transforms it into a Power Spectrum.</span>
-<span class="sd">    </span>
-<span class="sd">    Input: k        : an array of values of lnk</span>
-<span class="sd">           Transfer : an array of values of lnT</span>
-<span class="sd">           step_size: the step_size between values of lnk required in interpolation.</span>
-<span class="sd">              </span>
-<span class="sd">    Notes: the power spectrum is calculated using P(k) =  A.k^n.T^2, with A=1 in this method</span>
-<span class="sd">            (which leaves the power spectrum un-normalized). The interpolation is done using</span>
-<span class="sd">            cubic splines.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="c"># Unfortunately it looks like there&#39;s a turn-up at low-k for some CAMB</span>
-    <span class="c"># transfers which makes the extrapolation silly.</span>
-    <span class="c"># If this is the case, we start when it is nice.</span>
-
-    <span class="n">start</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">k</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
-        <span class="k">if</span> <span class="nb">abs</span><span class="p">((</span><span class="n">transfer</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">transfer</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">/</span> <span class="p">(</span><span class="n">k</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">k</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span> <span class="o">&lt;</span> <span class="n">tol</span><span class="p">:</span>
-            <span class="n">start</span> <span class="o">=</span> <span class="n">i</span>
-            <span class="k">break</span>
-    <span class="k">if</span> <span class="n">start</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-        <span class="n">transfer</span> <span class="o">=</span> <span class="n">transfer</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
-        <span class="n">k</span> <span class="o">=</span> <span class="n">k</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
-        <span class="n">spline_order</span> <span class="o">=</span> <span class="mi">1</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">spline_order</span> <span class="o">=</span> <span class="mi">1</span>
-
-    <span class="n">transfer_function</span> <span class="o">=</span> <span class="n">spline</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">transfer</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="n">spline_order</span><span class="p">)</span>
-
-    <span class="k">return</span> <span class="n">transfer_function</span>
-</div>
-<div class="viewcode-block" id="normalize"><a class="viewcode-back" href="../../api.html#hmf.tools.normalize">[docs]</a><span class="k">def</span> <span class="nf">normalize</span><span class="p">(</span><span class="n">norm_sigma_8</span><span class="p">,</span> <span class="n">unn_power</span><span class="p">,</span> <span class="n">lnk</span><span class="p">,</span> <span class="n">mean_dens</span><span class="p">):</span>
+<div class="viewcode-block" id="normalize"><a class="viewcode-back" href="../../api_docs/tools.html#hmf.tools.normalize">[docs]</a><span class="k">def</span> <span class="nf">normalize</span><span class="p">(</span><span class="n">norm_sigma_8</span><span class="p">,</span> <span class="n">unn_power</span><span class="p">,</span> <span class="n">lnk</span><span class="p">,</span> <span class="n">mean_dens</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Normalize the power spectrum to a given sigma_8</span>
 <span class="sd">    </span>
-<span class="sd">    Input: norm_sigma_8: The sigma_8 value to normalize to.</span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    norm_sigma_8 : float</span>
+<span class="sd">        The value of :math:`\sigma_8` to normalize to.</span>
+<span class="sd">        </span>
+<span class="sd">    unn_power : array_like</span>
+<span class="sd">        The natural logarithm of the unnormalised power spectrum</span>
+<span class="sd">        </span>
+<span class="sd">    lnk : array_like</span>
+<span class="sd">        The natural logarithm of the values of *k/h* at which `unn_power` is </span>
+<span class="sd">        defined.</span>
+<span class="sd">        </span>
+<span class="sd">    mean_dens : float</span>
+<span class="sd">        The mean density of the Universe.</span>
+<span class="sd">        </span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    power : array_like</span>
+<span class="sd">        An array of the same length as `unn_power` in which the values are </span>
+<span class="sd">        normalised to :math:``sigma_8`</span>
+<span class="sd">        </span>
+<span class="sd">    normalisation : float</span>
+<span class="sd">        The normalisation constant. </span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c"># Calculate the value of sigma_8 without prior normalization.</span>
 
@@ -210,14 +150,32 @@
 
     <span class="c"># Normalize the previously calculated power spectrum.</span>
     <span class="n">power</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">normalization</span><span class="p">)</span> <span class="o">+</span> <span class="n">unn_power</span>
+
     <span class="k">return</span> <span class="n">power</span><span class="p">,</span> <span class="n">normalization</span>
 </div>
-<div class="viewcode-block" id="mass_variance"><a class="viewcode-back" href="../../api.html#hmf.tools.mass_variance">[docs]</a><span class="k">def</span> <span class="nf">mass_variance</span><span class="p">(</span><span class="n">M</span><span class="p">,</span> <span class="n">power</span><span class="p">,</span> <span class="n">lnk</span><span class="p">,</span> <span class="n">mean_dens</span><span class="p">):</span>
+<div class="viewcode-block" id="mass_variance"><a class="viewcode-back" href="../../api_docs/tools.html#hmf.tools.mass_variance">[docs]</a><span class="k">def</span> <span class="nf">mass_variance</span><span class="p">(</span><span class="n">M</span><span class="p">,</span> <span class="n">power</span><span class="p">,</span> <span class="n">lnk</span><span class="p">,</span> <span class="n">mean_dens</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Finds the Mass Variance of M using the top-hat window function.</span>
+<span class="sd">    Calculate the Mass Variance of M using the top-hat window function.</span>
 <span class="sd">    </span>
-<span class="sd">    Input: M: the radius(mass) of the top-hat function (vector).</span>
-<span class="sd">    Output: sigma: the mass variance.</span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    M : float or array_like</span>
+<span class="sd">        The mass of the sphere at which to calculate the mass variance.</span>
+<span class="sd">        </span>
+<span class="sd">    power : array_like</span>
+<span class="sd">        The (normalised) natural log of the power spectrum</span>
+<span class="sd">        </span>
+<span class="sd">    lnk : array_like</span>
+<span class="sd">        The natural logarithm of the values of *k/h* at which `power` is </span>
+<span class="sd">        defined.</span>
+<span class="sd">        </span>
+<span class="sd">    mean_dens : float</span>
+<span class="sd">        Mean density of the Universe</span>
+<span class="sd">        </span>
+<span class="sd">    Returns</span>
+<span class="sd">    sigma : array_like (len(M))</span>
+<span class="sd">        The mass variance at ``M``</span>
+<span class="sd">        </span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="c"># If we input a scalar as M, then just make it a one-element list.</span>
@@ -235,42 +193,112 @@
 
     <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">sigma</span><span class="p">)</span>
 </div>
-<div class="viewcode-block" id="top_hat_window"><a class="viewcode-back" href="../../api.html#hmf.tools.top_hat_window">[docs]</a><span class="k">def</span> <span class="nf">top_hat_window</span><span class="p">(</span><span class="n">M</span><span class="p">,</span> <span class="n">lnk</span><span class="p">,</span> <span class="n">mean_dens</span><span class="p">):</span>
+<div class="viewcode-block" id="top_hat_window"><a class="viewcode-back" href="../../api_docs/tools.html#hmf.tools.top_hat_window">[docs]</a><span class="k">def</span> <span class="nf">top_hat_window</span><span class="p">(</span><span class="n">M</span><span class="p">,</span> <span class="n">lnk</span><span class="p">,</span> <span class="n">mean_dens</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Constructs the window function squared in Fourier space for given radii</span>
+<span class="sd">    The fourier-space top-hat window function</span>
 <span class="sd">    </span>
-<span class="sd">    Input: R: The radius of the top-hat function</span>
-<span class="sd">    Output: W_squared: The square of the top-hat window function in Fourier space.</span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    M : float or array of floats</span>
+<span class="sd">        The masses at which to evaluate the function</span>
+<span class="sd">        </span>
+<span class="sd">    lnk : float or array of floats</span>
+<span class="sd">        The natural log of *k/h* at which to evaluate the function. Only one </span>
+<span class="sd">        of lnk or M may be an array.</span>
+<span class="sd">        </span>
+<span class="sd">    mean_dens : float</span>
+<span class="sd">        The mean density of the universe.</span>
+<span class="sd">       </span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    W_squared : float or array of floats </span>
+<span class="sd">        The square of the top-hat window function in fourier space </span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="c"># Calculate the factor kR, minding to un-log k before use.</span>
     <span class="n">kR</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">lnk</span><span class="p">)</span> <span class="o">*</span> <span class="n">mass_to_radius</span><span class="p">(</span><span class="n">M</span><span class="p">,</span> <span class="n">mean_dens</span><span class="p">)</span>
     <span class="n">W_squared</span> <span class="o">=</span> <span class="p">(</span><span class="mi">3</span> <span class="o">*</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">kR</span><span class="p">)</span> <span class="o">/</span> <span class="n">kR</span> <span class="o">**</span> <span class="mi">3</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">kR</span><span class="p">)</span> <span class="o">/</span> <span class="n">kR</span> <span class="o">**</span> <span class="mi">2</span><span class="p">))</span> <span class="o">**</span> <span class="mi">2</span>
-    <span class="n">W_squared</span><span class="p">[</span><span class="n">kR</span> <span class="o">&lt;</span> <span class="mf">0.01</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
-
     <span class="k">return</span> <span class="n">W_squared</span>
 
 </div>
-<div class="viewcode-block" id="mass_to_radius"><a class="viewcode-back" href="../../api.html#hmf.tools.mass_to_radius">[docs]</a><span class="k">def</span> <span class="nf">mass_to_radius</span><span class="p">(</span><span class="n">M</span><span class="p">,</span> <span class="n">mean_dens</span><span class="p">):</span>
+<div class="viewcode-block" id="mass_to_radius"><a class="viewcode-back" href="../../api_docs/tools.html#hmf.tools.mass_to_radius">[docs]</a><span class="k">def</span> <span class="nf">mass_to_radius</span><span class="p">(</span><span class="n">M</span><span class="p">,</span> <span class="n">mean_dens</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Calculates radius from mass given mean density.</span>
+<span class="sd">    Calculate radius of a region of space from its mass.</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    M : float or array of floats</span>
+<span class="sd">        Masses</span>
+<span class="sd">        </span>
+<span class="sd">    mean_dens : float</span>
+<span class="sd">        The mean density of the universe</span>
+<span class="sd">        </span>
+<span class="sd">    Returns</span>
+<span class="sd">    ------</span>
+<span class="sd">    R : float or array of floats</span>
+<span class="sd">        The corresponding radii to M</span>
+<span class="sd">    </span>
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    The units of ``M`` don&#39;t matter as long as they are consistent with </span>
+<span class="sd">    ``mean_dens``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">return</span> <span class="p">(</span><span class="mf">3.</span><span class="o">*</span><span class="n">M</span> <span class="o">/</span> <span class="p">(</span><span class="mf">4.</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">mean_dens</span><span class="p">))</span> <span class="o">**</span> <span class="p">(</span><span class="mf">1.</span> <span class="o">/</span> <span class="mf">3.</span><span class="p">)</span>
+<span class="c">#</span>
+<span class="c"># def radius_to_mass(R, mean_dens):</span>
+<span class="c">#     &quot;&quot;&quot;</span>
+<span class="c">#     Calculates mass of a region of space from its radius</span>
+<span class="c">#</span>
+<span class="c">#     Parameters</span>
+<span class="c">#     ----------</span>
+<span class="c">#     R : float or array of floats</span>
+<span class="c">#         Radii</span>
+<span class="c">#</span>
+<span class="c">#     mean_dens : float</span>
+<span class="c">#         The mean density of the universe</span>
+<span class="c">#</span>
+<span class="c">#     Returns</span>
+<span class="c">#     ------</span>
+<span class="c">#     M : float or array of floats</span>
+<span class="c">#         The corresponding masses in R</span>
+<span class="c">#</span>
+<span class="c">#     Notes</span>
+<span class="c">#     -----</span>
+<span class="c">#     The units of ``R`` don&#39;t matter as long as they are consistent with</span>
+<span class="c">#     ``mean_dens``.</span>
+<span class="c">#     &quot;&quot;&quot;</span>
+<span class="c">#     return 4 * np.pi * R ** 3 * mean_dens / 3</span>
 </div>
-<div class="viewcode-block" id="radius_to_mass"><a class="viewcode-back" href="../../api.html#hmf.tools.radius_to_mass">[docs]</a><span class="k">def</span> <span class="nf">radius_to_mass</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="n">mean_dens</span><span class="p">):</span>
+<div class="viewcode-block" id="wdm_transfer"><a class="viewcode-back" href="../../api_docs/tools.html#hmf.tools.wdm_transfer">[docs]</a><span class="k">def</span> <span class="nf">wdm_transfer</span><span class="p">(</span><span class="n">m_x</span><span class="p">,</span> <span class="n">power_cdm</span><span class="p">,</span> <span class="n">lnk</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">omegac</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Calculates mass from radius given mean density</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">return</span> <span class="mi">4</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">R</span> <span class="o">**</span> <span class="mi">3</span> <span class="o">*</span> <span class="n">mean_dens</span> <span class="o">/</span> <span class="mi">3</span>
-</div>
-<div class="viewcode-block" id="wdm_transfer"><a class="viewcode-back" href="../../api.html#hmf.tools.wdm_transfer">[docs]</a><span class="k">def</span> <span class="nf">wdm_transfer</span><span class="p">(</span><span class="n">m_x</span><span class="p">,</span> <span class="n">power_cdm</span><span class="p">,</span> <span class="n">lnk</span><span class="p">,</span> <span class="n">H0</span><span class="p">,</span> <span class="n">omegac</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Transforms the CDM Power Spectrum into a WDM power spectrum for a given warm particle mass m_x.</span>
+<span class="sd">    Transform a CDM Power Spectrum into WDM.</span>
 <span class="sd">    </span>
-<span class="sd">    NOTE: formula from Bode et. al. 2001 eq. A9</span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    m_x : float</span>
+<span class="sd">        The mass of the single-species WDM particle in *keV*</span>
+<span class="sd">        </span>
+<span class="sd">    power_cdm : array</span>
+<span class="sd">        The normalised power spectrum of CDM.</span>
+<span class="sd">        </span>
+<span class="sd">    lnk : array</span>
+<span class="sd">        The wavenumbers *k/h* corresponding to  ``power_cdm``.</span>
+<span class="sd">        </span>
+<span class="sd">    h : float</span>
+<span class="sd">        Hubble parameter</span>
+<span class="sd">        </span>
+<span class="sd">    omegac : float</span>
+<span class="sd">        The dark matter density as a ratio of critical density at the current </span>
+<span class="sd">        epoch.</span>
+<span class="sd">    </span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    power_wdm : array</span>
+<span class="sd">        The normalised WDM power spectrum at ``lnk``.</span>
+<span class="sd">        </span>
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Formula from Bode et. al. 2001 eq. A9</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="n">h</span> <span class="o">=</span> <span class="n">H0</span> <span class="o">/</span> <span class="mi">100</span>
     <span class="n">g_x</span> <span class="o">=</span> <span class="mf">1.5</span>
     <span class="n">nu</span> <span class="o">=</span> <span class="mf">1.12</span>
 
@@ -280,7 +308,31 @@
 
     <span class="k">return</span> <span class="n">power_cdm</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">transfer</span><span class="p">)</span>
 </div>
-<div class="viewcode-block" id="dlnsdlnm"><a class="viewcode-back" href="../../api.html#hmf.tools.dlnsdlnm">[docs]</a><span class="k">def</span> <span class="nf">dlnsdlnm</span><span class="p">(</span><span class="n">M</span><span class="p">,</span> <span class="n">sigma</span><span class="p">,</span> <span class="n">power</span><span class="p">,</span> <span class="n">lnk</span><span class="p">,</span> <span class="n">mean_dens</span><span class="p">):</span>
+<div class="viewcode-block" id="dlnsdlnm"><a class="viewcode-back" href="../../api_docs/tools.html#hmf.tools.dlnsdlnm">[docs]</a><span class="k">def</span> <span class="nf">dlnsdlnm</span><span class="p">(</span><span class="n">M</span><span class="p">,</span> <span class="n">sigma</span><span class="p">,</span> <span class="n">power</span><span class="p">,</span> <span class="n">lnk</span><span class="p">,</span> <span class="n">mean_dens</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculate the derivative of log sigma with log M</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    M : array</span>
+<span class="sd">        The masses </span>
+<span class="sd">        </span>
+<span class="sd">    sigma : array</span>
+<span class="sd">        Mass variance at M</span>
+
+<span class="sd">    power : array</span>
+<span class="sd">        The power spectrum at ``lnk``</span>
+<span class="sd">        </span>
+<span class="sd">    lnk : array</span>
+<span class="sd">        The wavenumbers *k/h* corresponding to the power</span>
+<span class="sd">        </span>
+<span class="sd">    mean_dens : float</span>
+<span class="sd">        Mean density of the universe.</span>
+<span class="sd">    </span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dlnsdlnM : array</span>
+<span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">dlnk</span> <span class="o">=</span> <span class="n">lnk</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">lnk</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
     <span class="n">R</span> <span class="o">=</span> <span class="n">mass_to_radius</span><span class="p">(</span><span class="n">M</span><span class="p">,</span> <span class="n">mean_dens</span><span class="p">)</span>
     <span class="n">dlnsdlnM</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">M</span><span class="p">)</span>
@@ -291,35 +343,98 @@
         <span class="n">dlnsdlnM</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">3.0</span> <span class="o">/</span> <span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">sigma</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">r</span> <span class="o">**</span> <span class="mi">4</span><span class="p">))</span> <span class="o">*</span> <span class="n">intg</span><span class="o">.</span><span class="n">trapz</span><span class="p">(</span><span class="n">integ</span><span class="p">,</span> <span class="n">dx</span><span class="o">=</span><span class="n">dlnk</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">dlnsdlnM</span>
 </div>
-<div class="viewcode-block" id="dw2dm"><a class="viewcode-back" href="../../api.html#hmf.tools.dw2dm">[docs]</a><span class="k">def</span> <span class="nf">dw2dm</span><span class="p">(</span><span class="n">kR</span><span class="p">):</span>
+<div class="viewcode-block" id="dw2dm"><a class="viewcode-back" href="../../api_docs/tools.html#hmf.tools.dw2dm">[docs]</a><span class="k">def</span> <span class="nf">dw2dm</span><span class="p">(</span><span class="n">kR</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    The derivative of the top-hat window function squared</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    kR : array</span>
+<span class="sd">        Product of wavenumber with R [final product is unitless]</span>
+<span class="sd">        </span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dw2dm : array</span>
+<span class="sd">        The derivative of the top-hat window function squared.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">return</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">kR</span><span class="p">)</span> <span class="o">-</span> <span class="n">kR</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">kR</span><span class="p">))</span> <span class="o">*</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">kR</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="mf">3.0</span> <span class="o">/</span> <span class="p">(</span><span class="n">kR</span> <span class="o">**</span> <span class="mi">2</span><span class="p">))</span> <span class="o">+</span> <span class="mf">3.0</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">kR</span><span class="p">)</span> <span class="o">/</span> <span class="n">kR</span><span class="p">)</span>
 </div>
-<div class="viewcode-block" id="n_eff"><a class="viewcode-back" href="../../api.html#hmf.tools.n_eff">[docs]</a><span class="k">def</span> <span class="nf">n_eff</span><span class="p">(</span><span class="n">dlnsdlnm</span><span class="p">):</span>
+<div class="viewcode-block" id="n_eff"><a class="viewcode-back" href="../../api_docs/tools.html#hmf.tools.n_eff">[docs]</a><span class="k">def</span> <span class="nf">n_eff</span><span class="p">(</span><span class="n">dlnsdlnm</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Calculates the power spectral slope at the scale of the halo radius, using eq. 42 in Lukic et. al 2007.</span>
+<span class="sd">    Return the power spectral slope at the scale of the halo radius, </span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    dlnsdlnm : array</span>
+<span class="sd">        The derivative of log sigma with log M</span>
+<span class="sd">    </span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    n_eff : float</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Uses eq. 42 in Lukic et. al 2007.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">n_eff</span> <span class="o">=</span> <span class="o">-</span><span class="mf">3.0</span> <span class="o">*</span> <span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">dlnsdlnm</span> <span class="o">+</span> <span class="mf">1.0</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">n_eff</span>
+
 </div>
-<div class="viewcode-block" id="new_k_grid"><a class="viewcode-back" href="../../api.html#hmf.tools.new_k_grid">[docs]</a><span class="k">def</span> <span class="nf">new_k_grid</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">k_bounds</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+<div class="viewcode-block" id="d_plus"><a class="viewcode-back" href="../../api_docs/tools.html#hmf.tools.d_plus">[docs]</a><span class="k">def</span> <span class="nf">d_plus</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">cosmo</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Creates a new grid for the transfer function.</span>
+<span class="sd">    Finds the factor :math:`D^+(a)`, from Lukic et. al. 2007, eq. 8.</span>
+<span class="sd">    </span>
+<span class="sd">    Uses simpson&#39;s rule to integrate, with 1000 steps.</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    z : float</span>
+<span class="sd">        The redshift</span>
+<span class="sd">        </span>
+<span class="sd">    cosmo : ``Cosmology()`` object</span>
+<span class="sd">        Cosmological parameters </span>
+<span class="sd">    </span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dplus : float</span>
+<span class="sd">        The un-normalised growth factor.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">cdict</span> <span class="o">=</span> <span class="n">cosmo</span><span class="o">.</span><span class="n">cosmolopy_dict</span><span class="p">()</span>
+    <span class="n">a_upper</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">+</span> <span class="n">z</span><span class="p">)</span>
+    <span class="n">lna</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">1e-8</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">a_upper</span><span class="p">),</span> <span class="mi">1000</span><span class="p">)</span>
+    <span class="n">z_vec</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">lna</span><span class="p">)</span> <span class="o">-</span> <span class="mf">1.0</span>
+
+    <span class="n">integrand</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">lna</span><span class="p">)</span> <span class="o">*</span> <span class="n">cdist</span><span class="o">.</span><span class="n">e_z</span><span class="p">(</span><span class="n">z_vec</span><span class="p">,</span> <span class="o">**</span><span class="n">cdict</span><span class="p">))</span> <span class="o">**</span> <span class="mi">3</span>
+
+    <span class="n">integral</span> <span class="o">=</span> <span class="n">intg</span><span class="o">.</span><span class="n">simps</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">lna</span><span class="p">)</span> <span class="o">*</span> <span class="n">integrand</span><span class="p">,</span> <span class="n">dx</span><span class="o">=</span><span class="n">lna</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">lna</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">dplus</span> <span class="o">=</span> <span class="mf">5.0</span> <span class="o">*</span> <span class="n">cosmo</span><span class="o">.</span><span class="n">omegam</span> <span class="o">*</span> <span class="n">cdist</span><span class="o">.</span><span class="n">e_z</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="o">**</span><span class="n">cdict</span><span class="p">)</span> <span class="o">*</span> <span class="n">integral</span> <span class="o">/</span> <span class="mf">2.0</span>
+
+    <span class="k">return</span> <span class="n">dplus</span>
+</div>
+<div class="viewcode-block" id="growth_factor"><a class="viewcode-back" href="../../api_docs/tools.html#hmf.tools.growth_factor">[docs]</a><span class="k">def</span> <span class="nf">growth_factor</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">cosmo</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculate :math:`d(a) = D^+(a)/D^+(a=1)`, from Lukic et. al. 2007, eq. 7.</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    z : float</span>
+<span class="sd">        The redshift</span>
+<span class="sd">        </span>
+<span class="sd">    cosmo : ``Cosmology()`` object</span>
+<span class="sd">        Cosmological parameters </span>
+<span class="sd">    </span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    growth : float</span>
+<span class="sd">        The normalised growth factor.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="c"># Determine the true k_bounds.</span>
-    <span class="n">min_k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">k_bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-    <span class="n">max_k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">k_bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+    <span class="n">growth</span> <span class="o">=</span> <span class="n">d_plus</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">cosmo</span><span class="p">)</span> <span class="o">/</span> <span class="n">d_plus</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">cosmo</span><span class="p">)</span>
 
-    <span class="c"># Setup the grid and fetch the grid-spacing as well</span>
-    <span class="n">k</span><span class="p">,</span> <span class="n">dlnk</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">min_k</span><span class="p">,</span> <span class="n">max_k</span><span class="p">,</span> <span class="mi">250</span><span class="p">,</span> <span class="n">retstep</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
-
-    <span class="k">return</span> <span class="n">k</span><span class="p">,</span> <span class="n">dlnk</span>
-</pre></div></div>
+    <span class="k">return</span> <span class="n">growth</span></div>
+</pre></div>
 
           </div>
         </div>
@@ -352,9 +467,11 @@
         <li class="right" >
           <a href="../../py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
+        <li class="right" >
+          <a href="../../np-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
         <li><a href="../../index.html">hmf 1.1.10 documentation</a> &raquo;</li>
-          <li><a href="../index.html" >Module code</a> &raquo;</li>
-          <li><a href="../hmf.html" >hmf</a> &raquo;</li> 
+          <li><a href="../index.html" >Module code</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">

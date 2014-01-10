@@ -1,8 +1,4 @@
-'''
-Deals with cosmological parameters in a nice way.
-'''
 import numpy as _np
-
 
 class Cosmology(object):
     """
@@ -13,15 +9,22 @@ class Cosmology(object):
     the interrelation of omegab, omegac, omegam, omegav for example are dealt
     with in a more robust manner. 
     
-    Note that currently, only several combinations of the density parameters
-    are valid:
+    The secondary purpose of this class is to provide simple mappings of the
+    parameters to common python cosmology libraries (for now just `cosmolopy`
+    and `pycamb`). It has been found by the authors that using more than one
+    library becomes confusing in terms of naming all the parameters, so this 
+    class helps deal with that.
     
-    1. ``omegab`` and ``omegac``
-    #. ``omegam`` 
-    #. ``omegab_h2`` and ``omegac_h2``
-    #. None of them
+    .. note :: Currently, only several combinations of the density parameters
+            are valid:
     
-    To this one may add `omegav` (dark-energy density) at will. 
+            1. ``omegab`` and ``omegac``
+            #. ``omegam`` 
+            #. ``omegab_h2`` and ``omegac_h2``
+            #. None of them
+    
+            To this one may add ``omegav`` (dark-energy density) at will. More
+            combinations will be added in the future. 
     
     Parameters
     ----------
@@ -43,7 +46,7 @@ class Cosmology(object):
     \*\*kwargs : 
         The list of available keyword arguments is as follows:
         
-        1. ``sigma_8``: The normalisation. Mass variance in top-hat spheres with :math:`R=8`Mpc:math:`h^{-1}`
+        1. ``sigma_8``: The normalisation. Mass variance in top-hat spheres with :math:`R=8Mpc h^{-1}`
         #. ``n``: The spectral index
         #. ``w``: The dark-energy equation of state
         #. ``cs2_lam``: The constant comoving sound speed of dark energy
@@ -64,14 +67,10 @@ class Cosmology(object):
         #. ``omegab_h2``: The normalised baryon density by ``h**2``
         #. ``omegac_h2``: The normalised CDM density by ``h**2``
         
-    Additional Attributes
-    ---------------------
-    
-    crit_dens : float
-        The critical density of the Universe divided by h**2
-        
-    mean_dens : float
-        The mean density of the Universe (``crit_dens * omegam``)
+        .. note :: The reason these are implemented as `kwargs` rather than the
+                usual arguments, is because the code can't tell *a priori* which
+                combination of density parameters the user will input.
+                 
     """
     # A dictionary of bounds for each parameter
     # This also forms a list of all parameters possible
@@ -86,15 +85,14 @@ class Cosmology(object):
               "z_reion":[2, 1000],
               "tau":[0, 1],
               "omegan":[0, 1],
-              "delta_c":[1.2, 2.2],
               "h":[0.05, 5],
               "H0":[5, 500],
-              "omegab":[0.01, 1],
+              "omegab":[0.001, 1],
               "omegac":[0, 2],
               "omegav":[0, 2],
-              "omegam":[0.01, 2],
-              "omegab_h2":[0, 1],
-              "omegac_h2":[0, 2]}
+              "omegam":[0.001, 3],
+              "omegab_h2":[0.001, 0.5],
+              "omegac_h2":[0, 1]}
 
     def __init__(self, default=None, force_flat=False, **kwargs):
 
@@ -135,15 +133,17 @@ class Cosmology(object):
             if kwargs['h'] != kwargs["H0"] / 100.0:
                 print "h and H0 specified inconsistently, using h"
 
+
+
+        if "H0" in kwargs:
+            self.H0 = kwargs.pop("H0")
+            self.h = self.H0 / 100.0
+
         if "h" in kwargs:
             self.h = kwargs.pop("h")
             self.H0 = 100 * self.h
 
-        elif "H0" in kwargs:
-            self.H0 = kwargs.pop("H0")
-            self.h = self.H0 / 100.0
-
-        elif default is not None:
+        if not hasattr(self, "h") and default is not None:
             self.H0 = self.__base["H0"]
             self.h = self.H0 / 100.0
 

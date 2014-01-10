@@ -1,0 +1,794 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>hmf.transfer &mdash; hmf 1.1.10 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.1.10',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="hmf 1.1.10 documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../../np-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">hmf 1.1.10 documentation</a> &raquo;</li>
+          <li><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for hmf.transfer</h1><div class="highlight"><pre>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">transfer.py contains a single class, `Transfer`, which provides methods to </span>
+<span class="sd">calculate the transfer function, matter power spectrum and several other </span>
+<span class="sd">related quantities. </span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">cosmo</span> <span class="kn">import</span> <span class="n">Cosmology</span>
+<span class="kn">import</span> <span class="nn">cosmolopy.perturbation</span> <span class="kn">as</span> <span class="nn">eh</span>
+<span class="kn">from</span> <span class="nn">scipy.interpolate</span> <span class="kn">import</span> <span class="n">InterpolatedUnivariateSpline</span> <span class="k">as</span> <span class="n">spline</span>
+<span class="kn">from</span> <span class="nn">cosmolopy</span> <span class="kn">import</span> <span class="n">density</span> <span class="k">as</span> <span class="n">cden</span>
+<span class="kn">from</span> <span class="nn">cosmolopy</span> <span class="kn">import</span> <span class="n">distance</span> <span class="k">as</span> <span class="n">cd</span>
+<span class="kn">import</span> <span class="nn">scipy.integrate</span> <span class="kn">as</span> <span class="nn">integ</span>
+
+<span class="c"># import cosmolopy.density as cden</span>
+<span class="kn">import</span> <span class="nn">tools</span>
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">pycamb</span>
+    <span class="n">HAVE_PYCAMB</span> <span class="o">=</span> <span class="bp">True</span>
+<span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+    <span class="n">HAVE_PYCAMB</span> <span class="o">=</span> <span class="bp">False</span>
+
+<div class="viewcode-block" id="Transfer"><a class="viewcode-back" href="../../api_docs/transfer.html#hmf.transfer.Transfer">[docs]</a><span class="k">class</span> <span class="nc">Transfer</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Neatly deals with different transfer functions and their routines.</span>
+<span class="sd">    </span>
+<span class="sd">    The purpose of this class is to calculate transfer functions, power spectra</span>
+<span class="sd">    and several tightly associated quantities using many of the available fits</span>
+<span class="sd">    from the literature. </span>
+<span class="sd">        </span>
+<span class="sd">    Importantly, it contains the means to calculate the transfer function using the</span>
+<span class="sd">    popular CAMB code, the Eisenstein-Hu fit (1998), the BBKS fit or the Bond and</span>
+<span class="sd">    Efstathiou fit (1984). Furthermore, it can calculate non-linear corrections</span>
+<span class="sd">    using the halofit model (with updated parameters from Takahashi2012).</span>
+<span class="sd">    </span>
+<span class="sd">    The primary feature of this class is to wrap all the methods into a unified</span>
+<span class="sd">    interface. On top of this, the class implements optimized updates of </span>
+<span class="sd">    parameters which is useful in, for example, MCMC code which covers a</span>
+<span class="sd">    large parameter-space. Calling the `nonlinear_power` does not re-evaluate</span>
+<span class="sd">    the entire transfer function, rather it just calculates the corrections, </span>
+<span class="sd">    improving performance.</span>
+<span class="sd">    </span>
+<span class="sd">    To update parameters optimally, use the update() method. </span>
+<span class="sd">    All output quantities are calculated only when needed (but stored after </span>
+<span class="sd">    first calculation for quick access).</span>
+<span class="sd">    </span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    lnk : array_like, default ``linspace(log(1e-8),log(2e4),250)``</span>
+<span class="sd">        Defines logarithmic wavenumbers, *k* [units :math:`h^3Mpc^{-3}`]. </span>
+<span class="sd">        This array is integrated over for normalisation. </span>
+<span class="sd">        </span>
+<span class="sd">    z : float, optional, default ``0.0``</span>
+<span class="sd">        The redshift of the analysis.</span>
+<span class="sd">                   </span>
+<span class="sd">    wdm_mass : float, optional, default ``None``</span>
+<span class="sd">        The warm dark matter particle size in *keV*, or ``None`` for CDM.</span>
+<span class="sd">                                                                          </span>
+<span class="sd">    transfer_fit : str, { ``&quot;CAMB&quot;``, ``&quot;EH&quot;``, ``&quot;bbks&quot;``, ``&quot;bond_efs&quot;``} </span>
+<span class="sd">        Defines which transfer function fit to use. If not defined from the</span>
+<span class="sd">        listed options, it will be treated as a filename to be read in. In this</span>
+<span class="sd">        case the file must contain a transfer function in CAMB output format. </span>
+<span class="sd">           </span>
+<span class="sd">    initial_mode : int, {1,2,3,4,5}</span>
+<span class="sd">        (CAMB-only) Initial scalar perturbation mode (adiabatic=1, CDM iso=2, </span>
+<span class="sd">        Baryon iso=3,neutrino density iso =4, neutrino velocity iso = 5) </span>
+<span class="sd">        </span>
+<span class="sd">    lAccuracyBoost : float, optional, default ``1.0``</span>
+<span class="sd">        (CAMB-only) Larger to keep more terms in the hierarchy evolution</span>
+<span class="sd">    </span>
+<span class="sd">    AccuracyBoost : float, optional, default ``1.0``</span>
+<span class="sd">        (CAMB-only) Increase accuracy_boost to decrease time steps, use more k </span>
+<span class="sd">        values,  etc.Decrease to speed up at cost of worse accuracy. </span>
+<span class="sd">        Suggest 0.8 to 3.</span>
+<span class="sd">        </span>
+<span class="sd">    w_perturb : bool, optional, default ``False``</span>
+<span class="sd">        (CAMB-only) </span>
+<span class="sd">    </span>
+<span class="sd">    k_per_logint : int, optional, default ``11``</span>
+<span class="sd">        (CAMB-only) Number of wavenumbers estimated per log interval by CAMB</span>
+<span class="sd">        Default of 11 gets best performance for requisite accuracy of mass function.</span>
+<span class="sd">        </span>
+<span class="sd">    kmax : float, optional, default ``0.25``</span>
+<span class="sd">        (CAMB-only) Maximum value of the wavenumber.</span>
+<span class="sd">        Default of 0.25 is high enough for requisite accuracy of mass function.</span>
+<span class="sd">        </span>
+<span class="sd">    ThreadNum : int, optional, default ``0``</span>
+<span class="sd">        (CAMB-only) Number of threads to use for calculation of transfer </span>
+<span class="sd">        function by CAMB. Default 0 automatically determines the number.</span>
+<span class="sd">                       </span>
+<span class="sd">    kwargs : keywords</span>
+<span class="sd">        The ``**kwargs`` take any cosmological parameters desired, which are </span>
+<span class="sd">        input to the `hmf.cosmo.Cosmology` class. `hmf.Perturbations` uses a </span>
+<span class="sd">        default parameter set from the first-year PLANCK mission, with optional </span>
+<span class="sd">        modifications by the user. Here is a list of parameters currently </span>
+<span class="sd">        available (and their defaults in `Transfer`):       </span>
+<span class="sd">                 </span>
+<span class="sd">        - sigma_8 : [0.8344] The normalisation. Mass variance in top-hat spheres </span>
+<span class="sd">            with :math:`R=8`Mpc :math:`h^{-1}`   </span>
+<span class="sd">        - n : [0.9624] The spectral index </span>
+<span class="sd">        - w : [-1] The dark-energy equation of state</span>
+<span class="sd">        - cs2_lam : [1] The constant comoving sound speed of dark energy</span>
+<span class="sd">        - t_cmb : [2.725] Temperature of the CMB</span>
+<span class="sd">        - y_he : [0.24] Helium fraction</span>
+<span class="sd">        - N_nu : [3.04] Number of massless neutrino species</span>
+<span class="sd">        - N_nu_massive : [0] Number of massive neutrino species</span>
+<span class="sd">        - delta_c : [1.686] The critical overdensity for collapse</span>
+<span class="sd">        - H0 : [67.11] The hubble constant</span>
+<span class="sd">        - h : [``H0/100.0``] The hubble parameter</span>
+<span class="sd">        - omegan : [0] The normalised density of neutrinos</span>
+<span class="sd">        - omegab_h2 : [0.022068] The normalised baryon density by ``h**2``</span>
+<span class="sd">        - omegac_h2 : [0.12029] The normalised CDM density by ``h**2``</span>
+<span class="sd">        - omegav : [0.6825] The normalised density of dark energy</span>
+<span class="sd">        - omegab: [``omegab_h2/h**2``] The normalised baryon density</span>
+<span class="sd">        - omegac : [``omegac_h2/h**2``] The normalised CDM density     </span>
+<span class="sd">        - force_flat : [False] Whether to force the cosmology to be flat (affects only ``omegav``)</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="n">fits</span> <span class="o">=</span> <span class="p">[</span><span class="s">&quot;CAMB&quot;</span><span class="p">,</span> <span class="s">&quot;EH&quot;</span><span class="p">,</span> <span class="s">&quot;bbks&quot;</span><span class="p">,</span> <span class="s">&quot;bond_efs&quot;</span><span class="p">]</span>
+    <span class="n">_cp</span> <span class="o">=</span> <span class="p">[</span><span class="s">&quot;sigma_8&quot;</span><span class="p">,</span> <span class="s">&quot;n&quot;</span><span class="p">,</span> <span class="s">&quot;w&quot;</span><span class="p">,</span> <span class="s">&quot;cs2_lam&quot;</span><span class="p">,</span> <span class="s">&quot;t_cmb&quot;</span><span class="p">,</span> <span class="s">&quot;y_he&quot;</span><span class="p">,</span> <span class="s">&quot;N_nu&quot;</span><span class="p">,</span>
+           <span class="s">&quot;omegan&quot;</span><span class="p">,</span> <span class="s">&quot;H0&quot;</span><span class="p">,</span> <span class="s">&quot;h&quot;</span><span class="p">,</span> <span class="s">&quot;omegab&quot;</span><span class="p">,</span>
+           <span class="s">&quot;omegac&quot;</span><span class="p">,</span> <span class="s">&quot;omegav&quot;</span><span class="p">,</span> <span class="s">&quot;omegab_h2&quot;</span><span class="p">,</span> <span class="s">&quot;omegac_h2&quot;</span><span class="p">,</span>
+           <span class="s">&quot;force_flat&quot;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">z</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">lnk</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                 <span class="n">wdm_mass</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">transfer_fit</span><span class="o">=</span><span class="s">&#39;CAMB&#39;</span><span class="p">,</span>
+                 <span class="n">initial_mode</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">lAccuracyBoost</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                 <span class="n">AccuracyBoost</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">w_perturb</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">k_per_logint</span><span class="o">=</span><span class="mi">11</span><span class="p">,</span>
+                 <span class="n">kmax</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span> <span class="n">ThreadNum</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Initialises some parameters</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+
+        <span class="k">if</span> <span class="n">lnk</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">lnk</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">1e-8</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">2e4</span><span class="p">),</span> <span class="mi">250</span><span class="p">)</span>
+        <span class="c"># Set up a simple dictionary of kwargs which can be later updated</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cpdict</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span><span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">iteritems</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">Transfer</span><span class="o">.</span><span class="n">_cp</span><span class="p">}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_camb_options</span> <span class="o">=</span> <span class="p">{</span><span class="s">&#39;Scalar_initial_condition&#39;</span> <span class="p">:</span> <span class="n">initial_mode</span><span class="p">,</span>
+                              <span class="s">&#39;scalar_amp&#39;</span>      <span class="p">:</span> <span class="mf">1E-9</span><span class="p">,</span>
+                              <span class="s">&#39;lAccuracyBoost&#39;</span> <span class="p">:</span> <span class="n">lAccuracyBoost</span><span class="p">,</span>
+                              <span class="s">&#39;AccuracyBoost&#39;</span>  <span class="p">:</span> <span class="n">AccuracyBoost</span><span class="p">,</span>
+                              <span class="s">&#39;w_perturb&#39;</span>      <span class="p">:</span> <span class="n">w_perturb</span><span class="p">,</span>
+                              <span class="s">&#39;transfer__k_per_logint&#39;</span><span class="p">:</span> <span class="n">k_per_logint</span><span class="p">,</span>
+                              <span class="s">&#39;transfer__kmax&#39;</span><span class="p">:</span><span class="n">kmax</span><span class="p">,</span>
+                              <span class="s">&#39;ThreadNum&#39;</span><span class="p">:</span><span class="n">ThreadNum</span><span class="p">}</span>
+
+
+        <span class="c"># Set all given parameters (except camb options and cosmology)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lnk</span> <span class="o">=</span> <span class="n">lnk</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">wdm_mass</span> <span class="o">=</span> <span class="n">wdm_mass</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">z</span> <span class="o">=</span> <span class="n">z</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">transfer_fit</span> <span class="o">=</span> <span class="n">transfer_fit</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cosmo</span> <span class="o">=</span> <span class="n">Cosmology</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="s">&quot;planck1_base&quot;</span><span class="p">,</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">_cpdict</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Transfer.update"><a class="viewcode-back" href="../../api_docs/transfer.html#hmf.transfer.Transfer.update">[docs]</a>    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Update the class optimally with given arguments.</span>
+<span class="sd">        </span>
+<span class="sd">        Accepts any argument that the constructor takes</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c"># First update the cosmology</span>
+        <span class="n">cp</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span><span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">iteritems</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cp</span><span class="p">}</span>
+        <span class="k">if</span> <span class="n">cp</span><span class="p">:</span>
+            <span class="n">true_cp</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">cp</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cpdict</span><span class="p">:</span>
+                    <span class="n">true_cp</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+                <span class="k">elif</span> <span class="n">k</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cpdict</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">v</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cpdict</span><span class="p">[</span><span class="n">k</span><span class="p">]:</span>
+                        <span class="n">true_cp</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_cpdict</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">true_cp</span><span class="p">)</span>
+            <span class="c"># Delete the entries we&#39;ve used from kwargs</span>
+            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">cp</span><span class="p">:</span>
+                <span class="k">del</span> <span class="n">kwargs</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+
+            <span class="c"># Now actually update the Cosmology class</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cosmo</span> <span class="o">=</span> <span class="n">Cosmology</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="s">&quot;planck1_base&quot;</span><span class="p">,</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">_cpdict</span><span class="p">)</span>
+
+            <span class="c"># The following two parameters don&#39;t necessitate a complete recalculation</span>
+            <span class="k">if</span> <span class="s">&quot;n&quot;</span> <span class="ow">in</span> <span class="n">true_cp</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span> <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_unnormalized_lnP</span>
+                <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span> <span class="k">pass</span>
+            <span class="k">if</span> <span class="s">&quot;sigma_8&quot;</span> <span class="ow">in</span> <span class="n">true_cp</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span> <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">normalisation</span>
+                <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span> <span class="k">pass</span>
+
+            <span class="c"># All other parameters mean recalculating everything :(</span>
+            <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="p">[</span><span class="s">&quot;omegab&quot;</span><span class="p">,</span> <span class="s">&quot;omegac&quot;</span><span class="p">,</span> <span class="s">&quot;h&quot;</span><span class="p">,</span> <span class="s">&quot;H0&quot;</span><span class="p">,</span> <span class="s">&quot;omegab_h2&quot;</span><span class="p">,</span> <span class="s">&quot;omegac_h2&quot;</span><span class="p">]:</span>
+                <span class="k">if</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">true_cp</span><span class="p">:</span>
+                    <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_unnormalised_lnT</span>
+
+        <span class="c"># Now do the other parameters</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>  <span class="c"># only camb options should be left</span>
+            <span class="c"># CAMB OPTIONS</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_camb_options</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_camb_options</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">!=</span> <span class="n">val</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_camb_options</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">key</span><span class="p">:</span><span class="n">val</span><span class="p">})</span>
+                    <span class="k">if</span> <span class="n">key</span> <span class="o">!=</span> <span class="s">&quot;ThreadNum&quot;</span><span class="p">:</span>
+                        <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_unnormalised_lnT</span>
+            <span class="c"># ANYTHING ELSE</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="s">&quot;_Transfer__&quot;</span> <span class="o">+</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">__dict__</span><span class="p">:</span>
+                    <span class="k">print</span> <span class="s">&quot;WARNING: &quot;</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="s">&quot; is not a valid parameter for the Transfer class&quot;</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span> <span class="o">!=</span> <span class="n">val</span><span class="p">):</span>
+                        <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span>  <span class="c"># doing it this way enables value-checking</span>
+
+        <span class="c"># Some extra logic for deletes</span>
+        <span class="k">if</span> <span class="p">(</span><span class="s">&#39;omegab&#39;</span> <span class="ow">in</span> <span class="n">cp</span> <span class="ow">or</span> <span class="s">&#39;omegac&#39;</span> <span class="ow">in</span> <span class="n">cp</span> <span class="ow">or</span> <span class="s">&#39;omegav&#39;</span> <span class="ow">in</span> <span class="n">cp</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">z</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">growth</span>
+        <span class="k">elif</span> <span class="s">&#39;z&#39;</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;z&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">growth</span>
+
+    <span class="c"># ---- SET PROPERTIES --------------------------------</span></div>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">lnk</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The logarithmic wavenumber *k* [units *h*/Mpc]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__lnk</span>
+
+    <span class="nd">@lnk.setter</span>
+<div class="viewcode-block" id="Transfer.lnk"><a class="viewcode-back" href="../../api_docs/transfer.html#hmf.transfer.Transfer.lnk">[docs]</a>    <span class="k">def</span> <span class="nf">lnk</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">val</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">100</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;lnk should have more than 100 steps!&quot;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&quot;lnk must be a sequence&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span> <span class="o">&gt;</span> <span class="mf">1e-5</span><span class="p">)</span> <span class="ow">or</span> <span class="n">val</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">val</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;lnk must be a linearly increasing array!&quot;</span><span class="p">)</span>
+
+        <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_unnormalised_lnT</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__lnk</span> <span class="o">=</span> <span class="n">val</span>
+</div>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">z</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Redshift</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__z</span>
+
+    <span class="nd">@z.setter</span>
+<div class="viewcode-block" id="Transfer.z"><a class="viewcode-back" href="../../api_docs/transfer.html#hmf.transfer.Transfer.z">[docs]</a>    <span class="k">def</span> <span class="nf">z</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">val</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;z must be a number (&quot;</span><span class="p">,</span> <span class="n">val</span><span class="p">,</span> <span class="s">&quot;)&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">val</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;z must be &gt; 0 (&quot;</span><span class="p">,</span> <span class="n">val</span><span class="p">,</span> <span class="s">&quot;)&quot;</span><span class="p">)</span>
+
+        <span class="c"># Delete stuff dependent on it</span>
+        <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">growth</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__z</span> <span class="o">=</span> <span class="n">val</span>
+</div>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">wdm_mass</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The WDM particle mass for a single-species model [units keV]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__wdm_mass</span>
+
+    <span class="nd">@wdm_mass.setter</span>
+<div class="viewcode-block" id="Transfer.wdm_mass"><a class="viewcode-back" href="../../api_docs/transfer.html#hmf.transfer.Transfer.wdm_mass">[docs]</a>    <span class="k">def</span> <span class="nf">wdm_mass</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">val</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__wdm_mass</span> <span class="o">=</span> <span class="n">val</span>
+            <span class="k">return</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">val</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;wdm_mass must be a number (&quot;</span><span class="p">,</span> <span class="n">val</span><span class="p">,</span> <span class="s">&quot;)&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">val</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;wdm_mass must be &gt; 0 (&quot;</span><span class="p">,</span> <span class="n">val</span><span class="p">,</span> <span class="s">&quot;)&quot;</span><span class="p">)</span>
+
+        <span class="c"># delete stuff dependent on it</span>
+        <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lnP_0</span>
+        <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">transfer</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">__wdm_mass</span> <span class="o">=</span> <span class="n">val</span>
+</div>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">transfer_fit</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A string specifying a method with which to calculate the transfer function.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__transfer_fit</span>
+
+    <span class="nd">@transfer_fit.setter</span>
+<div class="viewcode-block" id="Transfer.transfer_fit"><a class="viewcode-back" href="../../api_docs/transfer.html#hmf.transfer.Transfer.transfer_fit">[docs]</a>    <span class="k">def</span> <span class="nf">transfer_fit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">HAVE_PYCAMB</span> <span class="ow">and</span> <span class="n">val</span> <span class="o">==</span> <span class="s">&quot;CAMB&quot;</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;You cannot use the CAMB transfer since pycamb isn&#39;t installed&quot;</span><span class="p">)</span>
+
+        <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_unnormalised_lnT</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__transfer_fit</span> <span class="o">=</span> <span class="n">val</span>
+
+
+    <span class="c"># ---- DERIVED PROPERTIES AND FUNCTIONS ---------------</span></div>
+    <span class="k">def</span> <span class="nf">_check_low_k</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lnk</span><span class="p">,</span> <span class="n">lnT</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Check convergence of transfer function at low k.</span>
+<span class="sd">        </span>
+<span class="sd">        Unfortunately, some versions of CAMB produce a transfer which has a</span>
+<span class="sd">        turn-up at low k, which is what we seek to cut out here.</span>
+<span class="sd">        </span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        lnk : array_like</span>
+<span class="sd">            Value of log(k)</span>
+<span class="sd">            </span>
+<span class="sd">        lnT : array_like</span>
+<span class="sd">            Value of log(transfer)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">start</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">lnk</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">abs</span><span class="p">((</span><span class="n">lnT</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">lnT</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">/</span> <span class="p">(</span><span class="n">lnk</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">lnk</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span> <span class="o">&lt;</span> <span class="mf">0.01</span><span class="p">:</span>
+                <span class="n">start</span> <span class="o">=</span> <span class="n">i</span>
+                <span class="k">break</span>
+        <span class="n">lnT</span> <span class="o">=</span> <span class="n">lnT</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">lnk</span> <span class="o">=</span> <span class="n">lnk</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">lnk</span><span class="p">,</span> <span class="n">lnT</span>
+
+    <span class="c"># ---- TRANSFER FITS -------------------------------------------------------</span>
+    <span class="k">def</span> <span class="nf">_from_file</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Import the transfer function from file (must be CAMB format)</span>
+<span class="sd">        </span>
+<span class="sd">        .. note :: This should not be called by the user!</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">T</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">genfromtxt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">transfer_fit</span><span class="p">)[:,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">6</span><span class="p">]]</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+
+        <span class="n">lnk</span><span class="p">,</span> <span class="n">lnT</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_check_low_k</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">T</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:]),</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">T</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:]))</span>
+
+        <span class="k">return</span> <span class="n">spline</span><span class="p">(</span><span class="n">lnk</span><span class="p">,</span> <span class="n">lnT</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">1</span><span class="p">)(</span><span class="bp">self</span><span class="o">.</span><span class="n">lnk</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_CAMB</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generate transfer function with CAMB</span>
+<span class="sd">        </span>
+<span class="sd">        .. note :: This should not be called by the user!</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">cdict</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cosmo</span><span class="o">.</span><span class="n">pycamb_dict</span><span class="p">(),</span>
+                     <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">_camb_options</span><span class="p">)</span>
+        <span class="n">T</span> <span class="o">=</span> <span class="n">pycamb</span><span class="o">.</span><span class="n">transfers</span><span class="p">(</span><span class="o">**</span><span class="n">cdict</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">T</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">T</span><span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">6</span><span class="p">],</span> <span class="p">:,</span> <span class="mi">0</span><span class="p">])</span>
+
+        <span class="n">lnk</span><span class="p">,</span> <span class="n">lnT</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_check_low_k</span><span class="p">(</span><span class="n">T</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">T</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:])</span>
+
+        <span class="k">return</span> <span class="n">spline</span><span class="p">(</span><span class="n">lnk</span><span class="p">,</span> <span class="n">lnT</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">1</span><span class="p">)(</span><span class="n">k</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_EH</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Eisenstein-Hu transfer function</span>
+<span class="sd">        </span>
+<span class="sd">        .. note :: This should not be called by the user!</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">T</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">eh</span><span class="o">.</span><span class="n">transfer_function_EH</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">k</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">cosmo</span><span class="o">.</span><span class="n">h</span><span class="p">,</span>
+                                    <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">cosmo</span><span class="o">.</span><span class="n">cosmolopy_dict</span><span class="p">())[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">T</span>
+
+    <span class="k">def</span> <span class="nf">_bbks</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        BBKS transfer function.</span>
+
+<span class="sd">        .. note :: This should not be called by the user!</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">Gamma</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cosmo</span><span class="o">.</span><span class="n">omegam</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">cosmo</span><span class="o">.</span><span class="n">h</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">k</span><span class="p">)</span> <span class="o">/</span> <span class="n">Gamma</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cosmo</span><span class="o">.</span><span class="n">omegab</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">cosmo</span><span class="o">.</span><span class="n">h</span><span class="p">)</span> <span class="o">*</span>
+                               <span class="bp">self</span><span class="o">.</span><span class="n">cosmo</span><span class="o">.</span><span class="n">omegab</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">cosmo</span><span class="o">.</span><span class="n">omegam</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">1.0</span> <span class="o">+</span> <span class="mf">2.34</span> <span class="o">*</span> <span class="n">q</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="mf">2.34</span> <span class="o">*</span> <span class="n">q</span><span class="p">)</span> <span class="o">*</span>
+                <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="mf">3.89</span> <span class="o">*</span> <span class="n">q</span> <span class="o">+</span> <span class="p">(</span><span class="mf">16.1</span> <span class="o">*</span> <span class="n">q</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">+</span> <span class="p">(</span><span class="mf">5.47</span> <span class="o">*</span> <span class="n">q</span><span class="p">)</span> <span class="o">**</span> <span class="mi">3</span> <span class="o">+</span>
+                 <span class="p">(</span><span class="mf">6.71</span> <span class="o">*</span> <span class="n">q</span><span class="p">)</span> <span class="o">**</span> <span class="mi">4</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.25</span><span class="p">)))</span>
+
+    <span class="k">def</span> <span class="nf">_bond_efs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Bond and Efstathiou transfer function.</span>
+<span class="sd">        </span>
+<span class="sd">        .. note :: This should not be called by the user!</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">omegah2</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cosmo</span><span class="o">.</span><span class="n">omegam</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">cosmo</span><span class="o">.</span><span class="n">h</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+
+        <span class="n">a</span> <span class="o">=</span> <span class="mf">6.4</span> <span class="o">*</span> <span class="n">omegah2</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="mf">3.0</span> <span class="o">*</span> <span class="n">omegah2</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="mf">1.7</span> <span class="o">*</span> <span class="n">omegah2</span>
+        <span class="n">nu</span> <span class="o">=</span> <span class="mf">1.13</span>
+        <span class="n">k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">((</span><span class="mi">1</span> <span class="o">+</span> <span class="p">(</span><span class="n">a</span> <span class="o">*</span> <span class="n">k</span> <span class="o">+</span> <span class="p">(</span><span class="n">b</span> <span class="o">*</span> <span class="n">k</span><span class="p">)</span> <span class="o">**</span> <span class="mf">1.5</span> <span class="o">+</span> <span class="p">(</span><span class="n">c</span> <span class="o">*</span> <span class="n">k</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span> <span class="o">**</span> <span class="n">nu</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span> <span class="o">/</span> <span class="n">nu</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_transfer_callable</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        An un-normalised transfer function, with the single argument lnk</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__transfer_callable</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">transfer_fit</span> <span class="ow">in</span> <span class="n">Transfer</span><span class="o">.</span><span class="n">fits</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">__transfer_callable</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">lnk</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s">&quot;_&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">transfer_fit</span><span class="p">)(</span><span class="n">lnk</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">__transfer_callable</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">lnk</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_from_file</span><span class="p">(</span><span class="n">lnk</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">IOError</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">IOError</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">transfer_fit</span> <span class="o">+</span> <span class="s">&quot; could not be found. Make sure it is either a transfer fit or a valid filename&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__transfer_callable</span>
+
+    <span class="nd">@_transfer_callable.deleter</span>
+    <span class="k">def</span> <span class="nf">_transfer_callable</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">__transfer_callable</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_unnormalised_lnT</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_unnormalised_lnT</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The un-normalised transfer function</span>
+<span class="sd">        </span>
+<span class="sd">        This wraps the individual transfer_fit methods to provide unified access.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__unnormalised_lnT</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__unnormalised_lnT</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_transfer_callable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lnk</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__unnormalised_lnT</span>
+
+    <span class="nd">@_unnormalised_lnT.deleter</span>
+    <span class="k">def</span> <span class="nf">_unnormalised_lnT</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">__unnormalised_lnT</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_unnormalised_lnP</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lnT_cdm</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_unnormalised_lnP</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Un-normalised CDM log power at :math:`z=0` [units :math:`Mpc^3/h^3`]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__unnormalised_lnP</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__unnormalised_lnP</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cosmo</span><span class="o">.</span><span class="n">n</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">lnk</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_unnormalised_lnT</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__unnormalised_lnP</span>
+
+    <span class="nd">@_unnormalised_lnP.deleter</span>
+    <span class="k">def</span> <span class="nf">_unnormalised_lnP</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">__unnormalised_lnP</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lnP_cdm_0</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_lnP_cdm_0</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Normalised CDM log power at z=0 [units :math:`Mpc^3/h^3`]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__lnP_cdm_0</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__lnP_cdm_0</span> <span class="o">=</span> <span class="n">tools</span><span class="o">.</span><span class="n">normalize</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cosmo</span><span class="o">.</span><span class="n">sigma_8</span><span class="p">,</span>
+                                               <span class="bp">self</span><span class="o">.</span><span class="n">_unnormalised_lnP</span><span class="p">,</span>
+                                               <span class="bp">self</span><span class="o">.</span><span class="n">lnk</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cosmo</span><span class="o">.</span><span class="n">mean_dens</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__lnP_cdm_0</span>
+
+    <span class="nd">@_lnP_cdm_0.deleter</span>
+    <span class="k">def</span> <span class="nf">_lnP_cdm_0</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">__lnP_cdm_0</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lnP_0</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_lnT_cdm</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Normalised CDM log transfer function</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__lnT_cdm</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__lnT_cdm</span> <span class="o">=</span> <span class="n">tools</span><span class="o">.</span><span class="n">normalize</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cosmo</span><span class="o">.</span><span class="n">sigma_8</span><span class="p">,</span>
+                                             <span class="bp">self</span><span class="o">.</span><span class="n">_unnormalised_lnT</span><span class="p">,</span>
+                                             <span class="bp">self</span><span class="o">.</span><span class="n">lnk</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cosmo</span><span class="o">.</span><span class="n">mean_dens</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__lnT_cdm</span>
+
+    <span class="nd">@_lnT_cdm.deleter</span>
+    <span class="k">def</span> <span class="nf">_lnT_cdm</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">__lnT_cdm</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">transfer</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_lnP_0</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Normalised log power at :math:`z=0` (for CDM/WDM)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__lnP_0</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">wdm_mass</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">__lnP_0</span> <span class="o">=</span> <span class="n">tools</span><span class="o">.</span><span class="n">wdm_transfer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">wdm_mass</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lnP_cdm_0</span><span class="p">,</span>
+                                                  <span class="bp">self</span><span class="o">.</span><span class="n">lnk</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cosmo</span><span class="o">.</span><span class="n">h</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cosmo</span><span class="o">.</span><span class="n">omegac</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">__lnP_0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lnP_cdm_0</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__lnP_0</span>
+
+    <span class="nd">@_lnP_0.deleter</span>
+    <span class="k">def</span> <span class="nf">_lnP_0</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">__lnP_0</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">power</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">growth</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The growth factor :math:`d(z)`</span>
+<span class="sd">        </span>
+<span class="sd">        This is calculated (see Lukic 2007) as</span>
+<span class="sd">        </span>
+<span class="sd">        .. math:: d(z) = \frac{D^+(z)}{D^+(z=0)}</span>
+<span class="sd">                </span>
+<span class="sd">        where</span>
+<span class="sd">        </span>
+<span class="sd">        .. math:: D^+(z) = \frac{5\Omega_m}{2}\frac{H(z)}{H_0}\int_z^{\infty}{\frac{(1+z&#39;)dz&#39;}{[H(z&#39;)/H_0]^3}}</span>
+<span class="sd">        </span>
+<span class="sd">        and</span>
+<span class="sd">        </span>
+<span class="sd">        .. math:: H(z) = H_0\sqrt{\Omega_m (1+z)^3 + (1-\Omega_m)}</span>
+<span class="sd">        </span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__growth</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">z</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">__growth</span> <span class="o">=</span> <span class="n">tools</span><span class="o">.</span><span class="n">growth_factor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">z</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cosmo</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">__growth</span> <span class="o">=</span> <span class="mf">1.0</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__growth</span>
+
+    <span class="nd">@growth.deleter</span>
+<div class="viewcode-block" id="Transfer.growth"><a class="viewcode-back" href="../../api_docs/transfer.html#hmf.transfer.Transfer.growth">[docs]</a>    <span class="k">def</span> <span class="nf">growth</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">__growth</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">power</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="k">pass</span>
+</div>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">power</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Normalised log power spectrum [units :math:`Mpc^3/h^3`]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__power</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__power</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">growth</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lnP_0</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__power</span>
+
+    <span class="nd">@power.deleter</span>
+<div class="viewcode-block" id="Transfer.power"><a class="viewcode-back" href="../../api_docs/transfer.html#hmf.transfer.Transfer.power">[docs]</a>    <span class="k">def</span> <span class="nf">power</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">__power</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">delta_k</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+</div>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">transfer</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Normalised log transfer function for CDM/WDM</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__transfer</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__transfer</span> <span class="o">=</span> <span class="n">tools</span><span class="o">.</span><span class="n">wdm_transfer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">wdm_mass</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lnT_cdm</span><span class="p">,</span>
+                                                 <span class="bp">self</span><span class="o">.</span><span class="n">lnk</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cosmo</span><span class="o">.</span><span class="n">h</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cosmo</span><span class="o">.</span><span class="n">omegac</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__transfer</span>
+
+    <span class="nd">@transfer.deleter</span>
+<div class="viewcode-block" id="Transfer.transfer"><a class="viewcode-back" href="../../api_docs/transfer.html#hmf.transfer.Transfer.transfer">[docs]</a>    <span class="k">def</span> <span class="nf">transfer</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">__transfer</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+</div>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">delta_k</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Dimensionless power spectrum, :math:`\Delta_k = \frac{k^3 P(k)}{2\pi^2}`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__delta_k</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__delta_k</span> <span class="o">=</span> <span class="mi">3</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">lnk</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">power</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__delta_k</span>
+
+    <span class="nd">@delta_k.deleter</span>
+<div class="viewcode-block" id="Transfer.delta_k"><a class="viewcode-back" href="../../api_docs/transfer.html#hmf.transfer.Transfer.delta_k">[docs]</a>    <span class="k">def</span> <span class="nf">delta_k</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">__delta_k</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+</div>
+    <span class="nd">@property</span>
+<div class="viewcode-block" id="Transfer.nonlinear_power"><a class="viewcode-back" href="../../api_docs/transfer.html#hmf.transfer.Transfer.nonlinear_power">[docs]</a>    <span class="k">def</span> <span class="nf">nonlinear_power</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Non-linear log power [units :math:`Mpc^3/h^3`]</span>
+<span class="sd">        </span>
+<span class="sd">        Non-linear corrections come from HALOFIT (Smith2003) with updated</span>
+<span class="sd">        parameters from Takahashi2012. </span>
+<span class="sd">        </span>
+<span class="sd">        This code was heavily influenced by the HaloFit class from the </span>
+<span class="sd">        `chomp` python package by Christopher Morrison, Ryan Scranton </span>
+<span class="sd">        and Michael Schneider (&lt;https://code.google.com/p/chomp/&gt;_). It has </span>
+<span class="sd">        been modified to improve its integration with this package.        </span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__nonlinear_power</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="n">k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lnk</span><span class="p">)</span>
+            <span class="n">delta_k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">delta_k</span><span class="p">)</span>
+
+            <span class="c"># Define the cosmology at redshift</span>
+            <span class="n">omegam</span> <span class="o">=</span> <span class="n">cden</span><span class="o">.</span><span class="n">omega_M_z</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">z</span><span class="p">,</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">cosmo</span><span class="o">.</span><span class="n">cosmolopy_dict</span><span class="p">())</span>
+            <span class="n">omegav</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cosmo</span><span class="o">.</span><span class="n">omegav</span> <span class="o">/</span> <span class="n">cd</span><span class="o">.</span><span class="n">e_z</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">z</span><span class="p">,</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">cosmo</span><span class="o">.</span><span class="n">cosmolopy_dict</span><span class="p">())</span> <span class="o">**</span> <span class="mi">2</span>
+            <span class="n">w</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cosmo</span><span class="o">.</span><span class="n">w</span>
+
+            <span class="n">f1</span> <span class="o">=</span> <span class="n">omegam</span> <span class="o">**</span> <span class="o">-</span><span class="mf">0.0307</span>
+            <span class="n">f2</span> <span class="o">=</span> <span class="n">omegam</span> <span class="o">**</span> <span class="o">-</span><span class="mf">0.0585</span>
+            <span class="n">f3</span> <span class="o">=</span> <span class="n">omegam</span> <span class="o">**</span> <span class="mf">0.0743</span>
+
+            <span class="c"># Initialize sigma spline</span>
+            <span class="n">lnr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">0.1</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">10.0</span><span class="p">),</span> <span class="mi">1000</span><span class="p">)</span>
+            <span class="n">lnsig</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="mi">1000</span><span class="p">)</span>
+
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">lnr</span><span class="p">):</span>
+                <span class="n">R</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+                <span class="n">integrand</span> <span class="o">=</span> <span class="n">delta_k</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="n">k</span> <span class="o">*</span> <span class="n">R</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+                <span class="n">sigma2</span> <span class="o">=</span> <span class="n">integ</span><span class="o">.</span><span class="n">simps</span><span class="p">(</span><span class="n">integrand</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">k</span><span class="p">))</span>
+                <span class="n">lnsig</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">sigma2</span><span class="p">)</span>
+
+            <span class="n">r_of_sig</span> <span class="o">=</span> <span class="n">spline</span><span class="p">(</span><span class="n">lnsig</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">lnr</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">k</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+            <span class="n">ks</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">r_of_sig</span><span class="p">(</span><span class="mf">0.0</span><span class="p">))</span>
+            <span class="n">sig_of_r</span> <span class="o">=</span> <span class="n">spline</span><span class="p">(</span><span class="n">lnr</span><span class="p">,</span> <span class="n">lnsig</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+
+            <span class="p">(</span><span class="n">dev1</span><span class="p">,</span> <span class="n">dev2</span><span class="p">)</span> <span class="o">=</span> <span class="n">sig_of_r</span><span class="o">.</span><span class="n">derivatives</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">1.0</span> <span class="o">/</span> <span class="n">ks</span><span class="p">))[</span><span class="mi">1</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+
+            <span class="n">neff</span> <span class="o">=</span> <span class="o">-</span><span class="n">dev1</span> <span class="o">-</span> <span class="mf">3.0</span>
+            <span class="n">C</span> <span class="o">=</span> <span class="o">-</span><span class="n">dev2</span>
+
+            <span class="n">a_n</span> <span class="o">=</span> <span class="mi">10</span> <span class="o">**</span> <span class="p">(</span><span class="mf">1.5222</span> <span class="o">+</span> <span class="mf">2.8553</span> <span class="o">*</span> <span class="n">neff</span> <span class="o">+</span> <span class="mf">2.3706</span> <span class="o">*</span> <span class="n">neff</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">+</span>
+                    <span class="mf">0.9903</span> <span class="o">*</span> <span class="n">neff</span> <span class="o">**</span> <span class="mi">3</span> <span class="o">+</span> <span class="mf">0.2250</span> <span class="o">*</span> <span class="n">neff</span> <span class="o">**</span> <span class="mi">4</span> <span class="o">+</span>
+                    <span class="o">-</span> <span class="mf">0.6038</span> <span class="o">*</span> <span class="n">C</span> <span class="o">+</span> <span class="mf">0.1749</span> <span class="o">*</span> <span class="n">omegav</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">w</span><span class="p">))</span>
+            <span class="n">b_n</span> <span class="o">=</span> <span class="mi">10</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.5642</span> <span class="o">+</span> <span class="mf">0.5864</span> <span class="o">*</span> <span class="n">neff</span> <span class="o">+</span> <span class="mf">0.5716</span> <span class="o">*</span> <span class="n">neff</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">+</span>
+                    <span class="o">-</span> <span class="mf">1.5474</span> <span class="o">*</span> <span class="n">C</span> <span class="o">+</span> <span class="mf">0.2279</span> <span class="o">*</span> <span class="n">omegav</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">w</span><span class="p">))</span>
+            <span class="n">c_n</span> <span class="o">=</span> <span class="mi">10</span> <span class="o">**</span> <span class="p">(</span><span class="mf">0.3698</span> <span class="o">+</span> <span class="mf">2.0404</span> <span class="o">*</span> <span class="n">neff</span> <span class="o">+</span> <span class="mf">0.8161</span> <span class="o">*</span> <span class="n">neff</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">+</span> <span class="mf">0.5869</span> <span class="o">*</span> <span class="n">C</span><span class="p">)</span>
+            <span class="n">gamma_n</span> <span class="o">=</span> <span class="mf">0.1971</span> <span class="o">-</span> <span class="mf">0.0843</span> <span class="o">*</span> <span class="n">neff</span> <span class="o">+</span> <span class="mf">0.8460</span> <span class="o">*</span> <span class="n">C</span>
+            <span class="n">alpha_n</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fabs</span><span class="p">(</span><span class="mf">6.0835</span> <span class="o">+</span> <span class="mf">1.3373</span> <span class="o">*</span> <span class="n">neff</span> <span class="o">-</span> <span class="mf">0.1959</span> <span class="o">*</span> <span class="n">neff</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">+</span>
+                    <span class="o">-</span> <span class="mf">5.5274</span> <span class="o">*</span> <span class="n">C</span><span class="p">)</span>
+            <span class="n">beta_n</span> <span class="o">=</span> <span class="p">(</span><span class="mf">2.0379</span> <span class="o">-</span> <span class="mf">0.7354</span> <span class="o">*</span> <span class="n">neff</span> <span class="o">+</span> <span class="mf">0.3157</span> <span class="o">*</span> <span class="n">neff</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">+</span>
+                      <span class="mf">1.2490</span> <span class="o">*</span> <span class="n">neff</span> <span class="o">**</span> <span class="mi">3</span> <span class="o">+</span> <span class="mf">0.3980</span> <span class="o">*</span> <span class="n">neff</span> <span class="o">**</span> <span class="mi">4</span> <span class="o">-</span> <span class="mf">0.1682</span> <span class="o">*</span> <span class="n">C</span><span class="p">)</span>
+            <span class="n">mu_n</span> <span class="o">=</span> <span class="mf">0.0</span>
+            <span class="n">nu_n</span> <span class="o">=</span> <span class="mi">10</span> <span class="o">**</span> <span class="p">(</span><span class="mf">5.2105</span> <span class="o">+</span> <span class="mf">3.6902</span> <span class="o">*</span> <span class="n">neff</span><span class="p">)</span>
+
+            <span class="n">y</span> <span class="o">=</span> <span class="n">k</span> <span class="o">/</span> <span class="n">ks</span>
+            <span class="n">fk</span> <span class="o">=</span> <span class="n">y</span> <span class="o">/</span> <span class="mf">4.0</span> <span class="o">+</span> <span class="n">y</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">/</span> <span class="mf">8.0</span>
+
+            <span class="n">delta2Q</span> <span class="o">=</span> <span class="n">delta_k</span> <span class="o">*</span> <span class="p">((</span><span class="mi">1</span> <span class="o">+</span> <span class="n">delta_k</span><span class="p">)</span> <span class="o">**</span> <span class="n">beta_n</span> <span class="o">/</span>
+                                 <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">alpha_n</span> <span class="o">*</span> <span class="n">delta_k</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">fk</span><span class="p">))</span>
+
+            <span class="n">delta2Hprime</span> <span class="o">=</span> <span class="n">a_n</span> <span class="o">*</span> <span class="n">y</span> <span class="o">**</span> <span class="p">(</span><span class="mi">3</span> <span class="o">*</span> <span class="n">f1</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">b_n</span> <span class="o">*</span> <span class="n">y</span> <span class="o">**</span> <span class="n">f2</span> <span class="o">+</span>
+                                                  <span class="p">(</span><span class="n">c_n</span> <span class="o">*</span> <span class="n">f3</span> <span class="o">*</span> <span class="n">y</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span><span class="mi">3</span> <span class="o">-</span> <span class="n">gamma_n</span><span class="p">))</span>
+
+            <span class="n">delta2H</span> <span class="o">=</span> <span class="n">delta2Hprime</span> <span class="o">/</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">mu_n</span> <span class="o">/</span> <span class="n">y</span> <span class="o">+</span> <span class="n">nu_n</span> <span class="o">/</span> <span class="n">y</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">__nonlinear_power</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">/</span> <span class="n">k</span> <span class="o">**</span> <span class="mi">3</span> <span class="o">*</span>
+                                            <span class="p">(</span><span class="n">delta2Q</span> <span class="o">+</span> <span class="n">delta2H</span><span class="p">))</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__nonlinear_power</span>
+</pre></div></div></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../../np-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">hmf 1.1.10 documentation</a> &raquo;</li>
+          <li><a href="../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2013, Steven Murray.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>

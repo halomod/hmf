@@ -1,8 +1,3 @@
-'''
-Created on Aug 29, 2013
-
-@author: Steven
-'''
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from cosmolopy import density as cden
@@ -10,21 +5,21 @@ from cosmolopy import density as cden
 # TODO: check out units for boundaries (ie. whether they should be log or ln 1/sigma or M/h or M)
 class Fits(object):
     """
-    Calculates :math:`f(\sigma)` given a `Perturbations` instance.
+    Calculates :math:`f(\sigma)` given a `MassFunction` instance.
     
     The class simplifies the choosing of the fitting function through a simple
     mapping of string identifiers.
     
     Parameters
     ----------
-    pert : `hmf.Perturbations` instance
+    hmf : `hmf.MassFunction` instance
         This object contains everything that is needed to 
         calculate :math:`f(\sigma)` -- the mass variance, redshift etc.
         
     cut_fit : bool, optional, default ``True``
         Determines whether the function is cut at appropriate mass limits, 
         given by the respective publication for each fit. Though it is included
-        in the `pert` argument, one can specify it explicitly here for more 
+        in the `hmf` argument, one can specify it explicitly here for more 
         flexibility.
     
     """
@@ -34,12 +29,12 @@ class Fits(object):
                "Angulo", "Angulo_Bound", "Tinker", "Watson_FoF", "Watson", "Crocce",
                "Courtin", "Bhattacharya", "user_model", ]
 
-    def __init__(self, pert, cut_fit=True):
+    def __init__(self, hmf, cut_fit=True):
         # We explicitly pass cut fit even though its in the Perturbations object
         # since it may be changed more flexibly.
         self.cut_fit = cut_fit
-        self.pert = pert
-        self._cp = pert.cosmo_params
+        self.pert = hmf
+        self._cp = hmf.transfer.cosmo
 
     def nufnu(self):
         """
@@ -194,8 +189,6 @@ class Fits(object):
         A = 0.3222
         p = 0.3
 
-        print "len n_eff", len(self.pert.n_eff)
-        print "len nu", len(nu)
 
         vfv = A * np.sqrt(2.0 * a / np.pi) * \
             (1.0 + (1.0 / (a * nu ** 2)) ** p + 0.6 * G_1 + 0.4 * G_2) * nu * \
@@ -345,17 +338,17 @@ class Fits(object):
         b_0 = b_func(self.pert.delta_halo)
         c_0 = c_func(self.pert.delta_halo)
 
-        A = A_0 * (1 + self.pert.z) ** (-0.14)
-        a = a_0 * (1 + self.pert.z) ** (-0.06)
+        A = A_0 * (1 + self.pert.transfer.z) ** (-0.14)
+        a = a_0 * (1 + self.pert.transfer.z) ** (-0.06)
         alpha = np.exp(-(0.75 / np.log(self.pert.delta_halo / 75)) ** 1.2)
-        b = b_0 * (1 + self.pert.z) ** (-alpha)
+        b = b_0 * (1 + self.pert.transfer.z) ** (-alpha)
         c = c_0
 
 
         vfv = A * ((self.pert.sigma / b) ** (-a) + 1) * np.exp(-c / self.pert.sigma ** 2)
 
         if self.cut_fit:
-            if self.pert.z == 0.0:
+            if self.pert.transfer.z == 0.0:
                 vfv[np.logical_or(self.pert.lnsigma / np.log(10) < -0.6 ,
                                   self.pert.lnsigma / np.log(10) > 0.4)] = np.nan
             else:
@@ -368,7 +361,7 @@ class Fits(object):
         Calculate :math:`\Gamma` for the Watson fit.
         """
         C = np.exp(0.023 * (self.pert.delta_halo / 178 - 1))
-        d = -0.456 * cden.omega_M_z(self.z, **self.pert.cosmo_params.cosmolopy_dict()) - 0.139
+        d = -0.456 * cden.omega_M_z(self.pert.transfer.z, **self.pert.transfer.cosmo.cosmolopy_dict()) - 0.139
         p = 0.072
         q = 2.13
 
@@ -409,24 +402,24 @@ class Fits(object):
         vfv : array_like, len=len(pert.M)
             The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
         """
-        if self.pert.z == 0:
+        if self.pert.transfer.z == 0:
             A = 0.194
             alpha = 2.267
             beta = 1.805
             gamma = 1.287
-        elif self.pert.z > 6:
+        elif self.pert.transfer.z > 6:
             A = 0.563
             alpha = 0.874
             beta = 3.810
             gamma = 1.453
         else:
-            omz = cden.omega_M_z(self.z, **self.pert.cosmo_params.cosmolopy_dict())
-            A = omz * (1.097 * (1 + self.pert.z) ** (-3.216) + 0.074)
-            alpha = omz * (3.136 * (1 + self.pert.z) ** (-3.058) + 2.349)
-            beta = omz * (5.907 * (1 + self.pert.z) ** (-3.599) + 2.344)
+            omz = cden.omega_M_z(self.pert.transfer.z, **self.pert.transfer.cosmo.cosmolopy_dict())
+            A = omz * (1.097 * (1 + self.pert.transfer.z) ** (-3.216) + 0.074)
+            alpha = omz * (3.136 * (1 + self.pert.transfer.z) ** (-3.058) + 2.349)
+            beta = omz * (5.907 * (1 + self.pert.transfer.z) ** (-3.599) + 2.344)
             gamma = 1.318
 
-        vfv = self._watson_gamma() * A * ((beta / self.pertsigma) ** alpha + 1) * \
+        vfv = self._watson_gamma() * A * ((beta / self.pert.sigma) ** alpha + 1) * \
                  np.exp(-gamma / self.pert.sigma ** 2)
 
         if self.cut_fit:
@@ -448,10 +441,10 @@ class Fits(object):
         vfv : array_like, len=len(pert.M)
             The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
         """
-        A = 0.58 * (1 + self.pert.z) ** (-0.13)
-        a = 1.37 * (1 + self.pert.z) ** (-0.15)
-        b = 0.3 * (1 + self.pert.z) ** (-0.084)
-        c = 1.036 * (1 + self.pert.z) ** (-0.024)
+        A = 0.58 * (1 + self.pert.transfer.z) ** (-0.13)
+        a = 1.37 * (1 + self.pert.transfer.z) ** (-0.15)
+        b = 0.3 * (1 + self.pert.transfer.z) ** (-0.084)
+        c = 1.036 * (1 + self.pert.transfer.z) ** (-0.024)
 
         vfv = A * (self.pert.sigma ** (-a) + b) * np.exp(-c / self.pert.sigma ** 2)
         return vfv
@@ -494,8 +487,8 @@ class Fits(object):
         vfv : array_like, len=len(pert.M)
             The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
         """
-        A = 0.333 * (1 + self.pert.z) ** -0.11
-        a = 0.788 * (1 + self.pert.z) ** -0.01
+        A = 0.333 * (1 + self.pert.transfer.z) ** -0.11
+        a = 0.788 * (1 + self.pert.transfer.z) ** -0.01
         p = 0.807
         q = 1.795
 

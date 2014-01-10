@@ -2,61 +2,42 @@
 hmf
 ===
 
+**The halo mass function calculator**
+
 .. image:: https://travis-ci.org/steven-murray/hmf.png?branch=master   
 		:target: https://travis-ci.org/steven-murray/hmf
-		
-``hmf`` is a python application that provides a flexible and simple way to calculate the 
+.. image:: https://pypip.in/d/hmf/badge.png
+        :target: https://pypi.python.org/pypi/hmf/
+.. image:: https://pypip.in/v/hmf/badge.png
+        :target: https://pypi.python.org/pypi/hmf/
+        
+`hmf` is a python application that provides a flexible and simple way to calculate the 
 Halo Mass Function for any input cosmology, redshift, dark matter model, virial
 overdensity or several other variables. Addition of further variables should be simple. 
 
-It is also the backend to HMFcalc, the online HMF calculator at <hmf.icrar.org>
+It is also the backend to `HMFcalc`, the online HMF calculator at <hmf.icrar.org>.
 
+Documentation
+-------------
+There will be documentation soon.
 
-INSTALLATION
-------------
-1. Install all requirements in requirements.txt (all except pycamb can be 
-	installed using pip)
-1. To install pycamb:
-	>>> cd <Directory that pycamb source will live in>
-	>>> git clone https://github.com/steven-murray/pycamb **you'll need this fork
-	>>> cd pycamb
-	>>> [sudo] python setup.py install [--get=www.address-where-camb-code-lives.org]
-	
-	The final command gives the option of automatically downloading and 
-	compiling CAMB while installing pycamb. It cannot be done more automatically
-	at this point due to licensing. Alternatively, if one does not know the 
-	location of the camb downloads, go to camb.info and follow the instructions.
-	Download the source directory to your pycamb folder, and untar it there.
-	Then use ``python setup.py install" and it should work.
-2.	``pip install hmf``
-    
-    
-USAGE
------
-`hmf` can be used interactively (for instance in ipython) or in a script. 
-To use interactively, in ipython do something like the following:
+Attribution
+-----------
+Please cite `Murray, Power and Robotham (2013)
+<http://http://arxiv.org/abs/1306.6721>`_ if you find this code useful in your
+research
 
->>> from hmf import Perturbations
->>> pert = Perturbations()
->>> mass_func = pert.dndlnm
->>> mass_variance = pert.sigma
->>> ...
+License
+-------
+Copyright (c) 2014, Steven Murray. 
 
-This will return a Sheth-Tormen mass function between 10^10 and 10^15 M_sun, 
-at redshift 0 for a default cosmology. Cosmological parameters may be passed 
-to the initialiser, ``Perturbations()``
-
-To change the parameters (cosmological or otherwise), one should use the 
-`update()` method, if a Perturbations() object already exists. For example
- >>> pert = Perturbations()
- >>> pert.update(omegab = 0.05,z=10) #update baryon density and redshift
- >>> cumulative_mass_func = pert.ngtm
-
-Check the docstring of `Perturbations()` for all arguments allowed. 
+See LICENSE.txt for details.
 
 
 HISTORY
 -------
+1.3.2 - 
+		
 1.3.1 - January 06, 2014
 		Fixed bug in transfer read-in introduced in 1.3.0
 		
