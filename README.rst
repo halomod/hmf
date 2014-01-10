@@ -37,7 +37,8 @@ See LICENSE.txt for details.
 HISTORY
 -------
 1.4.2 - January 10, 2014
-		Mocked imports of cosmolopy, scipy and numpy for setup
+		Mocked imports of cosmolopy for setup
+		Cleaner imports of cosmolopy
 		
 1.4.1 - January 10,2014
 		Updated setup requirements and fixed a few tests

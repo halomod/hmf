@@ -16,8 +16,7 @@ import numpy as np
 from numpy import sin, cos, tan, abs, arctan, arccos, arcsin, exp
 import copy
 
-from cosmolopy import distance as cd
-from cosmolopy import density as cden
+import cosmolopy as cp
 import tools
 from fitting_functions import Fits
 from transfer import Transfer
@@ -316,9 +315,9 @@ class MassFunction(object):
                 self.__delta_halo = self.delta_h
 
             elif self.delta_wrt == 'crit':
-                print cden.omega_M_z(self.transfer.z, **self.cosmo.cosmolopy_dict())
+                print cp.density.omega_M_z(self.transfer.z, **self.cosmo.cosmolopy_dict())
                 print self.cosmo.cosmolopy_dict()
-                self.__delta_halo = self.delta_h / cden.omega_M_z(self.transfer.z, **self.cosmo.cosmolopy_dict())
+                self.__delta_halo = self.delta_h / cp.density.omega_M_z(self.transfer.z, **self.cosmo.cosmolopy_dict())
             return self.__delta_halo
 
     @delta_halo.deleter
@@ -497,7 +496,7 @@ class MassFunction(object):
                 zcentres = (zedges[:-1] + zedges[1:]) / 2
                 dndm = np.zeros_like(zcentres)
                 vol = np.zeros_like(zedges)
-                vol[0] = cd.comoving_volume(self.transfer.z,
+                vol[0] = cp.distance.comoving_volume(self.transfer.z,
                                             **self.cosmo.cosmolopy_dict())
                 for i, zz in enumerate(zcentres):
                     self.update(z=zz)
@@ -510,7 +509,7 @@ class MassFunction(object):
                         dthetadM = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (0.5 / (1 + np.exp(6.5 * a))) * (self.M / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)) - 1) / (10 ** 11.5)
                         dndm[i] = dndm[i] * 10 ** theta - ngtm_behroozi * np.log(10) * dthetadM
 
-                    vol[i + 1] = cd.comoving_volume(z=zedges[i + 1],
+                    vol[i + 1] = cp.distance.comoving_volume(z=zedges[i + 1],
                                                     **self.cosmo.cosmolopy_dict())
 
                 vol = vol[1:] - vol[:-1]  # Volume in shells
