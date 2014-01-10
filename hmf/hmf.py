@@ -1,7 +1,7 @@
 '''
 This is the primary module for user-interaction with the `hmf` package.
 
-The module contains a single class, `Perturbations`, which wraps almost all the
+The module contains a single class, `MassFunction`, which wraps almost all the
 functionality of `hmf` in an easy-to-use way.
 '''
 
@@ -479,7 +479,7 @@ class MassFunction(object):
         try:
             return self.__dndm
         except:
-            if self.transfer.z2 is None:  # #This is normally the case
+            if self.z2 is None:  # #This is normally the case
                 self.__dndm = self.fsigma * self.cosmo.mean_dens * np.abs(self._dlnsdlnm) / self.M ** 2
                 if self.mf_fit == 'Behroozi':
                     a = 1 / (1 + self.transfer.z)
@@ -493,7 +493,7 @@ class MassFunction(object):
             else:  # #This is for a survey-volume weighted calculation
                 if self.nz is None:
                     self.nz = 10
-                zedges = np.linspace(self.transfer.z, self.transfer.z2, self.nz)
+                zedges = np.linspace(self.transfer.z, self.z2, self.nz)
                 zcentres = (zedges[:-1] + zedges[1:]) / 2
                 dndm = np.zeros_like(zcentres)
                 vol = np.zeros_like(zedges)
