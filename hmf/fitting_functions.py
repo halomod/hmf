@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
-from cosmolopy import density as cden
+import cosmolopy as cp
 
 # TODO: check out units for boundaries (ie. whether they should be log or ln 1/sigma or M/h or M)
 class Fits(object):
@@ -340,7 +340,7 @@ class Fits(object):
 
         A = A_0 * (1 + self.pert.transfer.z) ** (-0.14)
         a = a_0 * (1 + self.pert.transfer.z) ** (-0.06)
-        alpha = np.exp(-(0.75 / np.log(self.pert.delta_halo / 75)) ** 1.2)
+        alpha = 10 ** (-(0.75 / np.log10(self.pert.delta_halo / 75)) ** 1.2)
         b = b_0 * (1 + self.pert.transfer.z) ** (-alpha)
         c = c_0
 
@@ -361,7 +361,7 @@ class Fits(object):
         Calculate :math:`\Gamma` for the Watson fit.
         """
         C = np.exp(0.023 * (self.pert.delta_halo / 178 - 1))
-        d = -0.456 * cden.omega_M_z(self.pert.transfer.z, **self.pert.transfer.cosmo.cosmolopy_dict()) - 0.139
+        d = -0.456 * cp.density.omega_M_z(self.pert.transfer.z, **self.pert.transfer.cosmo.cosmolopy_dict()) - 0.139
         p = 0.072
         q = 2.13
 
@@ -413,7 +413,7 @@ class Fits(object):
             beta = 3.810
             gamma = 1.453
         else:
-            omz = cden.omega_M_z(self.pert.transfer.z, **self.pert.transfer.cosmo.cosmolopy_dict())
+            omz = cp.density.omega_M_z(self.pert.transfer.z, **self.pert.transfer.cosmo.cosmolopy_dict())
             A = omz * (1.097 * (1 + self.pert.transfer.z) ** (-3.216) + 0.074)
             alpha = omz * (3.136 * (1 + self.pert.transfer.z) ** (-3.058) + 2.349)
             beta = omz * (5.907 * (1 + self.pert.transfer.z) ** (-3.599) + 2.344)

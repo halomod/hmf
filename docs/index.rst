@@ -13,24 +13,14 @@ It is also the backend to `HMFcalc <http://hmf.icrar.org>`_, the online HMF calc
 
 Installation
 ------------
-There are several requirements to install to use `hmf`, as we have operated on
-the principle of not re-inventing the wheel. 
-
-The dependencies will not automatically install when installing the `hmf` 
-package, because this can create other problems, so you'll need to do it yourself.
-Don't worry, it's mostly pretty easy. Just use `pip`, skipping anything you 
-alread have:
-
-1. ``pip install numpy``
-2. ``pip install scitools``
-3. ``pip install scipy``
-4. ``pip install cosmolopy``
-5. ``pip install emcee``
+`hmf` is built on several other packages, most of which will be familiar to the
+scientific python programmer. All of these dependencies *should* be automatically
+installed when installing `hmf`, except for one. Explicitly, the dependencies are
+numpy, scipy, scitools, cosmolopy and emcee. 
 
 You will only need `emcee` if you are going to be using the fitting capabilities
-of `hmf`. Once these are installed, there is a final dependency, pycamb, which is
-a little more involved. It is not mandatory to install, but does provide some good
-features. To install pycamb::
+of `hmf`. The final, optional, library is pycamb, which can not be installed 
+using pip currently. To install pycamb::
 
 	cd <Directory that pycamb source will live in>
 	git clone https://github.com/steven-murray/pycamb

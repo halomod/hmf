@@ -48,7 +48,7 @@ setup(
     author_email="steven.murray@uwa.edu.au",
     description="A halo mass function calculator",
     long_description=read('README.rst'),
-    license=read("LICENSE.txt"),
+    license="MIT",
     keywords="halo mass function",
     url="https://github.com/steven-murray/hmf",
     # could also include long_description, download_url, classifiers, etc.

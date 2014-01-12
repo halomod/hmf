@@ -15,17 +15,17 @@ hmf
 Halo Mass Function for any input cosmology, redshift, dark matter model, virial
 overdensity or several other variables. Addition of further variables should be simple. 
 
-It is also the backend to `HMFcalc`, the online HMF calculator at <hmf.icrar.org>.
+It is also the backend to `HMFcalc`, the online HMF calculator at http://hmf.icrar.org.
 
 Documentation
 -------------
-There will be documentation soon.
+You can find the documentation at http://hmf.readthedocs.org
 
 Attribution
 -----------
 Please cite `Murray, Power and Robotham (2013)
 <http://http://arxiv.org/abs/1306.6721>`_ if you find this code useful in your
-research
+research.
 
 License
 -------
@@ -36,6 +36,14 @@ See LICENSE.txt for details.
 
 HISTORY
 -------
+1.4.4 - 
+		Fixed a bug in the Tinker function (log was meant to be log10)
+			-- thanks to Sebastian Bocquet for pointing this out!
+		Updated this README
+		
+1.4.3 - January 10, 2014
+		Changed license in setup
+		
 1.4.2 - January 10, 2014
 		Mocked imports of cosmolopy for setup
 		Cleaner imports of cosmolopy

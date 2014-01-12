@@ -12,7 +12,7 @@ flexibility.
 import numpy as np
 import scipy.integrate as intg
 import collections
-import cosmolopy.distance as cdist
+import cosmolopy as cp
 
 #===============================================================================
 # Functions
@@ -352,10 +352,10 @@ def d_plus(z, cosmo):
     lna = np.linspace(np.log(1e-8), np.log(a_upper), 1000)
     z_vec = 1.0 / np.exp(lna) - 1.0
 
-    integrand = 1.0 / (np.exp(lna) * cdist.e_z(z_vec, **cdict)) ** 3
+    integrand = 1.0 / (np.exp(lna) * cp.distance.e_z(z_vec, **cdict)) ** 3
 
     integral = intg.simps(np.exp(lna) * integrand, dx=lna[1] - lna[0])
-    dplus = 5.0 * cosmo.omegam * cdist.e_z(z, **cdict) * integral / 2.0
+    dplus = 5.0 * cosmo.omegam * cp.distance.e_z(z, **cdict) * integral / 2.0
 
     return dplus
 
