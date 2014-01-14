@@ -104,11 +104,11 @@ class MassFunction(object):
         if M is None:
             M = np.linspace(10, 15, 501)
 
-        # A list of all available kwargs (these are sent to the Cosmology class)
+        # A list of all available kwargs (sent to Cosmology via Transfer)
         self._cp = ["sigma_8", "n", "w", "cs2_lam", "t_cmb", "y_he", "N_nu",
                     "omegan", "H0", "h", "omegab",
                     "omegac", "omegav", "omegab_h2", "omegac_h2",
-                    "force_flat"]
+                    "force_flat", "default"]
 
         # Set up a simple dictionary of kwargs which can be later updated
         self._cpdict = {k:v for k, v in kwargs.iteritems() if k in self._cp}

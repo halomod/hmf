@@ -40,6 +40,9 @@ HISTORY
 		Fixed a bug in the Tinker function (log was meant to be log10)
 			-- thanks to Sebastian Bocquet for pointing this out!
 		Updated this README
+		Made updating Cosmology simpler.
+		Added ability to change the default cosmology parameters
+		Fixed a bug in updating n and sigma_8 on their own (introduced in 1.4.0)
 		
 1.4.3 - January 10, 2014
 		Changed license in setup

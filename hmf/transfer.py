@@ -112,13 +112,14 @@ class Transfer(object):
         :omegab: [``omegab_h2/h**2``] The normalised baryon density
         :omegac: [``omegac_h2/h**2``] The normalised CDM density     
         :force_flat: [False] Whether to force the cosmology to be flat (affects only ``omegav``)
+        :default: [``"planck1_base"``] A default set of cosmological parameters
     '''
 
     fits = ["CAMB", "EH", "bbks", "bond_efs"]
     _cp = ["sigma_8", "n", "w", "cs2_lam", "t_cmb", "y_he", "N_nu",
            "omegan", "H0", "h", "omegab",
            "omegac", "omegav", "omegab_h2", "omegac_h2",
-           "force_flat"]
+           "force_flat", "default"]
 
     def __init__(self, z=0.0, lnk=None,
                  wdm_mass=None, transfer_fit='CAMB',
@@ -131,7 +132,10 @@ class Transfer(object):
 
         if lnk is None:
             lnk = np.linspace(np.log(1e-8), np.log(2e4), 250)
-        # Set up a simple dictionary of kwargs which can be later updated
+        # Set up a simple dictionary of cosmo params which can be later updated
+        if "default" not in kwargs:
+            kwargs["default"] = "planck1_base"
+
         self._cpdict = {k:v for k, v in kwargs.iteritems() if k in Transfer._cp}
         self._camb_options = {'Scalar_initial_condition' : initial_mode,
                               'scalar_amp'      : 1E-9,
@@ -143,12 +147,26 @@ class Transfer(object):
                               'ThreadNum':ThreadNum}
 
 
-        # Set all given parameters (except camb options and cosmology)
+
+        # Set all given parameters
         self.lnk = lnk
         self.wdm_mass = wdm_mass
         self.z = z
         self.transfer_fit = transfer_fit
-        self.cosmo = Cosmology(default="planck1_base", **self._cpdict)
+        self.cosmo = Cosmology(**self._cpdict)
+
+        # Here we store the values (with defaults) into _cpdict so they can be updated later.
+        if "omegab" in kwargs:
+            actual_cosmo = {k:v for k, v in self.cosmo.__dict__.iteritems()
+                            if k in Transfer._cp and k not in ["omegab_h2", "omegac_h2"]}
+        else:
+            actual_cosmo = {k:v for k, v in self.cosmo.__dict__.iteritems()
+                            if k in Transfer._cp and k not in ["omegab", "omegac"]}
+        if "h" in kwargs:
+            del actual_cosmo["H0"]
+        elif "H0" in kwargs:
+            del actual_cosmo["h"]
+        self._cpdict.update(actual_cosmo)
 
     def update(self, **kwargs):
         """
@@ -173,14 +191,16 @@ class Transfer(object):
                 del kwargs[k]
 
             # Now actually update the Cosmology class
-            self.cosmo = Cosmology(default="planck1_base", **self._cpdict)
+            self.cosmo = Cosmology(**self._cpdict)
 
             # The following two parameters don't necessitate a complete recalculation
             if "n" in true_cp:
-                try: del self._unnormalized_lnP
+                try: del self._unnormalised_lnP
                 except AttributeError: pass
             if "sigma_8" in true_cp:
-                try: del self.normalisation
+                try: del self._lnP_cdm_0
+                except AttributeError: pass
+                try: del self._lnT_cdm
                 except AttributeError: pass
 
             # All other parameters mean recalculating everything :(
@@ -574,6 +594,7 @@ class Transfer(object):
     def delta_k(self):
         try:
             del self.__delta_k
+            del self.nonlinear_power
         except AttributeError:
             pass
 
@@ -653,3 +674,9 @@ class Transfer(object):
                                             (delta2Q + delta2H))
             return self.__nonlinear_power
 
+    @nonlinear_power.deleter
+    def nonlinear_power(self):
+        try:
+            del self.__nonlinear_power
+        except AttributeError:
+            pass

@@ -72,6 +72,8 @@ class Cosmology(object):
     """
     # A dictionary of bounds for each parameter
     # This also forms a list of all parameters possible
+    # Note that just because a parameter is within these bounds doesn't mean
+    # it will actually work in say CAMB.
     _bounds = {"sigma_8":[0.1, 10],
               "n":[-3, 4],
               "w":[-1.5, 0],
@@ -85,12 +87,12 @@ class Cosmology(object):
               "omegan":[0, 1],
               "h":[0.05, 5],
               "H0":[5, 500],
-              "omegab":[0.001, 1],
+              "omegab":[0.0001, 1],
               "omegac":[0, 2],
               "omegav":[0, 2],
-              "omegam":[0.001, 3],
-              "omegab_h2":[0.001, 0.5],
-              "omegac_h2":[0, 1]}
+              "omegam":[0.0001, 3],
+              "omegab_h2":[0.0001, 1],
+              "omegac_h2":[0, 2]}
 
     def __init__(self, default=None, force_flat=False, **kwargs):
 
@@ -101,8 +103,6 @@ class Cosmology(object):
         # Set some simple parameters
         self.force_flat = force_flat
         self.crit_dens = 27.755e10
-
-
 
         #=======================================================================
         # Check values in kwargs
