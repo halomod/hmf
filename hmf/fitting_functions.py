@@ -27,7 +27,7 @@ class Fits(object):
     # be included here (eg. SMT and ST)
     mf_fits = ["PS", "SMT", "ST", "Warren", "Jenkins", "Reed03", "Reed07", "Peacock",
                "Angulo", "Angulo_Bound", "Tinker", "Watson_FoF", "Watson", "Crocce",
-               "Courtin", "Bhattacharya", "user_model", ]
+               "Courtin", "Bhattacharya", "user_model", "Behroozi"]
 
     def __init__(self, hmf, cut_fit=True):
         # We explicitly pass cut fit even though its in the Perturbations object
@@ -501,6 +501,9 @@ class Fits(object):
                               self.pert.M > 3 * 10 ** 15)] = np.NaN
 
         return vfv
+
+    def _nufnu_Behroozi(self):
+        return self._nufnu_Tinker()
 
     def _nufnu_user_model(self):
         """

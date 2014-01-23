@@ -5,7 +5,7 @@ The module contains a single class, `MassFunction`, which wraps almost all the
 functionality of `hmf` in an easy-to-use way.
 '''
 
-version = '1.4.3'
+version = '1.4.4'
 
 ###############################################################################
 # Some Imports
@@ -178,6 +178,25 @@ class MassFunction(object):
         del self._sigma_0
         self.__M = 10 ** val
 
+    @property
+    def delta_c(self):
+        return self.__delta_c
+
+    @delta_c.setter
+    def delta_c(self, val):
+        try:
+            val = float(val)
+        except ValueError:
+            raise ValueError("delta_c must be a number: ", val)
+
+        if val <= 0:
+            raise ValueError("delta_c must be > 0 (", val, ")")
+        if val > 10.0:
+            raise ValueError("delta_c must be < 10.0 (", val, ")")
+
+        self.__delta_h = val
+
+        del self.fsigma
     @property
     def mf_fit(self):
         return self.__mf_fit
@@ -453,6 +472,7 @@ class MassFunction(object):
             fits_class = Fits(self, self.cut_fit)
             self.__fsigma = fits_class.nufnu()
 
+            print type(self.__fsigma)
             if np.sum(np.isnan(self.__fsigma)) > 0.8 * len(self.__fsigma):
                 # the input mass range is almost completely outside the cut
                 self.massrange_error = "The specified mass-range was almost entirely outside of the limits from the fit. Ignored fit range..."
