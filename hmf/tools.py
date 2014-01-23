@@ -13,6 +13,7 @@ import numpy as np
 import scipy.integrate as intg
 import collections
 import cosmolopy as cp
+import itertools
 
 #===============================================================================
 # Functions
@@ -380,3 +381,54 @@ def growth_factor(z, cosmo):
     growth = d_plus(z, cosmo) / d_plus(0.0, cosmo)
 
     return growth
+
+
+def get_hmf(required_attrs, **kwargs):
+    """
+    Yield :class:`hmf.MassFunction` objects for all combinations of parameters supplied.
+    """
+    from hmf import MassFunction
+
+    order = ["delta_h", "delta_wrt", "delta_c", "user_fit", "mf_fit", "cut_fit",
+             "z2", "nz", "z", "M", "wdm_mass", "sigma_8", "n", "lnk", "transfer_fit"][::-1]
+
+    ordered_kwargs = collections.OrderedDict([])
+    for item in order:
+        try:
+            if isinstance(kwargs[item], (list, tuple)):
+                ordered_kwargs[item] = kwargs.pop(item)
+        except KeyError:
+            pass
+    # # add the rest in any order
+    for k in kwargs:
+        if isinstance(kwargs[k], (list, tuple)):
+            ordered_kwargs[k] = kwargs.pop(k)
+
+    ordered_list = [ordered_kwargs[k] for k in ordered_kwargs]
+
+    # # Now ordered_kwargs contains an ordered dict of list values, and kwargs
+    # # has an unordered dict of singular values
+
+    final_list = [dict(zip(ordered_kwargs.keys(), v)) for v in itertools.product(*ordered_list)]
+
+    # We want the highest possible wanted attribute
+    if not isinstance(required_attrs, (list, tuple)):
+        attribute = required_attrs
+    else:
+        attrs = ["ngtm", "mgtm", "mltm", "nltm", "how_big", "dndlnm", "dndlog10m", "dndm",
+             "sigma", "dlnsdlnm"]
+        for a in attrs:
+            if a in required_attrs:
+                attribute = a
+
+    h = MassFunction(**kwargs)
+
+    for vals in final_list:
+        h.update(**vals)
+        if len(final_list) > 1:
+            label = str(vals)
+        else:
+            label = str(kwargs)
+        label = label.replace("{", "").replace("}", "").replace("'", "").replace("_", "").replace(": ", "=")
+        getattr(h, attribute)
+        yield h, label

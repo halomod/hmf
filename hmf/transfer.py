@@ -339,10 +339,8 @@ class Transfer(object):
         .. note :: This should not be called by the user!
         """
         T = np.log(np.genfromtxt(self.transfer_fit)[:, [0, 6]].T)
-
-        lnk, lnT = self._check_low_k(np.log(T[0, :]), np.log(T[1, :]))
-
-        return spline(lnk, lnT, k=1)(self.lnk)
+        lnk, lnT = self._check_low_k(T[0, :], T[1, :])
+        return spline(lnk, lnT, k=1)(k)
 
     def _CAMB(self, k):
         """
@@ -409,8 +407,10 @@ class Transfer(object):
         try:
             return self.__unnormalised_lnT
         except AttributeError:
-            self.__unnormalised_lnT = getattr(self, "_" + self.transfer_fit)(self.lnk)
-
+            try:
+                self.__unnormalised_lnT = getattr(self, "_" + self.transfer_fit)(self.lnk)
+            except AttributeError:
+                self.__unnormalised_lnT = self._from_file(self.lnk)
             return self.__unnormalised_lnT
 
     @_unnormalised_lnT.deleter
