@@ -194,7 +194,7 @@ class MassFunction(object):
         if val > 10.0:
             raise ValueError("delta_c must be < 10.0 (", val, ")")
 
-        self.__delta_h = val
+        self.__delta_c = val
 
         del self.fsigma
     @property
