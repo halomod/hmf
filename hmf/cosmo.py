@@ -97,6 +97,7 @@ class Cosmology(object):
     def __init__(self, default=None, force_flat=False, **kwargs):
 
         # Map the 'default' cosmology to its dictionary
+        self.default = default
         if default == "planck1_base":
             self.__base = dict(planck1_base, **extras)
 

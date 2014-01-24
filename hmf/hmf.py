@@ -1,11 +1,11 @@
 '''
-This is the primary module for user-interaction with the `hmf` package.
+This is the primary module for user-interaction with the :mod:`hmf` package.
 
 The module contains a single class, `MassFunction`, which wraps almost all the
-functionality of `hmf` in an easy-to-use way.
+functionality of :mod:`hmf` in an easy-to-use way.
 '''
 
-version = '1.4.4'
+version = '1.4.5'
 
 ###############################################################################
 # Some Imports
@@ -472,7 +472,6 @@ class MassFunction(object):
             fits_class = Fits(self, self.cut_fit)
             self.__fsigma = fits_class.nufnu()
 
-            print type(self.__fsigma)
             if np.sum(np.isnan(self.__fsigma)) > 0.8 * len(self.__fsigma):
                 # the input mass range is almost completely outside the cut
                 self.massrange_error = "The specified mass-range was almost entirely outside of the limits from the fit. Ignored fit range..."

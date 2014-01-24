@@ -383,7 +383,7 @@ def growth_factor(z, cosmo):
     return growth
 
 
-def get_hmf(required_attrs, **kwargs):
+def get_hmf(required_attrs, get_label=True, **kwargs):
     """
     Yield :class:`hmf.MassFunction` objects for all combinations of parameters supplied.
     """
@@ -425,10 +425,18 @@ def get_hmf(required_attrs, **kwargs):
 
     for vals in final_list:
         h.update(**vals)
-        if len(final_list) > 1:
-            label = str(vals)
-        else:
-            label = str(kwargs)
-        label = label.replace("{", "").replace("}", "").replace("'", "").replace("_", "").replace(": ", "=")
         getattr(h, attribute)
-        yield h, label
+        if get_label:
+            if len(final_list) > 1:
+                label = str(vals)
+            elif kwargs:
+                label = str(kwargs)
+            else:
+                label = h.mf_fit
+
+            label = label.replace("{", "").replace("}", "").replace("'", "").replace("_", "").replace(": ", "")
+            label = label.replace("mffit", "").replace("transferfit", "").replace("delta_wrt", "")
+
+            yield h, label
+        else:
+            yield h

@@ -59,7 +59,7 @@ class Transfer(object):
         listed options, it will be treated as a filename to be read in. In this
         case the file must contain a transfer function in CAMB output format. 
            
-    initial_mode : int, {1,2,3,4,5}
+    Scalar_initial_condition : int, {1,2,3,4,5}
         (CAMB-only) Initial scalar perturbation mode (adiabatic=1, CDM iso=2, 
         Baryon iso=3,neutrino density iso =4, neutrino velocity iso = 5) 
         
@@ -74,11 +74,11 @@ class Transfer(object):
     w_perturb : bool, optional, default ``False``
         (CAMB-only) 
     
-    k_per_logint : int, optional, default ``11``
+    transfer__k_per_logint : int, optional, default ``11``
         (CAMB-only) Number of wavenumbers estimated per log interval by CAMB
         Default of 11 gets best performance for requisite accuracy of mass function.
         
-    kmax : float, optional, default ``0.25``
+    transfer__kmax : float, optional, default ``0.25``
         (CAMB-only) Maximum value of the wavenumber.
         Default of 0.25 is high enough for requisite accuracy of mass function.
         
@@ -123,9 +123,9 @@ class Transfer(object):
 
     def __init__(self, z=0.0, lnk=None,
                  wdm_mass=None, transfer_fit='CAMB',
-                 initial_mode=1, lAccuracyBoost=1,
-                 AccuracyBoost=1, w_perturb=False, k_per_logint=11,
-                 kmax=0.25, ThreadNum=0, **kwargs):
+                 Scalar_initial_condition=1, lAccuracyBoost=1,
+                 AccuracyBoost=1, w_perturb=False, transfer__k_per_logint=11,
+                 transfer__kmax=0.25, ThreadNum=0, **kwargs):
         '''
         Initialises some parameters
         '''
@@ -137,13 +137,13 @@ class Transfer(object):
             kwargs["default"] = "planck1_base"
 
         self._cpdict = {k:v for k, v in kwargs.iteritems() if k in Transfer._cp}
-        self._camb_options = {'Scalar_initial_condition' : initial_mode,
+        self._camb_options = {'Scalar_initial_condition' : Scalar_initial_condition,
                               'scalar_amp'      : 1E-9,
                               'lAccuracyBoost' : lAccuracyBoost,
                               'AccuracyBoost'  : AccuracyBoost,
                               'w_perturb'      : w_perturb,
-                              'transfer__k_per_logint': k_per_logint,
-                              'transfer__kmax':kmax,
+                              'transfer__k_per_logint': transfer__k_per_logint,
+                              'transfer__kmax':transfer__kmax,
                               'ThreadNum':ThreadNum}
 
 

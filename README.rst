@@ -39,6 +39,8 @@ HISTORY
 1.4.5 - 
 		Fixed a bug on updating delta_c
 		Added Behroozi alias to fits
+		Added get_hmf function to tools.py -- easy iteration over models!
+		Added hmfrun.py script which provides cmd-line access to most functionality.
 		
 1.4.4 - January 23, 2014
 		Fixed a bug in the Tinker function (log was meant to be log10)

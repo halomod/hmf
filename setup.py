@@ -44,6 +44,7 @@ setup(
                       "scipy>=0.12.0",
                       "cosmolopy",
                       "emcee>=2.0"],
+    scripts=["scripts/hmf"],
     author="Steven Murray",
     author_email="steven.murray@uwa.edu.au",
     description="A halo mass function calculator",
