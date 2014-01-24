@@ -36,11 +36,13 @@ See LICENSE.txt for details.
 
 HISTORY
 -------
-1.4.5 - 
+1.4.5 - January 24, 2014
 		Fixed a bug on updating delta_c
 		Added Behroozi alias to fits
 		Added get_hmf function to tools.py -- easy iteration over models!
-		Added hmfrun.py script which provides cmd-line access to most functionality.
+		Added hmf script which provides cmd-line access to most functionality.
+		Changed kmax and k_per_logint back to have transfer__ prefix.
+		Changed default kmax and k_per_logint values a little higher for accuracy.
 		
 1.4.4 - January 23, 2014
 		Fixed a bug in the Tinker function (log was meant to be log10)

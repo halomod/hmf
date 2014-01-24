@@ -125,7 +125,7 @@ class Transfer(object):
                  wdm_mass=None, transfer_fit='CAMB',
                  Scalar_initial_condition=1, lAccuracyBoost=1,
                  AccuracyBoost=1, w_perturb=False, transfer__k_per_logint=11,
-                 transfer__kmax=0.25, ThreadNum=0, **kwargs):
+                 transfer__kmax=5, ThreadNum=0, **kwargs):
         '''
         Initialises some parameters
         '''

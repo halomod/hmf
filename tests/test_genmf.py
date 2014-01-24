@@ -127,8 +127,8 @@ class TestGenMF(object):
     def test_sigmas(self):
         hmf = MassFunction(M=np.linspace(7, 15, 801), omegab=0.05, omegac=0.25,
                             omegav=0.7, sigma_8=0.8, n=1, H0=70.0,
-                            lnk=np.linspace(-21, 21, 500), kmax=10,
-                            k_per_logint=50, mf_fit='ST', z=0.0)
+                            lnk=np.linspace(-21, 21, 500), transfer__kmax=10,
+                            transfer__k_per_logint=50, mf_fit='ST', z=0.0)
         for redshift in [0.0, 2.0]:
             hmf.update(z=redshift)
             for origin in ['camb', 'hmf']:
@@ -138,8 +138,8 @@ class TestGenMF(object):
     def test_fits(self):
         hmf = MassFunction(M=np.linspace(7, 15, 801), omegab=0.05, omegac=0.25,
                            omegav=0.7, sigma_8=0.8, n=1, H0=70.0,
-                           lnk=np.linspace(-21, 21, 500), kmax=10,
-                           k_per_logint=50, mf_fit='ST', z=0.0)
+                           lnk=np.linspace(-21, 21, 500), transfer__kmax=10,
+                           transfer__k_per_logint=50, mf_fit='ST', z=0.0)
         for redshift in [0.0, 2.0]:
             hmf.update(z=redshift)
             for fit in ["ST", "PS", "Reed03", "Warren", "Jenkins", "Reed07"]:
