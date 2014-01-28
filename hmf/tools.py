@@ -388,6 +388,7 @@ def get_hmf(required_attrs, get_label=True, **kwargs):
     Yield :class:`hmf.MassFunction` objects for all combinations of parameters supplied.
     """
     from hmf import MassFunction
+    import re
 
     order = ["delta_h", "delta_wrt", "delta_c", "user_fit", "mf_fit", "cut_fit",
              "z2", "nz", "z", "M", "wdm_mass", "sigma_8", "n", "lnk", "transfer_fit"][::-1]
@@ -415,17 +416,25 @@ def get_hmf(required_attrs, get_label=True, **kwargs):
     if not isinstance(required_attrs, (list, tuple)):
         attribute = required_attrs
     else:
-        attrs = ["ngtm", "mgtm", "mltm", "nltm", "how_big", "dndlnm", "dndlog10m", "dndm",
-             "sigma", "dlnsdlnm"]
-        for a in attrs:
+        attribute = "dndm"
+        mattrs = ["ngtm", "mgtm", "mltm", "nltm", "how_big", "dndlnm", "dndlog10m", "dndm",
+                 "fsigma", "n_eff", "lnsigma", "sigma", "_dlnsdlnm", "_sigma_0", "M"]
+        kattrs = ["nonlinear_power", "delta_k", "power", "transfer", "lnk",
+                   "_lnP_0", "_lnP_cdm_0", "_lnT_cdm", "_unnormalised_lnP",
+                   "_unnormalised_lnT"]
+        for a in mattrs + kattrs:
             if a in required_attrs:
                 attribute = a
+                break
 
     h = MassFunction(**kwargs)
 
     for vals in final_list:
         h.update(**vals)
-        getattr(h, attribute)
+        if attribute in mattrs:
+            getattr(h, attribute)
+        elif attribute in kattrs:
+            getattr(h.transfer, attribute)
         if get_label:
             if len(final_list) > 1:
                 label = str(vals)
@@ -434,9 +443,19 @@ def get_hmf(required_attrs, get_label=True, **kwargs):
             else:
                 label = h.mf_fit
 
-            label = label.replace("{", "").replace("}", "").replace("'", "").replace("_", "").replace(": ", "")
-            label = label.replace("mffit", "").replace("transferfit", "").replace("delta_wrt", "")
 
+            label = label.replace("{", "").replace("}", "").replace("'", "")
+            label = label.replace("_", "").replace(": ", "").replace(", ", "_")
+            label = label.replace("mffit", "").replace("transferfit", "").replace("delta_wrt", "").replace("\n", "")
+
+            # The following lines transform the M and lnk parts
+            while "[" in label:
+                label = re.sub("[\[].*?[\]]", "", label)
+            label = label.replace("array", "")
+            label = label.replace("M()", "M(" + str(np.log10(h.M[0])) + ", " + str(np.log10(h.M[-1])) + ", " +
+                          str(np.log10(h.M[1]) - np.log10(h.M[0])) + ")")
+            label = label.replace("lnk()", "lnk(" + str(h.transfer.lnk[0]) + ", " + str(h.transfer.lnk[-1]) + ", " +
+                          str(h.transfer.lnk[1] - h.transfer.lnk[0]) + ")")
             yield h, label
         else:
             yield h

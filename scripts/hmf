@@ -20,10 +20,10 @@ import numpy as np
 from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
 
-__all__ = []
-__version__ = hmf.hmf.version
+__all__ = ["main"]
+__version__ = "0.2"
 __date__ = "2014 - 01 - 23"
-__updated__ = "2014 - 01 - 23"
+__updated__ = "2014 - 01 - 28"
 
 DEBUG = 0
 TESTRUN = 0
@@ -50,28 +50,39 @@ def main(argv=None):
     program_name = os.path.basename(sys.argv[0])
     program_version = "v%s" % __version__
     program_build_date = str(__updated__)
-    program_version_message = '%%(prog)s %s (%s)' % (program_version, program_build_date)
+    program_version_message = '%%(prog)s %s (%s)\n\nHISTORY\n------%s' % (program_version, program_build_date, HISTORY)
     program_shortdesc = __import__('__main__').__doc__.split("\n")[1]
     program_license = '''%s
 
-  Created by user_name on %s.
-  Copyright 2014 organization_name. All rights reserved.
+    Copyright (c) 2014 Steven Murray
 
-  Licensed under the Apache License 2.0
-  http://www.apache.org/licenses/LICENSE-2.0
-
-  Distributed on an "AS IS" basis without warranties
-  or conditions of any kind, either express or implied.
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+    
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+    
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+    THE SOFTWARE.
 
 USAGE
-''' % (program_shortdesc, str(__date__))
+''' % (program_shortdesc)
 
     try:
         h = hmf.MassFunction()
-        m_attrs = ["M", "dndlog10m", "lnsigma", "n_eff", "sigma",
+        m_attrs = ["dndlog10m", "lnsigma", "n_eff", "sigma",
                    "dndm", "ngtm", "fsigma", "mgtm", "nltm", "dndlnm",
                    "how_big", "mltm", "_sigma_0", "_dlnsdlnm"]
-        k_attrs = ["power", "delta_k", "lnk", "transfer", "nonlinear_power",
+        k_attrs = ["power", "delta_k", "transfer", "nonlinear_power",
                    "_lnP_0", "_lnP_cdm_0", "_lnT_cdm", "_unnormalised_lnP",
                    "_unnormalised_lnT"]
         # Setup argument parser
@@ -82,7 +93,7 @@ USAGE
         # HMF specific arguments
         config = parser.add_argument_group("Config", "Variables of Configuration")
         config.add_argument("filename", help="filename to write to")
-        config.add_argument("--get", nargs="*", default=["M", "dndm"],
+        config.add_argument("--get", nargs="*", default=["dndm"],
                             choices=m_attrs + k_attrs)
 
         hmfargs = parser.add_argument_group("HMF", "HMF-specific arguments")
@@ -106,8 +117,6 @@ USAGE
         transferargs.add_argument("--z", nargs="*", type=float, help="redshift of analysis [default: %s]" % h.transfer.z)
         transferargs.add_argument("--lnk", nargs=3, type=float, help="the wavenumber range and intervals, min max step [default: %s %s %s]" %
                                   (h.transfer.lnk[0], h.transfer.lnk[-1], h.transfer.lnk[1] - h.transfer.lnk[0]))
-        transferargs.add_argument("--maxk", nargs="*", type=float, default=2e4, help="maximum wavenumber of analysis [default: %s]" % np.exp(h.transfer.lnk[-1]))
-        transferargs.add_argument("--numk", nargs="*", type=int, default=250, help="number of wavenumbers in analysis [default: %s]" % len(h.transfer.lnk))
         transferargs.add_argument("--wdm-mass", nargs="*", type=float, help="warm dark matter mass (0 is CDM)")
         transferargs.add_argument("--transfer-fit", nargs="*", choices=hmf.transfer.Transfer.fits + ['all'],
                                   help="which fit for the transfer function to use ('all' uses all of them) [default: %s]" % h.transfer.transfer_fit)
@@ -164,7 +173,7 @@ USAGE
                     "Scalar_initial_condition", "z", "z2", "nz", "delta_c", "user_fit", "delta_h",
                     "delta_wrt"]:
             if getattr(args, arg) is not None:
-                kwargs[arg] = getattr(args, arg)
+                kwargs[arg] = make_scalar(getattr(args, arg))
 
         if args.M is not None:
             kwargs["M"] = np.arange(args.M[0], args.M[1], args.M[2])
@@ -174,7 +183,7 @@ USAGE
                 kwargs['mf_fit'] = hmf.Fits.mf_fits
                 kwargs["mf_fit"].remove("user_model")
             else:
-                kwargs['mf_fit'] = args.mf_fit
+                kwargs['mf_fit'] = make_scalar(args.mf_fit)
 
         if args.user_fit is not None:
             if "user_model" not in kwargs['mf_fit']:
@@ -193,7 +202,7 @@ USAGE
             if 'all' in args.transfer_fit:
                 kwargs["transfer_fit"] = hmf.Transfer.fits
             else:
-                kwargs["transfer_fit"] = args.transfer_fit
+                kwargs["transfer_fit"] = make_scalar(args.transfer_fit)
 
 
         m_att = [a for a in args.get if a in m_attrs]
@@ -201,15 +210,21 @@ USAGE
         # # run the hmf
         for res, label in hmf.tools.get_hmf(args.get, **kwargs):
             if m_att:
-                marray = np.empty((len(h.M), len(m_att)))
+                marray = np.empty((len(res.M), len(m_att) + 1))
+                marray[:, 0] = res.M
                 for i, attr in enumerate(m_att):
-                    marray[:, i] = getattr(res, attr)
-                np.savetxt(args.filename + "_MDATA_" + label, marray, header="\t".join(m_att))
+                    marray[:, i + 1] = getattr(res, attr)
+                    with open(args.filename + "_MDATA_" + label, 'w') as f:
+                        f.write("# M\t" + "\t".join(m_att) + "\n")
+                        np.savetxt(f, marray)
             if k_att:
-                karray = np.empty((len(h.transfer.lnk), len(k_att)))
+                karray = np.empty((len(res.transfer.lnk), len(k_att) + 1))
+                karray[:, 0] = res.transfer.lnk
                 for i, attr in enumerate(k_att):
-                    karray[:, i] = getattr(res, attr)
-                np.savetxt(args.filename + "_KDATA_" + label, karray, header="\t".join(k_att))
+                    karray[:, i + 1] = getattr(res.transfer, attr)
+                    with open(args.filename + "_KDATA_" + label, 'w') as f:
+                        f.write("# lnk\t" + "\t".join(k_att) + "\n")
+                        np.savetxt(f, karray)
 
 
         return 0
@@ -224,6 +239,23 @@ USAGE
         sys.stderr.write(program_name + ": " + repr(e) + "\n")
         sys.stderr.write(indent + "  for help use --help\n")
         return 2
+
+HISTORY = """
+0.2 - 28/01/2014
+    Made compatible with more versions of numpy by removing "header" arg.
+    Fixed access to k-based data.
+    Fixed some labeling issues with the M array and lnk array
+    M and lnk are written out for any choice of M or k attributes as first column
+    
+0.1 - 24/01/2014
+    First version
+"""
+
+def make_scalar(a):
+    if isinstance(a, (list, tuple)):
+        if len(a) == 1:
+            a = a[0]
+    return a
 
 if __name__ == "__main__":
     if DEBUG:
