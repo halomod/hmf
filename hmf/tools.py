@@ -15,6 +15,9 @@ import collections
 import cosmolopy as cp
 import itertools
 
+import logging
+
+logger = logging.getLogger('hmf')
 #===============================================================================
 # Functions
 #===============================================================================
@@ -28,39 +31,14 @@ def check_kr(min_m, max_m, mean_dens, mink, maxk):
     
     See http://arxiv.org/abs/1306.6721 for details. 
     """
-    # Define mass from radius function
-    def M(r):
-        return 4 * np.pi * r ** 3 * mean_dens / 3
-
     # Define min and max radius
-    min_r = (3 * min_m / (4 * np.pi * mean_dens)) ** (1. / 3.)
-    max_r = (3 * max_m / (4 * np.pi * mean_dens)) ** (1. / 3.)
+    min_r = mass_to_radius(min_m, mean_dens)
+    max_r = mass_to_radius(max_m, mean_dens)
 
-    errmsg1 = \
-"""
-Please make sure the product of minimum radius and maximum k is > 3.
-If it is not, then the mass variance could be extremely inaccurate.
-                    
-"""
-
-    errmsg2 = \
-"""
-Please make sure the product of maximum radius and minimum k is < 0.1
-If it is not, then the mass variance could be inaccurate.
-                    
-"""
-
-    if maxk * min_r < 3:
-        error1 = errmsg1 + "This means extrapolating k to " + str(3 / min_r) + " or using min_M > " + str(np.log10(M(3.0 / maxk)))
-    else:
-        error1 = None
-
-    if mink * max_r > 0.1:
-        error2 = errmsg2 + "This means extrapolating k to " + str(0.1 / max_r) + " or using max_M < " + str(np.log10(M(0.1 / mink)))
-    else:
-        error2 = None
-
-    return error1, error2
+    if np.exp(maxk) * min_r < 3:
+        logger.warn("r_min (%s) * k_max (%s) < 3. Mass variance could be inaccurate." % (min_r, np.exp(maxk)))
+    elif np.exp(mink) * max_r > 0.1:
+        logger.warn("r_max (%s) * k_min (%s) > 0.1. Mass variance could be inaccurate." % (max_r, np.exp(mink)))
 
 def normalize(norm_sigma_8, unn_power, lnk, mean_dens):
     """
@@ -191,30 +169,30 @@ def mass_to_radius(M, mean_dens):
             ``mean_dens``.
     """
     return (3.*M / (4.*np.pi * mean_dens)) ** (1. / 3.)
-#
-# def radius_to_mass(R, mean_dens):
-#     """
-#     Calculates mass of a region of space from its radius
-#
-#     Parameters
-#     ----------
-#     R : float or array of floats
-#         Radii
-#
-#     mean_dens : float
-#         The mean density of the universe
-#
-#     Returns
-#     ------
-#     M : float or array of floats
-#         The corresponding masses in R
-#
-#     Notes
-#     -----
-#     The units of ``R`` don't matter as long as they are consistent with
-#     ``mean_dens``.
-#     """
-#     return 4 * np.pi * R ** 3 * mean_dens / 3
+
+def radius_to_mass(R, mean_dens):
+    """
+    Calculates mass of a region of space from its radius
+
+    Parameters
+    ----------
+    R : float or array of floats
+        Radii
+
+    mean_dens : float
+        The mean density of the universe
+
+    Returns
+    ------
+    M : float or array of floats
+        The corresponding masses in R
+
+    Notes
+    -----
+    The units of ``R`` don't matter as long as they are consistent with
+    ``mean_dens``.
+    """
+    return 4 * np.pi * R ** 3 * mean_dens / 3
 
 def wdm_transfer(m_x, power_cdm, lnk, h, omegac):
     """

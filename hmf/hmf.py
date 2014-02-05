@@ -15,12 +15,16 @@ import scipy.integrate as intg
 import numpy as np
 from numpy import sin, cos, tan, abs, arctan, arccos, arcsin, exp
 import copy
-
+import logging
 import cosmolopy as cp
 import tools
 from fitting_functions import Fits
 from transfer import Transfer
 
+#===============================================================================
+# Logger
+#===============================================================================
+logger = logging.getLogger('hmf')
 class MassFunction(object):
     """
     An object containing all relevant quantities for the mass function.
@@ -125,6 +129,9 @@ class MassFunction(object):
         self.delta_c = delta_c
         self.transfer = Transfer(**kwargs)
 
+        print "checking kr from init"
+        tools.check_kr(self.M[0], self.M[-1], self.cosmo.mean_dens,
+                       self.transfer.lnk[0], self.transfer.lnk[-1])
     def update(self, **kwargs):
         """
         Update the class with the given arguments in an optimal manner.
@@ -158,6 +165,9 @@ class MassFunction(object):
         # The rest are sent to the Transfer class (stupid values weeded out there)
         self.transfer.update(**the_rest)
 
+        print "checking kr from update"
+        tools.check_kr(self.M[0], self.M[-1], self.cosmo.mean_dens,
+                       self.transfer.lnk[0], self.transfer.lnk[-1])
     # --- SET PROPERTIES -------------------------------------------------------
     @property
     def M(self):
@@ -334,8 +344,6 @@ class MassFunction(object):
                 self.__delta_halo = self.delta_h
 
             elif self.delta_wrt == 'crit':
-                print cp.density.omega_M_z(self.transfer.z, **self.cosmo.cosmolopy_dict())
-                print self.cosmo.cosmolopy_dict()
                 self.__delta_halo = self.delta_h / cp.density.omega_M_z(self.transfer.z, **self.cosmo.cosmolopy_dict())
             return self.__delta_halo
 
@@ -474,7 +482,8 @@ class MassFunction(object):
 
             if np.sum(np.isnan(self.__fsigma)) > 0.8 * len(self.__fsigma):
                 # the input mass range is almost completely outside the cut
-                self.massrange_error = "The specified mass-range was almost entirely outside of the limits from the fit. Ignored fit range..."
+                logger.warning("The specified mass-range was almost entirely \
+                                outside of the limits from the fit. Ignored fit range...")
                 self.cut_fit = False
                 fits_class.cut_fit = False
                 self.__fsigma = fits_class.nufnu()
