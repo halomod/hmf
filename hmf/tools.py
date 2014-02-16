@@ -81,7 +81,7 @@ def normalize(norm_sigma_8, unn_power, lnk, mean_dens):
 
     return power, normalization
 
-def mass_variance(M, power, lnk, mean_dens):
+def mass_variance(M, power, lnk, mean_dens, scheme='trapz'):
     """
     Calculate the mass variance, :math:`\sigma(M)` using the top-hat window function.
     
@@ -117,8 +117,12 @@ def mass_variance(M, power, lnk, mean_dens):
     rest = np.exp(power + 3 * lnk)
     for i, m in enumerate(M):
         integ = rest * top_hat_window(m, lnk, mean_dens)
-        sigma[i] = (0.5 / np.pi ** 2) * intg.trapz(integ, dx=dlnk)
-
+        if scheme == 'trapz':
+            sigma[i] = (0.5 / np.pi ** 2) * intg.trapz(integ, dx=dlnk)
+        elif scheme == "simps":
+            sigma[i] = (0.5 / np.pi ** 2) * intg.simps(integ, dx=dlnk)
+        elif scheme == 'romb':
+            sigma[i] = (0.5 / np.pi ** 2) * intg.romb(integ, dx=dlnk)
     return np.sqrt(sigma)
 
 def top_hat_window(M, lnk, mean_dens):

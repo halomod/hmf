@@ -101,7 +101,7 @@ class MassFunction(object):
 
     def __init__(self, M=None, mf_fit="ST", delta_h=200.0,
                  delta_wrt='mean', user_fit='', cut_fit=True, z2=None, nz=None,
-                 delta_c=1.686, **kwargs):
+                 delta_c=1.686, mv_scheme="trapz", **kwargs):
         """
         Initializes some parameters      
         """
@@ -128,8 +128,8 @@ class MassFunction(object):
         self.nz = nz
         self.delta_c = delta_c
         self.transfer = Transfer(**kwargs)
+        self.mv_scheme = mv_scheme
 
-        print "checking kr from init"
         tools.check_kr(self.M[0], self.M[-1], self.cosmo.mean_dens,
                        self.transfer.lnk[0], self.transfer.lnk[-1])
     def update(self, **kwargs):
@@ -138,7 +138,6 @@ class MassFunction(object):
         
         Accepts any argument that the constructor takes.
         """
-        # Now do rest of the parameters
         for key, val in kwargs.iteritems():
 
 #             The following takes care of everything specifically in this class
@@ -165,7 +164,6 @@ class MassFunction(object):
         # The rest are sent to the Transfer class (stupid values weeded out there)
         self.transfer.update(**the_rest)
 
-        print "checking kr from update"
         tools.check_kr(self.M[0], self.M[-1], self.cosmo.mean_dens,
                        self.transfer.lnk[0], self.transfer.lnk[-1])
     # --- SET PROPERTIES -------------------------------------------------------
@@ -207,6 +205,19 @@ class MassFunction(object):
         self.__delta_c = val
 
         del self.fsigma
+
+    @property
+    def mv_scheme(self):
+        return self.__mv_scheme
+
+    @mv_scheme.setter
+    def mv_scheme(self, val):
+        if val not in ['trapz', 'simps', 'romb']:
+            raise ValueError("mv_scheme wrong")
+        else:
+            self.__mv_scheme = val
+            del self._sigma_0
+
     @property
     def mf_fit(self):
         return self.__mf_fit
@@ -372,7 +383,8 @@ class MassFunction(object):
         except:
             self.__sigma_0 = tools.mass_variance(self.M, self.transfer._lnP_0,
                                                  self.transfer.lnk,
-                                                 self.cosmo.mean_dens)
+                                                 self.cosmo.mean_dens,
+                                                 self.mv_scheme)
             return self.__sigma_0
 
     @_sigma_0.deleter
