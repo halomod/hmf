@@ -19,6 +19,7 @@ def _prepare_mf(M_min, M_max, mf_kwargs, boxsize=None):
     frac_in_bounds = total_rho / (mf_obj.cosmo.omegam * 2.7755e11)
 
     cumfunc = cumtrapz(mf_obj.dndlnm, M, initial=1e-20) * np.log(10)
+
     cdf = spline(M, cumfunc, k=3)
     icdf = spline(cumfunc, M, k=3)
 
@@ -161,16 +162,13 @@ def sample_mf(simvars=None, nvars=None, tol=3, match='mass', **mf_kwargs):
         tol *= 10 ** m_min / m_tot
 
     m_max = min(m_max, hard_M_max)
-
     cdf, icdf, hmf, frac_in_bounds = _prepare_mf(m_min, m_max,
                                                  mf_kwargs, boxsize)
 
-    print "m_min, m_max, omegam, vol, frac_in_bounds, tol", m_min, m_max, omegam, vol, frac_in_bounds, tol
     if match == "mass":
         m = _choose_halo_masses(cdf, icdf, m_min, m_max, omegam, vol,
                                 frac_in_bounds, tol)
     elif match == "num":
         m = _choose_halo_masses_num(cdf, icdf, m_max * frac_in_bounds, N=n, vol=vol)
 
-    print np.log10([np.mean(m), m.min(), m.max()])
-    return m, hmf
+    return m, hmf, frac_in_bounds
