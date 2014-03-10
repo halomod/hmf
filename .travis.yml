@@ -10,7 +10,6 @@ install:
 - cd ..
 - sudo rm -rf pycamb
 - sudo apt-get install python-numpy python-scipy
-- pip install scitools
 - pip install cosmolopy
 - pip install emcee
 deploy: 
