@@ -92,7 +92,8 @@ def _choose_halo_masses_num(cdf, icdf, m_max, vol=None, N=None):
     return m
 
 
-def sample_mf(simvars=None, nvars=None, tol=3, match='mass', **mf_kwargs):
+def sample_mf(simvars=None, nvars=None, tol=3, match='mass',
+              sort=False, **mf_kwargs):
     """
     Create a sample of halo masses from the theoretical mass function.
     
@@ -171,4 +172,6 @@ def sample_mf(simvars=None, nvars=None, tol=3, match='mass', **mf_kwargs):
     elif match == "num":
         m = _choose_halo_masses_num(cdf, icdf, m_max * frac_in_bounds, N=n, vol=vol)
 
+    if sort:
+        m = np.sort(m)[::-1]
     return m, hmf, frac_in_bounds
