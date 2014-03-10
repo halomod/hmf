@@ -96,7 +96,7 @@ USAGE
         config = parser.add_argument_group("Config", "Variables of Configuration")
         config.add_argument("--max-diff-tol", type=float, default=100.0, help="Minimum maximum diff to write out")
         config.add_argument("--rms-diff-tol", type=float, default=100.0, help="Minimum rms diff to write out")
-
+        config.add_argument("filename", help="the filename to write to")
 
         # config.add_argument("filename", help="filename to write to")
         config.add_argument("--quantities", nargs="*", default=["dndm"],
@@ -139,7 +139,7 @@ USAGE
                             help="overdensity of halo w.r.t delta_wrt [default %s]" % h.delta_wrt)
         hmfargs.add_argument("--delta-wrt", choices=["mean", "crit"],
                             help="what delta_h is with respect to [default: %s]" % h.delta_h)
-        hmfargs.add_argument("--user-fit", help="a custom fitting function defined as a string in terms of x for sigma [default: %s]" % "'" + h.user_fit + "'")
+
         hmfargs.add_argument("--no-cut-fit", action="store_true", help="whether to cut the fitting function at tested boundaries")
         hmfargs.add_argument("--z2", type=float, help="upper redshift for volume weighting")
         hmfargs.add_argument("--nz", type=float, help="number of redshift bins for volume weighting")
@@ -193,16 +193,13 @@ USAGE
         for arg in ["omegab", "omegab_h2", "omegac", "omegac_h2", "omegam", "h", "H0",
                     "sigma_8", "n", "w", "cs2_lam", "omegav", "ThreadNum", "transfer__kmax",
                     "transfer__k_per_logint", "AccuracyBoost", "lAccuracyBoost",
-                    "Scalar_initial_condition", "z", "z2", "nz", "delta_c", "user_fit", "delta_h",
+                    "Scalar_initial_condition", "z", "z2", "nz", "delta_c", "delta_h",
                     "delta_wrt", 'mf_fit', 'transfer_fit', 'mv_scheme']:
             if getattr(args, arg) is not None:
-                kwargs[arg] = make_scalar(getattr(args, arg))
+                kwargs[arg] = getattr(args, arg)
 
         if args.w_perturb:
             kwargs['w_perturb'] = True
-
-        if args.user_fit is not None:
-            kwargs['mf_fit'] = 'user_model'
 
         if args.no_cut_fit:
             kwargs['cut_fit'] = not args.no_cut_fit
@@ -216,31 +213,16 @@ USAGE
 
         if args.lnk_min is not None and args.lnk_max is not None and args.lnk_num is not None:
             kwargs["lnk"] = []
-            for kmin in args.M_min:
-                for kmax in args.M_max:
-                    for knum in args.M_num:
+
+            for kmin in args.lnk_min:
+                for kmax in args.lnk_max:
+                    for knum in args.lnk_num:
                         kwargs["lnk"].append(np.linspace(kmin, kmax, knum))
 
         m_att = [a for a in args.quantities if a in m_attrs]
         k_att = [a for a in args.quantities if a in k_attrs]
 
-        # Create a high-res object
-        start = time.time()
-        testbed = hmf.MassFunction(# M=np.linspace(3, 18, 5000),
-                                   transfer__k_per_logint=20,
-                                   transfer__kmax=100,
-                                   lnk=np.linspace(-20, 20, 4097),
-                                   lAccuracyBoost=2,
-                                   AccuracyBoost=2,
-                                   mv_scheme='romb')
 
-        # Initialise all required quantities
-        for quantity in m_att:
-            getattr(testbed, quantity)
-        for quantity in k_att:
-            getattr(testbed.transfer, quantity)
-
-        hires_time = time.time() - start
 
         # Set up results dictionaries
         results = {}
@@ -248,7 +230,6 @@ USAGE
             results[quantity] = {}
 
         times = {}
-
 
         # Save all the variables into dictionary/list of dicts for use
         listkwargs = {}
@@ -260,6 +241,27 @@ USAGE
         vallist = [v for k, v in listkwargs.iteritems()]
         final_list = [dict(zip(listkwargs.keys(), v)) for v in itertools.product(*vallist)]
 
+
+        # Create a high-res object
+        start = time.time()
+        testbed = hmf.MassFunction(# M=np.linspace(3, 18, 5000),
+                                   transfer__k_per_logint=20,
+                                   transfer__kmax=100,
+                                   lnk=np.linspace(-20, 20, 4097),
+                                   lAccuracyBoost=2,
+                                   AccuracyBoost=2,
+                                   mv_scheme='romb',
+                                   **kwargs)
+
+        # Initialise all required quantities
+        for quantity in m_att:
+            getattr(testbed, quantity)
+        for quantity in k_att:
+            getattr(testbed.transfer, quantity)
+
+        hires_time = time.time() - start
+
+        print len(final_list)
         for vals in final_list:
             # We make a fresh one each time to get the timing right.
             kwargs.update(vals)
@@ -285,18 +287,19 @@ USAGE
             label = label.replace("M()", "M(" + str(np.log10(h.M[0])) + ", " + str(np.log10(h.M[-1])) + ", " +
                           str(np.log10(h.M[1]) - np.log10(h.M[0])) + ")")
             label = label.replace("lnk()", "lnk(" + str(h.transfer.lnk[0]) + ", " + str(h.transfer.lnk[-1]) + ", " +
-                          str(h.transfer.lnk[1] - h.transfer.lnk[0]) + ")")
+                          str(len(h.transfer.lnk)) + ")")
 
             start = time.time()
+            print label
             for att in m_att:
-                results[quantity][label] = getattr(h, att)
+                results[att][label] = getattr(h, att)
             for att in k_att:
-                results[quantity][label] = getattr(h.transfer, att)
+                results[att][label] = getattr(h.transfer, att)
 
             times[label] = time.time() - start
 
         labels = [label for label in times]
-        print labels
+
         # Now write out/plot results
         for quantity in args.quantities:
             if quantity in m_att:
@@ -317,7 +320,14 @@ USAGE
 
             df.sort("Time", inplace=True)
             print df[np.logical_and(df["MaxDiff"] < args.max_diff_tol,
-                                    df["RMSDiff"] < args.rms_diff_tol)]
+                                    df["RMSDiff"] < args.rms_diff_tol)].to_string()
+
+            with open(args.filename, 'w') as f:
+                s = df[np.logical_and(df["MaxDiff"] < args.max_diff_tol,
+                                      df["RMSDiff"] < args.rms_diff_tol)].to_string()
+
+                f.write(s)
+
         return 0
     except KeyboardInterrupt:
         ### handle keyboard interrupt ###
@@ -338,6 +348,7 @@ def make_scalar(a):
     return a
 
 HISTORY = """
+0.0.2 - It's now working and writes out filtered/sorted results to stdout
 0.0.1 - Not even working yet
 """
 if __name__ == "__main__":

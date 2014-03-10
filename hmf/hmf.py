@@ -49,7 +49,7 @@ class MassFunction(object):
     M : array_like, optional, default ``np.linspace(10,15,501)``
         The masses at which to perform analysis [units :math:`\log_{10}M_\odot h^{-1}`]. 
                      
-    mf_fit : str, optional, default ``"SMT"``
+    mf_fit : str or callable, optional, default ``"SMT"``
         A string indicating which fitting function to use for :math:`f(\sigma)`
                        
         Available options:
@@ -70,7 +70,10 @@ class MassFunction(object):
         #. ``'Angulo_Bound'``: Angulo sub-halo function 2012
         #. ``'Bhattacharya'``: Bhattacharya empirical fit 2011
         #. ``'Behroozi'``: Behroozi extension to Tinker for high-z 2013
-        #. ``'user_model'``: A user-input string function
+
+        Alternatively, one may define a callable function, with the signature
+        ``func(self)``, where ``self`` is a :class:`MassFunction` object (and
+        has access to all its attributes). This may be passed here. 
         
     delta_wrt : str, {``"mean"``, ``"crit"``}
         Defines what the overdensity of a halo is with respect to, mean density
@@ -100,7 +103,7 @@ class MassFunction(object):
 
 
     def __init__(self, M=None, mf_fit="ST", delta_h=200.0,
-                 delta_wrt='mean', user_fit='', cut_fit=True, z2=None, nz=None,
+                 delta_wrt='mean', cut_fit=True, z2=None, nz=None,
                  delta_c=1.686, mv_scheme="trapz", **kwargs):
         """
         Initializes some parameters      
@@ -122,7 +125,6 @@ class MassFunction(object):
         self.M = M
         self.delta_h = delta_h
         self.delta_wrt = delta_wrt
-        self.user_fit = user_fit
         self.cut_fit = cut_fit
         self.z2 = z2
         self.nz = nz
@@ -224,14 +226,17 @@ class MassFunction(object):
 
     @mf_fit.setter
     def mf_fit(self, val):
-
+        # mf_fit may be a callable or a string. Try callable first.
         try:
-            val = str(val)
+            val(self)
         except:
-            raise ValueError("mf_fit must be a string, got ", val)
+            try:
+                val = str(val)
+            except:
+                raise ValueError("mf_fit must be a string or callable, got ", val)
 
-        if val not in Fits.mf_fits + ["Behroozi"]:
-            raise ValueError("mf_fit is not in the list of available fitting functions: ", val)
+            if val not in Fits.mf_fits + ["Behroozi"]:
+                raise ValueError("mf_fit is not in the list of available fitting functions: ", val)
 
         # Also delete stuff dependent on it
         del self.fsigma
@@ -315,16 +320,6 @@ class MassFunction(object):
             self.__nz = val
 
         del self.dndm
-
-    @property
-    def user_fit(self):
-        return self.__user_fit
-
-    @user_fit.setter
-    def user_fit(self, val):
-        self.__user_fit = val
-
-        del self.fsigma
 
     @property
     def cut_fit(self):
@@ -489,16 +484,21 @@ class MassFunction(object):
         try:
             return self.__fsigma
         except:
-            fits_class = Fits(self, self.cut_fit)
-            self.__fsigma = fits_class.nufnu()
+            try:
+                self.__fsigma = self.mf_fit(self)
+            except:
+                fits_class = Fits(self)
+                self.__fsigma = fits_class.nufnu()
 
             if np.sum(np.isnan(self.__fsigma)) > 0.8 * len(self.__fsigma):
                 # the input mass range is almost completely outside the cut
                 logger.warning("The specified mass-range was almost entirely \
                                 outside of the limits from the fit. Ignored fit range...")
                 self.cut_fit = False
-                fits_class.cut_fit = False
-                self.__fsigma = fits_class.nufnu()
+                try:
+                    self.__fsigma = self.mf_fit(self)
+                except:
+                    self.__fsigma = fits_class.nufnu()
 
             return self.__fsigma
 

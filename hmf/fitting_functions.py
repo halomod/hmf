@@ -29,10 +29,9 @@ class Fits(object):
                "Angulo", "Angulo_Bound", "Tinker", "Watson_FoF", "Watson", "Crocce",
                "Courtin", "Bhattacharya", "user_model", "Behroozi"]
 
-    def __init__(self, hmf, cut_fit=True):
+    def __init__(self, hmf):
         # We explicitly pass cut fit even though its in the Perturbations object
         # since it may be changed more flexibly.
-        self.cut_fit = cut_fit
         self.pert = hmf
         self._cp = hmf.transfer.cosmo
 
@@ -115,7 +114,7 @@ class Fits(object):
 
         vfv = 0.315 * np.exp(-np.abs(self.pert.lnsigma + 0.61) ** 3.8)
 
-        if self.cut_fit:
+        if self.pert.cut_fit:
             vfv[np.logical_or(self.pert.lnsigma < -1.2, self.pert.lnsigma > 1.05)] = np.NaN
 
         return vfv
@@ -138,7 +137,7 @@ class Fits(object):
         vfv = 0.7234 * ((1.0 / self.pert.sigma) ** 1.625 + 0.2538) * \
                 np.exp(-1.1982 / self.pert.sigma ** 2)
 
-        if self.cut_fit:
+        if self.pert.cut_fit:
             vfv[np.logical_or(self.pert.M < 10 ** 10, self.pert.M > 10 ** 15)] = np.NaN
         return vfv
 
@@ -161,7 +160,7 @@ class Fits(object):
 
         vfv = ST_Fit * np.exp(-0.7 / (self.pert.sigma * np.cosh(2.0 * self.pert.sigma) ** 5))
 
-        if self.cut_fit:
+        if self.pert.cut_fit:
             vfv[np.logical_or(self.pert.lnsigma < -1.7, self.pert.lnsigma > 0.9)] = np.NaN
         return vfv
 
@@ -194,7 +193,7 @@ class Fits(object):
             (1.0 + (1.0 / (a * nu ** 2)) ** p + 0.6 * G_1 + 0.4 * G_2) * nu * \
             np.exp(-c * a * nu ** 2 / 2.0 - 0.03 * nu ** 0.6 / (self.pert.n_eff + 3) ** 2)
 
-        if self.cut_fit:
+        if self.pert.cut_fit:
             vfv[np.logical_or(self.pert.lnsigma < -0.5, self.pert.lnsigma > 1.2)] = np.NaN
 
         return vfv
@@ -224,7 +223,7 @@ class Fits(object):
         d = 1 + a * nu ** b
         vfv = nu * np.exp(-c * nu ** 2) * (2 * c * d * nu + b * a * nu ** (b - 1)) / d ** 2
 
-        if self.cut_fit:
+        if self.pert.cut_fit:
             vfv[np.logical_or(self.pert.M < 10 ** 10, self.pert.M > 10 ** 15)] = np.NaN
 
         return vfv
@@ -247,7 +246,7 @@ class Fits(object):
         vfv = 0.201 * ((2.08 / self.pert.sigma) ** 1.7 + 1) * \
                 np.exp(-1.172 / self.pert.sigma ** 2)
 
-        if self.cut_fit:
+        if self.pert.cut_fit:
             vfv[np.logical_or(self.pert.M < 10 ** 8, self.pert.M > 10 ** 16)] = np.NaN
         return vfv
 
@@ -268,7 +267,7 @@ class Fits(object):
         vfv = 0.265 * ((1.675 / self.pert.sigma) ** 1.9 + 1) * \
                 np.exp(-1.4 / self.pert.sigma ** 2)
 
-        if self.cut_fit:
+        if self.pert.cut_fit:
             vfv[np.logical_or(self.pert.M < 10 ** 8, self.pert.M > 10 ** 16)] = np.NaN
         return vfv
 
@@ -347,7 +346,7 @@ class Fits(object):
 
         vfv = A * ((self.pert.sigma / b) ** (-a) + 1) * np.exp(-c / self.pert.sigma ** 2)
 
-        if self.cut_fit:
+        if self.pert.cut_fit:
             if self.pert.transfer.z == 0.0:
                 vfv[np.logical_or(self.pert.lnsigma / np.log(10) < -0.6 ,
                                   self.pert.lnsigma / np.log(10) > 0.4)] = np.nan
@@ -383,7 +382,7 @@ class Fits(object):
             The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
         """
         vfv = 0.282 * ((1.406 / self.pert.sigma) ** 2.163 + 1) * np.exp(-1.21 / self.pert.sigma ** 2)
-        if self.cut_fit:
+        if self.pert.cut_fit:
             vfv[np.logical_or(self.pert.lnsigma < -0.55 , self.pert.lnsigma > 1.31)] = np.NaN
         return vfv
 
@@ -422,7 +421,7 @@ class Fits(object):
         vfv = self._watson_gamma() * A * ((beta / self.pert.sigma) ** alpha + 1) * \
                  np.exp(-gamma / self.pert.sigma ** 2)
 
-        if self.cut_fit:
+        if self.pert.cut_fit:
             vfv[np.logical_or(self.pert.lnsigma < -0.55, self.pert.lnsigma > 1.05)] = np.NaN
 
         return vfv
@@ -496,7 +495,7 @@ class Fits(object):
 
         vfv = A * np.sqrt(2.0 / np.pi) * np.exp(-(a * nu ** 2) / 2.0) * \
                  (1 + (1.0 / (a * nu ** 2)) ** p) * (nu * np.sqrt(a)) ** q
-        if self.cut_fit:
+        if self.pert.cut_fit:
             vfv[np.logical_or(self.pert.M < 6 * 10 ** 11,
                               self.pert.M > 3 * 10 ** 15)] = np.NaN
 
@@ -504,14 +503,3 @@ class Fits(object):
 
     def _nufnu_Behroozi(self):
         return self._nufnu_Tinker()
-
-    def _nufnu_user_model(self):
-        """
-        Calculates vfv based on a user-input model.
-        """
-        from scitools.StringFunction import StringFunction
-
-        f = StringFunction(self.pert.user_fit, globals=globals())
-
-
-        return f(self.sigma)

@@ -1,0 +1,29 @@
+notifications: 
+  email: 
+    recipients: 
+    - steven.murray@uwa.edu.au
+script: nosetests
+install: 
+- git clone https://github.com/steven-murray/pycamb.git
+- cd pycamb
+- python setup.py install --get=http://camb.info/CAMB_Mar13.tar.gz
+- cd ..
+- sudo rm -rf pycamb
+- sudo apt-get install python-numpy python-scipy
+- pip install scitools
+- pip install cosmolopy
+- pip install emcee
+deploy: 
+  user: stevenjeanette
+  on: 
+    tags: true
+  provider: pypi
+  password:
+    secure: lAM0ScaCdOTbixtJf908INAKIpVCIPLSu4ZpqSxdp0zzMsTJJoTLo00wlmzzjeQDsxqgpiUIvjnwlpdur7Q+IPmwFa9hkg4VX4Mqe0keoDaoUQaUzpypZqYF0w4egVgc62NnXCGg3B/JuqUFuyM692uvmjvokGmadXLevXvPaxM=
+virtualenv: 
+  system_site_packages: true
+language: python
+before_install: 
+- sudo apt-get install gfortran
+python: 
+- "2.7"

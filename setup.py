@@ -40,7 +40,6 @@ setup(
     version=version,
     packages=['hmf'],
     install_requires=["numpy>=1.6.2",
-                      "scitools",
                       "scipy>=0.12.0",
                       "cosmolopy",
                       "emcee>=2.0"],
