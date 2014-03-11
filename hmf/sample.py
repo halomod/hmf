@@ -29,7 +29,7 @@ def _choose_halo_masses(cdf, icdf, M_min, M_max, omegam, vol, frac, tol):
     M_min = 10 ** M_min
     M_max = 10 ** M_max
     diff = 4
-    m_tot = omegam * 2.7755e11 * vol
+    m_tot = omegam * 2.7755e11 * vol * frac
     m_tot_temp = omegam * 2.7755e11 * vol * frac
     j = 0
 
@@ -83,7 +83,6 @@ def _choose_halo_masses_num(cdf, icdf, m_max, vol=None, N=None):
         print "getting N in choose"
         N = int(maxcum * vol)
 
-    print "N in chooes: ", N
     # Generate random variates from 0 to maxcum
     x = np.random.random(N) * maxcum
 
@@ -159,12 +158,15 @@ def sample_mf(simvars=None, nvars=None, tol=3, match='mass',
         m_max = nvars.pop("m_max", 16)
         boxsize = vol ** (1. / 3.)
 
-    if type(tol) is int and m_tot is not None:
-        tol *= 10 ** m_min / m_tot
+
 
     m_max = min(m_max, hard_M_max)
     cdf, icdf, hmf, frac_in_bounds = _prepare_mf(m_min, m_max,
                                                  mf_kwargs, boxsize)
+
+    if type(tol) is int and m_tot is not None:
+        tol *= 10 ** m_min / (m_tot * frac_in_bounds)
+
 
     if match == "mass":
         m = _choose_halo_masses(cdf, icdf, m_min, m_max, omegam, vol,
@@ -173,5 +175,6 @@ def sample_mf(simvars=None, nvars=None, tol=3, match='mass',
         m = _choose_halo_masses_num(cdf, icdf, m_max * frac_in_bounds, N=n, vol=vol)
 
     if sort:
-        m = np.sort(m)[::-1]
-    return m, hmf, frac_in_bounds
+        m.sort()
+
+    return m[::-1], hmf, frac_in_bounds
