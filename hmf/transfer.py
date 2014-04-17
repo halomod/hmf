@@ -239,8 +239,8 @@ class Transfer(object):
     @lnk.setter
     def lnk(self, val):
         try:
-            if len(val) < 100:
-                raise ValueError("lnk should have more than 100 steps!")
+            if len(val) < 10:
+                raise ValueError("lnk should have more than 10 steps!")
         except TypeError:
             raise TypeError("lnk must be a sequence")
 
@@ -678,5 +678,24 @@ class Transfer(object):
     def nonlinear_power(self):
         try:
             del self.__nonlinear_power
+            del self.nonlinear_delta_k
+        except AttributeError:
+            pass
+
+    @property
+    def nonlinear_delta_k(self):
+        r"""
+        Dimensionless power spectrum, :math:`\Delta_k = \frac{k^3 P(k)}{2\pi^2}`
+        """
+        try:
+            return self.__nonlinear_delta_k
+        except AttributeError:
+            self.__nonlinear_delta_k = 3 * self.lnk + self.nonlinear_power - np.log(2 * np.pi ** 2)
+            return self.__nonlinear_delta_k
+
+    @nonlinear_delta_k.deleter
+    def nonlinear_delta_k(self):
+        try:
+            del self.__nonlinear_delta_k
         except AttributeError:
             pass
