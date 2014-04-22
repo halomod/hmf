@@ -21,10 +21,11 @@ import tools
 from fitting_functions import Fits
 from transfer import Transfer
 
-#===============================================================================
-# Logger
-#===============================================================================
 logger = logging.getLogger('hmf')
+
+#===============================================================================
+# Main Class
+#===============================================================================
 class MassFunction(object):
     """
     An object containing all relevant quantities for the mass function.
@@ -612,7 +613,6 @@ class MassFunction(object):
 
     def _upper_ngtm(self, M, mass_function, cut):
         """Calculate the mass function above given range of `M` in order to integrate"""
-        ### WE CALCULATE THE MASS FUNCTION ABOVE THE COMPUTED RANGE ###
         # mass_function is logged already (not log10 though)
         m_upper = np.linspace(np.log(M[-1]), np.log(10 ** 18), 500)
         if cut:  # since its been cut, the best we can do is a power law
@@ -654,7 +654,7 @@ class MassFunction(object):
                 m_nan = m_lower[np.isnan(mf)]
                 m_true = m_lower[np.logical_not(np.isnan(mf))]
                 mf_func = spline(m_true, mfslice, k=1)
-                mf[:len(mfslice)] = mf_func(m_nan)
+                mf[:len(m_nan)] = mf_func(m_nan)
         return m_lower, mf
 
     def _ngtm(self):
