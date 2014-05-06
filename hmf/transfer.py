@@ -614,71 +614,96 @@ class Transfer(object):
         try:
             return self.__nonlinear_power
         except:
-            k = np.exp(self.lnk)
-            delta_k = np.exp(self.delta_k)
-
-            # Define the cosmology at redshift
-            omegam = cp.density.omega_M_z(self.z, **self.cosmo.cosmolopy_dict())
-            omegav = self.cosmo.omegav / cp.distance.e_z(self.z, **self.cosmo.cosmolopy_dict()) ** 2
-            w = self.cosmo.w
-
-            f1 = omegam ** -0.0307
-            f2 = omegam ** -0.0585
-            f3 = omegam ** 0.0743
-
-            # Initialize sigma spline
-            lnr = np.linspace(np.log(0.1), np.log(10.0), 1000)
-            lnsig = np.empty(1000)
-
-            for i, r in enumerate(lnr):
-                R = np.exp(r)
-                integrand = delta_k * np.exp(-(k * R) ** 2)
-                sigma2 = integ.simps(integrand, np.log(k))
-                lnsig[i] = np.log(sigma2)
-
-            r_of_sig = spline(lnsig[::-1], lnr[::-1], k=5)
-            ks = 1.0 / np.exp(r_of_sig(0.0))
-            sig_of_r = spline(lnr, lnsig, k=5)
-
-            (dev1, dev2) = sig_of_r.derivatives(np.log(1.0 / ks))[1:3]
-
-            neff = -dev1 - 3.0
-            C = -dev2
-
-            a_n = 10 ** (1.5222 + 2.8553 * neff + 2.3706 * neff ** 2 +
-                    0.9903 * neff ** 3 + 0.2250 * neff ** 4 +
-                    - 0.6038 * C + 0.1749 * omegav * (1 + w))
-            b_n = 10 ** (-0.5642 + 0.5864 * neff + 0.5716 * neff ** 2 +
-                    - 1.5474 * C + 0.2279 * omegav * (1 + w))
-            c_n = 10 ** (0.3698 + 2.0404 * neff + 0.8161 * neff ** 2 + 0.5869 * C)
-            gamma_n = 0.1971 - 0.0843 * neff + 0.8460 * C
-            alpha_n = np.fabs(6.0835 + 1.3373 * neff - 0.1959 * neff ** 2 +
-                    - 5.5274 * C)
-            beta_n = (2.0379 - 0.7354 * neff + 0.3157 * neff ** 2 +
-                      1.2490 * neff ** 3 + 0.3980 * neff ** 4 - 0.1682 * C)
-            mu_n = 0.0
-            nu_n = 10 ** (5.2105 + 3.6902 * neff)
-
-            y = k / ks
-            fk = y / 4.0 + y ** 2 / 8.0
-
-            delta2Q = delta_k * ((1 + delta_k) ** beta_n /
-                                 (1 + alpha_n * delta_k) * np.exp(-fk))
-
-            delta2Hprime = a_n * y ** (3 * f1) / (1 + b_n * y ** f2 +
-                                                  (c_n * f3 * y) ** (3 - gamma_n))
-
-            delta2H = delta2Hprime / (1 + mu_n / y + nu_n / y ** 2)
-
-            self.__nonlinear_power = np.log(2.0 * np.pi ** 2 / k ** 3 *
-                                            (delta2Q + delta2H))
+            self.__nonlinear_power = -3 * self.lnk + self.nonlinear_delta_k + np.log(2 * np.pi ** 2)
             return self.__nonlinear_power
+
+
+    def _get_spec(self):
+        """
+        Calculate nonlinear wavenumber, effective spectral index and curvature
+        of the power spectrum.
+        """
+        k = np.exp(self.lnk)
+        delta_k = np.exp(self.delta_k)
+
+        # Initialize sigma spline
+        lnr = np.linspace(np.log(0.1), np.log(10.0), 1000)
+        lnsig = np.empty(1000)
+
+        for i, r in enumerate(lnr):
+            R = np.exp(r)
+            integrand = delta_k * np.exp(-(k * R) ** 2)
+            sigma2 = integ.simps(integrand, np.log(k))
+            lnsig[i] = np.log(sigma2)
+
+        r_of_sig = spline(lnsig[::-1], lnr[::-1], k=5)
+        rknl = 1.0 / np.exp(r_of_sig(0.0))
+        sig_of_r = spline(lnr, lnsig, k=5)
+
+        dev1, dev2 = sig_of_r.derivatives(np.log(1.0 / rknl))[1:3]
+
+        rneff = -dev1 - 3.0
+        rncur = -dev2
+
+        return rknl, rneff, rncur
+
+    def _halofit(self, k, neff, rncur, rknl, plin):
+        """
+        Halofit routine to calculate pnl and plin.
+        
+        Basically copies the CAMB routine
+        """
+
+        # Define the cosmology at redshift
+        omegam = cp.density.omega_M_z(self.z, **self.cosmo.cosmolopy_dict())
+        omegav = self.cosmo.omegav / cp.distance.e_z(self.z, **self.cosmo.cosmolopy_dict()) ** 2
+        print "z,omm0,omegav,om_m,om_v", self.z, self.cosmo.omegam, self.cosmo.omegav, omegam, omegav
+        w = self.cosmo.w
+        fnu = self.cosmo.omegan / self.cosmo.omegam
+
+        a = 10 ** (1.5222 + 2.8553 * neff + 2.3706 * neff ** 2 +
+                    0.9903 * neff ** 3 + 0.2250 * neff ** 4 +
+                    - 0.6038 * rncur + 0.1749 * omegav * (1 + w))
+        b = 10 ** (-0.5642 + 0.5864 * neff + 0.5716 * neff ** 2 +
+                - 1.5474 * rncur + 0.2279 * omegav * (1 + w))
+        c = 10 ** (0.3698 + 2.0404 * neff + 0.8161 * neff ** 2 + 0.5869 * rncur)
+        gam = 0.1971 - 0.0843 * neff + 0.8460 * rncur
+        alpha = np.abs(6.0835 + 1.3373 * neff - 0.1959 * neff ** 2 +
+                - 5.5274 * rncur)
+        beta = (2.0379 - 0.7354 * neff + 0.3157 * neff ** 2 +
+                  1.2490 * neff ** 3 + 0.3980 * neff ** 4 - 0.1682 * rncur +
+                  fnu * (1.081 + 0.395 * neff ** 2))
+        xmu = 0.0
+        xnu = 10 ** (5.2105 + 3.6902 * neff)
+
+        if np.abs(1 - omegam) > 0.01:
+            f1a = omegam ** -0.0732
+            f2a = omegam ** -0.1423
+            f3a = omegam ** 0.0725
+            f1b = omegam ** -0.0307
+            f2b = omegam ** -0.0585
+            f3b = omegam ** 0.0743
+            frac = omegav / (1 - omegam)
+            f1 = frac * f1b + (1 - frac) * f1a
+            f2 = frac * f2b + (1 - frac) * f2a
+            f3 = frac * f3b + (1 - frac) * f3a
+        else:
+            f1 = f2 = f3 = 1.0
+
+        y = k / rknl
+
+        ph = a * y ** (f1 * 3) / (1 + b * y ** f2 + (f3 * c * y) ** (3 - gam))
+        ph = ph / (1 + xmu * y ** (-1) + xnu * y ** (-2)) * (1 + fnu * (0.977 - 18.015 * (self.cosmo.omegam - 0.3)))
+        plinaa = plin * (1 + fnu * 47.48 * k ** 2 / (1 + 1.5 * k ** 2))
+        pq = plin * (1 + plinaa) ** beta / (1 + plinaa * alpha) * np.exp(-y / 4.0 - y ** 2 / 8.0)
+        pnl = pq + ph
+
+        return pnl
 
     @nonlinear_power.deleter
     def nonlinear_power(self):
         try:
             del self.__nonlinear_power
-            del self.nonlinear_delta_k
         except AttributeError:
             pass
 
@@ -690,12 +715,20 @@ class Transfer(object):
         try:
             return self.__nonlinear_delta_k
         except AttributeError:
-            self.__nonlinear_delta_k = 3 * self.lnk + self.nonlinear_power - np.log(2 * np.pi ** 2)
+            rknl, rneff, rncur = self._get_spec()
+            mask = np.exp(self.lnk) > 0.005
+            plin = np.exp(self.delta_k)
+            k = np.exp(self.lnk[mask])
+            pnl = self._halofit(k, rneff, rncur, rknl, plin[mask])
+            self.__nonlinear_delta_k = np.exp(self.delta_k)
+            self.__nonlinear_delta_k[mask] = pnl
+            self.__nonlinear_delta_k = np.log(self.__nonlinear_delta_k)
             return self.__nonlinear_delta_k
 
     @nonlinear_delta_k.deleter
     def nonlinear_delta_k(self):
         try:
             del self.__nonlinear_delta_k
+            del self.nonlinear_power
         except AttributeError:
             pass
