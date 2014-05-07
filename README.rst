@@ -36,6 +36,11 @@ See LICENSE.txt for details.
 
 HISTORY
 -------
+1.5.0 - May 08, 2014
+		Introduced _cache module
+		Extracts all caching logic to a separate module which defines 
+		decorators -- much simpler coding!
+		
 1.4.5 - January 24, 2014
 		Fixed a bug on updating delta_c
 		Added Behroozi alias to fits

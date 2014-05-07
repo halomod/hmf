@@ -8,7 +8,7 @@ from cosmo import Cosmology
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import cosmolopy as cp
 import scipy.integrate as integ
-
+from _cache import cached_property, set_property
 # import cosmolopy.density as cden
 import tools
 try:
@@ -232,11 +232,7 @@ class Transfer(object):
                 del self.growth
 
     # ---- SET PROPERTIES --------------------------------
-    @property
-    def lnk(self):
-        return self.__lnk
-
-    @lnk.setter
+    @set_property("_unnormalised_lnT")
     def lnk(self, val):
         try:
             if len(val) < 10:
@@ -247,14 +243,9 @@ class Transfer(object):
         if np.any(np.abs(np.diff(val, 2)) > 1e-5) or val[1] < val[0]:
             raise ValueError("lnk must be a linearly increasing array!")
 
-        del self._unnormalised_lnT
-        self.__lnk = val
+        return val
 
-    @property
-    def z(self):
-        return self.__z
-
-    @z.setter
+    @set_property("growth")
     def z(self, val):
         try:
             val = float(val)
@@ -264,19 +255,12 @@ class Transfer(object):
         if val < 0:
             raise ValueError("z must be > 0 (", val, ")")
 
-        # Delete stuff dependent on it
-        del self.growth
-        self.__z = val
+        return val
 
-    @property
-    def wdm_mass(self):
-        return self.__wdm_mass
-
-    @wdm_mass.setter
+    @set_property("_lnP_0", "transfer")
     def wdm_mass(self, val):
         if val is None:
-            self.__wdm_mass = val
-            return
+            return val
         try:
             val = float(val)
         except ValueError:
@@ -284,24 +268,13 @@ class Transfer(object):
 
         if val <= 0:
             raise ValueError("wdm_mass must be > 0 (", val, ")")
+        return val
 
-        # delete stuff dependent on it
-        del self._lnP_0
-        del self.transfer
-
-        self.__wdm_mass = val
-
-    @property
-    def transfer_fit(self):
-        return self.__transfer_fit
-
-    @transfer_fit.setter
+    @set_property("_unnormalised_lnT")
     def transfer_fit(self, val):
         if not HAVE_PYCAMB and val == "CAMB":
             raise ValueError("You cannot use the CAMB transfer since pycamb isn't installed")
-
-        del self._unnormalised_lnT
-        self.__transfer_fit = val
+        return val
 
 
     # ---- DERIVED PROPERTIES AND FUNCTIONS ---------------
@@ -397,7 +370,7 @@ class Transfer(object):
         k = np.exp(k)
         return np.log((1 + (a * k + (b * k) ** 1.5 + (c * k) ** 2) ** nu) ** (-1 / nu))
 
-    @property
+    @cached_property("_unnormalised_lnP", "_lnT_cdm")
     def _unnormalised_lnT(self):
         """
         The un-normalised transfer function
@@ -405,108 +378,47 @@ class Transfer(object):
         This wraps the individual transfer_fit methods to provide unified access.
         """
         try:
-            return self.__unnormalised_lnT
+            return getattr(self, "_" + self.transfer_fit)(self.lnk)
         except AttributeError:
-            try:
-                self.__unnormalised_lnT = getattr(self, "_" + self.transfer_fit)(self.lnk)
-            except AttributeError:
-                self.__unnormalised_lnT = self._from_file(self.lnk)
-            return self.__unnormalised_lnT
+            return self._from_file(self.lnk)
 
-    @_unnormalised_lnT.deleter
-    def _unnormalised_lnT(self):
-        try:
-            del self.__unnormalised_lnT
-            del self._unnormalised_lnP
-            del self._lnT_cdm
-        except AttributeError:
-            pass
-
-    @property
+    @cached_property("_lnP_cdm_0")
     def _unnormalised_lnP(self):
         """
         Un-normalised CDM log power at :math:`z=0` [units :math:`Mpc^3/h^3`]
         """
-        try:
-            return self.__unnormalised_lnP
-        except AttributeError:
-            self.__unnormalised_lnP = self.cosmo.n * self.lnk + 2 * self._unnormalised_lnT
-            return self.__unnormalised_lnP
+        return self.cosmo.n * self.lnk + 2 * self._unnormalised_lnT
 
-    @_unnormalised_lnP.deleter
-    def _unnormalised_lnP(self):
-        try:
-            del self.__unnormalised_lnP
-            del self._lnP_cdm_0
-        except AttributeError:
-            pass
-
-    @property
+    @cached_property("_lnP_0")
     def _lnP_cdm_0(self):
         """
         Normalised CDM log power at z=0 [units :math:`Mpc^3/h^3`]
         """
-        try:
-            return self.__lnP_cdm_0
-        except AttributeError:
-            self.__lnP_cdm_0 = tools.normalize(self.cosmo.sigma_8,
-                                               self._unnormalised_lnP,
-                                               self.lnk, self.cosmo.mean_dens)[0]
-            return self.__lnP_cdm_0
+        return tools.normalize(self.cosmo.sigma_8,
+                               self._unnormalised_lnP,
+                               self.lnk, self.cosmo.mean_dens)[0]
 
-    @_lnP_cdm_0.deleter
-    def _lnP_cdm_0(self):
-        try:
-            del self.__lnP_cdm_0
-            del self._lnP_0
-        except AttributeError:
-            pass
-
-    @property
+    @cached_property("transfer")
     def _lnT_cdm(self):
         """
         Normalised CDM log transfer function
         """
-        try:
-            return self.__lnT_cdm
-        except AttributeError:
-            self.__lnT_cdm = tools.normalize(self.cosmo.sigma_8,
-                                             self._unnormalised_lnT,
-                                             self.lnk, self.cosmo.mean_dens)
-            return self.__lnT_cdm
+        return tools.normalize(self.cosmo.sigma_8,
+                               self._unnormalised_lnT,
+                               self.lnk, self.cosmo.mean_dens)
 
-    @_lnT_cdm.deleter
-    def _lnT_cdm(self):
-        try:
-            del self.__lnT_cdm
-            del self.transfer
-        except AttributeError:
-            pass
-
-    @property
+    @cached_property("power")
     def _lnP_0(self):
         """
         Normalised log power at :math:`z=0` (for CDM/WDM)
         """
-        try:
-            return self.__lnP_0
-        except AttributeError:
-            if self.wdm_mass is not None:
-                self.__lnP_0 = tools.wdm_transfer(self.wdm_mass, self._lnP_cdm_0,
-                                                  self.lnk, self.cosmo.h, self.cosmo.omegac)
-            else:
-                self.__lnP_0 = self._lnP_cdm_0
-            return self.__lnP_0
+        if self.wdm_mass is not None:
+            return tools.wdm_transfer(self.wdm_mass, self._lnP_cdm_0,
+                                              self.lnk, self.cosmo.h, self.cosmo.omegac)
+        else:
+            return self._lnP_cdm_0
 
-    @_lnP_0.deleter
-    def _lnP_0(self):
-        try:
-            del self.__lnP_0
-            del self.power
-        except AttributeError:
-            pass
-
-    @property
+    @cached_property("power")
     def growth(self):
         r"""
         The growth factor :math:`d(z)`
@@ -524,81 +436,34 @@ class Transfer(object):
         .. math:: H(z) = H_0\sqrt{\Omega_m (1+z)^3 + (1-\Omega_m)}
         
         """
-        try:
-            return self.__growth
-        except:
-            if self.z > 0:
-                self.__growth = tools.growth_factor(self.z, self.cosmo)
-            else:
-                self.__growth = 1.0
-            return self.__growth
+        if self.z > 0:
+            return tools.growth_factor(self.z, self.cosmo)
+        else:
+            return 1.0
 
-    @growth.deleter
-    def growth(self):
-        try:
-            del self.__growth
-            del self.power
-        except:
-            pass
-
-    @property
+    @cached_property("delta_k")
     def power(self):
         """
         Normalised log power spectrum [units :math:`Mpc^3/h^3`]
         """
-        try:
-            return self.__power
-        except AttributeError:
-            self.__power = 2 * np.log(self.growth) + self._lnP_0
-            return self.__power
+        return 2 * np.log(self.growth) + self._lnP_0
 
-    @power.deleter
-    def power(self):
-        try:
-            del self.__power
-            del self.delta_k
-        except AttributeError:
-            pass
-
-    @property
+    @cached_property()
     def transfer(self):
         """
         Normalised log transfer function for CDM/WDM
         """
-        try:
-            return self.__transfer
-        except AttributeError:
-            self.__transfer = tools.wdm_transfer(self.wdm_mass, self._lnT_cdm,
-                                                 self.lnk, self.cosmo.h, self.cosmo.omegac)
-            return self.__transfer
+        return tools.wdm_transfer(self.wdm_mass, self._lnT_cdm,
+                                  self.lnk, self.cosmo.h, self.cosmo.omegac)
 
-    @transfer.deleter
-    def transfer(self):
-        try:
-            del self.__transfer
-        except AttributeError:
-            pass
-
-    @property
+    @cached_property("nonlinear_delta_k")
     def delta_k(self):
         r"""
         Dimensionless power spectrum, :math:`\Delta_k = \frac{k^3 P(k)}{2\pi^2}`
         """
-        try:
-            return self.__delta_k
-        except AttributeError:
-            self.__delta_k = 3 * self.lnk + self.power - np.log(2 * np.pi ** 2)
-            return self.__delta_k
+        return 3 * self.lnk + self.power - np.log(2 * np.pi ** 2)
 
-    @delta_k.deleter
-    def delta_k(self):
-        try:
-            del self.__delta_k
-            del self.nonlinear_power
-        except AttributeError:
-            pass
-
-    @property
+    @cached_property()
     def nonlinear_power(self):
         """
         Non-linear log power [units :math:`Mpc^3/h^3`]
@@ -611,12 +476,7 @@ class Transfer(object):
         and Michael Schneider (https://code.google.com/p/chomp/). It has 
         been modified to improve its integration with this package.        
         """
-        try:
-            return self.__nonlinear_power
-        except:
-            self.__nonlinear_power = -3 * self.lnk + self.nonlinear_delta_k + np.log(2 * np.pi ** 2)
-            return self.__nonlinear_power
-
+        return -3 * self.lnk + self.nonlinear_delta_k + np.log(2 * np.pi ** 2)
 
     def _get_spec(self):
         """
@@ -657,7 +517,7 @@ class Transfer(object):
         # Define the cosmology at redshift
         omegam = cp.density.omega_M_z(self.z, **self.cosmo.cosmolopy_dict())
         omegav = self.cosmo.omegav / cp.distance.e_z(self.z, **self.cosmo.cosmolopy_dict()) ** 2
-        print "z,omm0,omegav,om_m,om_v", self.z, self.cosmo.omegam, self.cosmo.omegav, omegam, omegav
+
         w = self.cosmo.w
         fnu = self.cosmo.omegan / self.cosmo.omegam
 
@@ -700,35 +560,17 @@ class Transfer(object):
 
         return pnl
 
-    @nonlinear_power.deleter
-    def nonlinear_power(self):
-        try:
-            del self.__nonlinear_power
-        except AttributeError:
-            pass
-
-    @property
+    @cached_property("nonlinear_power")
     def nonlinear_delta_k(self):
         r"""
         Dimensionless power spectrum, :math:`\Delta_k = \frac{k^3 P(k)}{2\pi^2}`
         """
-        try:
-            return self.__nonlinear_delta_k
-        except AttributeError:
-            rknl, rneff, rncur = self._get_spec()
-            mask = np.exp(self.lnk) > 0.005
-            plin = np.exp(self.delta_k)
-            k = np.exp(self.lnk[mask])
-            pnl = self._halofit(k, rneff, rncur, rknl, plin[mask])
-            self.__nonlinear_delta_k = np.exp(self.delta_k)
-            self.__nonlinear_delta_k[mask] = pnl
-            self.__nonlinear_delta_k = np.log(self.__nonlinear_delta_k)
-            return self.__nonlinear_delta_k
-
-    @nonlinear_delta_k.deleter
-    def nonlinear_delta_k(self):
-        try:
-            del self.__nonlinear_delta_k
-            del self.nonlinear_power
-        except AttributeError:
-            pass
+        rknl, rneff, rncur = self._get_spec()
+        mask = np.exp(self.lnk) > 0.005
+        plin = np.exp(self.delta_k)
+        k = np.exp(self.lnk[mask])
+        pnl = self._halofit(k, rneff, rncur, rknl, plin[mask])
+        nonlinear_delta_k = np.exp(self.delta_k)
+        nonlinear_delta_k[mask] = pnl
+        nonlinear_delta_k = np.log(nonlinear_delta_k)
+        return nonlinear_delta_k

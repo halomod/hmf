@@ -20,7 +20,7 @@ import cosmolopy as cp
 import tools
 from fitting_functions import Fits
 from transfer import Transfer
-
+from _cache import set_property, cached_property
 logger = logging.getLogger('hmf')
 
 #===============================================================================
@@ -145,10 +145,10 @@ class MassFunction(object):
 
 #             The following takes care of everything specifically in this class
             if "_MassFunction__" + key in self.__dict__:
-                try: doset = np.any(getattr(self, key) != val)
-                except ValueError: doset = not np.array_equal(getattr(self, key), val)
-                if doset:
-                    setattr(self, key, val)
+#                 try: doset = np.any(getattr(self, key) != val)
+#                 except ValueError: doset = not np.array_equal(getattr(self, key), val)
+#                 if doset:
+                setattr(self, key, val)
 
             # We need to handle deletes in this class by parameters in Transfer here
             if key is 'z':
@@ -169,12 +169,9 @@ class MassFunction(object):
 
         tools.check_kr(self.M[0], self.M[-1], self.cosmo.mean_dens,
                        self.transfer.lnk[0], self.transfer.lnk[-1])
-    # --- SET PROPERTIES -------------------------------------------------------
-    @property
-    def M(self):
-        return self.__M
 
-    @M.setter
+    # --- SET PROPERTIES -------------------------------------------------------
+    @set_property("_sigma_0")
     def M(self, val):
         try:
             if len(val) == 1:
@@ -184,16 +181,9 @@ class MassFunction(object):
 
         if np.any(np.abs(np.diff(val, 2)) > 1e-5) or val[1] < val[0]:
             raise ValueError("M must be a linearly increasing vector! " + str(val[0]) + " " + str(val[1]))
+        return 10 ** val
 
-        # Delete stuff dependent on it
-        del self._sigma_0
-        self.__M = 10 ** val
-
-    @property
-    def delta_c(self):
-        return self.__delta_c
-
-    @delta_c.setter
+    @set_property("fsigma")
     def delta_c(self, val):
         try:
             val = float(val)
@@ -205,27 +195,17 @@ class MassFunction(object):
         if val > 10.0:
             raise ValueError("delta_c must be < 10.0 (", val, ")")
 
-        self.__delta_c = val
+        return val
 
-        del self.fsigma
-
-    @property
-    def mv_scheme(self):
-        return self.__mv_scheme
-
-    @mv_scheme.setter
+    @set_property("_sigma_0")
     def mv_scheme(self, val):
         if val not in ['trapz', 'simps', 'romb']:
             raise ValueError("mv_scheme wrong")
         else:
-            self.__mv_scheme = val
-            del self._sigma_0
+            return val
 
-    @property
-    def mf_fit(self):
-        return self.__mf_fit
 
-    @mf_fit.setter
+    @set_property("fsigma")
     def mf_fit(self, val):
         # mf_fit may be a callable or a string. Try callable first.
         try:
@@ -239,16 +219,9 @@ class MassFunction(object):
             if val not in Fits.mf_fits + ["Behroozi"]:
                 raise ValueError("mf_fit is not in the list of available fitting functions: ", val)
 
-        # Also delete stuff dependent on it
-        del self.fsigma
+        return val
 
-        self.__mf_fit = val
-
-    @property
-    def delta_h(self):
-        return self.__delta_h
-
-    @delta_h.setter
+    @set_property("delta_halo")
     def delta_h(self, val):
         try:
             val = float(val)
@@ -260,33 +233,20 @@ class MassFunction(object):
         if val > 10000:
             raise ValueError("delta_halo must be < 10,000 (", val, ")")
 
-        self.__delta_h = val
+        return val
 
-        # Delete stuff dependent on it
-        del self.delta_halo
-
-    @property
-    def delta_wrt(self):
-        return self.__delta_wrt
-
-    @delta_wrt.setter
+    @set_property("delta_halo")
     def delta_wrt(self, val):
         if val not in ['mean', 'crit']:
             raise ValueError("delta_wrt must be either 'mean' or 'crit' (", val, ")")
 
-        self.__delta_wrt = val
-        del self.delta_halo
+        return val
 
 
-    @property
-    def z2(self):
-        return self.__z2
-
-    @z2.setter
+    @set_property("dndm")
     def z2(self, val):
         if val is None:
-            self.__z2 = val
-            return
+            return val
 
         try:
             val = float(val)
@@ -296,19 +256,12 @@ class MassFunction(object):
         if val <= self.transfer.z:
             raise ValueError("z2 must be larger than z")
         else:
-            self.__z2 = val
+            return val
 
-        del self.dndm
-
-    @property
-    def nz(self):
-        return self.__nz
-
-    @nz.setter
+    @set_property("dndm")
     def nz(self, val):
         if val is None:
-            self.__nz = val
-            return
+            return val
 
         try:
             val = int(val)
@@ -318,21 +271,13 @@ class MassFunction(object):
         if val < 1:
             raise ValueError("nz must be >= 1")
         else:
-            self.__nz = val
+            return val
 
-        del self.dndm
-
-    @property
-    def cut_fit(self):
-        return self.__cut_fit
-
-    @cut_fit.setter
+    @set_property("fsigma")
     def cut_fit(self, val):
         if not isinstance(val, bool):
             raise ValueError("cut_fit must be a bool, " + str(val))
-
-        del self.fsigma
-        self.__cut_fit = val
+        return val
 
 
     #--------------------------------  START NON-SET PROPERTIES ----------------------------------------------
@@ -341,28 +286,16 @@ class MassFunction(object):
         """ :class:`hmf.cosmo.Cosmology` object aliased from `self.transfer.cosmo`"""
         return self.transfer.cosmo
 
-    @property
+    @cached_property("fsigma")
     def delta_halo(self):
         """ Overdensity of a halo w.r.t mean density"""
-        try:
-            return self.__delta_halo
-        except:
-            if self.delta_wrt == 'mean':
-                self.__delta_halo = self.delta_h
+        if self.delta_wrt == 'mean':
+            return self.delta_h
 
-            elif self.delta_wrt == 'crit':
-                self.__delta_halo = self.delta_h / cp.density.omega_M_z(self.transfer.z, **self.cosmo.cosmolopy_dict())
-            return self.__delta_halo
+        elif self.delta_wrt == 'crit':
+            return self.delta_h / cp.density.omega_M_z(self.transfer.z, **self.cosmo.cosmolopy_dict())
 
-    @delta_halo.deleter
-    def delta_halo(self):
-        try:
-            del self.__delta_halo
-            del self.fsigma
-        except:
-            pass
-
-    @property
+    @cached_property("_dlnsdlnm", "sigma")
     def _sigma_0(self):
         """
         The normalised mass variance at z=0 :math:`\sigma`
@@ -373,26 +306,12 @@ class MassFunction(object):
         .. math:: \sigma^2(R) = \frac{1}{2\pi^2}\int_0^\infty{k^2P(k)W^2(kR)dk}
         
         """
+        return tools.mass_variance(self.M, self.transfer._lnP_0,
+                                   self.transfer.lnk,
+                                   self.cosmo.mean_dens,
+                                   self.mv_scheme)
 
-        try:
-            return self.__sigma_0
-        except:
-            self.__sigma_0 = tools.mass_variance(self.M, self.transfer._lnP_0,
-                                                 self.transfer.lnk,
-                                                 self.cosmo.mean_dens,
-                                                 self.mv_scheme)
-            return self.__sigma_0
-
-    @_sigma_0.deleter
-    def _sigma_0(self):
-        try:
-            del self.__sigma_0
-            del self._dlnsdlnm
-            del self.sigma
-        except:
-            pass
-
-    @property
+    @cached_property("dndm", "n_eff")
     def _dlnsdlnm(self):
         """
         The value of :math:`\left|\frac{\d \ln \sigma}{\d \ln M}\right|`, ``len=len(M)``
@@ -403,213 +322,113 @@ class MassFunction(object):
         .. math:: frac{d\ln\sigma}{d\ln M} = \frac{3}{2\sigma^2\pi^2R^4}\int_0^\infty \frac{dW^2(kR)}{dM}\frac{P(k)}{k^2}dk
         
         """
-        try:
-            return self.__dlnsdlnm
-        except:
-            self.__dlnsdlnm = tools.dlnsdlnm(self.M, self._sigma_0, self.transfer._lnP_0,
+        return tools.dlnsdlnm(self.M, self._sigma_0, self.transfer._lnP_0,
                                              self.transfer.lnk,
                                              self.cosmo.mean_dens)
-            return self.__dlnsdlnm
 
-    @_dlnsdlnm.deleter
-    def _dlnsdlnm(self):
-        try:
-            del self.__dlnsdlnm
-            del self.dndm
-            del self.n_eff
-        except:
-            pass
-
-    @property
+    @cached_property("fsigma", "lnsigma")
     def sigma(self):
         """
         The mass variance at `z`, ``len=len(M)``
         """
-        try:
-            return self.__sigma
-        except:
-            self.__sigma = self._sigma_0 * self.transfer.growth
-            return self.__sigma
+        return self._sigma_0 * self.transfer.growth
 
-    @sigma.deleter
-    def sigma(self):
-        try:
-            del self.__sigma
-            del self.fsigma
-            del self.lnsigma
-        except:
-            pass
-
-    @property
+    @cached_property("fsigma")
     def lnsigma(self):
         """
         Natural log of inverse mass variance, ``len=len(M)``
         """
-        try:
-            return self.__lnsigma
-        except:
-            self.__lnsigma = np.log(1 / self.sigma)
-            return self.__lnsigma
+        return np.log(1 / self.sigma)
 
-    @lnsigma.deleter
-    def lnsigma(self):
-        try:
-            del self.__lnsigma
-            del self.fsigma
-        except:
-            pass
-
-    @property
+    @cached_property()
     def n_eff(self):
         """
         Effective spectral index at scale of halo radius, ``len=len(M)``
         """
-        try:
-            return self.__n_eff
-        except:
-            self.__n_eff = tools.n_eff(self._dlnsdlnm)
-            return self.__n_eff
+        return tools.n_eff(self._dlnsdlnm)
 
-    @n_eff.deleter
-    def n_eff(self):
-        try:
-            del self.__n_eff
-        except:
-            pass
-
-    @property
+    @cached_property("dndm")
     def fsigma(self):
         """
         The multiplicity function, :math:`f(\sigma)`, for `mf_fit`. ``len=len(M)``
         """
         try:
-            return self.__fsigma
+            fsigma = self.mf_fit(self)
         except:
+            fits_class = Fits(self)
+            fsigma = fits_class.nufnu()
+
+        if np.sum(np.isnan(fsigma)) > 0.8 * len(fsigma):
+            # the input mass range is almost completely outside the cut
+            logger.warning("The specified mass-range was almost entirely \
+                            outside of the limits from the fit. Ignored fit range...")
+            self.cut_fit = False
             try:
-                self.__fsigma = self.mf_fit(self)
+                fsigma = self.mf_fit(self)
             except:
-                fits_class = Fits(self)
-                self.__fsigma = fits_class.nufnu()
+                fsigma = fits_class.nufnu()
 
-            if np.sum(np.isnan(self.__fsigma)) > 0.8 * len(self.__fsigma):
-                # the input mass range is almost completely outside the cut
-                logger.warning("The specified mass-range was almost entirely \
-                                outside of the limits from the fit. Ignored fit range...")
-                self.cut_fit = False
-                try:
-                    self.__fsigma = self.mf_fit(self)
-                except:
-                    self.__fsigma = fits_class.nufnu()
+        return fsigma
 
-            return self.__fsigma
-
-    @fsigma.deleter
-    def fsigma(self):
-        try:
-            del self.__fsigma
-            del self.dndm
-        except:
-            pass
-
-    @property
+    @cached_property("dndlnm", "dndlog10m")
     def dndm(self):
         """
         The number density of haloes, ``len=len(M)`` [units :math:`h^4 M_\odot^{-1} Mpc^{-3}`]
         """
-        try:
-            return self.__dndm
-        except:
-            if self.z2 is None:  # #This is normally the case
-                self.__dndm = self.fsigma * self.cosmo.mean_dens * np.abs(self._dlnsdlnm) / self.M ** 2
+        if self.z2 is None:  # #This is normally the case
+            dndm = self.fsigma * self.cosmo.mean_dens * np.abs(self._dlnsdlnm) / self.M ** 2
+            if self.mf_fit == 'Behroozi':
+                a = 1 / (1 + self.transfer.z)
+                theta = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (self.M / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)))
+                ngtm_tinker = self._ngtm()
+                ngtm_behroozi = 10 ** (theta + np.log10(ngtm_tinker))
+                dthetadM = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * \
+                    (0.5 / (1 + np.exp(6.5 * a))) * (self.M / 10 ** 11.5) ** \
+                    (0.5 / (1 + np.exp(6.5 * a)) - 1) / (10 ** 11.5)
+                dndm = self.__dndm * 10 ** theta - ngtm_behroozi * np.log(10) * dthetadM
+        else:  # #This is for a survey-volume weighted calculation
+            if self.nz is None:
+                self.nz = 10
+            zedges = np.linspace(self.transfer.z, self.z2, self.nz)
+            zcentres = (zedges[:-1] + zedges[1:]) / 2
+            dndm = np.zeros_like(zcentres)
+            vol = np.zeros_like(zedges)
+            vol[0] = cp.distance.comoving_volume(self.transfer.z,
+                                        **self.cosmo.cosmolopy_dict())
+            for i, zz in enumerate(zcentres):
+                self.update(z=zz)
+                dndm[i] = self.fsigma * self.cosmo.mean_dens * np.abs(self._dlnsdlnm) / self.M ** 2
                 if self.mf_fit == 'Behroozi':
                     a = 1 / (1 + self.transfer.z)
                     theta = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (self.M / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)))
                     ngtm_tinker = self._ngtm()
                     ngtm_behroozi = 10 ** (theta + np.log10(ngtm_tinker))
-                    dthetadM = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * \
-                        (0.5 / (1 + np.exp(6.5 * a))) * (self.M / 10 ** 11.5) ** \
-                        (0.5 / (1 + np.exp(6.5 * a)) - 1) / (10 ** 11.5)
-                    self.__dndm = self.__dndm * 10 ** theta - ngtm_behroozi * np.log(10) * dthetadM
-            else:  # #This is for a survey-volume weighted calculation
-                if self.nz is None:
-                    self.nz = 10
-                zedges = np.linspace(self.transfer.z, self.z2, self.nz)
-                zcentres = (zedges[:-1] + zedges[1:]) / 2
-                dndm = np.zeros_like(zcentres)
-                vol = np.zeros_like(zedges)
-                vol[0] = cp.distance.comoving_volume(self.transfer.z,
-                                            **self.cosmo.cosmolopy_dict())
-                for i, zz in enumerate(zcentres):
-                    self.update(z=zz)
-                    dndm[i] = self.fsigma * self.cosmo.mean_dens * np.abs(self._dlnsdlnm) / self.M ** 2
-                    if self.mf_fit == 'Behroozi':
-                        a = 1 / (1 + self.transfer.z)
-                        theta = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (self.M / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)))
-                        ngtm_tinker = self._ngtm()
-                        ngtm_behroozi = 10 ** (theta + np.log10(ngtm_tinker))
-                        dthetadM = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (0.5 / (1 + np.exp(6.5 * a))) * (self.M / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)) - 1) / (10 ** 11.5)
-                        dndm[i] = dndm[i] * 10 ** theta - ngtm_behroozi * np.log(10) * dthetadM
+                    dthetadM = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (0.5 / (1 + np.exp(6.5 * a))) * (self.M / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)) - 1) / (10 ** 11.5)
+                    dndm[i] = dndm[i] * 10 ** theta - ngtm_behroozi * np.log(10) * dthetadM
 
-                    vol[i + 1] = cp.distance.comoving_volume(z=zedges[i + 1],
-                                                    **self.cosmo.cosmolopy_dict())
+                vol[i + 1] = cp.distance.comoving_volume(z=zedges[i + 1],
+                                                **self.cosmo.cosmolopy_dict())
 
-                vol = vol[1:] - vol[:-1]  # Volume in shells
-                integrand = vol * dndm
-                numerator = intg.simps(integrand, x=zcentres)
-                denom = intg.simps(vol, zcentres)
-                self.__dndm = numerator / denom
-            return self.__dndm
+            vol = vol[1:] - vol[:-1]  # Volume in shells
+            integrand = vol * dndm
+            numerator = intg.simps(integrand, x=zcentres)
+            denom = intg.simps(vol, zcentres)
+            dndm = numerator / denom
+        return dndm
 
-    @dndm.deleter
-    def dndm(self):
-        try:
-            del self.__dndm
-            del self.dndlnm
-            del self.dndlog10m
-        except:
-            pass
-
-
-    @property
+    @cached_property("ngtm", "nltm", "mgtm", "mltm", "how_big")
     def dndlnm(self):
         """
         The differential mass function in terms of natural log of `M`, ``len=len(M)`` [units :math:`h^3 Mpc^{-3}`]
         """
-        try:
-            return self.__dndlnm
-        except:
-            self.__dndlnm = self.M * self.dndm
-            return self.__dndlnm
+        return self.M * self.dndm
 
-    @dndlnm.deleter
-    def dndlnm(self):
-        try:
-            del self.__dndlnm
-            del self.ngtm
-            del self.nltm
-            del self.mgtm
-            del self.mltm
-            del self.how_big
-        except:
-            pass
-
-    @property
+    @cached_property()
     def dndlog10m(self):
         """
         The differential mass function in terms of log of `M`, ``len=len(M)`` [units :math:`h^3 Mpc^{-3}`]
         """
-        try:
-            return self.__dndlog10m
-        except:
-            self.__dndlog10m = self.M * self.dndm * np.log(10)
-            return self.__dndlog10m
-
-    @dndlog10m.deleter
-    def dndlog10m(self):
-        try:
-            del self.__dndlog10m
-        except:
-            pass
+        return self.M * self.dndm * np.log(10)
 
     def _upper_ngtm(self, M, mass_function, cut):
         """Calculate the mass function above given range of `M` in order to integrate"""
@@ -687,141 +506,101 @@ class MassFunction(object):
 
         return ngtm
 
-    @property
+    @cached_property("how_big")
     def ngtm(self):
         """
         The cumulative mass function above `M`, ``len=len(M)`` [units :math:`h^3 Mpc^{-3}`]
         """
-        try:
-            return self.__ngtm
-        except:
-            self.__ngtm = self._ngtm()
-            return self.__ngtm
+        return self._ngtm()
 
-    @ngtm.deleter
-    def ngtm(self):
-        try:
-            del self.__ngtm
-            del self.how_big
-        except:
-            pass
-
-    @property
+    @cached_property()
     def mgtm(self):
         """
         Mass in haloes `>M`, ``len=len(M)`` [units :math:`M_\odot h^2 Mpc^{-3}`]
         """
-        try:
-            return self.__mgtm
-        except:
-            M = self.M[np.logical_not(np.isnan(self.dndlnm))]
-            mass_function = self.dndlnm[np.logical_not(np.isnan(self.dndlnm))]
+        M = self.M[np.logical_not(np.isnan(self.dndlnm))]
+        mass_function = self.dndlnm[np.logical_not(np.isnan(self.dndlnm))]
 
-            # Calculate the mass function (and its integral) from the highest M up to 10**18
-            if M[-1] < 10 ** 18:
-                m_upper, mf = self._upper_ngtm(M, np.log(mass_function), M[-1] < self.M[-1])
-                int_upper = intg.simps(np.exp(mf + m_upper) , dx=m_upper[2] - m_upper[1], even='first')
-            else:
-                int_upper = 0
+        # Calculate the mass function (and its integral) from the highest M up to 10**18
+        if M[-1] < 10 ** 18:
+            m_upper, mf = self._upper_ngtm(M, np.log(mass_function), M[-1] < self.M[-1])
+            int_upper = intg.simps(np.exp(mf + m_upper) , dx=m_upper[2] - m_upper[1], even='first')
+        else:
+            int_upper = 0
 
-            # Calculate the cumulative integral (backwards) of mass_function (Adding on the upper integral)
-            self.__mgtm = np.concatenate((intg.cumtrapz(mass_function[::-1] * M[::-1], dx=np.log(M[1]) - np.log(M[0]))[::-1], np.zeros(1))) + int_upper
+        # Calculate the cumulative integral (backwards) of mass_function (Adding on the upper integral)
+        mgtm = np.concatenate((intg.cumtrapz(mass_function[::-1] * M[::-1], dx=np.log(M[1]) - np.log(M[0]))[::-1], np.zeros(1))) + int_upper
 
-            # We need to set ngtm back in the original length vector with nans where they were originally
-            if len(self.__mgtm) < len(self.M):
-                mgtm_temp = np.zeros_like(self.dndlnm)
-                mgtm_temp[:] = np.nan
-                mgtm_temp[np.logical_not(np.isnan(self.dndlnm))] = self.__mgtm
-                self.__mgtm = mgtm_temp
-            return self.__mgtm
-    @mgtm.deleter
-    def mgtm(self):
-        try:
-            del self.__mgtm
-        except:
-            pass
+        # We need to set ngtm back in the original length vector with nans where they were originally
+        if len(mgtm) < len(self.M):
+            mgtm_temp = np.zeros_like(self.dndlnm)
+            mgtm_temp[:] = np.nan
+            mgtm_temp[np.logical_not(np.isnan(self.dndlnm))] = mgtm
+            mgtm = mgtm_temp
+        return mgtm
 
-    @property
+    @cached_property()
     def nltm(self):
         """
         Inverse cumulative mass function, ``len=len(M)`` [units :math:`h^3 Mpc^{-3}`]
         """
-        try:
-            return self.__nltm
-        except:
-            # set M and mass_function within computed range
-            M = self.M[np.logical_not(np.isnan(self.dndlnm))]
-            mass_function = self.dndlnm[np.logical_not(np.isnan(self.dndlnm))]
+        # set M and mass_function within computed range
+        M = self.M[np.logical_not(np.isnan(self.dndlnm))]
+        mass_function = self.dndlnm[np.logical_not(np.isnan(self.dndlnm))]
 
-            # Calculate the mass function (and its integral) from 10**3 up to lowest M
-            if M[0] > 10 ** 3:
-                m_lower, mf = self._lower_ngtm(M, np.log(mass_function), M[0] > self.M[0])
+        # Calculate the mass function (and its integral) from 10**3 up to lowest M
+        if M[0] > 10 ** 3:
+            m_lower, mf = self._lower_ngtm(M, np.log(mass_function), M[0] > self.M[0])
 
-                int_lower = intg.simps(np.exp(mf), dx=m_lower[2] - m_lower[1], even='first')
-            else:
-                int_lower = 0
+            int_lower = intg.simps(np.exp(mf), dx=m_lower[2] - m_lower[1], even='first')
+        else:
+            int_lower = 0
 
-            # Calculate the cumulative integral of mass_function (Adding on the lower integral)
-            self.__nltm = np.concatenate((np.zeros(1), intg.cumtrapz(mass_function, dx=np.log(M[1]) - np.log(M[0])))) + int_lower
+        # Calculate the cumulative integral of mass_function (Adding on the lower integral)
+        nltm = np.concatenate((np.zeros(1), intg.cumtrapz(mass_function, dx=np.log(M[1]) - np.log(M[0])))) + int_lower
 
-            # We need to set ngtm back in the original length vector with nans where they were originally
-            if len(self.__nltm) < len(self.M):
-                nltm_temp = np.zeros_like(self.dndlnm)
-                nltm_temp[:] = np.nan
-                nltm_temp[np.logical_not(np.isnan(self.dndlnm))] = self.__nltm
-                self.__nltm = nltm_temp
+        # We need to set ngtm back in the original length vector with nans where they were originally
+        if len(nltm) < len(self.M):
+            nltm_temp = np.zeros_like(self.dndlnm)
+            nltm_temp[:] = np.nan
+            nltm_temp[np.logical_not(np.isnan(self.dndlnm))] = nltm
+            nltm = nltm_temp
 
-            return self.__nltm
-    @nltm.deleter
-    def nltm(self):
-        try:
-            del self.__nltm
-        except:
-            pass
+        return nltm
 
-    @property
+    @cached_property()
     def mltm(self):
         """
         Total mass in haloes `<M`, ``len=len(M)`` [units :math:`M_\odot h^2 Mpc^{-3}`]
         """
-        try:
-            return self.__mltm
-        except:
-            # Set M within calculated range
-            M = self.M[np.logical_not(np.isnan(self.dndlnm))]
-            mass_function = self.dndlnm[np.logical_not(np.isnan(self.dndlnm))]
+        # Set M within calculated range
+        M = self.M[np.logical_not(np.isnan(self.dndlnm))]
+        mass_function = self.dndlnm[np.logical_not(np.isnan(self.dndlnm))]
 
-            # Calculate the mass function (and its integral) from 10**3 up to lowest M
-            if M[0] > 10 ** 3:
-                m_lower, mf = self._lower_ngtm(M, np.log(mass_function), M[0] > self.M[0])
+        # Calculate the mass function (and its integral) from 10**3 up to lowest M
+        if M[0] > 10 ** 3:
+            m_lower, mf = self._lower_ngtm(M, np.log(mass_function), M[0] > self.M[0])
 
-                int_lower = intg.simps(np.exp(mf + m_lower), dx=m_lower[2] - m_lower[1], even='first')
-            else:
-                int_lower = 0
+            int_lower = intg.simps(np.exp(mf + m_lower), dx=m_lower[2] - m_lower[1], even='first')
+        else:
+            int_lower = 0
 
-            # Calculate the cumulative integral of mass_function (Adding on the lower integral)
-            self.__mltm = np.concatenate((np.zeros(1), intg.cumtrapz(mass_function * M, dx=np.log(M[1]) - np.log(M[0])))) + int_lower
+        # Calculate the cumulative integral of mass_function (Adding on the lower integral)
+        mltm = np.concatenate((np.zeros(1), intg.cumtrapz(mass_function * M, dx=np.log(M[1]) - np.log(M[0])))) + int_lower
 
-            # We need to set ngtm back in the original length vector with nans where they were originally
-            if len(self.__mltm) < len(self.M):
-                nltm_temp = np.zeros_like(self.dndlnm)
-                nltm_temp[:] = np.nan
-                nltm_temp[np.logical_not(np.isnan(self.dndlnm))] = self.__mltm
-                self.__mltm = nltm_temp
+        # We need to set ngtm back in the original length vector with nans where they were originally
+        if len(mltm) < len(self.M):
+            nltm_temp = np.zeros_like(self.dndlnm)
+            nltm_temp[:] = np.nan
+            nltm_temp[np.logical_not(np.isnan(self.dndlnm))] = mltm
+            mltm = nltm_temp
 
-            return self.__mltm
+        return mltm
 
-    @property
+    @cached_property()
     def how_big(self):
         """ 
         Size of simulation volume in which to expect one halo of mass M, ``len=len(M)`` [units :math:`Mpch^{-1}`]
         """
 
         return self.ngtm ** (-1. / 3.)
-
-    @how_big.deleter
-    def how_big(self):
-        try:
-            del self.how_big
-        except:
-            pass
