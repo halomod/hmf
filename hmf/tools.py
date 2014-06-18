@@ -269,7 +269,7 @@ def dlnsdlnm(M, sigma, power, lnk, mean_dens):
         g = np.exp(lnk) * r
         w = dw2dm(g)  # Derivative of W^2
         integ = w * np.exp(power - lnk)
-        dlnsdlnM[i] = (3.0 / (2.0 * sigma[i] ** 2 * np.pi ** 2 * r ** 4)) * intg.trapz(integ, dx=dlnk)
+        dlnsdlnM[i] = (3.0 / (2.0 * sigma[i] ** 2 * np.pi ** 2 * r ** 4)) * intg.simps(integ, dx=dlnk)
     return dlnsdlnM
 
 def dw2dm(kR):

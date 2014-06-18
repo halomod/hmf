@@ -47,9 +47,15 @@ class MassFunction(object):
     
     Parameters
     ----------   
-    M : array_like, optional, default ``np.linspace(10,15,501)``
-        The masses at which to perform analysis [units :math:`\log_{10}M_\odot h^{-1}`]. 
-                     
+    Mmin : float
+        Minimum mass at which to perform analysis [units :math:`\log_{10}M_\odot h^{-1}`]. 
+                    
+    Mmax : float
+        Maximum mass at which to perform analysis [units :math:`\log_{10}M_\odot h^{-1}`].
+        
+    dlog10m : float
+        log10 interval between mass bins
+        
     mf_fit : str or callable, optional, default ``"SMT"``
         A string indicating which fitting function to use for :math:`f(\sigma)`
                        
@@ -103,15 +109,12 @@ class MassFunction(object):
     """
 
 
-    def __init__(self, M=None, mf_fit="ST", delta_h=200.0,
+    def __init__(self, Mmin=10, Mmax=15, dlog10m=0.01, mf_fit="ST", delta_h=200.0,
                  delta_wrt='mean', cut_fit=True, z2=None, nz=None,
                  delta_c=1.686, mv_scheme="trapz", **kwargs):
         """
         Initializes some parameters      
         """
-        if M is None:
-            M = np.linspace(10, 15, 501)
-
         # A list of all available kwargs (sent to Cosmology via Transfer)
         self._cp = ["sigma_8", "n", "w", "cs2_lam", "t_cmb", "y_he", "N_nu",
                     "omegan", "H0", "h", "omegab",
@@ -123,7 +126,9 @@ class MassFunction(object):
 
         # Set all given parameters.
         self.mf_fit = mf_fit
-        self.M = M
+        self.Mmin = Mmin
+        self.Mmax = Mmax
+        self.dlog10m = dlog10m
         self.delta_h = delta_h
         self.delta_wrt = delta_wrt
         self.cut_fit = cut_fit
@@ -145,9 +150,6 @@ class MassFunction(object):
 
 #             The following takes care of everything specifically in this class
             if "_MassFunction__" + key in self.__dict__:
-#                 try: doset = np.any(getattr(self, key) != val)
-#                 except ValueError: doset = not np.array_equal(getattr(self, key), val)
-#                 if doset:
                 setattr(self, key, val)
 
             # We need to handle deletes in this class by parameters in Transfer here
@@ -171,17 +173,17 @@ class MassFunction(object):
                        self.transfer.lnk[0], self.transfer.lnk[-1])
 
     # --- SET PROPERTIES -------------------------------------------------------
-    @set_property("_sigma_0")
-    def M(self, val):
-        try:
-            if len(val) == 1:
-                raise ValueError("M must be a sequence of length > 1")
-        except TypeError:
-            raise TypeError("M must be a sequence of length > 1")
+    @set_property("M")
+    def Mmin(self, val):
+        return val
 
-        if np.any(np.abs(np.diff(val, 2)) > 1e-5) or val[1] < val[0]:
-            raise ValueError("M must be a linearly increasing vector! " + str(val[0]) + " " + str(val[1]))
-        return 10 ** val
+    @set_property("M")
+    def Mmax(self, val):
+        return val
+
+    @set_property("M")
+    def dlog10m(self, val):
+        return val
 
     @set_property("fsigma")
     def delta_c(self, val):
@@ -281,6 +283,10 @@ class MassFunction(object):
 
 
     #--------------------------------  START NON-SET PROPERTIES ----------------------------------------------
+    @cached_property("_sigma_0")
+    def M(self):
+        return 10 ** np.arange(self.Mmin, self.Mmax, self.dlog10m)
+
     @property
     def cosmo(self):
         """ :class:`hmf.cosmo.Cosmology` object aliased from `self.transfer.cosmo`"""
@@ -433,15 +439,17 @@ class MassFunction(object):
     def _upper_ngtm(self, M, mass_function, cut):
         """Calculate the mass function above given range of `M` in order to integrate"""
         # mass_function is logged already (not log10 though)
-        m_upper = np.linspace(np.log(M[-1]), np.log(10 ** 18), 500)
+
         if cut:  # since its been cut, the best we can do is a power law
+            m_upper = np.linspace(np.log(M[-1]), np.log(10 ** 18), 500)
             mf_func = spline(np.log(M), mass_function, k=1)
             mf = mf_func(m_upper)
         else:
             # We try to calculate the hmf as far as we can normally
             new_pert = copy.deepcopy(self)
-            new_pert.update(M=np.log10(np.exp(m_upper)))
-            mf = np.log(np.exp(m_upper) * new_pert.dndm)
+            new_pert.update(Mmin=np.log10(M[-1]),
+                            Mmax=18)
+            mf = np.log(new_pert.M * new_pert.dndm)
 
             if np.isnan(mf[-1]):  # Then we couldn't get up all the way, so have to do linear ext.
                 if np.isnan(mf[1]):  # Then the whole extension is nan and we have to use the original (start at 1 because 1 val won't work either)
@@ -449,31 +457,35 @@ class MassFunction(object):
                     mf = mf_func(m_upper)
                 else:
                     mfslice = mf[np.logical_not(np.isnan(mf))]
-                    m_nan = m_upper[np.isnan(mf)]
-                    m_true = m_upper[np.logical_not(np.isnan(mf))]
+                    m_nan = np.log(new_pert.M[np.isnan(mf)])
+                    m_true = np.log(new_pert.M[np.logical_not(np.isnan(mf))])
                     mf_func = spline(m_true, mfslice, k=1)
                     mf[len(mfslice):] = mf_func(m_nan)
+            m_upper = np.log(new_pert.M)
         return m_upper, mf
 
     def _lower_ngtm(self, M, mass_function, cut):
         ### WE CALCULATE THE MASS FUNCTION BELOW THE COMPUTED RANGE ###
         # mass_function is logged already (not log10 though)
-        m_lower = np.linspace(np.log(10 ** 3), np.log(M[0]), 500)
         if cut:  # since its been cut, the best we can do is a power law
+            m_lower = np.linspace(np.log(10 ** 3), np.log(M[0]), 500)
             mf_func = spline(np.log(M), mass_function, k=1)
             mf = mf_func(m_lower)
         else:
             # We try to calculate the hmf as far as we can normally
             new_pert = copy.deepcopy(self)
-            new_pert.update(M=np.log10(np.exp(m_lower)))
-            mf = np.log(np.exp(m_lower) * new_pert.dndm)
+            new_pert.update(Mmin=3,
+                            Mmax=np.log10(M[0]))
+
+            mf = np.log(new_pert.M * new_pert.dndm)
 
             if np.isnan(mf[0]):  # Then we couldn't go down all the way, so have to do linear ext.
                 mfslice = mf[np.logical_not(np.isnan(mf))]
-                m_nan = m_lower[np.isnan(mf)]
-                m_true = m_lower[np.logical_not(np.isnan(mf))]
+                m_nan = np.log(new_pert.M[np.isnan(mf)])
+                m_true = np.log(new_pert.M[np.logical_not(np.isnan(mf))])
                 mf_func = spline(m_true, mfslice, k=1)
                 mf[:len(m_nan)] = mf_func(m_nan)
+            m_lower = np.log(new_pert.M)
         return m_lower, mf
 
     def _ngtm(self):

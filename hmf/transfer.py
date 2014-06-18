@@ -9,6 +9,7 @@ from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import cosmolopy as cp
 import scipy.integrate as integ
 from _cache import cached_property, set_property
+import copy
 # import cosmolopy.density as cden
 import tools
 try:
@@ -44,9 +45,14 @@ class Transfer(object):
     
     Parameters
     ----------
-    lnk : array_like, default ``linspace(log(1e-8),log(2e4),250)``
-        Defines logarithmic wavenumbers, *k* [units :math:`h Mpc^{-1}`]. 
-        This array is integrated over for normalisation. 
+    lnk_min : float
+        Defines min log wavenumber, *k* [units :math:`h Mpc^{-1}`]. 
+        
+    lnk_max : float
+        Defines max log wavenumber, *k* [units :math:`h Mpc^{-1}`].
+     
+    dlnk : float
+        Defines log interval between wavenumbers
         
     z : float, optional, default ``0.0``
         The redshift of the analysis.
@@ -121,7 +127,8 @@ class Transfer(object):
            "omegac", "omegav", "omegab_h2", "omegac_h2",
            "force_flat", "default"]
 
-    def __init__(self, z=0.0, lnk=None,
+    def __init__(self, z=0.0, lnk_min=np.log(1e-8),
+                 lnk_max=np.log(2e4), dlnk=0.05,
                  wdm_mass=None, transfer_fit='CAMB',
                  Scalar_initial_condition=1, lAccuracyBoost=1,
                  AccuracyBoost=1, w_perturb=False, transfer__k_per_logint=11,
@@ -129,9 +136,6 @@ class Transfer(object):
         '''
         Initialises some parameters
         '''
-
-        if lnk is None:
-            lnk = np.linspace(np.log(1e-8), np.log(2e4), 250)
         # Set up a simple dictionary of cosmo params which can be later updated
         if "default" not in kwargs:
             kwargs["default"] = "planck1_base"
@@ -149,7 +153,9 @@ class Transfer(object):
 
 
         # Set all given parameters
-        self.lnk = lnk
+        self.lnk_min = lnk_min
+        self.lnk_max = lnk_max
+        self.dlnk = dlnk
         self.wdm_mass = wdm_mass
         self.z = z
         self.transfer_fit = transfer_fit
@@ -232,17 +238,16 @@ class Transfer(object):
                 del self.growth
 
     # ---- SET PROPERTIES --------------------------------
-    @set_property("_unnormalised_lnT")
-    def lnk(self, val):
-        try:
-            if len(val) < 10:
-                raise ValueError("lnk should have more than 10 steps!")
-        except TypeError:
-            raise TypeError("lnk must be a sequence")
+    @set_property("lnk")
+    def lnk_min(self, val):
+        return val
 
-        if np.any(np.abs(np.diff(val, 2)) > 1e-5) or val[1] < val[0]:
-            raise ValueError("lnk must be a linearly increasing array!")
+    @set_property("lnk")
+    def lnk_max(self, val):
+        return val
 
+    @set_property("lnk")
+    def dlnk(self, val):
         return val
 
     @set_property("growth")
@@ -278,6 +283,11 @@ class Transfer(object):
 
 
     # ---- DERIVED PROPERTIES AND FUNCTIONS ---------------
+    @cached_property("_unnormalised_lnT")
+    def lnk(self):
+        return np.arange(self.lnk_min, self.lnk_max, self.dlnk)
+
+
     def _check_low_k(self, lnk, lnT):
         """
         Check convergence of transfer function at low k.
@@ -307,11 +317,17 @@ class Transfer(object):
     # ---- TRANSFER FITS -------------------------------------------------------
     def _from_file(self, k):
         """
-        Import the transfer function from file (must be CAMB format)
+        Import the transfer function from file.
+        
+        The format can either be CAMB, or 2-column k, T.
         
         .. note :: This should not be called by the user!
         """
-        T = np.log(np.genfromtxt(self.transfer_fit)[:, [0, 6]].T)
+        try:
+            T = np.log(np.genfromtxt(self.transfer_fit)[:, [0, 6]].T)
+        except IndexError:
+            T = np.log(np.genfromtxt(self.transfer_fit)[:, [0, 1]].T)
+
         lnk, lnT = self._check_low_k(T[0, :], T[1, :])
         return spline(lnk, lnT, k=1)(k)
 
@@ -487,24 +503,60 @@ class Transfer(object):
         delta_k = np.exp(self.delta_k)
 
         # Initialize sigma spline
-        lnr = np.linspace(np.log(0.1), np.log(10.0), 1000)
-        lnsig = np.empty(1000)
+        if self.cosmo.sigma_8 < 1.0 and self.cosmo.sigma_8 > 0.6:
+            lnr = np.linspace(np.log(0.1), np.log(10.0), 500)
+            lnsig = np.empty(500)
 
-        for i, r in enumerate(lnr):
-            R = np.exp(r)
-            integrand = delta_k * np.exp(-(k * R) ** 2)
-            sigma2 = integ.simps(integrand, np.log(k))
-            lnsig[i] = np.log(sigma2)
+            for i, r in enumerate(lnr):
+                R = np.exp(r)
+                integrand = delta_k * np.exp(-(k * R) ** 2)
+                sigma2 = integ.simps(integrand, np.log(k))
+                lnsig[i] = np.log(sigma2)
+
+        else:  # # weird sigma_8 means we need a different range of r to go through 0.
+            for r in [0.0001, 0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]:
+                integrand = delta_k * np.exp(-(k * r) ** 2)
+                sigma2 = integ.simps(integrand, np.log(k))
+                lnsig1 = np.log(sigma2)
+
+                if lnsig1 < 0:
+                    lnsig1 = lnsig_old
+                    break
+
+                lnsig_old = copy.copy(lnsig1)
+
+            lnr = np.linspace(np.log(0.01), np.log(10 * lnsig1), 500)
+            lnsig = np.empty(500)
+
+            for i, r in enumerate(lnr):
+                R = np.exp(r)
+                integrand = delta_k * np.exp(-(k * R) ** 2)
+                sigma2 = integ.simps(integrand, np.log(k))
+                lnsig[i] = np.log(sigma2)
 
         r_of_sig = spline(lnsig[::-1], lnr[::-1], k=5)
         rknl = 1.0 / np.exp(r_of_sig(0.0))
+
         sig_of_r = spline(lnr, lnsig, k=5)
 
-        dev1, dev2 = sig_of_r.derivatives(np.log(1.0 / rknl))[1:3]
+        try:
+            dev1, dev2 = sig_of_r.derivatives(np.log(1.0 / rknl))[1:3]
+        except:
+            lnr = np.linspace(np.log(0.2 / rknl), np.log(5 / rknl), 100)
+            lnsig = np.empty(100)
+
+            for i, r in enumerate(lnr):
+                R = np.exp(r)
+                integrand = delta_k * np.exp(-(k * R) ** 2)
+                sigma2 = integ.simps(integrand, np.log(k))
+                lnsig[i] = np.log(sigma2)
+            sig_of_r = spline(lnr, lnsig, k=5)
+            dev1, dev2 = sig_of_r.derivatives(np.log(1.0 / rknl))[1:3]
 
         rneff = -dev1 - 3.0
         rncur = -dev2
 
+        print "rknl, rneff, rncur: ", rknl, rneff, rncur
         return rknl, rneff, rncur
 
     def _halofit(self, k, neff, rncur, rknl, plin):
@@ -557,13 +609,13 @@ class Transfer(object):
         plinaa = plin * (1 + fnu * 47.48 * k ** 2 / (1 + 1.5 * k ** 2))
         pq = plin * (1 + plinaa) ** beta / (1 + plinaa * alpha) * np.exp(-y / 4.0 - y ** 2 / 8.0)
         pnl = pq + ph
-
+        print "pnl: ", pnl
         return pnl
 
     @cached_property("nonlinear_power")
     def nonlinear_delta_k(self):
         r"""
-        Dimensionless power spectrum, :math:`\Delta_k = \frac{k^3 P(k)}{2\pi^2}`
+        Dimensionless nonlinear power spectrum, :math:`\Delta_k = \frac{k^3 P_{\rm nl}(k)}{2\pi^2}`
         """
         rknl, rneff, rncur = self._get_spec()
         mask = np.exp(self.lnk) > 0.005

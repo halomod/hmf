@@ -2,7 +2,7 @@ class Cosmology(object):
     """
     A class that nicely deals with cosmological parameters.
     
-    Most cosmological parameters are merely input and are made available as
+    Most cosmological parameters are merely input and exposed as
     attributes in the class. However, more complicated relations such as 
     the interrelation of omegab, omegac, omegam, omegav for example are dealt
     with in a more robust manner. 

@@ -23,6 +23,7 @@ def _prepare_mf(M_min, M_max, mf_kwargs, boxsize=None):
     cdf = spline(M, cumfunc, k=3)
     icdf = spline(cumfunc, M, k=3)
 
+    print "prepare mf: ", total_rho, frac_in_bounds, M_min, M_max, cumfunc.min(), cumfunc.max()
     return cdf, icdf, mf_obj, frac_in_bounds
 
 def _choose_halo_masses(cdf, icdf, M_min, M_max, omegam, vol, frac, tol):
@@ -32,6 +33,7 @@ def _choose_halo_masses(cdf, icdf, M_min, M_max, omegam, vol, frac, tol):
     m_tot = omegam * 2.7755e11 * vol * frac
     m_tot_temp = omegam * 2.7755e11 * vol * frac
     j = 0
+
 
     while diff > tol:
         # Figure out expected number of halos to get back total mass
@@ -45,6 +47,7 @@ def _choose_halo_masses(cdf, icdf, M_min, M_max, omegam, vol, frac, tol):
 
         # Make sure we don't have more or less mass than needed
         cumsum = np.cumsum(m)
+        print "choose halo masses:", maxcum, N_expected, np.log10([m.min(), m.max()]), cumsum
         try:
             cross_ind = np.where(cumsum > m_tot_temp)[0][0]
         except IndexError:
