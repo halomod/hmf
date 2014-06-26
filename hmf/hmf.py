@@ -26,7 +26,7 @@ logger = logging.getLogger('hmf')
 #===============================================================================
 # Main Class
 #===============================================================================
-class MassFunction(object):
+class MassFunction(Transfer):
     """
     An object containing all relevant quantities for the mass function.
     
@@ -111,18 +111,21 @@ class MassFunction(object):
 
     def __init__(self, Mmin=10, Mmax=15, dlog10m=0.01, mf_fit="ST", delta_h=200.0,
                  delta_wrt='mean', cut_fit=True, z2=None, nz=None,
-                 delta_c=1.686, mv_scheme="trapz", **kwargs):
+                 delta_c=1.686, mv_scheme="trapz", **transfer_kwargs):
         """
         Initializes some parameters      
         """
         # A list of all available kwargs (sent to Cosmology via Transfer)
-        self._cp = ["sigma_8", "n", "w", "cs2_lam", "t_cmb", "y_he", "N_nu",
-                    "omegan", "H0", "h", "omegab",
-                    "omegac", "omegav", "omegab_h2", "omegac_h2",
-                    "force_flat", "default"]
+        # self._cp = ["sigma_8", "n", "w", "cs2_lam", "t_cmb", "y_he", "N_nu",
+#                     "omegan", "H0", "h", "omegab",
+#                     "omegac", "omegav", "omegab_h2", "omegac_h2",
+#                     "force_flat", "default"]
+#
+#         # Set up a simple dictionary of kwargs which can be later updated
+#         self._cpdict = {k:v for k, v in transfer_kwargs.iteritems() if k in self._cp}
 
-        # Set up a simple dictionary of kwargs which can be later updated
-        self._cpdict = {k:v for k, v in kwargs.iteritems() if k in self._cp}
+        # # Call super init
+        super(MassFunction, self).__init__(**transfer_kwargs)
 
         # Set all given parameters.
         self.mf_fit = mf_fit
@@ -135,42 +138,57 @@ class MassFunction(object):
         self.z2 = z2
         self.nz = nz
         self.delta_c = delta_c
-        self.transfer = Transfer(**kwargs)
         self.mv_scheme = mv_scheme
 
         tools.check_kr(self.M[0], self.M[-1], self.cosmo.mean_dens,
-                       self.transfer.lnk[0], self.transfer.lnk[-1])
+                       self.lnk[0], self.lnk[-1])
+
     def update(self, **kwargs):
         """
         Update the class with the given arguments in an optimal manner.
         
         Accepts any argument that the constructor takes.
         """
-        for key, val in kwargs.iteritems():
+        kwargs = super(MassFunction, self).update(**kwargs)
+        keys = []
+        for key in kwargs:
+            if hasattr(self.cosmo, key):
+                try: del self.delta_halo, self._sigma_0
+                except: pass
+            if hasattr(self, key):
+                setattr(self, key, kwargs[key])
 
-#             The following takes care of everything specifically in this class
-            if "_MassFunction__" + key in self.__dict__:
-                setattr(self, key, val)
+            keys += [key]
 
-            # We need to handle deletes in this class by parameters in Transfer here
-            if key is 'z':
-                if val != self.transfer.z:
-                    del self.sigma
+        for key in keys:
+            del kwargs[key]
 
-        # All parameters being sent to Transfer:
-        the_rest = {k:v for k, v in kwargs.iteritems() if "_MassFunction__" + k not in self.__dict__}
-
-        # Some things are basically deleted when anything in Transfer is updated
-        if len(the_rest) > 0:
-            del self.delta_halo
-        if len(the_rest) > 1 or (len(the_rest) == 1 and 'z' not in the_rest):
-            del self._sigma_0
-
-        # The rest are sent to the Transfer class (stupid values weeded out there)
-        self.transfer.update(**the_rest)
+        if kwargs:
+            print "WARNING: the following keyword arguments are meaningless: ", kwargs
 
         tools.check_kr(self.M[0], self.M[-1], self.cosmo.mean_dens,
-                       self.transfer.lnk[0], self.transfer.lnk[-1])
+                       self.lnk[0], self.lnk[-1])
+
+
+    # --- UPDATE TRANSFER ------------------------------------------------------
+    # # These are properties of the transfer class, which have new dependencies
+    # # defined here
+    @set_property("growth", "delta_halo")
+    def z(self, val):
+        try:
+            val = float(val)
+        except ValueError:
+            raise ValueError("z must be a number (", val, ")")
+
+        if val < 0:
+            raise ValueError("z must be > 0 (", val, ")")
+
+        return val
+
+    @cached_property("power", "sigma")
+    def growth(self):
+        return super(MassFunction, self).growth
+
 
     # --- SET PROPERTIES -------------------------------------------------------
     @set_property("M")
@@ -255,7 +273,7 @@ class MassFunction(object):
         except ValueError:
             raise ValueError("z must be a number (", val, ")")
 
-        if val <= self.transfer.z:
+        if val <= self.z:
             raise ValueError("z2 must be larger than z")
         else:
             return val
@@ -287,11 +305,6 @@ class MassFunction(object):
     def M(self):
         return 10 ** np.arange(self.Mmin, self.Mmax, self.dlog10m)
 
-    @property
-    def cosmo(self):
-        """ :class:`hmf.cosmo.Cosmology` object aliased from `self.transfer.cosmo`"""
-        return self.transfer.cosmo
-
     @cached_property("fsigma")
     def delta_halo(self):
         """ Overdensity of a halo w.r.t mean density"""
@@ -299,7 +312,7 @@ class MassFunction(object):
             return self.delta_h
 
         elif self.delta_wrt == 'crit':
-            return self.delta_h / cp.density.omega_M_z(self.transfer.z, **self.cosmo.cosmolopy_dict())
+            return self.delta_h / cp.density.omega_M_z(self.z, **self.cosmo.cosmolopy_dict())
 
     @cached_property("_dlnsdlnm", "sigma")
     def _sigma_0(self):
@@ -312,8 +325,8 @@ class MassFunction(object):
         .. math:: \sigma^2(R) = \frac{1}{2\pi^2}\int_0^\infty{k^2P(k)W^2(kR)dk}
         
         """
-        return tools.mass_variance(self.M, self.transfer._lnP_0,
-                                   self.transfer.lnk,
+        return tools.mass_variance(self.M, self._lnP_0,
+                                   self.lnk,
                                    self.cosmo.mean_dens,
                                    self.mv_scheme)
 
@@ -328,8 +341,8 @@ class MassFunction(object):
         .. math:: frac{d\ln\sigma}{d\ln M} = \frac{3}{2\sigma^2\pi^2R^4}\int_0^\infty \frac{dW^2(kR)}{dM}\frac{P(k)}{k^2}dk
         
         """
-        return tools.dlnsdlnm(self.M, self._sigma_0, self.transfer._lnP_0,
-                                             self.transfer.lnk,
+        return tools.dlnsdlnm(self.M, self._sigma_0, self._lnP_0,
+                                             self.lnk,
                                              self.cosmo.mean_dens)
 
     @cached_property("fsigma", "lnsigma")
@@ -337,7 +350,7 @@ class MassFunction(object):
         """
         The mass variance at `z`, ``len=len(M)``
         """
-        return self._sigma_0 * self.transfer.growth
+        return self._sigma_0 * self.growth
 
     @cached_property("fsigma")
     def lnsigma(self):
@@ -384,7 +397,7 @@ class MassFunction(object):
         if self.z2 is None:  # #This is normally the case
             dndm = self.fsigma * self.cosmo.mean_dens * np.abs(self._dlnsdlnm) / self.M ** 2
             if self.mf_fit == 'Behroozi':
-                a = 1 / (1 + self.transfer.z)
+                a = 1 / (1 + self.z)
                 theta = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (self.M / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)))
                 ngtm_tinker = self._ngtm()
                 ngtm_behroozi = 10 ** (theta + np.log10(ngtm_tinker))
@@ -395,17 +408,17 @@ class MassFunction(object):
         else:  # #This is for a survey-volume weighted calculation
             if self.nz is None:
                 self.nz = 10
-            zedges = np.linspace(self.transfer.z, self.z2, self.nz)
+            zedges = np.linspace(self.z, self.z2, self.nz)
             zcentres = (zedges[:-1] + zedges[1:]) / 2
             dndm = np.zeros_like(zcentres)
             vol = np.zeros_like(zedges)
-            vol[0] = cp.distance.comoving_volume(self.transfer.z,
+            vol[0] = cp.distance.comoving_volume(self.z,
                                         **self.cosmo.cosmolopy_dict())
             for i, zz in enumerate(zcentres):
                 self.update(z=zz)
                 dndm[i] = self.fsigma * self.cosmo.mean_dens * np.abs(self._dlnsdlnm) / self.M ** 2
                 if self.mf_fit == 'Behroozi':
-                    a = 1 / (1 + self.transfer.z)
+                    a = 1 / (1 + self.z)
                     theta = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (self.M / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)))
                     ngtm_tinker = self._ngtm()
                     ngtm_behroozi = 10 ** (theta + np.log10(ngtm_tinker))

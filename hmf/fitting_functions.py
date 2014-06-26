@@ -15,12 +15,6 @@ class Fits(object):
     hmf : `hmf.MassFunction` instance
         This object contains everything that is needed to 
         calculate :math:`f(\sigma)` -- the mass variance, redshift etc.
-        
-    cut_fit : bool, optional, default ``True``
-        Determines whether the function is cut at appropriate mass limits, 
-        given by the respective publication for each fit. Though it is included
-        in the `hmf` argument, one can specify it explicitly here for more 
-        flexibility.
     
     """
     # This is a full list of available string identifiers. Aliases may also
@@ -33,7 +27,7 @@ class Fits(object):
         # We explicitly pass cut fit even though its in the Perturbations object
         # since it may be changed more flexibly.
         self.pert = hmf
-        self._cp = hmf.transfer.cosmo
+        self._cp = hmf.cosmo
 
     def nufnu(self):
         """

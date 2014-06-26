@@ -8,7 +8,7 @@ from cosmo import Cosmology
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import cosmolopy as cp
 import scipy.integrate as integ
-from _cache import cached_property, set_property
+from _cache import cached_property, parameter
 import copy
 # import cosmolopy.density as cden
 import tools
@@ -18,7 +18,7 @@ try:
 except ImportError:
     HAVE_PYCAMB = False
 
-class Transfer(object):
+class Transfer(Cosmology):
     '''
     Neatly deals with different transfer functions and their routines.
     
@@ -122,35 +122,25 @@ class Transfer(object):
     '''
 
     fits = ["CAMB", "EH", "bbks", "bond_efs"]
-    _cp = ["sigma_8", "n", "w", "cs2_lam", "t_cmb", "y_he", "N_nu",
-           "omegan", "H0", "h", "omegab",
-           "omegac", "omegav", "omegab_h2", "omegac_h2",
-           "force_flat", "default"]
+#     _cp = ["sigma_8", "n", "w", "cs2_lam", "t_cmb", "y_he", "N_nu",
+#            "omegan", "H0", "h", "omegab",
+#            "omegac", "omegav", "omegab_h2", "omegac_h2",
+#            "force_flat", "default"]
 
     def __init__(self, z=0.0, lnk_min=np.log(1e-8),
                  lnk_max=np.log(2e4), dlnk=0.05,
                  wdm_mass=None, transfer_fit='CAMB',
-                 Scalar_initial_condition=1, lAccuracyBoost=1,
-                 AccuracyBoost=1, w_perturb=False, transfer__k_per_logint=11,
-                 transfer__kmax=5, ThreadNum=0, **kwargs):
+                 camb_options={"Scalar_initial_condition":1, "lAccuracyBoost":1,
+                 "AccuracyBoost":1, "w_perturb":False, "transfer__k_per_logint":11,
+                 "transfer__kmax":5, "ThreadNum":0}, **kwargs):
         '''
         Initialises some parameters
         '''
-        # Set up a simple dictionary of cosmo params which can be later updated
-        if "default" not in kwargs:
-            kwargs["default"] = "planck1_base"
-
-        self._cpdict = {k:v for k, v in kwargs.iteritems() if k in Transfer._cp}
-        self._camb_options = {'Scalar_initial_condition' : Scalar_initial_condition,
-                              'scalar_amp'      : 1E-9,
-                              'lAccuracyBoost' : lAccuracyBoost,
-                              'AccuracyBoost'  : AccuracyBoost,
-                              'w_perturb'      : w_perturb,
-                              'transfer__k_per_logint': transfer__k_per_logint,
-                              'transfer__kmax':transfer__kmax,
-                              'ThreadNum':ThreadNum}
+#         self._cpdict = {k:v for k, v in kwargs.iteritems() if k in Transfer._cp}
 
 
+        # Call Cosmology init
+        super(Transfer, self).__init__(**kwargs)
 
         # Set all given parameters
         self.lnk_min = lnk_min
@@ -159,98 +149,65 @@ class Transfer(object):
         self.wdm_mass = wdm_mass
         self.z = z
         self.transfer_fit = transfer_fit
-        self.cosmo = Cosmology(**self._cpdict)
+        self.camb_options = camb_options
+#         self.cosmo = Cosmology(**self._cpdict)
 
         # Here we store the values (with defaults) into _cpdict so they can be updated later.
-        if "omegab" in kwargs:
-            actual_cosmo = {k:v for k, v in self.cosmo.__dict__.iteritems()
-                            if k in Transfer._cp and k not in ["omegab_h2", "omegac_h2"]}
-        else:
-            actual_cosmo = {k:v for k, v in self.cosmo.__dict__.iteritems()
-                            if k in Transfer._cp and k not in ["omegab", "omegac"]}
-        if "h" in kwargs:
-            del actual_cosmo["H0"]
-        elif "H0" in kwargs:
-            del actual_cosmo["h"]
-        self._cpdict.update(actual_cosmo)
+#         if "omegab" in kwargs:
+#             actual_cosmo = {k:v for k, v in self.__dict__.iteritems()
+#                             if k in Transfer._cp and k not in ["omegab_h2", "omegac_h2"]}
+#         else:
+#             actual_cosmo = {k:v for k, v in self.__dict__.iteritems()
+#                             if k in Transfer._cp and k not in ["omegab", "omegac"]}
+#         if "h" in kwargs:
+#             del actual_cosmo["H0"]
+#         elif "H0" in kwargs:
+#             del actual_cosmo["h"]
+#         self._cpdict.update(actual_cosmo)
 
     def update(self, **kwargs):
         """
         Update the class optimally with given arguments.
         
         Accepts any argument that the constructor takes
+        
+        TODO: significantly clean this up
         """
-        # First update the cosmology
-        cp = {k:v for k, v in kwargs.iteritems() if k in self._cp}
-        if cp:
-            true_cp = {}
-            for k, v in cp.iteritems():
-                if k not in self._cpdict:
-                    true_cp[k] = v
-                elif k in self._cpdict:
-                    if v != self._cpdict[k]:
-                        true_cp[k] = v
+        # Cosmology arguments are treated differently
+        cosmo_kw = {k:v for k, v in kwargs.iteritems() if hasattr(Cosmology, k)}
+        self.cosmo_update(**cosmo_kw)
 
-            self._cpdict.update(true_cp)
-            # Delete the entries we've used from kwargs
-            for k in cp:
-                del kwargs[k]
+        # Remove cosmo from kwargs
+        for k in cosmo_kw:
+            del kwargs[k]
 
-            # Now actually update the Cosmology class
-            self.cosmo = Cosmology(**self._cpdict)
+        for k, v in kwargs.iteritems():
+            if hasattr(self, k):
+                setattr(self, k, v)
 
-            # The following two parameters don't necessitate a complete recalculation
-            if "n" in true_cp:
-                try: del self._unnormalised_lnP
-                except AttributeError: pass
-            if "sigma_8" in true_cp:
-                try: del self._lnP_cdm_0
-                except AttributeError: pass
-                try: del self._lnT_cdm
-                except AttributeError: pass
+    # ---- PARAMETERS --------------------------------
+    @parameter
+    def camb_options(self, val):
+        for v in val:
+            if v not in ['Scalar_initial_condition', 'scalar_amp', 'lAccuracyBoost',
+                         'AccuracyBoost', 'w_perturb', 'transfer__k_per_logint',
+                         'transfer__kmax', 'ThreadNum']:
+                raise ValueError("%s not a valid camb option" % v)
+        return val
 
-            # All other parameters mean recalculating everything :(
-            for item in ["omegab", "omegac", "h", "H0", "omegab_h2", "omegac_h2"]:
-                if item in true_cp:
-                    del self._unnormalised_lnT
-
-        # Now do the other parameters
-        for key, val in kwargs.iteritems():  # only camb options should be left
-            # CAMB OPTIONS
-            if key in self._camb_options:
-                if self._camb_options[key] != val:
-                    self._camb_options.update({key:val})
-                    if key != "ThreadNum":
-                        del self._unnormalised_lnT
-            # ANYTHING ELSE
-            else:
-                if "_Transfer__" + key not in self.__dict__:
-                    print "WARNING: ", key, " is not a valid parameter for the Transfer class"
-                else:
-                    if np.any(getattr(self, key) != val):
-                        setattr(self, key, val)  # doing it this way enables value-checking
-
-        # Some extra logic for deletes
-        if ('omegab' in cp or 'omegac' in cp or 'omegav' in cp) and self.z > 0:
-            del self.growth
-        elif 'z' in kwargs:
-            if kwargs['z'] == 0:
-                del self.growth
-
-    # ---- SET PROPERTIES --------------------------------
-    @set_property("lnk")
+    @parameter
     def lnk_min(self, val):
         return val
 
-    @set_property("lnk")
+    @parameter
     def lnk_max(self, val):
         return val
 
-    @set_property("lnk")
+    @parameter
     def dlnk(self, val):
         return val
 
-    @set_property("growth")
+    @parameter
     def z(self, val):
         try:
             val = float(val)
@@ -262,7 +219,7 @@ class Transfer(object):
 
         return val
 
-    @set_property("_lnP_0", "transfer")
+    @parameter
     def wdm_mass(self, val):
         if val is None:
             return val
@@ -275,7 +232,7 @@ class Transfer(object):
             raise ValueError("wdm_mass must be > 0 (", val, ")")
         return val
 
-    @set_property("_unnormalised_lnT")
+    @parameter
     def transfer_fit(self, val):
         if not HAVE_PYCAMB and val == "CAMB":
             raise ValueError("You cannot use the CAMB transfer since pycamb isn't installed")
@@ -283,7 +240,7 @@ class Transfer(object):
 
 
     # ---- DERIVED PROPERTIES AND FUNCTIONS ---------------
-    @cached_property("_unnormalised_lnT")
+    @cached_property("lnk_min", "lnk_max", "dlnk")
     def lnk(self):
         return np.arange(self.lnk_min, self.lnk_max, self.dlnk)
 
@@ -337,8 +294,8 @@ class Transfer(object):
         
         .. note :: This should not be called by the user!
         """
-        cdict = dict(self.cosmo.pycamb_dict(),
-                     **self._camb_options)
+        cdict = dict(self.pycamb_dict,
+                     **self.camb_options)
         T = pycamb.transfers(**cdict)[1]
         T = np.log(T[[0, 6], :, 0])
 
@@ -353,8 +310,8 @@ class Transfer(object):
         .. note :: This should not be called by the user!
         """
 
-        T = np.log(cp.perturbation.transfer_function_EH(np.exp(k) * self.cosmo.h,
-                                    **self.cosmo.cosmolopy_dict())[1])
+        T = np.log(cp.perturbation.transfer_function_EH(np.exp(k) * self.h,
+                                    **self.cosmolopy_dict)[1])
         return T
 
     def _bbks(self, k):
@@ -363,9 +320,9 @@ class Transfer(object):
 
         .. note :: This should not be called by the user!
         """
-        Gamma = self.cosmo.omegam * self.cosmo.h
-        q = np.exp(k) / Gamma * np.exp(self.cosmo.omegab + np.sqrt(2 * self.cosmo.h) *
-                               self.cosmo.omegab / self.cosmo.omegam)
+        Gamma = self.omegam * self.h
+        q = np.exp(k) / Gamma * np.exp(self.omegab + np.sqrt(2 * self.h) *
+                               self.omegab / self.omegam)
         return np.log((np.log(1.0 + 2.34 * q) / (2.34 * q) *
                 (1 + 3.89 * q + (16.1 * q) ** 2 + (5.47 * q) ** 3 +
                  (6.71 * q) ** 4) ** (-0.25)))
@@ -377,7 +334,7 @@ class Transfer(object):
         .. note :: This should not be called by the user!
         """
 
-        omegah2 = 1.0 / (self.cosmo.omegam * self.cosmo.h ** 2)
+        omegah2 = 1.0 / (self.omegam * self.h ** 2)
 
         a = 6.4 * omegah2
         b = 3.0 * omegah2
@@ -386,7 +343,7 @@ class Transfer(object):
         k = np.exp(k)
         return np.log((1 + (a * k + (b * k) ** 1.5 + (c * k) ** 2) ** nu) ** (-1 / nu))
 
-    @cached_property("_unnormalised_lnP", "_lnT_cdm")
+    @cached_property("lnk", "pycamb_dict", "camb_options")
     def _unnormalised_lnT(self):
         """
         The un-normalised transfer function
@@ -398,43 +355,43 @@ class Transfer(object):
         except AttributeError:
             return self._from_file(self.lnk)
 
-    @cached_property("_lnP_cdm_0")
+    @cached_property("n", "lnk", "_unnormalised_lnT")
     def _unnormalised_lnP(self):
         """
         Un-normalised CDM log power at :math:`z=0` [units :math:`Mpc^3/h^3`]
         """
-        return self.cosmo.n * self.lnk + 2 * self._unnormalised_lnT
+        return self.n * self.lnk + 2 * self._unnormalised_lnT
 
-    @cached_property("_lnP_0")
+    @cached_property("sigma_8", "_unnormalised_lnP", "lnk", "mean_dens")
     def _lnP_cdm_0(self):
         """
         Normalised CDM log power at z=0 [units :math:`Mpc^3/h^3`]
         """
-        return tools.normalize(self.cosmo.sigma_8,
+        return tools.normalize(self.sigma_8,
                                self._unnormalised_lnP,
-                               self.lnk, self.cosmo.mean_dens)[0]
+                               self.lnk, self.mean_dens)[0]
 
-    @cached_property("transfer")
+    @cached_property("sigma_8", "_unnormalised_lnT", "lnk", "mean_dens")
     def _lnT_cdm(self):
         """
         Normalised CDM log transfer function
         """
-        return tools.normalize(self.cosmo.sigma_8,
+        return tools.normalize(self.sigma_8,
                                self._unnormalised_lnT,
-                               self.lnk, self.cosmo.mean_dens)
+                               self.lnk, self.mean_dens)
 
-    @cached_property("power")
+    @cached_property("wdm_mass", "_lnP_cdm_0", "lnk", "h", "omegac")
     def _lnP_0(self):
         """
         Normalised log power at :math:`z=0` (for CDM/WDM)
         """
         if self.wdm_mass is not None:
             return tools.wdm_transfer(self.wdm_mass, self._lnP_cdm_0,
-                                              self.lnk, self.cosmo.h, self.cosmo.omegac)
+                                              self.lnk, self.h, self.omegac)
         else:
             return self._lnP_cdm_0
 
-    @cached_property("power")
+    @cached_property("z", "omegam", "omegav", "omegak")
     def growth(self):
         r"""
         The growth factor :math:`d(z)`
@@ -457,29 +414,29 @@ class Transfer(object):
         else:
             return 1.0
 
-    @cached_property("delta_k")
+    @cached_property("growth", "_lnP_0")
     def power(self):
         """
         Normalised log power spectrum [units :math:`Mpc^3/h^3`]
         """
         return 2 * np.log(self.growth) + self._lnP_0
 
-    @cached_property()
+    @cached_property("wdm_mass", "_lnT_cdm", "lnk", "h", "omegac")
     def transfer(self):
         """
         Normalised log transfer function for CDM/WDM
         """
         return tools.wdm_transfer(self.wdm_mass, self._lnT_cdm,
-                                  self.lnk, self.cosmo.h, self.cosmo.omegac)
+                                  self.lnk, self.h, self.omegac)
 
-    @cached_property("nonlinear_delta_k")
+    @cached_property("lnk", "power")
     def delta_k(self):
         r"""
         Dimensionless power spectrum, :math:`\Delta_k = \frac{k^3 P(k)}{2\pi^2}`
         """
         return 3 * self.lnk + self.power - np.log(2 * np.pi ** 2)
 
-    @cached_property()
+    @cached_property("lnk", "nonlinear_delta_k")
     def nonlinear_power(self):
         """
         Non-linear log power [units :math:`Mpc^3/h^3`]
@@ -503,7 +460,7 @@ class Transfer(object):
         delta_k = np.exp(self.delta_k)
 
         # Initialize sigma spline
-        if self.cosmo.sigma_8 < 1.0 and self.cosmo.sigma_8 > 0.6:
+        if self.sigma_8 < 1.0 and self.sigma_8 > 0.6:
             lnr = np.linspace(np.log(0.1), np.log(10.0), 500)
             lnsig = np.empty(500)
 
@@ -567,11 +524,11 @@ class Transfer(object):
         """
 
         # Define the cosmology at redshift
-        omegam = cp.density.omega_M_z(self.z, **self.cosmo.cosmolopy_dict())
-        omegav = self.cosmo.omegav / cp.distance.e_z(self.z, **self.cosmo.cosmolopy_dict()) ** 2
+        omegam = cp.density.omega_M_z(self.z, **self.cosmolopy_dict)
+        omegav = self.omegav / cp.distance.e_z(self.z, **self.cosmolopy_dict) ** 2
 
-        w = self.cosmo.w
-        fnu = self.cosmo.omegan / self.cosmo.omegam
+        w = self.w
+        fnu = self.omegan / self.omegam
 
         a = 10 ** (1.5222 + 2.8553 * neff + 2.3706 * neff ** 2 +
                     0.9903 * neff ** 3 + 0.2250 * neff ** 4 +
@@ -605,14 +562,14 @@ class Transfer(object):
         y = k / rknl
 
         ph = a * y ** (f1 * 3) / (1 + b * y ** f2 + (f3 * c * y) ** (3 - gam))
-        ph = ph / (1 + xmu * y ** (-1) + xnu * y ** (-2)) * (1 + fnu * (0.977 - 18.015 * (self.cosmo.omegam - 0.3)))
+        ph = ph / (1 + xmu * y ** (-1) + xnu * y ** (-2)) * (1 + fnu * (0.977 - 18.015 * (self.omegam - 0.3)))
         plinaa = plin * (1 + fnu * 47.48 * k ** 2 / (1 + 1.5 * k ** 2))
         pq = plin * (1 + plinaa) ** beta / (1 + plinaa * alpha) * np.exp(-y / 4.0 - y ** 2 / 8.0)
         pnl = pq + ph
         print "pnl: ", pnl
         return pnl
 
-    @cached_property("nonlinear_power")
+    @cached_property("delta_k", "lnk", "z", "omegam", "omegav", "omegak", "omegan", 'w')
     def nonlinear_delta_k(self):
         r"""
         Dimensionless nonlinear power spectrum, :math:`\Delta_k = \frac{k^3 P_{\rm nl}(k)}{2\pi^2}`
