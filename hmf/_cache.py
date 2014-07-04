@@ -192,6 +192,101 @@ def parameter(f):
 
     return property(_get_property, _set_property, None)
 
+def simproperty(f):
+    """
+    A simple cached property which acts more like an input value.
+    
+    This cached property is intended to be used on values that are passed in 
+    ``__init__``, and can possibly be reset later. It provides the opportunity
+    for complex setters, and also the ability to update dependent properties
+    whenever the value is modified. 
+    
+    Usage::
+       @set_property("amethod")
+       def parameter(self,val):
+           if isinstance(int,val):
+              return val
+           else:
+              raise ValueError("parameter must be an integer")
+              
+       @cached_property()
+       def amethod(self):
+          return 3*self.parameter
+          
+    Note that the definition of the setter merely returns the value to be set,
+    it doesn't set it to any particular instance attribute. The decorator
+    automatically sets ``self.__parameter = val`` and defines the get method
+    accordingly
+    """
+    name = f.__name__
+    prop_ext = '__%s_sp' % name
+
+#     def _set_property(self, val):
+#         prop = ("_" + self.__class__.__name__ + prop_ext).replace("___", "__")
+#         val = f(self, val)
+#         setattr(self, prop, val)
+
+
+    def _get_property(self):
+        prop = ("_" + self.__class__.__name__ + prop_ext).replace("___", "__")
+        try:
+            return getattr(self, prop)
+        except:
+            val = f(self)
+            setattr(self, prop, val)
+            return val
+
+    def _del_property(self):
+        prop = ("_" + self.__class__.__name__ + prop_ext).replace("___", "__")
+        delattr(self, prop)
+
+    update_wrapper(_get_property, f)
+
+    return property(_get_property, None, _del_property)
+
+
+def simparameter(f):
+    """
+    A simple cached property which acts more like an input value.
+    
+    This cached property is intended to be used on values that are passed in 
+    ``__init__``, and can possibly be reset later. It provides the opportunity
+    for complex setters, and also the ability to update dependent properties
+    whenever the value is modified. 
+    
+    Usage::
+       @set_property("amethod")
+       def parameter(self,val):
+           if isinstance(int,val):
+              return val
+           else:
+              raise ValueError("parameter must be an integer")
+              
+       @cached_property()
+       def amethod(self):
+          return 3*self.parameter
+          
+    Note that the definition of the setter merely returns the value to be set,
+    it doesn't set it to any particular instance attribute. The decorator
+    automatically sets ``self.__parameter = val`` and defines the get method
+    accordingly
+    """
+    name = f.__name__
+    prop_ext = '__%s' % name
+
+    def _set_property(self, val):
+        prop = ("_" + self.__class__.__name__ + prop_ext).replace("___", "__")
+        val = f(self, val)
+        setattr(self, prop, val)
+
+    update_wrapper(_set_property, f)
+
+    def _get_property(self):
+        prop = ("_" + self.__class__.__name__ + prop_ext).replace("___", "__")
+        return getattr(self, prop)
+
+    return property(_get_property, _set_property, None)
+
 # class A(object):
 #
 #     def __init__(self, a):

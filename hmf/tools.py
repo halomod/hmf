@@ -148,7 +148,11 @@ def top_hat_window(M, lnk, mean_dens):
     """
 
     kR = np.exp(lnk) * mass_to_radius(M, mean_dens)
-    W_squared = (3 * (np.sin(kR) / kR ** 3 - np.cos(kR) / kR ** 2)) ** 2
+    # # The following 2 lines cut the integral at small scales to prevent numerical error.
+    W_squared = np.ones(len(kR))
+    kR = kR[kR > 1.4e-6]
+
+    W_squared[-len(kR):] = (3 * (np.sin(kR) / kR ** 3 - np.cos(kR) / kR ** 2)) ** 2
     return W_squared
 
 
@@ -311,7 +315,7 @@ def n_eff(dlnsdlnm):
     return n_eff
 
 
-def d_plus(z, cosmo):
+def d_plus(z, cdict):
     """
     Finds the factor :math:`D^+(a)`, from Lukic et. al. 2007, eq. 8.
     
@@ -330,7 +334,6 @@ def d_plus(z, cosmo):
     dplus : float
         The un-normalised growth factor.
     """
-    cdict = cosmo.cosmolopy_dict()
     a_upper = 1.0 / (1.0 + z)
     lna = np.linspace(np.log(1e-8), np.log(a_upper), 1000)
     z_vec = 1.0 / np.exp(lna) - 1.0
@@ -338,11 +341,11 @@ def d_plus(z, cosmo):
     integrand = 1.0 / (np.exp(lna) * cp.distance.e_z(z_vec, **cdict)) ** 3
 
     integral = intg.simps(np.exp(lna) * integrand, dx=lna[1] - lna[0])
-    dplus = 5.0 * cosmo.omegam * cp.distance.e_z(z, **cdict) * integral / 2.0
+    dplus = 5.0 * cdict["omega_M_0"] * cp.distance.e_z(z, **cdict) * integral / 2.0
 
     return dplus
 
-def growth_factor(z, cosmo):
+def growth_factor(z, cdict):
     """
     Calculate :math:`d(a) = D^+(a)/D^+(a=1)`, from Lukic et. al. 2007, eq. 7.
     
@@ -360,7 +363,7 @@ def growth_factor(z, cosmo):
         The normalised growth factor.
     """
 
-    growth = d_plus(z, cosmo) / d_plus(0.0, cosmo)
+    growth = d_plus(z, cdict) / d_plus(0.0, cdict)
 
     return growth
 

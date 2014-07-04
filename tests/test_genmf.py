@@ -67,7 +67,7 @@ To be more explicit, the power spectrum in all cases is produced with the follow
 # Some Imports
 #===============================================================================
 import numpy as np
-from hmf import MassFunction
+from hmf import _MassFunction
 # from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import inspect
 import os
@@ -125,10 +125,10 @@ class TestGenMF(object):
             assert rms_diff(pert.ngtm, 10 ** data[:, 2], 0.05)
 
     def test_sigmas(self):
-        hmf = MassFunction(M=np.linspace(7, 15, 801), omegab=0.05, omegac=0.25,
+        hmf = _MassFunction(Mmin=7, Mmax=15.001, dlog10m=0.01, omegab=0.05, omegac=0.25,
                             omegav=0.7, sigma_8=0.8, n=1, H0=70.0,
-                            lnk=np.linspace(-21, 21, 500), transfer__kmax=10,
-                            transfer__k_per_logint=50, mf_fit='ST', z=0.0)
+                            lnk_min=-16, lnk_max=16, dlnk=0.01, transfer_options={"fname":LOCATION + "/data/camb_transfer"},
+                            mf_fit='ST', z=0.0, transfer_fit="FromFile")
         for redshift in [0.0, 2.0]:
             hmf.update(z=redshift)
             for origin in ['camb', 'hmf']:
@@ -136,10 +136,14 @@ class TestGenMF(object):
                     yield self.check_col, hmf, "ST", redshift, origin, col
 
     def test_fits(self):
-        hmf = MassFunction(M=np.linspace(7, 15, 801), omegab=0.05, omegac=0.25,
-                           omegav=0.7, sigma_8=0.8, n=1, H0=70.0,
-                           lnk=np.linspace(-21, 21, 500), transfer__kmax=10,
-                           transfer__k_per_logint=50, mf_fit='ST', z=0.0)
+#         hmf = _MassFunction(Mmin=7, Mmax=15.001, dlog10m=0.01, omegab=0.05, omegac=0.25,
+#                             omegav=0.7, sigma_8=0.8, n=1, H0=70.0,
+#                             lnk_min=-16, lnk_max=16, dlnk=0.01, transfer_options={"transfer__kmax":5,
+#                             'transfer__k_per_logint':0}, mf_fit='ST', z=0.0)
+        hmf = _MassFunction(Mmin=7, Mmax=15.001, dlog10m=0.01, omegab=0.05, omegac=0.25,
+                            omegav=0.7, sigma_8=0.8, n=1, H0=70.0,
+                            lnk_min=-16, lnk_max=16, dlnk=0.01, transfer_options={"fname":LOCATION + "/data/camb_transfer"},
+                            mf_fit='ST', z=0.0, transfer_fit="FromFile")
         for redshift in [0.0, 2.0]:
             hmf.update(z=redshift)
             for fit in ["ST", "PS", "Reed03", "Warren", "Jenkins", "Reed07"]:
