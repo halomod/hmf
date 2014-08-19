@@ -11,28 +11,28 @@ LOCATION = "/".join(os.path.dirname(os.path.abspath(inspect.getfile(inspect.curr
 # from nose.tools import raises
 import sys
 sys.path.insert(0, LOCATION)
-from hmf import _MassFunction
+from hmf import MassFunction
 from scipy.special import erfc
 
 class TestFcoll(object):
 
     def check_fcoll(self, pert, fit):
         if fit == "PS":
-            anl = fcoll_PS(pert.sigma, pert.delta_c)
+            anl = fcoll_PS(np.sqrt(pert.nu))
             num = pert.mgtm / pert.mean_dens
 
         elif fit == "Peacock":
-            anl = fcoll_Peacock(pert.sigma, pert.delta_c)
+            anl = fcoll_Peacock(np.sqrt(pert.nu))
             num = pert.mgtm / pert.mean_dens
 
         err = np.abs((num - anl) / anl)
         print np.max(err)
-        print num, anl
+        print num / anl - 1
         assert np.max(err) < 0.05
 
     def test_fcolls(self):
-
-        pert = _MassFunction(Mmin=10, Mmax=15, dlog10m=0.01)
+        # Note: if Mmax>15, starts going wrong because of numerics at high M
+        pert = MassFunction(Mmin=10, Mmax=15, dlog10m=0.01, cut_fit=False)
         fits = ['PS', 'Peacock']
 
         for fit in fits:
@@ -41,11 +41,10 @@ class TestFcoll(object):
 
 
 
-def fcoll_PS(sigma, delta_c):
-    return erfc(delta_c / sigma / np.sqrt(2))
+def fcoll_PS(nu):
+    return erfc(nu / np.sqrt(2))
 
-def fcoll_Peacock(sigma, delta_c):
-    nu = delta_c / sigma
+def fcoll_Peacock(nu):
     a = 1.529
     b = 0.704
     c = 0.412
@@ -56,8 +55,8 @@ def fcoll_Peacock(sigma, delta_c):
 class TestCumulants(object):
     tol = 0.05
     def check(self, hmf, minm, maxm):
-        hmf.update(Mmin=minm, Mmax=maxm, dlogm=0.01)
-        anl = fcoll_Peacock(hmf.sigma, hmf.delta_c)
+        hmf.update(Mmin=minm, Mmax=maxm)
+        anl = fcoll_Peacock(np.sqrt(hmf.nu))
         num = hmf.mgtm / hmf.mean_dens
         err = np.abs((num - anl) / anl)[np.logical_and(hmf.M > 10 ** 10, hmf.M < 10 ** 15)]
         err = err[np.logical_not(np.isnan(err))]
@@ -65,18 +64,18 @@ class TestCumulants(object):
         assert np.max(err) < TestCumulants.tol
 
     def test_ranges_not_cut(self):
-        hmf = _MassFunction(mf_fit="Peacock", cut_fit=False)
+        hmf = MassFunction(mf_fit="Peacock", cut_fit=False, dlog10m=0.01)
         TestCumulants.tol = 0.05
         for minm in [9, 10, 11]:  # below, equal and greater than peacock cut
             for maxm in [14, 15, 16, 18, 19]:  # below,equal,greater than peacock cut and integration limit
-                    yield self.check, hmf, minm, maxm
+                yield self.check, hmf, minm, maxm
 
     def test_ranges_cut(self):
-        hmf = _MassFunction(mf_fit="Peacock", cut_fit=True)
+        hmf = MassFunction(mf_fit="Peacock", cut_fit=True, dlog10m=0.01)
         TestCumulants.tol = 0.4
         for minm in [9, 10, 11]:  # below, equal and greater than peacock cut
             for maxm in [14, 15, 16, 18, 19]:  # below,equal,greater than peacock cut and integration limit
-                    yield self.check, hmf, minm, maxm
+                yield self.check, hmf, minm, maxm
 
     def check_mgtm(self, hmf, maxm):
         hmf.update(Mmin=0, Mmax=maxm, dlog10m=0.01)
@@ -84,7 +83,7 @@ class TestCumulants(object):
 
 
     def test_mgtm(self):
-        hmf = _MassFunction(mf_fit="PS", cut_fit=False)
+        hmf = MassFunction(mf_fit="PS", cut_fit=False)
         for maxm in [16, 18, 19]:  # below,equal,greater than integration limits
             yield self.check_mgtm, hmf, maxm
 
@@ -94,6 +93,6 @@ class TestCumulants(object):
         assert np.abs(hmf.mltm[-1] / hmf.mean_dens - 1) < 0.2
 
     def test_mltm(self):
-        hmf = _MassFunction(mf_fit="PS", cut_fit=False)
+        hmf = MassFunction(mf_fit="PS", cut_fit=False)
         for minm in [2, 3, 5]:  # below,equal,greater than integration limits
             yield self.check_mltm, hmf, minm

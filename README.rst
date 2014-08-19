@@ -36,6 +36,12 @@ See LICENSE.txt for details.
 
 HISTORY
 -------
+1.6.0 - August 19, 2014
+        Completely re-worked caching module to be easier to code and faster.
+        New Tinker10 fit (Tinker renamed Tinker08, but Tinker still available)
+        Fixed all tests. 
+        Better Cosmology class -- more input combinations available.
+        
 1.5.0 - May 08, 2014
 		Introduced _cache module
 		Extracts all caching logic to a separate module which defines 

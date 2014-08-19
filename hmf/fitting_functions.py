@@ -5,7 +5,7 @@ import sys
 
 _allfits = ["ST", "SMT", 'Jenkins', "Warren", "Reed03", "Reed07", "Peacock",
             "Angulo", "AnguloBound", "Tinker", "Watson_FoF", "Watson", "Crocce",
-            "Courtin", "Bhattacharya", "Behroozi"]
+            "Courtin", "Bhattacharya", "Behroozi", "Tinker08", "Tinker10"]
 
 # TODO: check out units for boundaries (ie. whether they should be log or ln 1/sigma or M/h or M)
 
@@ -41,6 +41,8 @@ class FittingFunction(object):
 
     def __init__(self, hmf):
         self.hmf = hmf
+        self.nu2 = self.hmf.nu
+        self.nu = np.sqrt(self.hmf.nu)
 
     def fsigma(self, cut_fit):
         pass
@@ -58,8 +60,7 @@ class PS(FittingFunction):
         vfv : array_like, len=len(pert.M)
             The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
         """
-        return np.sqrt(2.0 / np.pi) * (self.hmf.delta_c / self.hmf.sigma) * \
-                np.exp(-0.5 * (self.hmf.delta_c / self.hmf.sigma) ** 2)
+        return np.sqrt(2.0 / np.pi) * self.nu * np.exp(-0.5 * self.nu2)
 
 class ST(FittingFunction):
     def fsigma(self, cut_fit):
@@ -74,12 +75,12 @@ class ST(FittingFunction):
         vfv : array_like, len=len(pert.M)
             The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
         """
-
-        nu = self.hmf.delta_c / self.hmf.sigma
         a = 0.707
+        p = 0.3
+        A = 0.3222
 
-        vfv = 0.3222 * np.sqrt(2.0 * a / np.pi) * nu * np.exp(-(a * nu ** 2) / 2.0)\
-                 * (1 + (1.0 / (a * nu ** 2)) ** 0.3)
+        vfv = A * np.sqrt(2.0 * a / np.pi) * self.nu * np.exp(-(a * self.nu2) / 2.0)\
+                 * (1 + (1.0 / (a * self.nu2)) ** p)
 
         return vfv
 
@@ -173,8 +174,6 @@ class Reed07(FittingFunction):
         vfv : array_like, len=len(pert.M)
             The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
         """
-        nu = self.hmf.delta_c / self.hmf.sigma
-
         G_1 = np.exp(-(self.hmf.lnsigma - 0.4) ** 2 / (2 * 0.6 ** 2))
         G_2 = np.exp(-(self.hmf.lnsigma - 0.75) ** 2 / (2 * 0.2 ** 2))
 
@@ -185,8 +184,8 @@ class Reed07(FittingFunction):
 
 
         vfv = A * np.sqrt(2.0 * a / np.pi) * \
-            (1.0 + (1.0 / (a * nu ** 2)) ** p + 0.6 * G_1 + 0.4 * G_2) * nu * \
-            np.exp(-c * a * nu ** 2 / 2.0 - 0.03 * nu ** 0.6 / (self.hmf.n_eff + 3) ** 2)
+            (1.0 + (1.0 / (a * self.nu ** 2)) ** p + 0.6 * G_1 + 0.4 * G_2) * self.nu * \
+            np.exp(-c * a * self.nu ** 2 / 2.0 - 0.03 * self.nu ** 0.6 / (self.hmf.n_eff + 3) ** 2)
 
         if cut_fit:
             vfv[np.logical_or(self.hmf.lnsigma < -0.5, self.hmf.lnsigma > 1.2)] = np.NaN
@@ -211,13 +210,12 @@ class Peacock(FittingFunction):
         vfv : array_like, len=len(pert.M)
             The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
         """
-        nu = self.hmf.delta_c / self.hmf.sigma
         a = 1.529
         b = 0.704
         c = 0.412
 
-        d = 1 + a * nu ** b
-        vfv = nu * np.exp(-c * nu ** 2) * (2 * c * d * nu + b * a * nu ** (b - 1)) / d ** 2
+        d = 1 + a * self.nu ** b
+        vfv = self.nu * np.exp(-c * self.nu2) * (2 * c * d * self.nu + b * a * self.nu ** (b - 1)) / d ** 2
 
         if cut_fit:
             vfv[np.logical_or(self.hmf.M < 10 ** 10, self.hmf.M > 10 ** 15)] = np.NaN
@@ -269,7 +267,7 @@ class AnguloBound(FittingFunction):
             vfv[np.logical_or(self.hmf.M < 10 ** 8, self.hmf.M > 10 ** 16)] = np.NaN
         return vfv
 
-class Tinker(FittingFunction):
+class Tinker08(FittingFunction):
     def fsigma(self, cut_fit):
         """
         Calculate :math:`f(\sigma)` for Tinker form.
@@ -307,7 +305,7 @@ class Tinker(FittingFunction):
                             2.529241e+00,
                             2.661983e+00])
 
-        b_array = np.array([2.571104e+00 ,
+        b_array = np.array([2.571104e+00,
                             2.254217e+00,
                             2.048674e+00,
                             1.869559e+00,
@@ -467,11 +465,10 @@ class Courtin(FittingFunction):
         A = 0.348
         a = 0.695
         p = 0.1
-        d_c = self.hmf.delta_c  # Note for WMAP5 they find delta_c = 1.673
+        # d_c = self.hmf.delta_c  # Note for WMAP5 they find delta_c = 1.673
 
-        vfv = A * np.sqrt(2 * a / np.pi) * (d_c / self.hmf.sigma) * \
-             (1 + (d_c / (self.hmf.sigma * np.sqrt(a))) ** (-2 * p)) * \
-             np.exp(-d_c ** 2 * a / (2 * self.hmf.sigma ** 2))
+        vfv = A * np.sqrt(2.0 * a / np.pi) * self.nu * np.exp(-(a * self.nu2) / 2.0)\
+                 * (1 + (1.0 / (a * self.nu2)) ** p)
         return vfv
 
 class Bhattacharya(FittingFunction):
@@ -494,16 +491,89 @@ class Bhattacharya(FittingFunction):
         p = 0.807
         q = 1.795
 
-        nu = self.hmf.delta_c / self.hmf.sigma
-
-        vfv = A * np.sqrt(2.0 / np.pi) * np.exp(-(a * nu ** 2) / 2.0) * \
-                 (1 + (1.0 / (a * nu ** 2)) ** p) * (nu * np.sqrt(a)) ** q
+        vfv = A * np.sqrt(2.0 / np.pi) * np.exp(-(a * self.nu ** 2) / 2.0) * \
+                 (1 + (1.0 / (a * self.nu ** 2)) ** p) * (self.nu * np.sqrt(a)) ** q
         if cut_fit:
             vfv[np.logical_or(self.hmf.M < 6 * 10 ** 11,
                               self.hmf.M > 3 * 10 ** 15)] = np.NaN
 
         return vfv
 
-class Behroozi(Tinker):
+class Behroozi(Tinker08):
     pass
 
+
+class Tinker10(FittingFunction):
+    def fsigma(self, cut_fit):
+        """
+        Calculate :math:`f(\sigma)` for Tinker+10 form.
+
+        Tinker, J., et al., 2010. ApJ 724, 878.
+        http://iopscience.iop.org/0004-637X/724/2/878/pdf/apj_724_2_878.pdf
+                
+        .. note:: valid for :math:`-0.6<\log_{10}\sigma^{-1}<0.4`
+       
+        Returns
+        -------
+        vfv : array_like, len=len(pert.M)
+            The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``M``
+        """
+        from scipy.special import gamma as G
+
+        delta_virs = np.array([200, 300, 400, 600, 800, 1200, 1600, 2400, 3200])
+
+        alpha_array = np.array([ 0.368, 0.363, 0.385, 0.389, 0.393, 0.365, 0.379, 0.355, 0.327])
+        beta_array = np.array([0.589, 0.585, 0.544, 0.543, 0.564, 0.623, 0.637, 0.673, 0.702])
+        gamma_array = np.array([0.864, 0.922, 0.987, 1.09, 1.20, 1.34, 1.50, 1.68, 1.81])
+        phi_array = np.array([-0.729, -0.789, -0.910, -1.05, -1.20, -1.26, -1.45, -1.50, -1.49])
+        eta_array = np.array([-0.243, -0.261, -0.261, -0.273, -0.278, -0.301, -0.301, -0.319, -0.336])
+
+        if self.hmf.delta_halo not in delta_virs:
+            beta_func = spline(delta_virs, beta_array)
+            gamma_func = spline(delta_virs, gamma_array)
+            phi_func = spline(delta_virs, phi_array)
+            eta_func = spline(delta_virs, eta_array)
+
+            beta_0 = beta_func(self.hmf.delta_halo)
+            gamma_0 = gamma_func(self.hmf.delta_halo)
+            phi_0 = phi_func(self.hmf.delta_halo)
+            eta_0 = eta_func(self.hmf.delta_halo)
+        else:
+            ind = np.where(delta_virs == self.hmf.delta_halo)[0][0]
+            alpha_0 = alpha_array[ind]
+            beta_0 = beta_array[ind]
+            gamma_0 = gamma_array[ind]
+            phi_0 = phi_array[ind]
+            eta_0 = eta_array[ind]
+
+        beta = beta_0 * (1 + min(self.hmf.z, 3)) ** 0.20
+        phi = phi_0 * (1 + min(self.hmf.z, 3)) ** -0.08
+        eta = eta_0 * (1 + min(self.hmf.z, 3)) ** 0.27
+        gamma = gamma_0 * (1 + min(self.hmf.z, 3)) ** -0.01
+
+#         print "Tinker10 params: ", beta_0, phi_0, eta_0, gamma_0
+#         print "Tinker10 zparams: ", beta, phi, eta, gamma, 1 / (2 ** (eta - phi - 0.5) * beta ** (-2 * phi) * gamma ** (-0.5 - eta) \
+#             * (2 ** phi * beta ** (2 * phi) * G(eta + 0.5) + gamma ** phi * G(0.5 + eta - phi)))
+
+        fv = (1 + (beta * self.nu) ** (-2 * phi)) * self.nu ** (2 * eta) * np.exp(-gamma * (self.nu ** 2) / 2)
+
+        # The following sets alpha (by \int f(\nu) d\nu = 1)
+        if self.hmf.z > 0 or self.hmf.delta_halo not in delta_virs:
+            fv /= 2 ** (eta - phi - 0.5) * beta ** (-2 * phi) * gamma ** (-0.5 - eta) \
+            * (2 ** phi * beta ** (2 * phi) * G(eta + 0.5) + gamma ** phi * G(0.5 + eta - phi))
+        else:
+            fv /= alpha_0
+
+        vfv = self.nu * fv
+
+        if cut_fit:
+            if self.hmf.z == 0.0:
+                vfv[np.logical_or(self.hmf.lnsigma / np.log(10) < -0.6 ,
+                                  self.hmf.lnsigma / np.log(10) > 0.4)] = np.nan
+            else:
+                vfv[np.logical_or(self.hmf.lnsigma / np.log(10) < -0.2 ,
+                                  self.hmf.lnsigma / np.log(10) > 0.4)] = np.nan
+        return vfv
+
+class Tinker(Tinker08):
+    pass

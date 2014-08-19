@@ -5,7 +5,7 @@ The module contains a single class, `MassFunction`, which wraps almost all the
 functionality of :mod:`hmf` in an easy-to-use way.
 '''
 
-version = '1.5.0'
+version = '1.6.0'
 
 ###############################################################################
 # Some Imports
@@ -18,7 +18,7 @@ import copy
 import logging
 import cosmolopy as cp
 import tools
-from fitting_functions import Tinker, get_fit
+from fitting_functions import Tinker08, get_fit
 from transfer import Transfer
 from _cache import parameter, cached_property
 logger = logging.getLogger('hmf')
@@ -111,7 +111,7 @@ class MassFunction(Transfer):
     """
 
 
-    def __init__(self, Mmin=10, Mmax=15, dlog10m=0.01, mf_fit=Tinker, delta_h=200.0,
+    def __init__(self, Mmin=10, Mmax=15, dlog10m=0.01, mf_fit=Tinker08, delta_h=200.0,
                  delta_wrt='mean', cut_fit=True, z2=None, nz=None,
                  delta_c=1.686, **transfer_kwargs):
         """

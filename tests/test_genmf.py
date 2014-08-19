@@ -25,14 +25,14 @@ To be more explicit, the power spectrum in all cases is produced with the follow
        'cs2_lam'  : 1,
        'TCMB'     : 2.725,
        'yhe'      : 0.24,
-       'Num_Nu_massless' : 3.04,
+       'Num_NuMassless' : 3.04,
        'reion__redshift': 10.3,
        'reion__optical_depth': 0.085
         "sigma_8":0.8,
         "n":1,
         "delta_c":1.686,
         "crit_dens":27.755 * 10 ** 10
-        'Num_Nu_massive'  : 0,
+        'Num_NuMassive'  : 0,
          'reion__fraction' :-1,
          'reion__delta_redshift' : 1.5,
          'lAccuracyBoost' : 1,
@@ -45,7 +45,7 @@ To be more explicit, the power spectrum in all cases is produced with the follow
 # Some Imports
 #===============================================================================
 import numpy as np
-from hmf import _MassFunction
+from hmf import MassFunction
 # from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import inspect
 import os
@@ -82,6 +82,12 @@ def max_diff(vec1, vec2, tol):
 # The Test Classes
 #===============================================================================
 class TestGenMF(object):
+    def __init__(self):
+        self.hmf = MassFunction(Mmin=7, Mmax=15.001, dlog10m=0.01, omegab=0.05, omegac=0.25,
+                            omegav=0.7, sigma_8=0.8, n=1, H0=70.0,
+                            lnk_min=-11, lnk_max=11, dlnk=0.01, transfer_options={"fname":LOCATION + "/data/transfer_for_hmf_tests.dat"},
+                            mf_fit='ST', z=0.0, transfer_fit="FromFile")
+
     def check_col(self, pert, fit, redshift, col):
         """ Able to check all columns only dependent on base cosmology (not fit) """
 
@@ -103,28 +109,16 @@ class TestGenMF(object):
             assert rms_diff(pert.ngtm, 10 ** data[:, 2], 0.046)
 
     def test_sigmas(self):
-        hmf = _MassFunction(Mmin=7, Mmax=15.001, dlog10m=0.01, omegab=0.05, omegac=0.25,
-                            omegav=0.7, sigma_8=0.8, n=1, H0=70.0,
-                            lnk_min=-11, lnk_max=11, dlnk=0.01, transfer_options={"fname":LOCATION + "/data/transfer_for_hmf_tests.dat"},
-                            mf_fit='ST', z=0.0, transfer_fit="FromFile")
         for redshift in [0.0, 2.0]:
-            hmf.update(z=redshift)
+            self.hmf.update(z=redshift)
             for col in ['sigma', 'lnsigma', 'n_eff']:
-                yield self.check_col, hmf, "ST", redshift, col
+                yield self.check_col, self.hmf, "ST", redshift, col
 
     def test_fits(self):
-#         hmf = _MassFunction(Mmin=7, Mmax=15.001, dlog10m=0.01, omegab=0.05, omegac=0.25,
-#                             omegav=0.7, sigma_8=0.8, n=1, H0=70.0,
-#                             lnk_min=-16, lnk_max=16, dlnk=0.01, transfer_options={"transfer__kmax":5,
-#                             'transfer__k_per_logint':0}, mf_fit='ST', z=0.0)
-        hmf = _MassFunction(Mmin=7, Mmax=15.001, dlog10m=0.01, omegab=0.05, omegac=0.25,
-                            omegav=0.7, sigma_8=0.8, n=1, H0=70.0,
-                            lnk_min=-11, lnk_max=11, dlnk=0.01, transfer_options={"fname":LOCATION + "/data/transfer_for_hmf_tests.dat"},
-                            mf_fit='ST', z=0.0, transfer_fit="FromFile")
         for redshift in [0.0, 2.0]:
-            hmf.update(z=redshift)
+            self.hmf.update(z=redshift)
             for fit in ["ST", "PS", "Reed03", "Warren", "Jenkins", "Reed07"]:
-                hmf.update(mf_fit=fit)
+                self.hmf.update(mf_fit=fit)
                 for col in ['dndlog10m', 'ngtm', 'fsigma']:
-                    yield self.check_col, hmf, fit, redshift, col
+                    yield self.check_col, self.hmf, fit, redshift, col
 
