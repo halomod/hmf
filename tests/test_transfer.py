@@ -8,6 +8,7 @@ sys.path.insert(0, LOCATION)
 from hmf.transfer import Transfer
 
 def rms(a):
+    print "RMS: ", np.sqrt(np.mean(np.square(a)))
     return np.sqrt(np.mean(np.square(a)))
 
 def check_close(t, t2, fit):
