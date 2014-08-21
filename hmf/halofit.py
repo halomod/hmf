@@ -24,13 +24,16 @@ def _get_spec(lnk, delta_k, sigma_8):
             lnsig[i] = np.log(sigma2)
 
     else:  # # weird sigma_8 means we need a different range of r to go through 0.
-        for r in [0.0001, 0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]:
+        for r in [0.00001, 0.0001, 0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]:
             integrand = delta_k * np.exp(-(k * r) ** 2)
             sigma2 = simps(integrand, np.log(k))
             lnsig1 = np.log(sigma2)
 
             if lnsig1 < 0:
-                lnsig1 = lnsig_old
+                try:
+                    lnsig1 = lnsig_old
+                except:
+                    print "WARNING: LOWEST R NOT LOW ENOUGH IN _GET_SPEC. ln(sig) starts below 0: ", lnsig1
                 break
 
             lnsig_old = copy.copy(lnsig1)
