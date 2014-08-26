@@ -354,7 +354,7 @@ class Transfer(Cosmology):
     def lnk(self):
         return np.arange(self.lnk_min, self.lnk_max, self.dlnk)
 
-    @cached_property("lnk", "pycamb_dict", "camb_options")
+    @cached_property("lnk", "pycamb_dict", "camb_options", "transfer_fit")
     def _unnormalised_lnT(self):
         """
         The un-normalised transfer function
@@ -389,7 +389,7 @@ class Transfer(Cosmology):
         """
         return tools.normalize(self.sigma_8,
                                self._unnormalised_lnT,
-                               self.lnk, self.mean_dens)
+                               self.lnk, self.mean_dens)[0]
 
     @cached_property("wdm_mass", "_lnP_cdm_0", "lnk", "h", "omegac")
     def _lnP_0(self):
@@ -397,11 +397,11 @@ class Transfer(Cosmology):
         Normalised log power at :math:`z=0` (for CDM/WDM)
         """
         if self.wdm_mass is not None:
-            print "doing this coz wdm_mass is ", self.wdm_mass
             return tools.wdm_transfer(self.wdm_mass, self._lnP_cdm_0,
                                       self.lnk, self.h, self.omegac)
         else:
             return self._lnP_cdm_0
+
 
     @cached_property("z", "omegam", "omegav", "omegak")
     def growth(self):
@@ -439,8 +439,11 @@ class Transfer(Cosmology):
         """
         Normalised log transfer function for CDM/WDM
         """
-        return tools.wdm_transfer(self.wdm_mass, self._lnT_cdm,
-                                  self.lnk, self.h, self.omegac)
+        if self.wdm_mass is not None:
+            return tools.wdm_transfer(self.wdm_mass, self._lnT_cdm,
+                                      self.lnk, self.h, self.omegac)
+        else:
+            return self._lnT_cdm
 
     @cached_property("lnk", "power")
     def delta_k(self):

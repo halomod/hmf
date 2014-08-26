@@ -118,7 +118,7 @@ def halofit(k, z, omegam, omegav, w, omegan, neff, rncur, rknl, plin):
 
     ph = a * y ** (f1 * 3) / (1 + b * y ** f2 + (f3 * c * y) ** (3 - gam))
     ph = ph / (1 + xmu * y ** (-1) + xnu * y ** (-2)) * (1 + fnu * (0.977 - 18.015 * (omegam - 0.3)))
-    print len(plin), len(k)
+
     plinaa = plin * (1 + fnu * 47.48 * k ** 2 / (1 + 1.5 * k ** 2))
     pq = plin * (1 + plinaa) ** beta / (1 + plinaa * alpha) * np.exp(-y / 4.0 - y ** 2 / 8.0)
     pnl = pq + ph

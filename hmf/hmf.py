@@ -302,7 +302,7 @@ class MassFunction(Transfer):
         """
         return tools.n_eff(self._dlnsdlnm)
 
-    @cached_property("mf_fit", "cut_fit", "sigma", "z", "delta_halo")
+    @cached_property("mf_fit", "cut_fit", "sigma", "z", "delta_halo", "nu")
     def fsigma(self):
         """
         The multiplicity function, :math:`f(\sigma)`, for `mf_fit`. ``len=len(M)``
