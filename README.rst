@@ -36,6 +36,17 @@ See LICENSE.txt for details.
 
 HISTORY
 -------
+1.6.1 - September 8, 2014
+		Fixed "transfer" property
+		Updates fixed for transfer_fit
+		Updates fixed for nu
+		Better get_hmf function
+		Fixed cache bug where unexecuted branches caused some properties to be misinterpreted
+		Fixed bug in CAMB transfer options, where defaults would overwrite user-given values (introduced in 1.6.0)
+		Fixed dependence on transfer_options
+		Fixed typo in Tinker10 fit at z = 0
+		
+		 
 1.6.0 - August 19, 2014
         Completely re-worked caching module to be easier to code and faster.
         New Tinker10 fit (Tinker renamed Tinker08, but Tinker still available)

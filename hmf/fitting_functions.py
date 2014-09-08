@@ -562,7 +562,7 @@ class Tinker10(FittingFunction):
             fv /= 2 ** (eta - phi - 0.5) * beta ** (-2 * phi) * gamma ** (-0.5 - eta) \
             * (2 ** phi * beta ** (2 * phi) * G(eta + 0.5) + gamma ** phi * G(0.5 + eta - phi))
         else:
-            fv /= alpha_0
+            fv *= alpha_0
 
         vfv = self.nu * fv
 

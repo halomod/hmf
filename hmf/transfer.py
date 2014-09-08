@@ -81,7 +81,9 @@ class CAMB(GetTransfer):
         
         .. note :: This should not be called by the user!
         """
-        self.t.transfer_options.update(self.option_defaults)
+        for k in self.option_defaults:
+            if k not in self.t.transfer_options:
+                self.t.transfer_options[k] = self.option_defaults[k]
 
         cdict = dict(self.t.pycamb_dict,
                      **self.t.transfer_options)
@@ -282,6 +284,7 @@ class Transfer(Cosmology):
             for k in cosmo_kw:
                 del kwargs[k]
 
+        print "KWARGS IN UPDATE: ", kwargs
         for k, v in kwargs.items():
             if hasattr(self, k):
                 setattr(self, k, v)
@@ -354,7 +357,7 @@ class Transfer(Cosmology):
     def lnk(self):
         return np.arange(self.lnk_min, self.lnk_max, self.dlnk)
 
-    @cached_property("lnk", "pycamb_dict", "camb_options", "transfer_fit")
+    @cached_property("lnk", "pycamb_dict", "transfer_options", "transfer_fit")
     def _unnormalised_lnT(self):
         """
         The un-normalised transfer function

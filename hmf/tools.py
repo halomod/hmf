@@ -391,17 +391,21 @@ def get_best_param_order(kls, q="dndm", **kwargs):
         final_num.insert(i, num)
     return final_list
 
-def get(required_attrs, get_label=True, **kwargs):
+def get_hmf(required_attrs, get_label=True, **kwargs):
     """
     Yield :class:`hmf.MassFunction` objects for all combinations of parameters supplied.
     """
     from hmf import MassFunction
 
+    if type(required_attrs) == str:
+        required_attrs = [required_attrs]
     lists = {}
     for k, v in kwargs.items():
         if isinstance(v, (list, tuple)):
             if len(v) > 1:
                 lists[k] = kwargs.pop(k)
+            else:
+                kwargs[k] = v[0]
 
     x = MassFunction(**kwargs)
     if not lists:
@@ -413,12 +417,13 @@ def get(required_attrs, get_label=True, **kwargs):
     if len(lists) == 1:
         for k, v in lists.iteritems():
             for vv in v:
-                x.update(k=vv)
+                x.update(**{k:vv})
+                print "in tools: ", x.mf_fit, k, vv
                 if get_label:
-                    yield [getattr(x, a) for a in required_attrs], x, "%s: %s" % (k, vv)
+                    yield [getattr(x, a) for a in required_attrs], x, make_label({k:vv})
                 else:
                     yield [getattr(x, a) for a in required_attrs], x
-    else:
+    elif len(lists) > 1:
         # should be really fast.
         order = get_best_param_order(MassFunction, required_attrs,
                                      transfer_fit="BBKS",
@@ -436,16 +441,15 @@ def get(required_attrs, get_label=True, **kwargs):
                     ordered_kwargs[item] = lists.pop(item)
             except KeyError:
                 pass
+
         # # add the rest in any order (there shouldn't actually be any)
-        for k in kwargs.items():
-            if isinstance(kwargs[k], (list, tuple)):
-                ordered_kwargs[k] = kwargs.pop(k)
+        for k in lists.items():
+            if isinstance(lists[k], (list, tuple)):
+                ordered_kwargs[k] = lists.pop(k)
 
         ordered_list = [ordered_kwargs[k] for k in ordered_kwargs]
         final_list = [dict(zip(ordered_kwargs.keys(), v)) for v in itertools.product(*ordered_list)]
 
-        print ordered_list
-        print final_list
         for vals in final_list:
             x.update(**vals)
             if not get_label:
@@ -456,12 +460,18 @@ def get(required_attrs, get_label=True, **kwargs):
 
 def make_label(d):
     label = ""
-    for key, val in d:
+    for key, val in d.iteritems():
         if isinstance(val, basestring):
             label += val + ", "
+        elif isinstance(val, dict):
+            for k, v in val.iteritems():
+                label += "%s: %s, " % (k, v)
         else:
-            label += "%s: %s," % (key, val)
+            label += "%s: %s, " % (key, val)
 
-    label = label[:-1]
+    # Some post-formatting to make it look nicer
+    label = label[:-2]
+    label = label.replace("__", "_")
+    label = label.replace("_", ".")
 
     return label

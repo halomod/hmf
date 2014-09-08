@@ -47,24 +47,34 @@ def cached_property(*parents):
         def _get_property(self):
             prop = ("_" + self.__class__.__name__ + prop_ext).replace("___", "__")
 
+            # If recalc is constructed, and it needs to be updated, recalculate
             if getattr(self, recalc).get(name, True):
                 value = f(self)
                 setattr(self, prop, value)
 
+            # If recalc constructed and doesn't need updating, just return.
             else:
                 return  getattr(self, prop)
 
-
+            # At this point, the value has been calculated.
+            # If this quantity isn't in recalc, we need to construct an entry for it.
             if name not in getattr(self, recalc):
                 final = set()
+                # For each of its parents, either get all its already known parameters,
+                # or just add the parent to a list (in this case it's a parameter itself).
                 for p in parents:
+                    # Hit each parent to make sure it's evaluated
+                    getattr(self, p)
                     if p in getattr(self, recalc_prpa):
                         final |= set(getattr(self, recalc_prpa)[p])
                     else:
                         final.add(p)
 
+                # final is a set of pure parameters that affect this quantity
                 getattr(self, recalc_prpa)[name] = final
 
+                # Go through each parameter and add the current quantity to its
+                # entry (inverse of prpa).
                 for e in final:
                     if e in getattr(self, recalc_papr):
                         getattr(self, recalc_papr)[e].add(name)
