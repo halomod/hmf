@@ -71,7 +71,7 @@ def _get_spec(lnk, delta_k, sigma_8):
 
     return rknl, rneff, rncur
 
-def halofit(k, z, omegam, omegav, w, omegan, neff, rncur, rknl, plin):
+def halofit(k, z, omegam, omegav, w, omegan, neff, rncur, rknl, plin, takahashi=True):
     """
     Halofit routine to calculate pnl and plin.
     
@@ -85,20 +85,35 @@ def halofit(k, z, omegam, omegav, w, omegan, neff, rncur, rknl, plin):
     w = w
     fnu = omegan / omegam
 
-    a = 10 ** (1.5222 + 2.8553 * neff + 2.3706 * neff ** 2 +
-                0.9903 * neff ** 3 + 0.2250 * neff ** 4 +
-                - 0.6038 * rncur + 0.1749 * omegavz * (1 + w))
-    b = 10 ** (-0.5642 + 0.5864 * neff + 0.5716 * neff ** 2 +
-            - 1.5474 * rncur + 0.2279 * omegavz * (1 + w))
-    c = 10 ** (0.3698 + 2.0404 * neff + 0.8161 * neff ** 2 + 0.5869 * rncur)
-    gam = 0.1971 - 0.0843 * neff + 0.8460 * rncur
-    alpha = np.abs(6.0835 + 1.3373 * neff - 0.1959 * neff ** 2 +
-            - 5.5274 * rncur)
-    beta = (2.0379 - 0.7354 * neff + 0.3157 * neff ** 2 +
-              1.2490 * neff ** 3 + 0.3980 * neff ** 4 - 0.1682 * rncur +
-              fnu * (1.081 + 0.395 * neff ** 2))
-    xmu = 0.0
-    xnu = 10 ** (5.2105 + 3.6902 * neff)
+    if takahashi:
+        a = 10 ** (1.5222 + 2.8553 * neff + 2.3706 * neff ** 2 +
+                    0.9903 * neff ** 3 + 0.2250 * neff ** 4 +
+                    - 0.6038 * rncur + 0.1749 * omegavz * (1 + w))
+        b = 10 ** (-0.5642 + 0.5864 * neff + 0.5716 * neff ** 2 +
+                - 1.5474 * rncur + 0.2279 * omegavz * (1 + w))
+        c = 10 ** (0.3698 + 2.0404 * neff + 0.8161 * neff ** 2 + 0.5869 * rncur)
+        gam = 0.1971 - 0.0843 * neff + 0.8460 * rncur
+        alpha = np.abs(6.0835 + 1.3373 * neff - 0.1959 * neff ** 2 +
+                - 5.5274 * rncur)
+        beta = (2.0379 - 0.7354 * neff + 0.3157 * neff ** 2 +
+                  1.2490 * neff ** 3 + 0.3980 * neff ** 4 - 0.1682 * rncur +
+                  fnu * (1.081 + 0.395 * neff ** 2))
+        xmu = 0.0
+        xnu = 10 ** (5.2105 + 3.6902 * neff)
+
+    else:
+        a = 10 ** (1.4861 + 1.8369 * neff + 1.6762 * neff ** 2 +
+                    0.7940 * neff ** 3 + 0.1670 * neff ** 4 +
+                    - 0.6206 * rncur)
+        b = 10 ** (0.9463 + 0.9466 * neff + 0.3084 * neff ** 2 +
+                - 0.94 * rncur)
+        c = 10 ** (-0.2807 + 0.6669 * neff + 0.3214 * neff ** 2 - 0.0793 * rncur)
+        gam = 0.8649 + 0.2989 * neff + 0.1631 * rncur
+        alpha = np.abs(1.3884 + 0.3700 * neff - 0.1452 * neff ** 2)
+        beta = (0.8291 + 0.9854 * neff + 0.3401 * neff ** 2)
+        xmu = 10 ** (-3.5442 + 0.1908 * neff)
+        xnu = 10 ** (0.9589 + 1.2857 * neff)
+
 
     if np.abs(1 - omegamz) > 0.01:
         f1a = omegamz ** -0.0732
@@ -117,7 +132,7 @@ def halofit(k, z, omegam, omegav, w, omegan, neff, rncur, rknl, plin):
     y = k / rknl
 
     ph = a * y ** (f1 * 3) / (1 + b * y ** f2 + (f3 * c * y) ** (3 - gam))
-    ph = ph / (1 + xmu * y ** (-1) + xnu * y ** (-2)) * (1 + fnu * (0.977 - 18.015 * (omegam - 0.3)))
+    ph = ph / (1 + xmu / y + xnu * y ** -2) * (1 + fnu * (0.977 - 18.015 * (omegam - 0.3)))
 
     plinaa = plin * (1 + fnu * 47.48 * k ** 2 / (1 + 1.5 * k ** 2))
     pq = plin * (1 + plinaa) ** beta / (1 + plinaa * alpha) * np.exp(-y / 4.0 - y ** 2 / 8.0)

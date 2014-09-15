@@ -410,7 +410,7 @@ def get_hmf(required_attrs, get_label=True, **kwargs):
     x = MassFunction(**kwargs)
     if not lists:
         if get_label:
-            yield [[getattr(x, a) for a in required_attrs], x, x.mf_fit]
+            yield [[getattr(x, a) for a in required_attrs], x, ""]
         else:
             yield [[getattr(x, a) for a in required_attrs], x]
 

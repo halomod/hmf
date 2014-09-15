@@ -222,6 +222,9 @@ class Transfer(Cosmology):
         (CAMB-only) Number of threads to use for calculation of transfer 
         function by CAMB. Default 0 automatically determines the number.
                        
+    takahashi : bool, default ``True``
+        Whether to use updated HALOFIT coefficients from Takahashi+12
+        
     kwargs : keywords
         The ``**kwargs`` take any cosmological parameters desired, which are 
         input to the `hmf.cosmo.Cosmology` class. `hmf.Perturbations` uses a 
@@ -254,7 +257,7 @@ class Transfer(Cosmology):
     def __init__(self, z=0.0, lnk_min=np.log(1e-8),
                  lnk_max=np.log(2e4), dlnk=0.05,
                  wdm_mass=None, transfer_fit=CAMB,
-                 transfer_options={}, **kwargs):
+                 transfer_options={}, takahashi=True, **kwargs):
         '''
         Initialises some parameters
         '''
@@ -269,6 +272,7 @@ class Transfer(Cosmology):
         self.z = z
         self.transfer_fit = transfer_fit
         self.transfer_options = transfer_options
+        self.takahashi = takahashi
 
     def update(self, **kwargs):
         """
@@ -316,6 +320,10 @@ class Transfer(Cosmology):
 
     @parameter
     def dlnk(self, val):
+        return val
+
+    @parameter
+    def takahashi(self, val):
         return val
 
     @parameter
@@ -470,7 +478,7 @@ class Transfer(Cosmology):
         """
         return -3 * self.lnk + self.nonlinear_delta_k + np.log(2 * np.pi ** 2)
 
-    @cached_property("delta_k", "lnk", "z", "omegam", "omegav", "omegak", "omegan", 'w')
+    @cached_property("delta_k", "lnk", "z", "omegam", "omegav", "omegak", "omegan", 'w', 'takahashi')
     def nonlinear_delta_k(self):
         r"""
         Dimensionless nonlinear power spectrum, :math:`\Delta_k = \frac{k^3 P_{\rm nl}(k)}{2\pi^2}`
@@ -480,7 +488,7 @@ class Transfer(Cosmology):
         plin = np.exp(self.delta_k[mask])
         k = np.exp(self.lnk[mask])
         pnl = halofit(k, self.z, self.omegam, self.omegav, self.w, self.omegan,
-                      rneff, rncur, rknl, plin)
+                      rneff, rncur, rknl, plin, self.takahashi)
         nonlinear_delta_k = np.exp(self.delta_k)
         nonlinear_delta_k[mask] = pnl
         nonlinear_delta_k = np.log(nonlinear_delta_k)
