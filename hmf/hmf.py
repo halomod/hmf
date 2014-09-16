@@ -401,7 +401,7 @@ class MassFunction(Transfer):
             try:
                 mf = np.log(new_pert.M * new_pert.dndm)
             except:
-                mf = mass_function
+                mf = mf_func(m_upper)
             if np.isnan(mf[-1]):  # Then we couldn't get up all the way, so have to do linear ext.
                 if np.isnan(mf[1]):  # Then the whole extension is nan and we have to use the original (start at 1 because 1 val won't work either)
                     mf_func = spline(np.log(M), mass_function, k=1)
