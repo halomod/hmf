@@ -5,7 +5,7 @@ The module contains a single class, `MassFunction`, which wraps almost all the
 functionality of :mod:`hmf` in an easy-to-use way.
 '''
 
-version = '1.6.1'
+version = '1.6.2'
 
 ###############################################################################
 # Some Imports
@@ -333,12 +333,12 @@ class MassFunction(Transfer):
             if self.mf_fit == 'Behroozi' or type(self.mf_fit) == "Behroozi":
                 a = 1 / (1 + self.z)
                 theta = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (self.M / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)))
-                ngtm_tinker = self._ngtm()
+                ngtm_tinker = self._ngtm(dndm)
                 ngtm_behroozi = 10 ** (theta + np.log10(ngtm_tinker))
                 dthetadM = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * \
                     (0.5 / (1 + np.exp(6.5 * a))) * (self.M / 10 ** 11.5) ** \
                     (0.5 / (1 + np.exp(6.5 * a)) - 1) / (10 ** 11.5)
-                dndm = self.__dndm * 10 ** theta - ngtm_behroozi * np.log(10) * dthetadM
+                dndm *= 10 ** theta - ngtm_behroozi * np.log(10) * dthetadM
         else:  # #This is for a survey-volume weighted calculation
             if self.nz is None:
                 self.nz = 10
@@ -354,7 +354,7 @@ class MassFunction(Transfer):
                 if self.mf_fit == 'Behroozi' or type(self.mf_fit) == "Behroozi":
                     a = 1 / (1 + self.z)
                     theta = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (self.M / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)))
-                    ngtm_tinker = self._ngtm()
+                    ngtm_tinker = self._ngtm(dndm)
                     ngtm_behroozi = 10 ** (theta + np.log10(ngtm_tinker))
                     dthetadM = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (0.5 / (1 + np.exp(6.5 * a))) * (self.M / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)) - 1) / (10 ** 11.5)
                     dndm[i] = dndm[i] * 10 ** theta - ngtm_behroozi * np.log(10) * dthetadM
@@ -435,15 +435,16 @@ class MassFunction(Transfer):
             m_lower = np.log(new_pert.M)
         return m_lower, mf
 
-    def _ngtm(self):
+    def _ngtm(self, dndm):
         """
         Calculate n(>m).
         
         This function is separated from the property because of the Behroozi fit
         """
         # set M and mass_function within computed range
-        M = self.M[np.logical_not(np.isnan(self.dndlnm))]
-        mass_function = self.dndlnm[np.logical_not(np.isnan(self.dndlnm))]
+        dndlnm = self.M * dndm
+        M = self.M[np.logical_not(np.isnan(dndlnm))]
+        mass_function = dndlnm[np.logical_not(np.isnan(dndlnm))]
 
         # Calculate the mass function (and its integral) from the highest M up to 10**18
         if M[-1] < 0.9 * 10 ** 18:
@@ -458,9 +459,9 @@ class MassFunction(Transfer):
 
         # We need to set ngtm back in the original length vector with nans where they were originally
         if len(ngtm) < len(self.M):
-            ngtm_temp = np.zeros_like(self.dndlnm)
+            ngtm_temp = np.zeros_like(dndlnm)
             ngtm_temp[:] = np.nan
-            ngtm_temp[np.logical_not(np.isnan(self.dndlnm))] = ngtm
+            ngtm_temp[np.logical_not(np.isnan(dndlnm))] = ngtm
             ngtm = ngtm_temp
 
         return ngtm

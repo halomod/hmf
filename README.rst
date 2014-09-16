@@ -36,6 +36,11 @@ See LICENSE.txt for details.
 
 HISTORY
 -------
+1.6.2 - September 16, 2014
+		Fixed bug in Behroozi fit which caused an infinite recursion
+		Better Singleton labelling in get_hmf
+		New HALOFIT option for original co-oefficients from Smith+03
+		
 1.6.1 - September 8, 2014
 		Fixed "transfer" property
 		Updates fixed for transfer_fit

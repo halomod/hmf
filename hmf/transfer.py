@@ -288,7 +288,6 @@ class Transfer(Cosmology):
             for k in cosmo_kw:
                 del kwargs[k]
 
-        print "KWARGS IN UPDATE: ", kwargs
         for k, v in kwargs.items():
             if hasattr(self, k):
                 setattr(self, k, v)
