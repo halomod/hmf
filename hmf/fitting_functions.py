@@ -500,8 +500,14 @@ class Bhattacharya(FittingFunction):
         return vfv
 
 class Behroozi(Tinker08):
-    pass
-
+    def _modify_dndm(self, m, dndm, z, ngtm_tinker):
+        a = 1 / (1 + z)
+        theta = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (m / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)))
+        ngtm_behroozi = 10 ** (theta + np.log10(ngtm_tinker))
+        dthetadM = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * \
+            (0.5 / (1 + np.exp(6.5 * a))) * (m / 10 ** 11.5) ** \
+            (0.5 / (1 + np.exp(6.5 * a)) - 1) / (10 ** 11.5)
+        return dndm * 10 ** theta - ngtm_behroozi * np.log(10) * dthetadM
 
 class Tinker10(FittingFunction):
     def fsigma(self, cut_fit):

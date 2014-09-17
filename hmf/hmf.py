@@ -18,9 +18,10 @@ import copy
 import logging
 import cosmolopy as cp
 import tools
-from fitting_functions import Tinker08, get_fit
+from fitting_functions import Tinker08, get_fit, Behroozi
 from transfer import Transfer
 from _cache import parameter, cached_property
+from integrate_hmf import hmf_integral_gtm
 logger = logging.getLogger('hmf')
 
 
@@ -225,6 +226,15 @@ class MassFunction(Transfer):
         return val
 
     #--------------------------------  START NON-SET PROPERTIES ----------------------------------------------
+    @cached_property("mf_fit", "sigma", "z", "delta_halo", "nu", "M")
+    def _fit(self):
+        """The actual fitting function class (as opposed to string identifier)"""
+        try:
+            fit = self.mf_fit(self)
+        except:
+            fit = get_fit(self.mf_fit, self)
+        return fit
+
     @cached_property("Mmin", "Mmax", "dlog10m")
     def M(self):
         return 10 ** np.arange(self.Mmin, self.Mmax, self.dlog10m)
@@ -302,23 +312,18 @@ class MassFunction(Transfer):
         """
         return tools.n_eff(self._dlnsdlnm)
 
-    @cached_property("mf_fit", "cut_fit", "sigma", "z", "delta_halo", "nu")
+    @cached_property("_fit", "cut_fit", "sigma", "z", "delta_halo", "nu", "M")
     def fsigma(self):
         """
         The multiplicity function, :math:`f(\sigma)`, for `mf_fit`. ``len=len(M)``
         """
-        try:
-            fit = self.mf_fit(self)
-        except:
-            fit = get_fit(self.mf_fit, self)
-
-        fsigma = fit.fsigma(self.cut_fit)
+        fsigma = self._fit.fsigma(self.cut_fit)
 
         if np.sum(np.isnan(fsigma)) > 0.8 * len(fsigma):
             # the input mass range is almost completely outside the cut
             logger.warning("The specified mass-range was almost entirely \
                             outside of the limits from the fit. Ignored fit range...")
-            fsigma = fit.fsigma(False)
+            fsigma = self._fit.fsigma(False)
 
         return fsigma
 
@@ -330,43 +335,35 @@ class MassFunction(Transfer):
         """
         if self.z2 is None:  # #This is normally the case
             dndm = self.fsigma * self.mean_dens * np.abs(self._dlnsdlnm) / self.M ** 2
-            if self.mf_fit == 'Behroozi' or type(self.mf_fit) == "Behroozi":
-                a = 1 / (1 + self.z)
-                theta = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (self.M / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)))
-                ngtm_tinker = self._ngtm(dndm)
-                ngtm_behroozi = 10 ** (theta + np.log10(ngtm_tinker))
-                dthetadM = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * \
-                    (0.5 / (1 + np.exp(6.5 * a))) * (self.M / 10 ** 11.5) ** \
-                    (0.5 / (1 + np.exp(6.5 * a)) - 1) / (10 ** 11.5)
-                dndm *= 10 ** theta - ngtm_behroozi * np.log(10) * dthetadM
+            if isinstance(self._fit, Behroozi):
+                ngtm_tinker = self._gtm(dndm)
+                dndm = self._fit._modify_dndm(self.M, dndm, self.z, ngtm_tinker)
+
         else:  # #This is for a survey-volume weighted calculation
-            if self.nz is None:
-                self.nz = 10
-            zedges = np.linspace(self.z, self.z2, self.nz)
-            zcentres = (zedges[:-1] + zedges[1:]) / 2
-            dndm = np.zeros_like(zcentres)
-            vol = np.zeros_like(zedges)
-            vol[0] = cp.distance.comoving_volume(self.z,
-                                        **self.cosmolopy_dict)
-            for i, zz in enumerate(zcentres):
-                self.update(z=zz)
-                dndm[i] = self.fsigma * self.mean_dens * np.abs(self._dlnsdlnm) / self.M ** 2
-                if self.mf_fit == 'Behroozi' or type(self.mf_fit) == "Behroozi":
-                    a = 1 / (1 + self.z)
-                    theta = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (self.M / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)))
-                    ngtm_tinker = self._ngtm(dndm)
-                    ngtm_behroozi = 10 ** (theta + np.log10(ngtm_tinker))
-                    dthetadM = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (0.5 / (1 + np.exp(6.5 * a))) * (self.M / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)) - 1) / (10 ** 11.5)
-                    dndm[i] = dndm[i] * 10 ** theta - ngtm_behroozi * np.log(10) * dthetadM
-
-                vol[i + 1] = cp.distance.comoving_volume(z=zedges[i + 1],
-                                                **self.cosmolopy_dict)
-
-            vol = vol[1:] - vol[:-1]  # Volume in shells
-            integrand = vol * dndm
-            numerator = intg.simps(integrand, x=zcentres)
-            denom = intg.simps(vol, zcentres)
-            dndm = numerator / denom
+            raise NotImplementedError()
+#             if self.nz is None:
+#                 self.nz = 10
+#             zedges = np.linspace(self.z, self.z2, self.nz)
+#             zcentres = (zedges[:-1] + zedges[1:]) / 2
+#             dndm = np.zeros_like(zcentres)
+#             vol = np.zeros_like(zedges)
+#             vol[0] = cp.distance.comoving_volume(self.z,
+#                                         **self.cosmolopy_dict)
+#             for i, zz in enumerate(zcentres):
+#                 self.update(z=zz)
+#                 dndm[i] = self.fsigma * self.mean_dens * np.abs(self._dlnsdlnm) / self.M ** 2
+#                 if isinstance(self.mf_fit, "Behroozi"):
+#                     ngtm_tinker = self._gtm(dndm[i])
+#                     dndm[i] = self.mf_fit._modify_dndm(self.M, dndm[i], self.z, ngtm_tinker)
+#
+#                 vol[i + 1] = cp.distance.comoving_volume(z=zedges[i + 1],
+#                                                 **self.cosmolopy_dict)
+#
+#             vol = vol[1:] - vol[:-1]  # Volume in shells
+#             integrand = vol * dndm[i]
+#             numerator = intg.simps(integrand, x=zcentres)
+#             denom = intg.simps(vol, zcentres)
+#             dndm = numerator / denom
         return dndm
 
     @cached_property("M", "dndm")
@@ -383,183 +380,107 @@ class MassFunction(Transfer):
         """
         return self.M * self.dndm * np.log(10)
 
-    def _upper_ngtm(self, M, mass_function, cut):
-        """Calculate the mass function above given range of `M` in order to integrate"""
-        # mass_function is logged already (not log10 though)
-
-        if cut:  # since its been cut, the best we can do is a power law
-            m_upper = np.linspace(np.log(M[-1]), np.log(10 ** 18), 500)
-            mf_func = spline(np.log(M), mass_function, k=1)
-            mf = mf_func(m_upper)
-        else:
-            # We try to calculate the hmf as far as we can normally
-            new_pert = copy.deepcopy(self)
-            new_pert.update(Mmin=np.log10(M[-1]),
-                            Mmax=18)
-
-            # Sometimes this won't work if Behroozi function used so wrap in try
-            try:
-                mf = np.log(new_pert.M * new_pert.dndm)
-            except:
-                mf = mf_func(m_upper)
-            if np.isnan(mf[-1]):  # Then we couldn't get up all the way, so have to do linear ext.
-                if np.isnan(mf[1]):  # Then the whole extension is nan and we have to use the original (start at 1 because 1 val won't work either)
-                    mf_func = spline(np.log(M), mass_function, k=1)
-                    mf = mf_func(m_upper)
-                else:
-                    mfslice = mf[np.logical_not(np.isnan(mf))]
-                    m_nan = np.log(new_pert.M[np.isnan(mf)])
-                    m_true = np.log(new_pert.M[np.logical_not(np.isnan(mf))])
-                    mf_func = spline(m_true, mfslice, k=1)
-                    mf[len(mfslice):] = mf_func(m_nan)
-            m_upper = np.log(new_pert.M)
-        return m_upper, mf
-
-    def _lower_ngtm(self, M, mass_function, cut):
-        ### WE CALCULATE THE MASS FUNCTION BELOW THE COMPUTED RANGE ###
-        # mass_function is logged already (not log10 though)
-        if cut:  # since its been cut, the best we can do is a power law
-            m_lower = np.linspace(np.log(10 ** 3), np.log(M[0]), 500)
-            mf_func = spline(np.log(M), mass_function, k=1)
-            mf = mf_func(m_lower)
-        else:
-            # We try to calculate the hmf as far as we can normally
-            new_pert = copy.deepcopy(self)
-            new_pert.update(Mmin=3,
-                            Mmax=np.log10(M[0]))
-
-            mf = np.log(new_pert.M * new_pert.dndm)
-
-            if np.isnan(mf[0]):  # Then we couldn't go down all the way, so have to do linear ext.
-                mfslice = mf[np.logical_not(np.isnan(mf))]
-                m_nan = np.log(new_pert.M[np.isnan(mf)])
-                m_true = np.log(new_pert.M[np.logical_not(np.isnan(mf))])
-                mf_func = spline(m_true, mfslice, k=1)
-                mf[:len(m_nan)] = mf_func(m_nan)
-            m_lower = np.log(new_pert.M)
-        return m_lower, mf
-
-    def _ngtm(self, dndm):
+    def _gtm(self, dndm, mass_density=False):
         """
-        Calculate n(>m).
+        Calculate number or mass density above mass thresholds in ``self.M``
         
-        This function is separated from the property because of the Behroozi fit
+        This function is here, separate from the properties, due to its need
+        of being passed ``dndm` in the case of the Behroozi fit only, in which 
+        case an infinite recursion would occur otherwise.
+
+        Parameters
+        ----------
+        dndm : array_like, ``len(self.M)``
+            Should usually just be exactly ``self.dndm``, except in Behroozi fit.
+            
+        mass_density : bool, ``False``
+            Whether to get the mass density, or number density.
         """
-        # set M and mass_function within computed range
-        dndlnm = self.M * dndm
-        M = self.M[np.logical_not(np.isnan(dndlnm))]
-        mass_function = dndlnm[np.logical_not(np.isnan(dndlnm))]
+        # Get required local variables
+        size = len(dndm)
+        m = self.M
 
-        # Calculate the mass function (and its integral) from the highest M up to 10**18
-        if M[-1] < 0.9 * 10 ** 18:
-            m_upper, mf = self._upper_ngtm(M, np.log(mass_function), M[-1] < self.M[-1])
+        # If the highest mass is very low, we try calculating it to higher masses
+        # The dlog10m is NOT CHANGED, so the input needs to be finely spaced.
+        # If the top value of dndm is NaN, don't try calculating higher masses.
+        if m[-1] < 10 ** 16.5 and not np.isnan(dndm[-1]):
+            # Behroozi function won't work here.
+            if isinstance(self._fit, Behroozi):
+                pass
+            else:
+                new_mf = copy.deepcopy(self)
+                new_mf.update(Mmin=np.log10(self.M[-1]) + self.dlog10m, Mmax=18)
+                dndm = np.concatenate((dndm, new_mf.dndm))
+                m = np.concatenate((m, new_mf.M))
 
-            int_upper = intg.simps(np.exp(mf), dx=m_upper[2] - m_upper[1], even='first')
-        else:
-            int_upper = 0
-
-        # Calculate the cumulative integral (backwards) of mass_function (Adding on the upper integral)
-        ngtm = np.concatenate((intg.cumtrapz(mass_function[::-1], dx=np.log(M[1]) - np.log(M[0]))[::-1], np.zeros(1))) + int_upper
+        ngtm = hmf_integral_gtm(m, dndm, mass_density)
 
         # We need to set ngtm back in the original length vector with nans where they were originally
-        if len(ngtm) < len(self.M):
-            ngtm_temp = np.zeros_like(dndlnm)
+        if len(ngtm) < len(m):  # Will happen if some dndlnm are NaN
+            ngtm_temp = np.zeros_like(dndm)
             ngtm_temp[:] = np.nan
-            ngtm_temp[np.logical_not(np.isnan(dndlnm))] = ngtm
+            ngtm_temp[np.logical_not(np.isnan(dndm))] = ngtm
             ngtm = ngtm_temp
 
-        return ngtm
+        # Since ngtm may have been extended, we cut it back
+        return ngtm[:size]
 
-    @cached_property("dndm")
+    @cached_property("M", "dndm")
     def ngtm(self):
         """
         The cumulative mass function above `M`, ``len=len(M)`` [units :math:`h^3 Mpc^{-3}`]
+        
+        In the case that `M` does not extend to sufficiently high masses, this
+        routine will auto-generate ``dndm`` for an extended mass range. If 
+        ``cut_fit`` is True, and this extension is invalid, then a power-law fit
+        is applied to extrapolate to sufficient mass. 
+        
+        In the case of the Behroozi fit, it is impossible to auto-extend the mass
+        range except by the power-law fit, thus one should be careful to supply
+        appropriate mass ranges in this case.
         """
-        return self._ngtm(self.dndm)
+        return self._gtm(self.dndm)
 
-    @cached_property("M", "dndlnm")
-    def mgtm(self):
+    @cached_property("M", "dndm")
+    def rho_gtm(self):
         """
-        Mass in haloes `>M`, ``len=len(M)`` [units :math:`M_\odot h^2 Mpc^{-3}`]
+        Mass density in haloes `>M`, ``len=len(M)`` [units :math:`M_\odot h^2 Mpc^{-3}`]
+        
+        In the case that `M` does not extend to sufficiently high masses, this
+        routine will auto-generate ``dndm`` for an extended mass range. If 
+        ``cut_fit`` is True, and this extension is invalid, then a power-law fit
+        is applied to extrapolate to sufficient mass. 
+        
+        In the case of the Behroozi fit, it is impossible to auto-extend the mass
+        range except by the power-law fit, thus one should be careful to supply
+        appropriate mass ranges in this case.
         """
-        M = self.M[np.logical_not(np.isnan(self.dndlnm))]
-        mass_function = self.dndlnm[np.logical_not(np.isnan(self.dndlnm))]
+        return self._gtm(self.dndm, mass_density=True)
 
-        # Calculate the mass function (and its integral) from the highest M up to 10**18
-        if M[-1] < 0.9 * 10 ** 18:
-            m_upper, mf = self._upper_ngtm(M, np.log(mass_function), M[-1] < self.M[-1])
-            int_upper = intg.simps(np.exp(mf + m_upper) , dx=m_upper[2] - m_upper[1], even='first')
-        else:
-            int_upper = 0
 
-        # Calculate the cumulative integral (backwards) of mass_function (Adding on the upper integral)
-        mgtm = np.concatenate((intg.cumtrapz(mass_function[::-1] * M[::-1], dx=np.log(M[1]) - np.log(M[0]))[::-1], np.zeros(1))) + int_upper
-
-        # We need to set ngtm back in the original length vector with nans where they were originally
-        if len(mgtm) < len(self.M):
-            mgtm_temp = np.zeros_like(self.dndlnm)
-            mgtm_temp[:] = np.nan
-            mgtm_temp[np.logical_not(np.isnan(self.dndlnm))] = mgtm
-            mgtm = mgtm_temp
-        return mgtm
-
-    @cached_property("M", 'dndlnm')
-    def nltm(self):
+    @cached_property("mean_dens", 'rho_gtm')
+    def rho_ltm(self):
         """
-        Inverse cumulative mass function, ``len=len(M)`` [units :math:`h^3 Mpc^{-3}`]
+        Mass density in haloes `<M`, ``len=len(M)`` [units :math:`M_\odot h^2 Mpc^{-3}`]
+        
+        .. note :: As of v1.6.2, this assumes that the entire mass density of 
+                   halos is encoded by the ``mean_density`` parameter (ie. all
+                   mass is found in halos). This is not explicitly true of all
+                   fitting functions (eg. Warren), in which case the definition
+                   of this property is somewhat inconsistent, but will still 
+                   work.
+                    
+        In the case that `M` does not extend to sufficiently high masses, this
+        routine will auto-generate ``dndm`` for an extended mass range. If 
+        ``cut_fit`` is True, and this extension is invalid, then a power-law fit
+        is applied to extrapolate to sufficient mass. 
+        
+        In the case of the Behroozi fit, it is impossible to auto-extend the mass
+        range except by the power-law fit, thus one should be careful to supply
+        appropriate mass ranges in this case.
         """
-        # set M and mass_function within computed range
-        M = self.M[np.logical_not(np.isnan(self.dndlnm))]
-        mass_function = self.dndlnm[np.logical_not(np.isnan(self.dndlnm))]
+        return self.mean_dens - self.rho_gtm
 
-        # Calculate the mass function (and its integral) from 10**3 up to lowest M
-        if M[0] > 1.1 * 10 ** 3:
-            m_lower, mf = self._lower_ngtm(M, np.log(mass_function), M[0] > self.M[0])
-
-            int_lower = intg.simps(np.exp(mf), dx=m_lower[2] - m_lower[1], even='first')
-        else:
-            int_lower = 0
-
-        # Calculate the cumulative integral of mass_function (Adding on the lower integral)
-        nltm = np.concatenate((np.zeros(1), intg.cumtrapz(mass_function, dx=np.log(M[1]) - np.log(M[0])))) + int_lower
-
-        # We need to set ngtm back in the original length vector with nans where they were originally
-        if len(nltm) < len(self.M):
-            nltm_temp = np.zeros_like(self.dndlnm)
-            nltm_temp[:] = np.nan
-            nltm_temp[np.logical_not(np.isnan(self.dndlnm))] = nltm
-            nltm = nltm_temp
-
-        return nltm
-
-    @cached_property("M", 'dndm')
-    def mltm(self):
-        """
-        Total mass in haloes `<M`, ``len=len(M)`` [units :math:`M_\odot h^2 Mpc^{-3}`]
-        """
-        # Set M within calculated range
-        M = self.M[np.logical_not(np.isnan(self.dndlnm))]
-        mass_function = self.dndlnm[np.logical_not(np.isnan(self.dndlnm))]
-
-        # Calculate the mass function (and its integral) from 10**3 up to lowest M
-        if M[0] > 1.1 * 10 ** 3:
-            m_lower, mf = self._lower_ngtm(M, np.log(mass_function), M[0] > self.M[0])
-
-            int_lower = intg.simps(np.exp(mf + m_lower), dx=m_lower[2] - m_lower[1], even='first')
-        else:
-            int_lower = 0
-
-        # Calculate the cumulative integral of mass_function (Adding on the lower integral)
-        mltm = np.concatenate((np.zeros(1), intg.cumtrapz(mass_function * M, dx=np.log(M[1]) - np.log(M[0])))) + int_lower
-
-        # We need to set ngtm back in the original length vector with nans where they were originally
-        if len(mltm) < len(self.M):
-            nltm_temp = np.zeros_like(self.dndlnm)
-            nltm_temp[:] = np.nan
-            nltm_temp[np.logical_not(np.isnan(self.dndlnm))] = mltm
-            mltm = nltm_temp
-
-        return mltm
 
     @cached_property("ngtm")
     def how_big(self):

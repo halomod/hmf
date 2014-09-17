@@ -40,6 +40,13 @@ HISTORY
 		Fixed bug in Behroozi fit which caused an infinite recursion
 		Better Singleton labelling in get_hmf
 		New HALOFIT option for original co-oefficients from Smith+03
+		Much cleaning of mass function integrations. New separate module for it.
+		IMPORTANT: Removal of nltm routine altogether, as it is inconsistent.
+		IMPORTANT: mltm now called rho_ltm, and mgtm called rho_gtm
+		IMPORTANT: Definition of rho_ltm now assumes all mass is in halos.
+		Tests fixed for new cumulants.
+		Behroozi-specific modifications moved to Behroozi class
+		New property _fit which is the actual class for mf_fit
 		
 1.6.1 - September 8, 2014
 		Fixed "transfer" property

@@ -19,11 +19,11 @@ class TestFcoll(object):
     def check_fcoll(self, pert, fit):
         if fit == "PS":
             anl = fcoll_PS(np.sqrt(pert.nu))
-            num = pert.mgtm / pert.mean_dens
+            num = pert.rho_gtm / pert.mean_dens
 
         elif fit == "Peacock":
             anl = fcoll_Peacock(np.sqrt(pert.nu))
-            num = pert.mgtm / pert.mean_dens
+            num = pert.rho_gtm / pert.mean_dens
 
         err = np.abs((num - anl) / anl)
         print np.max(err)
@@ -57,7 +57,7 @@ class TestCumulants(object):
     def check(self, hmf, minm, maxm):
         hmf.update(Mmin=minm, Mmax=maxm)
         anl = fcoll_Peacock(np.sqrt(hmf.nu))
-        num = hmf.mgtm / hmf.mean_dens
+        num = hmf.rho_gtm / hmf.mean_dens
         err = np.abs((num - anl) / anl)[np.logical_and(hmf.M > 10 ** 10, hmf.M < 10 ** 15)]
         err = err[np.logical_not(np.isnan(err))]
         print np.max(err)
@@ -79,20 +79,20 @@ class TestCumulants(object):
 
     def check_mgtm(self, hmf, maxm):
         hmf.update(Mmin=0, Mmax=maxm, dlog10m=0.01)
-        assert np.abs(hmf.mgtm[0] / hmf.mean_dens - 1) < 0.1  # THIS IS PRETTY BIG!
+        assert np.abs(hmf.rho_gtm[0] / hmf.mean_dens - 1) < 0.1  # THIS IS PRETTY BIG!
 
 
     def test_mgtm(self):
-        hmf = MassFunction(mf_fit="PS", cut_fit=False)
-        for maxm in [16, 18, 19]:  # below,equal,greater than integration limits
+        hmf = MassFunction(mf_fit="Tinker", cut_fit=False)
+        for maxm in [14, 15, 16, 18, 19]:  # below,equal,greater than integration limits
             yield self.check_mgtm, hmf, maxm
 
-    def check_mltm(self, hmf, minm):
-        hmf.update(Mmin=minm, Mmax=18, dlog10m=0.01)
-        print np.abs(hmf.mltm[-1] / hmf.mean_dens - 1)
-        assert np.abs(hmf.mltm[-1] / hmf.mean_dens - 1) < 0.2
+    def check_mltm(self, hmf, maxm):
+        hmf.update(Mmin=3, Mmax=maxm, dlog10m=0.01)
+        print np.abs(hmf.rho_ltm[-1] / hmf.mean_dens - 1)
+        assert np.abs(hmf.rho_ltm[-1] / hmf.mean_dens - 1) < 0.2
 
     def test_mltm(self):
         hmf = MassFunction(mf_fit="PS", cut_fit=False)
-        for minm in [2, 3, 5]:  # below,equal,greater than integration limits
-            yield self.check_mltm, hmf, minm
+        for maxm in [14, 15, 16, 18, 19]:  # below,equal,greater than integration limits
+            yield self.check_mltm, hmf, maxm
