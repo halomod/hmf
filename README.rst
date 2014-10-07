@@ -36,6 +36,10 @@ See LICENSE.txt for details.
 
 HISTORY
 -------
+1.6.3 - 
+		Modified get_hmf to be more general
+		Moved get_hmf and related functions to "functional.py"
+		
 1.6.2 - September 16, 2014
 		Fixed bug in Behroozi fit which caused an infinite recursion
 		Better Singleton labelling in get_hmf
