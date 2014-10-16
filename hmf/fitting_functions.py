@@ -2,6 +2,7 @@ import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import cosmolopy as cp
 import sys
+import copy
 
 _allfits = ["ST", "SMT", 'Jenkins', "Warren", "Reed03", "Reed07", "Peacock",
             "Angulo", "AnguloBound", "Tinker", "Watson_FoF", "Watson", "Crocce",
@@ -22,9 +23,6 @@ class FittingFunction(object):
     """
     Calculates :math:`f(\sigma)` given a `MassFunction` instance.
     
-    The class simplifies the choosing of the fitting function through a simple
-    mapping of string identifiers.
-    
     Parameters
     ----------
     hmf : `hmf.MassFunction` instance
@@ -32,14 +30,17 @@ class FittingFunction(object):
         calculate :math:`f(\sigma)` -- the mass variance, redshift etc.
     
     """
-    # This is a full list of available string identifiers. Aliases may also
-    # be included here (eg. SMT and ST)
-#     mf_fits = ["PS", "SMT", "ST", "Warren", "Jenkins", "Reed03", "Reed07", "Peacock",
-#                "Angulo", "Angulo_Bound", "Tinker", "Watson_FoF", "Watson", "Crocce",
-#                "Courtin", "Bhattacharya", "user_model", "Behroozi"]
+    _defaults = {}
+
+    def __init__(self, hmf, **model_parameters):
+        for k in model_parameters:
+            if k not in self._defaults:
+                raise ValueError("%s is not a valid argument for the Fitting Function" % k)
+
+        self.params = copy.copy(self._defaults)
+        self.params.update(model_parameters)
 
 
-    def __init__(self, hmf):
         self.hmf = hmf
         self.nu2 = self.hmf.nu
         self.nu = np.sqrt(self.hmf.nu)
@@ -63,6 +64,8 @@ class PS(FittingFunction):
         return np.sqrt(2.0 / np.pi) * self.nu * np.exp(-0.5 * self.nu2)
 
 class ST(FittingFunction):
+    _defaults = {"a":0.707, "p":0.3, "A":0.3222}
+
     def fsigma(self, cut_fit):
         """
         Calculate :math:`f(\sigma)` for Sheth-Mo-Tormen form.
@@ -75,9 +78,9 @@ class ST(FittingFunction):
         vfv : array_like, len=len(pert.M)
             The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
         """
-        a = 0.707
-        p = 0.3
-        A = 0.3222
+        A = self.params["A"]
+        a = self.params["a"]
+        p = self.params['p']
 
         vfv = A * np.sqrt(2.0 * a / np.pi) * self.nu * np.exp(-(a * self.nu2) / 2.0)\
                  * (1 + (1.0 / (a * self.nu2)) ** p)
@@ -88,6 +91,7 @@ class SMT(ST):
     pass
 
 class Jenkins(FittingFunction):
+    _defaults = {"A":0.315, "b":0.61, "c":3.8}
     def fsigma(self, cut_fit):
         """
         Calculate :math:`f(\sigma)` for Jenkins form.
@@ -102,8 +106,10 @@ class Jenkins(FittingFunction):
         vfv : array_like, len=len(pert.M)
             The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
         """
-
-        vfv = 0.315 * np.exp(-np.abs(self.hmf.lnsigma + 0.61) ** 3.8)
+        A = self.params["A"]
+        b = self.params["b"]
+        c = self.params['c']
+        vfv = A * np.exp(-np.abs(self.hmf.lnsigma + b) ** c)
 
         if cut_fit:
             vfv[np.logical_or(self.hmf.lnsigma < -1.2, self.hmf.lnsigma > 1.05)] = np.NaN
@@ -111,6 +117,7 @@ class Jenkins(FittingFunction):
         return vfv
 
 class Warren(FittingFunction):
+    _defaults = {"A":0.7234, "b":1.625, "c":0.2538, "d":1.1982, "e":1}
     def fsigma(self, cut_fit):
         """
         Calculate :math:`f(\sigma)` for Warren form.
@@ -125,9 +132,13 @@ class Warren(FittingFunction):
         vfv : array_like, len=len(pert.M)
             The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
         """
+        A = self.params["A"]
+        b = self.params["b"]
+        c = self.params['c']
+        d = self.params['d']
+        e = self.params['e']
 
-        vfv = 0.7234 * ((1.0 / self.hmf.sigma) ** 1.625 + 0.2538) * \
-                np.exp(-1.1982 / self.hmf.sigma ** 2)
+        vfv = A * ((e / self.hmf.sigma) ** b + c) * np.exp(-d / self.hmf.sigma ** 2)
 
         if cut_fit:
             vfv[np.logical_or(self.hmf.M < 10 ** 10, self.hmf.M > 10 ** 15)] = np.NaN
@@ -135,6 +146,7 @@ class Warren(FittingFunction):
         return vfv
 
 class Reed03(ST):
+    _defaults = {"a":0.707, "p":0.3, "A":0.3222, "c":0.7}
     def fsigma(self, cut_fit):
         """
         Calculate :math:`f(\sigma)` for Reed (2003) form.
@@ -153,13 +165,14 @@ class Reed03(ST):
         vfv = super(Reed03, self).fsigma(False)
 
 
-        vfv *= np.exp(-0.7 / (self.hmf.sigma * np.cosh(2.0 * self.hmf.sigma) ** 5))
+        vfv *= np.exp(-self.params['c'] / (self.hmf.sigma * np.cosh(2.0 * self.hmf.sigma) ** 5))
 
         if cut_fit:
             vfv[np.logical_or(self.hmf.lnsigma < -1.7, self.hmf.lnsigma > 0.9)] = np.NaN
         return vfv
 
 class Reed07(FittingFunction):
+    _defaults = {"A":0.3222, "p":0.3, "c":1.08, "a":0.764}
     def fsigma(self, cut_fit):
         """
         Calculate :math:`f(\sigma)` for Reed (2007) form.
@@ -177,11 +190,10 @@ class Reed07(FittingFunction):
         G_1 = np.exp(-(self.hmf.lnsigma - 0.4) ** 2 / (2 * 0.6 ** 2))
         G_2 = np.exp(-(self.hmf.lnsigma - 0.75) ** 2 / (2 * 0.2 ** 2))
 
-        c = 1.08
-        a = 0.764 / c
-        A = 0.3222
-        p = 0.3
-
+        c = self.params['c']
+        a = self.params['a'] / self.params['c']
+        A = self.params['A']
+        p = self.params['p']
 
         vfv = A * np.sqrt(2.0 * a / np.pi) * \
             (1.0 + (1.0 / (a * self.nu ** 2)) ** p + 0.6 * G_1 + 0.4 * G_2) * self.nu * \
@@ -193,6 +205,7 @@ class Reed07(FittingFunction):
         return vfv
 
 class Peacock(FittingFunction):
+    _defaults = {"a":1.529, "b":0.704, 'c':0.412}
     def fsigma(self, cut_fit):
         """
         Calculate :math:`f(\sigma)` for Peacock form.
@@ -210,9 +223,9 @@ class Peacock(FittingFunction):
         vfv : array_like, len=len(pert.M)
             The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
         """
-        a = 1.529
-        b = 0.704
-        c = 0.412
+        a = self.params['a']
+        b = self.params['b']
+        c = self.params['c']
 
         d = 1 + a * self.nu ** b
         vfv = self.nu * np.exp(-c * self.nu2) * (2 * c * d * self.nu + b * a * self.nu ** (b - 1)) / d ** 2
@@ -222,7 +235,8 @@ class Peacock(FittingFunction):
 
         return vfv
 
-class Angulo(FittingFunction):
+class Angulo(Warren):
+    _defaults = {"A":0.201, "b":1.7, "c":1, "d":1.172, "e":2.08}
     def fsigma(self, cut_fit):
         """
         Calculate :math:`f(\sigma)` for Angulo form.
@@ -237,35 +251,15 @@ class Angulo(FittingFunction):
         vfv : array_like, len=len(pert.M)
             The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
         """
-
-        vfv = 0.201 * ((2.08 / self.hmf.sigma) ** 1.7 + 1) * \
-                np.exp(-1.172 / self.hmf.sigma ** 2)
+        vfv = super(Angulo, self).fsigma(False)
 
         if cut_fit:
             vfv[np.logical_or(self.hmf.M < 10 ** 8, self.hmf.M > 10 ** 16)] = np.NaN
         return vfv
 
-class AnguloBound(FittingFunction):
-    def fsigma(self, cut_fit):
-        """
-        Calculate :math:`f(\sigma)` for Angulo (subhalo) form.
+class AnguloBound(Angulo):
+    _defaults = {"A":0.265, "b":1.9, "c":1, "d":1.4, "e":1.675}
 
-        Angulo, R. E., et al., 2012.
-        arXiv:1203.3216v1
-                
-        .. note:: valid for :math:`10^{8}M_\odot < M <10^{16}M_\odot`
-       
-        Returns
-        -------
-        vfv : array_like, len=len(pert.M)
-            The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
-        """
-        vfv = 0.265 * ((1.675 / self.hmf.sigma) ** 1.9 + 1) * \
-                np.exp(-1.4 / self.hmf.sigma ** 2)
-
-        if cut_fit:
-            vfv[np.logical_or(self.hmf.M < 10 ** 8, self.hmf.M > 10 ** 16)] = np.NaN
-        return vfv
 
 class Tinker08(FittingFunction):
     def fsigma(self, cut_fit):
@@ -352,7 +346,8 @@ class Tinker08(FittingFunction):
                                   self.hmf.lnsigma / np.log(10) > 0.4)] = np.nan
         return vfv
 
-class Watson_FoF(FittingFunction):
+class Watson_FoF(Warren):
+    _defaults = {"A":0.282, "b":2.163, "c":1, "d":1.21, "e":1.406}
     def fsigma(self, cut_fit):
         """
         Calculate :math:`f(\sigma)` for Watson (FoF) form.
@@ -367,20 +362,28 @@ class Watson_FoF(FittingFunction):
         vfv : array_like, len=len(pert.M)
             The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
         """
-        vfv = 0.282 * ((1.406 / self.hmf.sigma) ** 2.163 + 1) * np.exp(-1.21 / self.hmf.sigma ** 2)
+        vfv = super(Watson_FoF, self).fsigma()
+
         if cut_fit:
             vfv[np.logical_or(self.hmf.lnsigma < -0.55 , self.hmf.lnsigma > 1.31)] = np.NaN
         return vfv
 
 class Watson(FittingFunction):
+    _defaults = {"C_a":0.023, "d_a":0.456, "d_b":0.139, "p":0.072, "q":2.13,
+                 "A_0":0.194, "alpha_0":2.267, "beta_0":1.805, "gamma_0":1.287,
+                 "z_hi":6, "A_hi":0.563, "alpha_hi":0.874, "beta_hi":3.810, "gamma_hi":1.453,
+                 "A_a":1.097, "A_b":3.216, "A_c":0.074,
+                 "alpha_a":3.136, "alpha_b":3.058, "alpha_c":2.349,
+                 "beta_a":5.907, "beta_b":3.599, "A_c":2.344,
+                 "gamma_z":1.318}
     def gamma(self):
         """
         Calculate :math:`\Gamma` for the Watson fit.
         """
-        C = np.exp(0.023 * (self.hmf.delta_halo / 178 - 1))
-        d = -0.456 * cp.density.omega_M_z(self.hmf.z, **self.hmf.cosmolopy_dict) - 0.139
-        p = 0.072
-        q = 2.13
+        C = np.exp(self.params["C_a"] * (self.hmf.delta_halo / 178 - 1))
+        d = -self.params["d_a"] * cp.density.omega_M_z(self.hmf.z, **self.hmf.cosmolopy_dict) - self.params["d_b"]
+        p = self.params["p"]
+        q = self.params['q']
 
         return C * (self.hmf.delta_halo / 178) ** d * np.exp(p * (1 - self.hmf.delta_halo / 178) / self.hmf.sigma ** q)
 
@@ -400,21 +403,21 @@ class Watson(FittingFunction):
             The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
         """
         if self.hmf.z == 0:
-            A = 0.194
-            alpha = 2.267
-            beta = 1.805
-            gamma = 1.287
-        elif self.hmf.z > 6:
-            A = 0.563
-            alpha = 0.874
-            beta = 3.810
-            gamma = 1.453
+            A = self.params["A_0"]
+            alpha = self.params["alpha_0"]
+            beta = self.params["beta_0"]
+            gamma = self.params["gamma_0"]
+        elif self.hmf.z > self.params['z_hi']:
+            A = self.params["A_hi"]
+            alpha = self.params["alpha_hi"]
+            beta = self.params["beta_hi"]
+            gamma = self.params["gamma_hi"]
         else:
             omz = cp.density.omega_M_z(self.hmf.z, **self.hmf.cosmolopy_dict)
-            A = omz * (1.097 * (1 + self.hmf.z) ** (-3.216) + 0.074)
-            alpha = omz * (3.136 * (1 + self.hmf.z) ** (-3.058) + 2.349)
-            beta = omz * (5.907 * (1 + self.hmf.z) ** (-3.599) + 2.344)
-            gamma = 1.318
+            A = omz * (self.params["A_a"] * (1 + self.hmf.z) ** (-self.params["A_b"]) + self.params["A_c"])
+            alpha = omz * (self.params["alpha_a"] * (1 + self.hmf.z) ** (-self.params["alpha_b"]) + self.params["alpha_c"])
+            beta = omz * (self.params["beta_a"] * (1 + self.hmf.z) ** (-self.params["beta_b"]) + self.params["beta_c"])
+            gamma = self.params["gamma_z"]
 
         vfv = self.gamma() * A * ((beta / self.hmf.sigma) ** alpha + 1) * \
                  np.exp(-gamma / self.hmf.sigma ** 2)
@@ -424,54 +427,72 @@ class Watson(FittingFunction):
 
         return vfv
 
-class Crocce(FittingFunction):
-    def fsigma(self, cut_fit):
-        """
-        Calculate :math:`f(\sigma)` for Crocce form.
+class Crocce(Warren):
+    _defaults = {"A_a":0.58, "A_b":0.13,
+                 "b_a":1.37, "b_b":0.15,
+                 "c_a":0.3, "c_b":0.084,
+                 "d_a":1.036, "d_b":0.024,
+                 "e":1}
+    def __init__(self, hmf, **model_parameters):
+        super(Crocce, self).__init__(hmf, **model_parameters)
 
-        Crocce, M., et al. MNRAS 403 (3), 1353-1367.
-        http://doi.wiley.com/10.1111/j.1365-2966.2009.16194.x
-                
-        .. note:: valid for :math:`10^{10.5}M_\odot < M <10^{15.5}M_\odot`
-       
-        Returns
-        -------
-        vfv : array_like, len=len(pert.M)
-            The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
-        """
-        A = 0.58 * (1 + self.hmf.z) ** (-0.13)
-        a = 1.37 * (1 + self.hmf.z) ** (-0.15)
-        b = 0.3 * (1 + self.hmf.z) ** (-0.084)
-        c = 1.036 * (1 + self.hmf.z) ** (-0.024)
+        self.params["A"] = self.params["A_a"] * (1 + self.hmf.z) ** (-self.params["A_b"])
+        self.params['b'] = self.params["b_a"] * (1 + self.hmf.z) ** (-self.params["b_b"])
+        self.params['c'] = self.params["c_a"] * (1 + self.hmf.z) ** (-self.params["c_b"])
+        self.params['d'] = self.params["d_a"] * (1 + self.hmf.z) ** (-self.params["d_b"])
 
-        vfv = A * (self.hmf.sigma ** (-a) + b) * np.exp(-c / self.hmf.sigma ** 2)
-        return vfv
+#     def fsigma(self, cut_fit):
+#         """
+#         Calculate :math:`f(\sigma)` for Crocce form.
+#
+#         Crocce, M., et al. MNRAS 403 (3), 1353-1367.
+#         http://doi.wiley.com/10.1111/j.1365-2966.2009.16194.x
+#
+#         .. note:: valid for :math:`10^{10.5}M_\odot < M <10^{15.5}M_\odot`
+#
+#         Returns
+#         -------
+#         vfv : array_like, len=len(pert.M)
+#             The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
+#         """
+#
+#
+#         vfv = A * (self.hmf.sigma ** (-a) + b) * np.exp(-c / self.hmf.sigma ** 2)
+#         return vfv
 
-class Courtin(FittingFunction):
-    def fsigma(self, cut_fit):
-        """
-        Calculate :math:`f(\sigma)` for Courtin form.
+class Courtin(SMT):
+    _defaults = {"A":0.348, "a":0.695, "p":0.1}
+#     def fsigma(self, cut_fit):
+#         """
+#         Calculate :math:`f(\sigma)` for Courtin form.
+#
+#         Courtin, J., et al., Oct. 2010. MNRAS 1931
+#         http://doi.wiley.com/10.1111/j.1365-2966.2010.17573.x
+#
+#         .. note:: valid for :math:`-0.8<\ln\sigma^{-1}<0.7`
+#
+#         Returns
+#         -------
+#         vfv : array_like, len=len(pert.M)
+#             The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
+#         """
+#         A = 0.348
+#         a = 0.695
+#         p = 0.1
+#         # d_c = self.hmf.delta_c  # Note for WMAP5 they find delta_c = 1.673
+#
+#         vfv = A * np.sqrt(2.0 * a / np.pi) * self.nu * np.exp(-(a * self.nu2) / 2.0)\
+#                  * (1 + (1.0 / (a * self.nu2)) ** p)
+#         return vfv
 
-        Courtin, J., et al., Oct. 2010. MNRAS 1931
-        http://doi.wiley.com/10.1111/j.1365-2966.2010.17573.x
-                
-        .. note:: valid for :math:`-0.8<\ln\sigma^{-1}<0.7`
-       
-        Returns
-        -------
-        vfv : array_like, len=len(pert.M)
-            The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
-        """
-        A = 0.348
-        a = 0.695
-        p = 0.1
-        # d_c = self.hmf.delta_c  # Note for WMAP5 they find delta_c = 1.673
+class Bhattacharya(SMT):
+    _defaults = {"A_a":0.333, "A_b":0.11, "a_a":0.788, "a_b":0.01, "p":0.807, "q":1.795}
 
-        vfv = A * np.sqrt(2.0 * a / np.pi) * self.nu * np.exp(-(a * self.nu2) / 2.0)\
-                 * (1 + (1.0 / (a * self.nu2)) ** p)
-        return vfv
+    def __init__(self, hmf, **model_parameters):
+        super(Bhattacharya, self).__init__(hmf, **model_parameters)
+        self.params["A"] = self.params["A_a"] * (1 + self.hmf.z) ** -self.params["A_b"]
+        self.params["a"] = self.params["a_a"] * (1 + self.hmf.z) ** -self.params["a_b"]
 
-class Bhattacharya(FittingFunction):
     def fsigma(self, cut_fit):
         """
         Calculate :math:`f(\sigma)` for Bhattacharya form.
@@ -486,13 +507,9 @@ class Bhattacharya(FittingFunction):
         vfv : array_like, len=len(pert.M)
             The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
         """
-        A = 0.333 * (1 + self.hmf.z) ** -0.11
-        a = 0.788 * (1 + self.hmf.z) ** -0.01
-        p = 0.807
-        q = 1.795
+        vfv = super(Bhattacharya, self).fsigma(cut_fit)
+        vfv *= (self.nu * np.sqrt(self.params['a'])) ** self.params['q']
 
-        vfv = A * np.sqrt(2.0 / np.pi) * np.exp(-(a * self.nu ** 2) / 2.0) * \
-                 (1 + (1.0 / (a * self.nu ** 2)) ** p) * (self.nu * np.sqrt(a)) ** q
         if cut_fit:
             vfv[np.logical_or(self.hmf.M < 6 * 10 ** 11,
                               self.hmf.M > 3 * 10 ** 15)] = np.NaN
@@ -557,10 +574,6 @@ class Tinker10(FittingFunction):
         eta = eta_0 * (1 + min(self.hmf.z, 3)) ** 0.27
         gamma = gamma_0 * (1 + min(self.hmf.z, 3)) ** -0.01
 
-#         print "Tinker10 params: ", beta_0, phi_0, eta_0, gamma_0
-#         print "Tinker10 zparams: ", beta, phi, eta, gamma, 1 / (2 ** (eta - phi - 0.5) * beta ** (-2 * phi) * gamma ** (-0.5 - eta) \
-#             * (2 ** phi * beta ** (2 * phi) * G(eta + 0.5) + gamma ** phi * G(0.5 + eta - phi)))
-
         fv = (1 + (beta * self.nu) ** (-2 * phi)) * self.nu ** (2 * eta) * np.exp(-gamma * (self.nu ** 2) / 2)
 
         # The following sets alpha (by \int f(\nu) d\nu = 1)
@@ -582,4 +595,5 @@ class Tinker10(FittingFunction):
         return vfv
 
 class Tinker(Tinker08):
+    """ Alias for Tinker08 """
     pass
