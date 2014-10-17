@@ -226,6 +226,20 @@ class MassFunction(Transfer):
         return val
 
     #--------------------------------  START NON-SET PROPERTIES ----------------------------------------------
+    @cached_property("z", "omegam", "omegav")
+    def omegam_z(self):
+        """
+        Density parameter at redshift of this instance.
+        """
+        return cp.cden.omega_M_z(self.z, **self.cosmolopy_dict)
+
+    @cached_property("z")
+    def mean_dens_z(self):
+        """
+        Mean density of universe at redshift z
+        """
+        return self.mean_dens * (1 + self.z) ** 3
+
     @cached_property("mf_fit", "sigma", "z", "delta_halo", "nu", "M")
     def _fit(self):
         """The actual fitting function class (as opposed to string identifier)"""
@@ -334,7 +348,7 @@ class MassFunction(Transfer):
         The number density of haloes, ``len=len(M)`` [units :math:`h^4 M_\odot^{-1} Mpc^{-3}`]
         """
         if self.z2 is None:  # #This is normally the case
-            dndm = self.fsigma * self.mean_dens * np.abs(self._dlnsdlnm) / self.M ** 2
+            dndm = self.mean_dens * self.fsigma * np.abs(self._dlnsdlnm) / self.M ** 2
             if isinstance(self._fit, Behroozi):
                 ngtm_tinker = self._gtm(dndm)
                 dndm = self._fit._modify_dndm(self.M, dndm, self.z, ngtm_tinker)
