@@ -276,7 +276,7 @@ class Watson_FoF(Warren):
         vfv : array_like, len=len(pert.M)
             The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
         """
-        vfv = super(Watson_FoF, self).fsigma()
+        vfv = super(Watson_FoF, self).fsigma(cut_fit)
 
         if cut_fit:
             vfv[np.logical_or(self.hmf.lnsigma < -0.55 , self.hmf.lnsigma > 1.31)] = np.NaN
@@ -288,7 +288,7 @@ class Watson(FittingFunction):
                  "z_hi":6, "A_hi":0.563, "alpha_hi":0.874, "beta_hi":3.810, "gamma_hi":1.453,
                  "A_a":1.097, "A_b":3.216, "A_c":0.074,
                  "alpha_a":3.136, "alpha_b":3.058, "alpha_c":2.349,
-                 "beta_a":5.907, "beta_b":3.599, "A_c":2.344,
+                 "beta_a":5.907, "beta_b":3.599, "beta_c":2.344,
                  "gamma_z":1.318}
     def gamma(self):
         """
@@ -539,7 +539,7 @@ class Tinker10(FittingFunction):
 
     @property
     def normalise(self):
-        if self.hmf.delta_halo in self.delta_virs and self.z == 0:
+        if self.hmf.delta_halo in self.delta_virs and self.hmf.z == 0:
             ind = np.where(self.delta_virs == self.hmf.delta_halo)[0][0]
             return self.params['alpha_array'][ind]
         else:
