@@ -3,7 +3,7 @@ from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import cosmolopy as cp
 import sys
 import copy
-
+from scipy.special import gamma as Gam
 _allfits = ["ST", "SMT", 'Jenkins', "Warren", "Reed03", "Reed07", "Peacock",
             "Angulo", "AnguloBound", "Tinker", "Watson_FoF", "Watson", "Crocce",
             "Courtin", "Bhattacharya", "Behroozi", "Tinker08", "Tinker10"]
@@ -260,92 +260,6 @@ class Angulo(Warren):
 class AnguloBound(Angulo):
     _defaults = {"A":0.265, "b":1.9, "c":1, "d":1.4, "e":1.675}
 
-
-class Tinker08(FittingFunction):
-    def fsigma(self, cut_fit):
-        """
-        Calculate :math:`f(\sigma)` for Tinker form.
-
-        Tinker, J., et al., 2008. ApJ 688, 709-728.
-        http://iopscience.iop.org/0004-637X/688/2/709
-                
-        .. note:: valid for :math:`-0.6<\log_{10}\sigma^{-1}<0.4`
-       
-        Returns
-        -------
-        vfv : array_like, len=len(pert.M)
-            The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
-        """
-        # The Tinker function is a bit tricky - we use the code from
-        # http://cosmo.nyu.edu/~tinker/massfunction/MF_code.tar to aid us.
-        delta_virs = np.array([200, 300, 400, 600, 800, 1200, 1600, 2400, 3200])
-        A_array = np.array([ 1.858659e-01,
-                            1.995973e-01,
-                            2.115659e-01,
-                            2.184113e-01,
-                            2.480968e-01,
-                            2.546053e-01,
-                            2.600000e-01,
-                            2.600000e-01,
-                            2.600000e-01])
-
-        a_array = np.array([1.466904e+00,
-                            1.521782e+00,
-                            1.559186e+00,
-                            1.614585e+00,
-                            1.869936e+00,
-                            2.128056e+00,
-                            2.301275e+00,
-                            2.529241e+00,
-                            2.661983e+00])
-
-        b_array = np.array([2.571104e+00,
-                            2.254217e+00,
-                            2.048674e+00,
-                            1.869559e+00,
-                            1.588649e+00,
-                            1.507134e+00,
-                            1.464374e+00,
-                            1.436827e+00,
-                            1.405210e+00])
-
-        c_array = np.array([1.193958e+00,
-                            1.270316e+00,
-                            1.335191e+00,
-                            1.446266e+00,
-                            1.581345e+00,
-                            1.795050e+00,
-                            1.965613e+00,
-                            2.237466e+00,
-                            2.439729e+00])
-        A_func = spline(delta_virs, A_array)
-        a_func = spline(delta_virs, a_array)
-        b_func = spline(delta_virs, b_array)
-        c_func = spline(delta_virs, c_array)
-
-        A_0 = A_func(self.hmf.delta_halo)
-        a_0 = a_func(self.hmf.delta_halo)
-        b_0 = b_func(self.hmf.delta_halo)
-        c_0 = c_func(self.hmf.delta_halo)
-
-        A = A_0 * (1 + self.hmf.z) ** (-0.14)
-        a = a_0 * (1 + self.hmf.z) ** (-0.06)
-        alpha = 10 ** (-(0.75 / np.log10(self.hmf.delta_halo / 75)) ** 1.2)
-        b = b_0 * (1 + self.hmf.z) ** (-alpha)
-        c = c_0
-
-
-        vfv = A * ((self.hmf.sigma / b) ** (-a) + 1) * np.exp(-c / self.hmf.sigma ** 2)
-
-        if cut_fit:
-            if self.hmf.z == 0.0:
-                vfv[np.logical_or(self.hmf.lnsigma / np.log(10) < -0.6 ,
-                                  self.hmf.lnsigma / np.log(10) > 0.4)] = np.nan
-            else:
-                vfv[np.logical_or(self.hmf.lnsigma / np.log(10) < -0.2 ,
-                                  self.hmf.lnsigma / np.log(10) > 0.4)] = np.nan
-        return vfv
-
 class Watson_FoF(Warren):
     _defaults = {"A":0.282, "b":2.163, "c":1, "d":1.21, "e":1.406}
     def fsigma(self, cut_fit):
@@ -516,17 +430,123 @@ class Bhattacharya(SMT):
 
         return vfv
 
-class Behroozi(Tinker08):
-    def _modify_dndm(self, m, dndm, z, ngtm_tinker):
-        a = 1 / (1 + z)
-        theta = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (m / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)))
-        ngtm_behroozi = 10 ** (theta + np.log10(ngtm_tinker))
-        dthetadM = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * \
-            (0.5 / (1 + np.exp(6.5 * a))) * (m / 10 ** 11.5) ** \
-            (0.5 / (1 + np.exp(6.5 * a)) - 1) / (10 ** 11.5)
-        return dndm * 10 ** theta - ngtm_behroozi * np.log(10) * dthetadM
+class Tinker08(FittingFunction):
+    _defaults = {"A_array":np.array([ 1.858659e-01, 1.995973e-01, 2.115659e-01, 2.184113e-01,
+                                     2.480968e-01, 2.546053e-01, 2.600000e-01, 2.600000e-01,
+                                     2.600000e-01]),
+                 "a_array": np.array([1.466904, 1.521782, 1.559186, 1.614585, 1.869936,
+                                     2.128056, 2.301275, 2.529241, 2.661983e+00]),
+                 "b_array": np.array([2.571104, 2.254217, 2.048674, 1.869559, 1.588649,
+                                     1.507134, 1.464374, 1.436827, 1.405210]),
+                 "c_array": np.array([1.193958, 1.270316, 1.335191, 1.446266, 1.581345,
+                                      1.795050, 1.965613, 2.237466, 2.439729]),
+                 "A_exp":0.14, "a_exp":0.06
+                 }
+
+    delta_virs = np.array([200, 300, 400, 600, 800, 1200, 1600, 2400, 3200])
+
+    def __init__(self, hmf, **model_parameters):
+        super(Tinker08, self).__init__(hmf, **model_parameters)
+
+        if self.hmf.delta_halo not in self.delta_virs:
+            A_func = spline(self.delta_virs, self.params['A_array'])
+            a_func = spline(self.delta_virs, self.params['a_array'])
+            b_func = spline(self.delta_virs, self.params['b_array'])
+            c_func = spline(self.delta_virs, self.params['c_array'])
+
+            A_0 = A_func(self.hmf.delta_halo)
+            a_0 = a_func(self.hmf.delta_halo)
+            b_0 = b_func(self.hmf.delta_halo)
+            c_0 = c_func(self.hmf.delta_halo)
+        else:
+            ind = np.where(self.delta_virs == self.hmf.delta_halo)[0][0]
+            A_0 = self.params["A_array"][ind]
+            a_0 = self.params["a_array"][ind]
+            b_0 = self.params["b_array"][ind]
+            c_0 = self.params["c_array"][ind]
+
+
+        self.A = A_0 * (1 + self.hmf.z) ** (-self.params["A_exp"])
+        self.a = a_0 * (1 + self.hmf.z) ** (-self.params["a_exp"])
+        alpha = 10 ** (-(0.75 / np.log10(self.hmf.delta_halo / 75)) ** 1.2)
+        self.b = b_0 * (1 + self.hmf.z) ** (-alpha)
+        self.c = c_0
+    def fsigma(self, cut_fit):
+        """
+        Calculate :math:`f(\sigma)` for Tinker form.
+
+        Tinker, J., et al., 2008. ApJ 688, 709-728.
+        http://iopscience.iop.org/0004-637X/688/2/709
+                
+        .. note:: valid for :math:`-0.6<\log_{10}\sigma^{-1}<0.4`
+       
+        Returns
+        -------
+        vfv : array_like, len=len(pert.M)
+            The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
+        """
+
+        vfv = self.A * ((self.hmf.sigma / self.b) ** (-self.a) + 1) * np.exp(-self.c / self.hmf.sigma ** 2)
+
+        if cut_fit:
+            if self.hmf.z == 0.0:
+                vfv[np.logical_or(self.hmf.lnsigma / np.log(10) < -0.6 ,
+                                  self.hmf.lnsigma / np.log(10) > 0.4)] = np.nan
+            else:
+                vfv[np.logical_or(self.hmf.lnsigma / np.log(10) < -0.2 ,
+                                  self.hmf.lnsigma / np.log(10) > 0.4)] = np.nan
+        return vfv
 
 class Tinker10(FittingFunction):
+    _defaults = {"alpha_array":np.array([ 0.368, 0.363, 0.385, 0.389,
+                                         0.393, 0.365, 0.379, 0.355, 0.327]),
+                 "beta_array":np.array([0.589, 0.585, 0.544, 0.543, 0.564,
+                                        0.623, 0.637, 0.673, 0.702]),
+                 "gamma_array":np.array([0.864, 0.922, 0.987, 1.09, 1.20,
+                                          1.34, 1.50, 1.68, 1.81]),
+                 "phi_array": np.array([-0.729, -0.789, -0.910, -1.05, -1.20,
+                                        - 1.26, -1.45, -1.50, -1.49]),
+                 "eta_array":np.array([-0.243, -0.261, -0.261, -0.273, -0.278,
+                                       - 0.301, -0.301, -0.319, -0.336]),
+                 "beta_exp":0.2, "phi_exp":-0.08, "eta_exp":0.27, "gamma_exp":-0.01
+                 }
+
+    delta_virs = np.array([200, 300, 400, 600, 800, 1200, 1600, 2400, 3200])
+    def __init__(self, hmf, **model_parameters):
+        super(Tinker10, self).__init__(hmf, **model_parameters)
+
+        if self.hmf.delta_halo not in self.delta_virs:
+            beta_func = spline(self.delta_virs, self.params['beta_array'])
+            gamma_func = spline(self.delta_virs, self.params['gamma_array'])
+            phi_func = spline(self.delta_virs, self.params['phi_array'])
+            eta_func = spline(self.delta_virs, self.params['eta_array'])
+
+            beta_0 = beta_func(self.hmf.delta_halo)
+            gamma_0 = gamma_func(self.hmf.delta_halo)
+            phi_0 = phi_func(self.hmf.delta_halo)
+            eta_0 = eta_func(self.hmf.delta_halo)
+        else:
+            ind = np.where(self.delta_virs == self.hmf.delta_halo)[0][0]
+            beta_0 = self.params['beta_array'][ind]
+            gamma_0 = self.params['gamma_array'][ind]
+            phi_0 = self.params['phi_array'][ind]
+            eta_0 = self.params['eta_array'][ind]
+
+        self.beta = beta_0 * (1 + min(self.hmf.z, 3)) ** self.params["beta_exp"]
+        self.phi = phi_0 * (1 + min(self.hmf.z, 3)) ** self.params['phi_exp']
+        self.eta = eta_0 * (1 + min(self.hmf.z, 3)) ** self.params['eta_exp']
+        self.gamma = gamma_0 * (1 + min(self.hmf.z, 3)) ** self.params['gamma_exp']
+
+    @property
+    def normalise(self):
+        if self.hmf.delta_halo in self.delta_virs and self.z == 0:
+            ind = np.where(self.delta_virs == self.hmf.delta_halo)[0][0]
+            return self.params['alpha_array'][ind]
+        else:
+            return 1 / (2 ** (self.eta - self.phi - 0.5) * self.beta ** (-2 * self.phi) \
+                      * self.gamma ** (-0.5 - self.eta) * (2 ** self.phi * self.beta ** (2 * self.phi)\
+                      * Gam(self.eta + 0.5) + self.gamma ** self.phi * Gam(0.5 + self.eta - self.phi)))
+
     def fsigma(self, cut_fit):
         """
         Calculate :math:`f(\sigma)` for Tinker+10 form.
@@ -541,58 +561,30 @@ class Tinker10(FittingFunction):
         vfv : array_like, len=len(pert.M)
             The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``M``
         """
-        from scipy.special import gamma as G
+        fv = (1 + (self.beta * self.nu) ** (-2 * self.phi)) * \
+        self.nu ** (2 * self.eta) * np.exp(-self.gamma * (self.nu ** 2) / 2)
 
-        delta_virs = np.array([200, 300, 400, 600, 800, 1200, 1600, 2400, 3200])
-
-        alpha_array = np.array([ 0.368, 0.363, 0.385, 0.389, 0.393, 0.365, 0.379, 0.355, 0.327])
-        beta_array = np.array([0.589, 0.585, 0.544, 0.543, 0.564, 0.623, 0.637, 0.673, 0.702])
-        gamma_array = np.array([0.864, 0.922, 0.987, 1.09, 1.20, 1.34, 1.50, 1.68, 1.81])
-        phi_array = np.array([-0.729, -0.789, -0.910, -1.05, -1.20, -1.26, -1.45, -1.50, -1.49])
-        eta_array = np.array([-0.243, -0.261, -0.261, -0.273, -0.278, -0.301, -0.301, -0.319, -0.336])
-
-        if self.hmf.delta_halo not in delta_virs:
-            beta_func = spline(delta_virs, beta_array)
-            gamma_func = spline(delta_virs, gamma_array)
-            phi_func = spline(delta_virs, phi_array)
-            eta_func = spline(delta_virs, eta_array)
-
-            beta_0 = beta_func(self.hmf.delta_halo)
-            gamma_0 = gamma_func(self.hmf.delta_halo)
-            phi_0 = phi_func(self.hmf.delta_halo)
-            eta_0 = eta_func(self.hmf.delta_halo)
-        else:
-            ind = np.where(delta_virs == self.hmf.delta_halo)[0][0]
-            alpha_0 = alpha_array[ind]
-            beta_0 = beta_array[ind]
-            gamma_0 = gamma_array[ind]
-            phi_0 = phi_array[ind]
-            eta_0 = eta_array[ind]
-
-        beta = beta_0 * (1 + min(self.hmf.z, 3)) ** 0.20
-        phi = phi_0 * (1 + min(self.hmf.z, 3)) ** -0.08
-        eta = eta_0 * (1 + min(self.hmf.z, 3)) ** 0.27
-        gamma = gamma_0 * (1 + min(self.hmf.z, 3)) ** -0.01
-
-        fv = (1 + (beta * self.nu) ** (-2 * phi)) * self.nu ** (2 * eta) * np.exp(-gamma * (self.nu ** 2) / 2)
-
-        # The following sets alpha (by \int f(\nu) d\nu = 1)
-        if self.hmf.z > 0 or self.hmf.delta_halo not in delta_virs:
-            fv /= 2 ** (eta - phi - 0.5) * beta ** (-2 * phi) * gamma ** (-0.5 - eta) \
-            * (2 ** phi * beta ** (2 * phi) * G(eta + 0.5) + gamma ** phi * G(0.5 + eta - phi))
-        else:
-            fv *= alpha_0
-
-        vfv = self.nu * fv
+        fv *= self.normalise * self.nu
 
         if cut_fit:
             if self.hmf.z == 0.0:
-                vfv[np.logical_or(self.hmf.lnsigma / np.log(10) < -0.6 ,
+                fv[np.logical_or(self.hmf.lnsigma / np.log(10) < -0.6 ,
                                   self.hmf.lnsigma / np.log(10) > 0.4)] = np.nan
             else:
-                vfv[np.logical_or(self.hmf.lnsigma / np.log(10) < -0.2 ,
+                fv[np.logical_or(self.hmf.lnsigma / np.log(10) < -0.2 ,
                                   self.hmf.lnsigma / np.log(10) > 0.4)] = np.nan
-        return vfv
+        return fv
+
+class Behroozi(Tinker08):
+    def _modify_dndm(self, m, dndm, z, ngtm_tinker):
+        a = 1 / (1 + z)
+        theta = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (m / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)))
+        ngtm_behroozi = 10 ** (theta + np.log10(ngtm_tinker))
+        dthetadM = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * \
+            (0.5 / (1 + np.exp(6.5 * a))) * (m / 10 ** 11.5) ** \
+            (0.5 / (1 + np.exp(6.5 * a)) - 1) / (10 ** 11.5)
+        return dndm * 10 ** theta - ngtm_behroozi * np.log(10) * dthetadM
+
 
 class Tinker(Tinker08):
     """ Alias for Tinker08 """
