@@ -10,12 +10,12 @@ _allfits = ["ST", "SMT", 'Jenkins', "Warren", "Reed03", "Reed07", "Peacock",
 
 # TODO: check out units for boundaries (ie. whether they should be log or ln 1/sigma or M/h or M)
 
-def get_fit(name, h):
+def get_fit(name, h, **model_parameters):
     """
     A function that chooses the correct Profile class and returns it
     """
     try:
-        return getattr(sys.modules[__name__], name)(h)
+        return getattr(sys.modules[__name__], name)(h, **model_parameters)
     except AttributeError:
         raise AttributeError(str(name) + "  is not a valid FittingFunction class")
 

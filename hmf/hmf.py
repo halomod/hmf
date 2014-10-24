@@ -113,7 +113,7 @@ class MassFunction(Transfer):
 
 
     def __init__(self, Mmin=10, Mmax=15, dlog10m=0.01, mf_fit=Tinker08, delta_h=200.0,
-                 delta_wrt='mean', cut_fit=True, z2=None, nz=None,
+                 delta_wrt='mean', cut_fit=True, z2=None, nz=None, _fsig_params={},
                  delta_c=1.686, **transfer_kwargs):
         """
         Initializes some parameters      
@@ -132,7 +132,7 @@ class MassFunction(Transfer):
         self.z2 = z2
         self.nz = nz
         self.delta_c = delta_c
-
+        self._fsig_params = _fsig_params
 
     #===========================================================================
     # # --- PARAMETERS -------------------------------------------------------
@@ -225,14 +225,20 @@ class MassFunction(Transfer):
             raise ValueError("cut_fit must be a bool, " + str(val))
         return val
 
+    @parameter
+    def _fsig_params(self, val):
+        if not isinstance(val, dict):
+            raise ValueError("_fsig_params must be a dictionary")
+        return val
+
     #--------------------------------  START NON-SET PROPERTIES ----------------------------------------------
-    @cached_property("mf_fit", "sigma", "z", "delta_halo", "nu", "M")
+    @cached_property("mf_fit", "sigma", "z", "delta_halo", "nu", "M", "_fsig_params")
     def _fit(self):
         """The actual fitting function class (as opposed to string identifier)"""
         try:
-            fit = self.mf_fit(self)
+            fit = self.mf_fit(self, **self._fsig_params)
         except:
-            fit = get_fit(self.mf_fit, self)
+            fit = get_fit(self.mf_fit, self, **self._fsig_params)
         return fit
 
     @cached_property("Mmin", "Mmax", "dlog10m")
