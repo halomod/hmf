@@ -1,5 +1,3 @@
-
-
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
@@ -8,7 +6,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>fitting_functions &mdash; hmf 1.3.1 documentation</title>
+    <title>fitting_functions &mdash; hmf 1.6.2 documentation</title>
     
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
@@ -16,7 +14,7 @@
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '1.3.1',
+        VERSION:     '1.6.2',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -26,7 +24,7 @@
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
     <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
-    <link rel="top" title="hmf 1.3.1 documentation" href="../index.html" />
+    <link rel="top" title="hmf 1.6.2 documentation" href="../index.html" />
     <link rel="up" title="API" href="../api.html" /> 
   </head>
   <body>
@@ -42,7 +40,7 @@
         <li class="right" >
           <a href="../np-modindex.html" title="Python Module Index"
              >modules</a> |</li>
-        <li><a href="../index.html">hmf 1.3.1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">hmf 1.6.2 documentation</a> &raquo;</li>
           <li><a href="../api.html" accesskey="U">API</a> &raquo;</li> 
       </ul>
     </div>  
@@ -54,29 +52,46 @@
             
   <div class="section" id="module-hmf.fitting_functions">
 <span id="fitting-functions"></span><h1>fitting_functions<a class="headerlink" href="#module-hmf.fitting_functions" title="Permalink to this headline">¶</a></h1>
-<p>Created on Aug 29, 2013</p>
-<p>&#64;author: Steven</p>
 <dl class="class">
-<dt id="hmf.fitting_functions.Fits">
-<em class="property">class </em><tt class="descclassname">hmf.fitting_functions.</tt><tt class="descname">Fits</tt><big>(</big><em>pert</em>, <em>cut_fit=True</em><big>)</big><a class="reference internal" href="../_modules/hmf/fitting_functions.html#Fits"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.fitting_functions.Fits" title="Permalink to this definition">¶</a></dt>
-<dd><p>Calculates <span class="math">\(f(\sigma)\)</span> given a <cite>Perturbations</cite> instance.</p>
-<p>The class simplifies the choosing of the fitting function through a simple
-mapping of string identifiers.</p>
+<dt id="hmf.fitting_functions.FittingFunction">
+<em class="property">class </em><tt class="descclassname">hmf.fitting_functions.</tt><tt class="descname">FittingFunction</tt><big>(</big><em>M</em>, <em>nu2</em>, <em>z=0</em>, <em>delta_halo=200</em>, <em>cosmo=None</em>, <em>omegam_z=None</em>, <em>**model_parameters</em><big>)</big><a class="headerlink" href="#hmf.fitting_functions.FittingFunction" title="Permalink to this definition">¶</a></dt>
+<dd><p>Base-class for a halo mass function fit</p>
+<p>This class should not be called directly, rather use a subclass which is 
+specific to a certain fitting formula.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>pert</strong> : <cite>hmf.MassFunction</cite> instance</p>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>M</strong> : array</p>
 <blockquote>
-<div><p>This object contains everything that is needed to 
-calculate <span class="math">\(f(\sigma)\)</span> &#8211; the mass variance, redshift etc.</p>
+<div><p>A vector of halo masses [units M_sun/h]</p>
 </div></blockquote>
-<p><strong>cut_fit</strong> : bool, optional, default <tt class="docutils literal"><span class="pre">True</span></tt></p>
+<p><strong>nu2</strong> : array</p>
+<blockquote>
+<div><p>A vector of peak-heights, <span class="math">\(\delta_c^2/\sigma^2\)</span> corresponding to <tt class="docutils literal"><span class="pre">M</span></tt></p>
+</div></blockquote>
+<p><strong>z</strong> : float, optional</p>
+<blockquote>
+<div><p>The redshift.</p>
+</div></blockquote>
+<p><strong>delta_halo</strong> : float, optional</p>
+<blockquote>
+<div><p>The overdensity of the halo w.r.t. the mean density of the universe.</p>
+</div></blockquote>
+<p><strong>cosmo</strong> : <tt class="xref py py-class docutils literal"><span class="pre">cosmo.Cosmology</span></tt> instance, optional</p>
+<blockquote>
+<div><p>A cosmology. Default is the default provided by the <tt class="xref py py-class docutils literal"><span class="pre">cosmo.Cosmology</span></tt>
+class. Not required if <tt class="docutils literal"><span class="pre">omegam_z</span></tt> is passed.</p>
+</div></blockquote>
+<p><strong>omegam_z</strong> : float, optional</p>
+<blockquote>
+<div><p>A value for the mean matter density at the given redshift <tt class="docutils literal"><span class="pre">z</span></tt>. If not
+provided, will be calculated using the value of <tt class="docutils literal"><span class="pre">cosmo</span></tt>.</p>
+</div></blockquote>
+<p><strong>**model_parameters</strong> : unpacked-dictionary</p>
 <blockquote class="last">
-<div><p>Determines whether the function is cut at appropriate mass limits, 
-given by the respective publication for each fit. Though it is included
-in the <cite>pert</cite> argument, one can specify it explicitly here for more 
-flexibility.</p>
+<div><p>These parameters are model-specific. For any model, list the available
+parameters (and their defaults) using <tt class="docutils literal"><span class="pre">&lt;model&gt;._defaults</span></tt></p>
 </div></blockquote>
 </td>
 </tr>
@@ -89,18 +104,353 @@ flexibility.</p>
 <col width="90%" />
 </colgroup>
 <tbody valign="top">
-<tr class="row-odd"><td><a class="reference internal" href="#hmf.fitting_functions.Fits.nufnu" title="hmf.fitting_functions.Fits.nufnu"><tt class="xref py py-obj docutils literal"><span class="pre">nufnu</span></tt></a>()</td>
-<td>Calculate and return <span class="math">\(f(\sigma,z)\)</span>.</td>
+<tr class="row-odd"><td><a class="reference internal" href="#hmf.fitting_functions.FittingFunction.fsigma" title="hmf.fitting_functions.FittingFunction.fsigma"><tt class="xref py py-obj docutils literal"><span class="pre">fsigma</span></tt></a>(cut_fit)</td>
+<td>Calculate <span class="math">\(f(\sigma)\equiv\nu f(\nu)\)</span>.</td>
 </tr>
 </tbody>
 </table>
 <dl class="method">
-<dt id="hmf.fitting_functions.Fits.nufnu">
-<tt class="descname">nufnu</tt><big>(</big><big>)</big><a class="reference internal" href="../_modules/hmf/fitting_functions.html#Fits.nufnu"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.fitting_functions.Fits.nufnu" title="Permalink to this definition">¶</a></dt>
-<dd><p>Calculate and return <span class="math">\(f(\sigma,z)\)</span>.</p>
-<p>Internally this uses the string identifier to call an appropriate function.</p>
+<dt id="hmf.fitting_functions.FittingFunction.fsigma">
+<tt class="descname">fsigma</tt><big>(</big><em>cut_fit</em><big>)</big><a class="headerlink" href="#hmf.fitting_functions.FittingFunction.fsigma" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculate <span class="math">\(f(\sigma)\equiv\nu f(\nu)\)</span>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>cut_fit</strong> : bool</p>
+<blockquote>
+<div><p>Whether to cut the fit at bounds corresponding to the fitted range
+(in mass or corresponding unit, not redshift). If so, values outside
+this range will be set to <tt class="docutils literal"><span class="pre">NaN</span></tt>.</p>
+</div></blockquote>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>vfv</strong> : array_like, <tt class="docutils literal"><span class="pre">len=len(self.M)</span></tt></p>
+<blockquote class="last">
+<div><p>The function f(sigma).</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
+</dd></dl>
+
+<dl class="class">
+<dt id="hmf.fitting_functions.Jenkins">
+<em class="property">class </em><tt class="descclassname">hmf.fitting_functions.</tt><tt class="descname">Jenkins</tt><big>(</big><em>M</em>, <em>nu2</em>, <em>z=0</em>, <em>delta_halo=200</em>, <em>cosmo=None</em>, <em>omegam_z=None</em>, <em>**model_parameters</em><big>)</big><a class="headerlink" href="#hmf.fitting_functions.Jenkins" title="Permalink to this definition">¶</a></dt>
+<dd><p>Class representing a Jenkins mass function fit</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>M</strong> : array</p>
+<blockquote>
+<div><p>A vector of halo masses [units M_sun/h]</p>
+</div></blockquote>
+<p><strong>nu2</strong> : array</p>
+<blockquote>
+<div><p>A vector of peak-heights, <span class="math">\(\delta_c^2/\sigma^2\)</span> corresponding to <tt class="docutils literal"><span class="pre">M</span></tt></p>
+</div></blockquote>
+<p><strong>z</strong> : float, optional</p>
+<blockquote>
+<div><p>The redshift.</p>
+</div></blockquote>
+<p><strong>delta_halo</strong> : float, optional</p>
+<blockquote>
+<div><p>The overdensity of the halo w.r.t. the mean density of the universe.</p>
+</div></blockquote>
+<p><strong>cosmo</strong> : <tt class="xref py py-class docutils literal"><span class="pre">cosmo.Cosmology</span></tt> instance, optional</p>
+<blockquote>
+<div><p>A cosmology. Default is the default provided by the <tt class="xref py py-class docutils literal"><span class="pre">cosmo.Cosmology</span></tt>
+class. Not required if <tt class="docutils literal"><span class="pre">omegam_z</span></tt> is passed.</p>
+</div></blockquote>
+<p><strong>omegam_z</strong> : float, optional</p>
+<blockquote>
+<div><p>A value for the mean matter density at the given redshift <tt class="docutils literal"><span class="pre">z</span></tt>. If not
+provided, will be calculated using the value of <tt class="docutils literal"><span class="pre">cosmo</span></tt>.</p>
+</div></blockquote>
+<p><strong>**model_parameters</strong> : unpacked-dictionary</p>
+<blockquote class="last">
+<div><p>These parameters are model-specific. For any model, list the available
+parameters (and their defaults) using <tt class="docutils literal"><span class="pre">&lt;model&gt;._defaults</span></tt></p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Notes</p>
+<p>The Jenkins <a class="reference internal" href="#r1" id="id1">[R1]</a> form is:</p>
+<div class="math">
+\[f_{\rm Jenkins}(\sigma) = A\exp(-|\ln\sigma^{-1}+b|^c)\]</div>
+<p class="rubric">References</p>
+<table class="docutils citation" frame="void" id="r1" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label">[R1]</td><td><em>(<a class="fn-backref" href="#id1">1</a>, <a class="fn-backref" href="#id2">2</a>)</em> Jenkins, A. R., et al., Feb. 2001. MNRAS 321 (2), 372-384.</td></tr>
+</tbody>
+</table>
+<p><a class="reference external" href="http://doi.wiley.com/10.1046/j.1365-8711.2001.04029.x">http://doi.wiley.com/10.1046/j.1365-8711.2001.04029.x</a></p>
+<p class="rubric">Methods</p>
+<table border="1" class="longtable docutils">
+<colgroup>
+<col width="10%" />
+<col width="90%" />
+</colgroup>
+<tbody valign="top">
+<tr class="row-odd"><td><tt class="xref py py-obj docutils literal"><span class="pre">fsigma</span></tt>(cut_fit)</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="class">
+<dt id="hmf.fitting_functions.PS">
+<em class="property">class </em><tt class="descclassname">hmf.fitting_functions.</tt><tt class="descname">PS</tt><big>(</big><em>M</em>, <em>nu2</em>, <em>z=0</em>, <em>delta_halo=200</em>, <em>cosmo=None</em>, <em>omegam_z=None</em>, <em>**model_parameters</em><big>)</big><a class="headerlink" href="#hmf.fitting_functions.PS" title="Permalink to this definition">¶</a></dt>
+<dd><p>Class representing a Press-Schechter mass function fit</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>M</strong> : array</p>
+<blockquote>
+<div><p>A vector of halo masses [units M_sun/h]</p>
+</div></blockquote>
+<p><strong>nu2</strong> : array</p>
+<blockquote>
+<div><p>A vector of peak-heights, <span class="math">\(\delta_c^2/\sigma^2\)</span> corresponding to <tt class="docutils literal"><span class="pre">M</span></tt></p>
+</div></blockquote>
+<p><strong>z</strong> : float, optional</p>
+<blockquote>
+<div><p>The redshift.</p>
+</div></blockquote>
+<p><strong>delta_halo</strong> : float, optional</p>
+<blockquote>
+<div><p>The overdensity of the halo w.r.t. the mean density of the universe.</p>
+</div></blockquote>
+<p><strong>cosmo</strong> : <tt class="xref py py-class docutils literal"><span class="pre">cosmo.Cosmology</span></tt> instance, optional</p>
+<blockquote>
+<div><p>A cosmology. Default is the default provided by the <tt class="xref py py-class docutils literal"><span class="pre">cosmo.Cosmology</span></tt>
+class. Not required if <tt class="docutils literal"><span class="pre">omegam_z</span></tt> is passed.</p>
+</div></blockquote>
+<p><strong>omegam_z</strong> : float, optional</p>
+<blockquote>
+<div><p>A value for the mean matter density at the given redshift <tt class="docutils literal"><span class="pre">z</span></tt>. If not
+provided, will be calculated using the value of <tt class="docutils literal"><span class="pre">cosmo</span></tt>.</p>
+</div></blockquote>
+<p><strong>**model_parameters</strong> : unpacked-dictionary</p>
+<blockquote class="last">
+<div><p>These parameters are model-specific. For any model, list the available
+parameters (and their defaults) using <tt class="docutils literal"><span class="pre">&lt;model&gt;._defaults</span></tt></p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Notes</p>
+<p>The Press-Schechter <a class="reference internal" href="#r2" id="id3">[R2]</a> form is:</p>
+<div class="math">
+\[f_{\rm PS}(\sigma) = \sqrt{\frac{2}{\pi}}\nu\exp(-0.5\nu^2)\]</div>
+<p class="rubric">References</p>
+<table class="docutils citation" frame="void" id="r2" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label">[R2]</td><td><em>(<a class="fn-backref" href="#id3">1</a>, <a class="fn-backref" href="#id4">2</a>)</em> Press, W. H., Schechter, P., 1974. ApJ 187, 425-438.</td></tr>
+</tbody>
+</table>
+<p><a class="reference external" href="http://adsabs.harvard.edu/full/1974ApJ...187..425P">http://adsabs.harvard.edu/full/1974ApJ...187..425P</a></p>
+<p class="rubric">Methods</p>
+<table border="1" class="longtable docutils">
+<colgroup>
+<col width="10%" />
+<col width="90%" />
+</colgroup>
+<tbody valign="top">
+<tr class="row-odd"><td><tt class="xref py py-obj docutils literal"><span class="pre">fsigma</span></tt>(cut_fit)</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="class">
+<dt id="hmf.fitting_functions.ST">
+<em class="property">class </em><tt class="descclassname">hmf.fitting_functions.</tt><tt class="descname">ST</tt><big>(</big><em>M</em>, <em>nu2</em>, <em>z=0</em>, <em>delta_halo=200</em>, <em>cosmo=None</em>, <em>omegam_z=None</em>, <em>**model_parameters</em><big>)</big><a class="headerlink" href="#hmf.fitting_functions.ST" title="Permalink to this definition">¶</a></dt>
+<dd><p>Class representing a Sheth-Mo-Tormen mass function fit</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>M</strong> : array</p>
+<blockquote>
+<div><p>A vector of halo masses [units M_sun/h]</p>
+</div></blockquote>
+<p><strong>nu2</strong> : array</p>
+<blockquote>
+<div><p>A vector of peak-heights, <span class="math">\(\delta_c^2/\sigma^2\)</span> corresponding to <tt class="docutils literal"><span class="pre">M</span></tt></p>
+</div></blockquote>
+<p><strong>z</strong> : float, optional</p>
+<blockquote>
+<div><p>The redshift.</p>
+</div></blockquote>
+<p><strong>delta_halo</strong> : float, optional</p>
+<blockquote>
+<div><p>The overdensity of the halo w.r.t. the mean density of the universe.</p>
+</div></blockquote>
+<p><strong>cosmo</strong> : <tt class="xref py py-class docutils literal"><span class="pre">cosmo.Cosmology</span></tt> instance, optional</p>
+<blockquote>
+<div><p>A cosmology. Default is the default provided by the <tt class="xref py py-class docutils literal"><span class="pre">cosmo.Cosmology</span></tt>
+class. Not required if <tt class="docutils literal"><span class="pre">omegam_z</span></tt> is passed.</p>
+</div></blockquote>
+<p><strong>omegam_z</strong> : float, optional</p>
+<blockquote>
+<div><p>A value for the mean matter density at the given redshift <tt class="docutils literal"><span class="pre">z</span></tt>. If not
+provided, will be calculated using the value of <tt class="docutils literal"><span class="pre">cosmo</span></tt>.</p>
+</div></blockquote>
+<p><strong>**model_parameters</strong> : unpacked-dictionary</p>
+<blockquote class="last">
+<div><p>These parameters are model-specific. For any model, list the available
+parameters (and their defaults) using <tt class="docutils literal"><span class="pre">&lt;model&gt;._defaults</span></tt></p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Notes</p>
+<p>The Sheth-Mo-Tormen <a class="reference internal" href="#r3" id="id5">[R3]</a> form is:</p>
+<div class="math">
+\[f_{\rm SMT}(\sigma) = A\sqrt{2a/\pi}\nu\exp(-a\nu^2/2)(1+(a\nu^2)^{-p})\]</div>
+<p class="rubric">References</p>
+<table class="docutils citation" frame="void" id="r3" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label">[R3]</td><td><em>(<a class="fn-backref" href="#id5">1</a>, <a class="fn-backref" href="#id6">2</a>)</em> Sheth, R. K., Mo, H. J., Tormen, G., May 2001. MNRAS 323 (1), 1-12.</td></tr>
+</tbody>
+</table>
+<p><a class="reference external" href="http://doi.wiley.com/10.1046/j.1365-8711.2001.04006.x">http://doi.wiley.com/10.1046/j.1365-8711.2001.04006.x</a></p>
+<p class="rubric">Methods</p>
+<table border="1" class="longtable docutils">
+<colgroup>
+<col width="10%" />
+<col width="90%" />
+</colgroup>
+<tbody valign="top">
+<tr class="row-odd"><td><tt class="xref py py-obj docutils literal"><span class="pre">fsigma</span></tt>(cut_fit)</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="class">
+<dt id="hmf.fitting_functions.Tinker">
+<em class="property">class </em><tt class="descclassname">hmf.fitting_functions.</tt><tt class="descname">Tinker</tt><big>(</big><em>hmf</em>, <em>**model_parameters</em><big>)</big><a class="headerlink" href="#hmf.fitting_functions.Tinker" title="Permalink to this definition">¶</a></dt>
+<dd><p>Alias for Tinker08</p>
+<p class="rubric">Methods</p>
+<table border="1" class="longtable docutils">
+<colgroup>
+<col width="10%" />
+<col width="90%" />
+</colgroup>
+<tbody valign="top">
+<tr class="row-odd"><td><tt class="xref py py-obj docutils literal"><span class="pre">fsigma</span></tt>(cut_fit)</td>
+<td>Calculate <span class="math">\(f(\sigma)\)</span> for Tinker form.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="class">
+<dt id="hmf.fitting_functions.Warren">
+<em class="property">class </em><tt class="descclassname">hmf.fitting_functions.</tt><tt class="descname">Warren</tt><big>(</big><em>M</em>, <em>nu2</em>, <em>z=0</em>, <em>delta_halo=200</em>, <em>cosmo=None</em>, <em>omegam_z=None</em>, <em>**model_parameters</em><big>)</big><a class="headerlink" href="#hmf.fitting_functions.Warren" title="Permalink to this definition">¶</a></dt>
+<dd><p>Class representing a Warren mass function fit</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>M</strong> : array</p>
+<blockquote>
+<div><p>A vector of halo masses [units M_sun/h]</p>
+</div></blockquote>
+<p><strong>nu2</strong> : array</p>
+<blockquote>
+<div><p>A vector of peak-heights, <span class="math">\(\delta_c^2/\sigma^2\)</span> corresponding to <tt class="docutils literal"><span class="pre">M</span></tt></p>
+</div></blockquote>
+<p><strong>z</strong> : float, optional</p>
+<blockquote>
+<div><p>The redshift.</p>
+</div></blockquote>
+<p><strong>delta_halo</strong> : float, optional</p>
+<blockquote>
+<div><p>The overdensity of the halo w.r.t. the mean density of the universe.</p>
+</div></blockquote>
+<p><strong>cosmo</strong> : <tt class="xref py py-class docutils literal"><span class="pre">cosmo.Cosmology</span></tt> instance, optional</p>
+<blockquote>
+<div><p>A cosmology. Default is the default provided by the <tt class="xref py py-class docutils literal"><span class="pre">cosmo.Cosmology</span></tt>
+class. Not required if <tt class="docutils literal"><span class="pre">omegam_z</span></tt> is passed.</p>
+</div></blockquote>
+<p><strong>omegam_z</strong> : float, optional</p>
+<blockquote>
+<div><p>A value for the mean matter density at the given redshift <tt class="docutils literal"><span class="pre">z</span></tt>. If not
+provided, will be calculated using the value of <tt class="docutils literal"><span class="pre">cosmo</span></tt>.</p>
+</div></blockquote>
+<p><strong>**model_parameters</strong> : unpacked-dictionary</p>
+<blockquote class="last">
+<div><p>These parameters are model-specific. For any model, list the available
+parameters (and their defaults) using <tt class="docutils literal"><span class="pre">&lt;model&gt;._defaults</span></tt></p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Notes</p>
+<p>The Warren <a class="reference internal" href="#r4" id="id7">[R4]</a> form is:</p>
+<div class="math">
+\[f_{\rm Warren}(\sigma) = A\left[\left(\frac{e}{\sigma}\right)^b + c\right]\exp(\frac{d}{\sigma^2})\]</div>
+<p class="rubric">References</p>
+<table class="docutils citation" frame="void" id="r4" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label">[R4]</td><td><em>(<a class="fn-backref" href="#id7">1</a>, <a class="fn-backref" href="#id8">2</a>)</em> Warren, M. S., et al., Aug. 2006. ApJ 646 (2), 881-885.</td></tr>
+</tbody>
+</table>
+<p><a class="reference external" href="http://adsabs.harvard.edu/abs/2006ApJ...646..881W">http://adsabs.harvard.edu/abs/2006ApJ...646..881W</a></p>
+<p class="rubric">Methods</p>
+<table border="1" class="longtable docutils">
+<colgroup>
+<col width="10%" />
+<col width="90%" />
+</colgroup>
+<tbody valign="top">
+<tr class="row-odd"><td><tt class="xref py py-obj docutils literal"><span class="pre">fsigma</span></tt>(cut_fit)</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="hmf.fitting_functions.get_fit">
+<tt class="descclassname">hmf.fitting_functions.</tt><tt class="descname">get_fit</tt><big>(</big><em>name</em>, <em>**kwargs</em><big>)</big><a class="headerlink" href="#hmf.fitting_functions.get_fit" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the correct subclass of <a class="reference internal" href="#hmf.fitting_functions.FittingFunction" title="hmf.fitting_functions.FittingFunction"><tt class="xref py py-class docutils literal"><span class="pre">FittingFunction</span></tt></a>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>name</strong> : str</p>
+<blockquote>
+<div><p>The class name of the appropriate fit</p>
+</div></blockquote>
+<p><strong>**kwargs :</strong> :</p>
+<blockquote class="last">
+<div><p>Any parameters for the instantiated fit (including model parameters)</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 </div>
@@ -145,13 +495,13 @@ flexibility.</p>
         <li class="right" >
           <a href="../np-modindex.html" title="Python Module Index"
              >modules</a> |</li>
-        <li><a href="../index.html">hmf 1.3.1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">hmf 1.6.2 documentation</a> &raquo;</li>
           <li><a href="../api.html" >API</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
         &copy; Copyright 2014, Steven Murray.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.2.
     </div>
   </body>
 </html>

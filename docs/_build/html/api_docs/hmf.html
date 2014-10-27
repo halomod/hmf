@@ -1,5 +1,3 @@
-
-
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
@@ -8,7 +6,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>hmf &mdash; hmf 1.3.1 documentation</title>
+    <title>hmf &mdash; hmf 1.6.2 documentation</title>
     
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
@@ -16,7 +14,7 @@
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '1.3.1',
+        VERSION:     '1.6.2',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -26,7 +24,7 @@
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
     <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
-    <link rel="top" title="hmf 1.3.1 documentation" href="../index.html" />
+    <link rel="top" title="hmf 1.6.2 documentation" href="../index.html" />
     <link rel="up" title="API" href="../api.html" />
     <link rel="prev" title="API" href="../api.html" /> 
   </head>
@@ -46,7 +44,7 @@
         <li class="right" >
           <a href="../api.html" title="API"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">hmf 1.3.1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">hmf 1.6.2 documentation</a> &raquo;</li>
           <li><a href="../api.html" accesskey="U">API</a> &raquo;</li> 
       </ul>
     </div>  
@@ -58,12 +56,12 @@
             
   <div class="section" id="module-hmf.hmf">
 <span id="hmf"></span><h1>hmf<a class="headerlink" href="#module-hmf.hmf" title="Permalink to this headline">¶</a></h1>
-<p>This is the primary module for user-interaction with the <cite>hmf</cite> package.</p>
-<p>The module contains a single class, <cite>Perturbations</cite>, which wraps almost all the
-functionality of <cite>hmf</cite> in an easy-to-use way.</p>
+<p>This is the primary module for user-interaction with the <tt class="xref py py-mod docutils literal"><span class="pre">hmf</span></tt> package.</p>
+<p>The module contains a single class, <cite>MassFunction</cite>, which wraps almost all the
+functionality of <tt class="xref py py-mod docutils literal"><span class="pre">hmf</span></tt> in an easy-to-use way.</p>
 <dl class="class">
 <dt id="hmf.hmf.MassFunction">
-<em class="property">class </em><tt class="descclassname">hmf.hmf.</tt><tt class="descname">MassFunction</tt><big>(</big><em>M=None</em>, <em>mf_fit='ST'</em>, <em>delta_h=200.0</em>, <em>delta_wrt='mean'</em>, <em>user_fit=''</em>, <em>cut_fit=True</em>, <em>z2=None</em>, <em>nz=None</em>, <em>delta_c=1.686</em>, <em>**kwargs</em><big>)</big><a class="reference internal" href="../_modules/hmf/hmf.html#MassFunction"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.hmf.MassFunction" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><tt class="descclassname">hmf.hmf.</tt><tt class="descname">MassFunction</tt><big>(</big><em>Mmin=10</em>, <em>Mmax=15</em>, <em>dlog10m=0.01</em>, <em>mf_fit=&lt;class 'hmf.fitting_functions.Tinker08'&gt;</em>, <em>delta_h=200.0</em>, <em>delta_wrt='mean'</em>, <em>cut_fit=True</em>, <em>z2=None</em>, <em>nz=None</em>, <em>_fsig_params={}</em>, <em>delta_c=1.686</em>, <em>**transfer_kwargs</em><big>)</big><a class="headerlink" href="#hmf.hmf.MassFunction" title="Permalink to this definition">¶</a></dt>
 <dd><p>An object containing all relevant quantities for the mass function.</p>
 <p>The purpose of this class is to calculate many quantities associated with 
 the dark matter halo mass function (HMF). The class is initialized to form a 
@@ -80,16 +78,25 @@ most optimal manner. All output quantities are calculated only when needed
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>M</strong> : array_like, optional, Default <tt class="docutils literal"><span class="pre">np.linspace(10,15,501)</span></tt></p>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>Mmin</strong> : float</p>
 <blockquote>
-<div><p>The masses at which to perform analysis [units <span class="math">\(\log_{10}M_\odot h^{-1}\)</span>].</p>
+<div><p>Minimum mass at which to perform analysis [units <span class="math">\(\log_{10}M_\odot h^{-1}\)</span>].</p>
 </div></blockquote>
-<p><strong>mf_fit</strong> : str, optional, default <tt class="docutils literal"><span class="pre">&quot;SMT&quot;</span></tt></p>
+<p><strong>Mmax</strong> : float</p>
+<blockquote>
+<div><p>Maximum mass at which to perform analysis [units <span class="math">\(\log_{10}M_\odot h^{-1}\)</span>].</p>
+</div></blockquote>
+<p><strong>dlog10m</strong> : float</p>
+<blockquote>
+<div><p>log10 interval between mass bins</p>
+</div></blockquote>
+<p><strong>mf_fit</strong> : str or callable, optional, default <tt class="docutils literal"><span class="pre">&quot;SMT&quot;</span></tt></p>
 <blockquote>
 <div><p>A string indicating which fitting function to use for <span class="math">\(f(\sigma)\)</span></p>
 <p>Available options:</p>
 <ol class="arabic simple">
 <li><tt class="docutils literal"><span class="pre">'PS'</span></tt>: Press-Schechter form from 1974</li>
+<li><tt class="docutils literal"><span class="pre">'ST'</span></tt>: Sheth-Mo-Tormen empirical fit 2001 (deprecated!)</li>
 <li><tt class="docutils literal"><span class="pre">'SMT'</span></tt>: Sheth-Mo-Tormen empirical fit from 2001</li>
 <li><tt class="docutils literal"><span class="pre">'Jenkins'</span></tt>: Jenkins empirical fit from 2001</li>
 <li><tt class="docutils literal"><span class="pre">'Warren'</span></tt>: Warren empirical fit from 2006</li>
@@ -104,13 +111,15 @@ most optimal manner. All output quantities are calculated only when needed
 <li><tt class="docutils literal"><span class="pre">'Angulo_Bound'</span></tt>: Angulo sub-halo function 2012</li>
 <li><tt class="docutils literal"><span class="pre">'Bhattacharya'</span></tt>: Bhattacharya empirical fit 2011</li>
 <li><tt class="docutils literal"><span class="pre">'Behroozi'</span></tt>: Behroozi extension to Tinker for high-z 2013</li>
-<li><tt class="docutils literal"><span class="pre">'user_model'</span></tt>: A user-input string function</li>
 </ol>
+<p>Alternatively, one may define a callable function, with the signature
+<tt class="docutils literal"><span class="pre">func(self)</span></tt>, where <tt class="docutils literal"><span class="pre">self</span></tt> is a <a class="reference internal" href="#hmf.hmf.MassFunction" title="hmf.hmf.MassFunction"><tt class="xref py py-class docutils literal"><span class="pre">MassFunction</span></tt></a> object (and
+has access to all its attributes). This may be passed here.</p>
 </div></blockquote>
-<p><strong>delta_wrt</strong> : str, {<tt class="docutils literal"><span class="pre">&quot;mean&quot;</span></tt>,``&#8221;crit&#8221;<a href="#id1"><span class="problematic" id="id2">``</span></a>}</p>
+<p><strong>delta_wrt</strong> : str, {<tt class="docutils literal"><span class="pre">&quot;mean&quot;</span></tt>, <tt class="docutils literal"><span class="pre">&quot;crit&quot;</span></tt>}</p>
 <blockquote>
-<div><p>Defines what the overdensity of a halo is with respect to.
-Can take <tt class="docutils literal"><span class="pre">'mean'</span></tt> or <tt class="docutils literal"><span class="pre">'crit'</span></tt></p>
+<div><p>Defines what the overdensity of a halo is with respect to, mean density
+of the universe, or critical density.</p>
 </div></blockquote>
 <p><strong>delta_h</strong> : float, optional, default <tt class="docutils literal"><span class="pre">200.0</span></tt></p>
 <blockquote>
@@ -124,16 +133,17 @@ be applicable if <tt class="docutils literal"><span class="pre">mf_fit</span> <s
 </div></blockquote>
 <p><strong>cut_fit</strong> : bool, optional, default <tt class="docutils literal"><span class="pre">True</span></tt></p>
 <blockquote>
-<div><p>Whether to forcibly cut <span class="math">\(f(\sigma)\)</span> at bounds given by respective papers.
-If <cite>False</cite>, will use whole range of <a href="#id3"><span class="problematic" id="id4">`</span></a>M`(may give ridiculous results).</p>
+<div><p>Whether to forcibly cut <span class="math">\(f(\sigma)\)</span> at bounds in literature.
+If false, will use whole range of <cite>M</cite>.</p>
 </div></blockquote>
 <p><strong>delta_c</strong> : float, default <tt class="docutils literal"><span class="pre">1.686</span></tt></p>
 <blockquote>
-<div><p>The critical overdensity for collapse</p>
+<div><p>The critical overdensity for collapse, <span class="math">\(\delta_c\)</span></p>
 </div></blockquote>
 <p><strong>kwargs</strong> : keywords</p>
 <blockquote class="last">
-<div><p>sent to the <cite>hmf.transfer.Transfer</cite> class (see its docs for details)</p>
+<div><p>These keyword arguments are sent to the <cite>hmf.transfer.Transfer</cite> class.</p>
+<p>Included are all the cosmological parameters (see the docs for details).</p>
 </div></blockquote>
 </td>
 </tr>
@@ -146,137 +156,124 @@ If <cite>False</cite>, will use whole range of <a href="#id3"><span class="probl
 <col width="90%" />
 </colgroup>
 <tbody valign="top">
-<tr class="row-odd"><td><a class="reference internal" href="#hmf.hmf.MassFunction.update" title="hmf.hmf.MassFunction.update"><tt class="xref py py-obj docutils literal"><span class="pre">update</span></tt></a>(**kwargs)</td>
-<td>Update the class with the given arguments in an optimal manner.</td>
+<tr class="row-odd"><td><tt class="xref py py-obj docutils literal"><span class="pre">cosmo_update</span></tt>(**kwargs)</td>
+<td></td>
+</tr>
+<tr class="row-even"><td><tt class="xref py py-obj docutils literal"><span class="pre">update</span></tt>(**kwargs)</td>
+<td>Update the class optimally with given arguments.</td>
 </tr>
 </tbody>
 </table>
 <dl class="attribute">
-<dt id="hmf.hmf.MassFunction.M">
-<tt class="descname">M</tt><a class="reference internal" href="../_modules/hmf/hmf.html#MassFunction.M"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.hmf.MassFunction.M" title="Permalink to this definition">¶</a></dt>
-<dd><p>Mass vector [units of <span class="math">\(M_\odot h^{-1}\)</span>]</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="hmf.hmf.MassFunction.delta_h">
-<tt class="descname">delta_h</tt><a class="reference internal" href="../_modules/hmf/hmf.html#MassFunction.delta_h"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.hmf.MassFunction.delta_h" title="Permalink to this definition">¶</a></dt>
-<dd><p>The overdensity given by user: undefined until it is given with respect to something</p>
-</dd></dl>
-
-<dl class="attribute">
 <dt id="hmf.hmf.MassFunction.delta_halo">
-<tt class="descname">delta_halo</tt><a class="reference internal" href="../_modules/hmf/hmf.html#MassFunction.delta_halo"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.hmf.MassFunction.delta_halo" title="Permalink to this definition">¶</a></dt>
+<tt class="descname">delta_halo</tt><a class="headerlink" href="#hmf.hmf.MassFunction.delta_halo" title="Permalink to this definition">¶</a></dt>
 <dd><p>Overdensity of a halo w.r.t mean density</p>
 </dd></dl>
 
 <dl class="attribute">
-<dt id="hmf.hmf.MassFunction.delta_wrt">
-<tt class="descname">delta_wrt</tt><a class="reference internal" href="../_modules/hmf/hmf.html#MassFunction.delta_wrt"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.hmf.MassFunction.delta_wrt" title="Permalink to this definition">¶</a></dt>
-<dd><p>Defines what <cite>delta_halo</cite> is with respect to (<tt class="docutils literal"><span class="pre">mean</span></tt> or <tt class="docutils literal"><span class="pre">crit</span></tt>)</p>
-</dd></dl>
-
-<dl class="attribute">
 <dt id="hmf.hmf.MassFunction.dndlnm">
-<tt class="descname">dndlnm</tt><a class="reference internal" href="../_modules/hmf/hmf.html#MassFunction.dndlnm"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.hmf.MassFunction.dndlnm" title="Permalink to this definition">¶</a></dt>
+<tt class="descname">dndlnm</tt><a class="headerlink" href="#hmf.hmf.MassFunction.dndlnm" title="Permalink to this definition">¶</a></dt>
 <dd><p>The differential mass function in terms of natural log of <cite>M</cite>, <tt class="docutils literal"><span class="pre">len=len(M)</span></tt> [units <span class="math">\(h^3 Mpc^{-3}\)</span>]</p>
 </dd></dl>
 
 <dl class="attribute">
 <dt id="hmf.hmf.MassFunction.dndlog10m">
-<tt class="descname">dndlog10m</tt><a class="reference internal" href="../_modules/hmf/hmf.html#MassFunction.dndlog10m"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.hmf.MassFunction.dndlog10m" title="Permalink to this definition">¶</a></dt>
+<tt class="descname">dndlog10m</tt><a class="headerlink" href="#hmf.hmf.MassFunction.dndlog10m" title="Permalink to this definition">¶</a></dt>
 <dd><p>The differential mass function in terms of log of <cite>M</cite>, <tt class="docutils literal"><span class="pre">len=len(M)</span></tt> [units <span class="math">\(h^3 Mpc^{-3}\)</span>]</p>
 </dd></dl>
 
 <dl class="attribute">
 <dt id="hmf.hmf.MassFunction.dndm">
-<tt class="descname">dndm</tt><a class="reference internal" href="../_modules/hmf/hmf.html#MassFunction.dndm"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.hmf.MassFunction.dndm" title="Permalink to this definition">¶</a></dt>
+<tt class="descname">dndm</tt><a class="headerlink" href="#hmf.hmf.MassFunction.dndm" title="Permalink to this definition">¶</a></dt>
 <dd><p>The number density of haloes, <tt class="docutils literal"><span class="pre">len=len(M)</span></tt> [units <span class="math">\(h^4 M_\odot^{-1} Mpc^{-3}\)</span>]</p>
 </dd></dl>
 
 <dl class="attribute">
 <dt id="hmf.hmf.MassFunction.fsigma">
-<tt class="descname">fsigma</tt><a class="reference internal" href="../_modules/hmf/hmf.html#MassFunction.fsigma"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.hmf.MassFunction.fsigma" title="Permalink to this definition">¶</a></dt>
+<tt class="descname">fsigma</tt><a class="headerlink" href="#hmf.hmf.MassFunction.fsigma" title="Permalink to this definition">¶</a></dt>
 <dd><p>The multiplicity function, <span class="math">\(f(\sigma)\)</span>, for <cite>mf_fit</cite>. <tt class="docutils literal"><span class="pre">len=len(M)</span></tt></p>
 </dd></dl>
 
 <dl class="attribute">
 <dt id="hmf.hmf.MassFunction.how_big">
-<tt class="descname">how_big</tt><a class="reference internal" href="../_modules/hmf/hmf.html#MassFunction.how_big"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.hmf.MassFunction.how_big" title="Permalink to this definition">¶</a></dt>
+<tt class="descname">how_big</tt><a class="headerlink" href="#hmf.hmf.MassFunction.how_big" title="Permalink to this definition">¶</a></dt>
 <dd><p>Size of simulation volume in which to expect one halo of mass M, <tt class="docutils literal"><span class="pre">len=len(M)</span></tt> [units <span class="math">\(Mpch^{-1}\)</span>]</p>
 </dd></dl>
 
 <dl class="attribute">
 <dt id="hmf.hmf.MassFunction.lnsigma">
-<tt class="descname">lnsigma</tt><a class="reference internal" href="../_modules/hmf/hmf.html#MassFunction.lnsigma"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.hmf.MassFunction.lnsigma" title="Permalink to this definition">¶</a></dt>
+<tt class="descname">lnsigma</tt><a class="headerlink" href="#hmf.hmf.MassFunction.lnsigma" title="Permalink to this definition">¶</a></dt>
 <dd><p>Natural log of inverse mass variance, <tt class="docutils literal"><span class="pre">len=len(M)</span></tt></p>
 </dd></dl>
 
 <dl class="attribute">
-<dt id="hmf.hmf.MassFunction.mf_fit">
-<tt class="descname">mf_fit</tt><a class="reference internal" href="../_modules/hmf/hmf.html#MassFunction.mf_fit"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.hmf.MassFunction.mf_fit" title="Permalink to this definition">¶</a></dt>
-<dd><p>String identifier of the fitting function used.</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="hmf.hmf.MassFunction.mgtm">
-<tt class="descname">mgtm</tt><a class="reference internal" href="../_modules/hmf/hmf.html#MassFunction.mgtm"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.hmf.MassFunction.mgtm" title="Permalink to this definition">¶</a></dt>
-<dd><p>Mass in haloes &gt;`M`, <tt class="docutils literal"><span class="pre">len=len(M)</span></tt> [units <span class="math">\(M_\odot h^2 Mpc^{-3}\)</span>]</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="hmf.hmf.MassFunction.mltm">
-<tt class="descname">mltm</tt><a class="reference internal" href="../_modules/hmf/hmf.html#MassFunction.mltm"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.hmf.MassFunction.mltm" title="Permalink to this definition">¶</a></dt>
-<dd><p>Total mass in haloes &lt;<cite>M</cite>, <tt class="docutils literal"><span class="pre">len=len(M)</span></tt> [units <span class="math">\(M_\odot h^2 Mpc^{-3}\)</span>]</p>
-</dd></dl>
-
-<dl class="attribute">
 <dt id="hmf.hmf.MassFunction.n_eff">
-<tt class="descname">n_eff</tt><a class="reference internal" href="../_modules/hmf/hmf.html#MassFunction.n_eff"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.hmf.MassFunction.n_eff" title="Permalink to this definition">¶</a></dt>
+<tt class="descname">n_eff</tt><a class="headerlink" href="#hmf.hmf.MassFunction.n_eff" title="Permalink to this definition">¶</a></dt>
 <dd><p>Effective spectral index at scale of halo radius, <tt class="docutils literal"><span class="pre">len=len(M)</span></tt></p>
 </dd></dl>
 
 <dl class="attribute">
 <dt id="hmf.hmf.MassFunction.ngtm">
-<tt class="descname">ngtm</tt><a class="reference internal" href="../_modules/hmf/hmf.html#MassFunction.ngtm"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.hmf.MassFunction.ngtm" title="Permalink to this definition">¶</a></dt>
+<tt class="descname">ngtm</tt><a class="headerlink" href="#hmf.hmf.MassFunction.ngtm" title="Permalink to this definition">¶</a></dt>
 <dd><p>The cumulative mass function above <cite>M</cite>, <tt class="docutils literal"><span class="pre">len=len(M)</span></tt> [units <span class="math">\(h^3 Mpc^{-3}\)</span>]</p>
+<p>In the case that <cite>M</cite> does not extend to sufficiently high masses, this
+routine will auto-generate <tt class="docutils literal"><span class="pre">dndm</span></tt> for an extended mass range. If 
+<tt class="docutils literal"><span class="pre">cut_fit</span></tt> is True, and this extension is invalid, then a power-law fit
+is applied to extrapolate to sufficient mass.</p>
+<p>In the case of the Behroozi fit, it is impossible to auto-extend the mass
+range except by the power-law fit, thus one should be careful to supply
+appropriate mass ranges in this case.</p>
 </dd></dl>
 
 <dl class="attribute">
-<dt id="hmf.hmf.MassFunction.nltm">
-<tt class="descname">nltm</tt><a class="reference internal" href="../_modules/hmf/hmf.html#MassFunction.nltm"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.hmf.MassFunction.nltm" title="Permalink to this definition">¶</a></dt>
-<dd><p>Lower cumulative mass function, <tt class="docutils literal"><span class="pre">len=len(M)</span></tt> [units <span class="math">\(h^3 Mpc^{-3}\)</span>]</p>
+<dt id="hmf.hmf.MassFunction.nu">
+<tt class="descname">nu</tt><a class="headerlink" href="#hmf.hmf.MassFunction.nu" title="Permalink to this definition">¶</a></dt>
+<dd><blockquote>
+<div>The parameter :math:<a href="#id1"><span class="problematic" id="id2">`</span></a></div></blockquote>
+<p>u = left(
+rac{delta_c}{sigma}
+ight)^2`, <tt class="docutils literal"><span class="pre">len=len(M)</span></tt></p>
 </dd></dl>
 
 <dl class="attribute">
-<dt id="hmf.hmf.MassFunction.nz">
-<tt class="descname">nz</tt><a class="reference internal" href="../_modules/hmf/hmf.html#MassFunction.nz"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.hmf.MassFunction.nz" title="Permalink to this definition">¶</a></dt>
-<dd><p>Number of redshift bins (if using survey volume weighting)</p>
+<dt id="hmf.hmf.MassFunction.rho_gtm">
+<tt class="descname">rho_gtm</tt><a class="headerlink" href="#hmf.hmf.MassFunction.rho_gtm" title="Permalink to this definition">¶</a></dt>
+<dd><p>Mass density in haloes <cite>&gt;M</cite>, <tt class="docutils literal"><span class="pre">len=len(M)</span></tt> [units <span class="math">\(M_\odot h^2 Mpc^{-3}\)</span>]</p>
+<p>In the case that <cite>M</cite> does not extend to sufficiently high masses, this
+routine will auto-generate <tt class="docutils literal"><span class="pre">dndm</span></tt> for an extended mass range. If 
+<tt class="docutils literal"><span class="pre">cut_fit</span></tt> is True, and this extension is invalid, then a power-law fit
+is applied to extrapolate to sufficient mass.</p>
+<p>In the case of the Behroozi fit, it is impossible to auto-extend the mass
+range except by the power-law fit, thus one should be careful to supply
+appropriate mass ranges in this case.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="hmf.hmf.MassFunction.rho_ltm">
+<tt class="descname">rho_ltm</tt><a class="headerlink" href="#hmf.hmf.MassFunction.rho_ltm" title="Permalink to this definition">¶</a></dt>
+<dd><p>Mass density in haloes <cite>&lt;M</cite>, <tt class="docutils literal"><span class="pre">len=len(M)</span></tt> [units <span class="math">\(M_\odot h^2 Mpc^{-3}\)</span>]</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">As of v1.6.2, this assumes that the entire mass density of 
+halos is encoded by the <tt class="docutils literal"><span class="pre">mean_density</span></tt> parameter (ie. all
+mass is found in halos). This is not explicitly true of all
+fitting functions (eg. Warren), in which case the definition
+of this property is somewhat inconsistent, but will still 
+work.</p>
+</div>
+<p>In the case that <cite>M</cite> does not extend to sufficiently high masses, this
+routine will auto-generate <tt class="docutils literal"><span class="pre">dndm</span></tt> for an extended mass range. If 
+<tt class="docutils literal"><span class="pre">cut_fit</span></tt> is True, and this extension is invalid, then a power-law fit
+is applied to extrapolate to sufficient mass.</p>
+<p>In the case of the Behroozi fit, it is impossible to auto-extend the mass
+range except by the power-law fit, thus one should be careful to supply
+appropriate mass ranges in this case.</p>
 </dd></dl>
 
 <dl class="attribute">
 <dt id="hmf.hmf.MassFunction.sigma">
-<tt class="descname">sigma</tt><a class="reference internal" href="../_modules/hmf/hmf.html#MassFunction.sigma"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.hmf.MassFunction.sigma" title="Permalink to this definition">¶</a></dt>
+<tt class="descname">sigma</tt><a class="headerlink" href="#hmf.hmf.MassFunction.sigma" title="Permalink to this definition">¶</a></dt>
 <dd><p>The mass variance at <cite>z</cite>, <tt class="docutils literal"><span class="pre">len=len(M)</span></tt></p>
-<p>Redshift dependece simply enters by multplying <cite>_sigma_0</cite> by <cite>growth</cite>.</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="hmf.hmf.MassFunction.update">
-<tt class="descname">update</tt><big>(</big><em>**kwargs</em><big>)</big><a class="reference internal" href="../_modules/hmf/hmf.html#MassFunction.update"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.hmf.MassFunction.update" title="Permalink to this definition">¶</a></dt>
-<dd><p>Update the class with the given arguments in an optimal manner.</p>
-<p>Accepts any argument that the constructor takes.</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="hmf.hmf.MassFunction.user_fit">
-<tt class="descname">user_fit</tt><a class="reference internal" href="../_modules/hmf/hmf.html#MassFunction.user_fit"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.hmf.MassFunction.user_fit" title="Permalink to this definition">¶</a></dt>
-<dd><p>User-specified string equation for the fitting function.</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="hmf.hmf.MassFunction.z2">
-<tt class="descname">z2</tt><a class="reference internal" href="../_modules/hmf/hmf.html#MassFunction.z2"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.hmf.MassFunction.z2" title="Permalink to this definition">¶</a></dt>
-<dd><p>Upper redshift for survey volume weighting</p>
 </dd></dl>
 
 </dd></dl>
@@ -329,13 +326,13 @@ If <cite>False</cite>, will use whole range of <a href="#id3"><span class="probl
         <li class="right" >
           <a href="../api.html" title="API"
              >previous</a> |</li>
-        <li><a href="../index.html">hmf 1.3.1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">hmf 1.6.2 documentation</a> &raquo;</li>
           <li><a href="../api.html" >API</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
         &copy; Copyright 2014, Steven Murray.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.2.
     </div>
   </body>
 </html>

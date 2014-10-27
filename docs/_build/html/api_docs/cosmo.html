@@ -1,5 +1,3 @@
-
-
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
@@ -8,7 +6,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>cosmo &mdash; hmf 1.3.1 documentation</title>
+    <title>cosmo &mdash; hmf 1.6.2 documentation</title>
     
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
@@ -16,7 +14,7 @@
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
-        VERSION:     '1.3.1',
+        VERSION:     '1.6.2',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -26,7 +24,7 @@
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
     <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
-    <link rel="top" title="hmf 1.3.1 documentation" href="../index.html" />
+    <link rel="top" title="hmf 1.6.2 documentation" href="../index.html" />
     <link rel="up" title="API" href="../api.html" /> 
   </head>
   <body>
@@ -42,7 +40,7 @@
         <li class="right" >
           <a href="../np-modindex.html" title="Python Module Index"
              >modules</a> |</li>
-        <li><a href="../index.html">hmf 1.3.1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">hmf 1.6.2 documentation</a> &raquo;</li>
           <li><a href="../api.html" accesskey="U">API</a> &raquo;</li> 
       </ul>
     </div>  
@@ -54,36 +52,46 @@
             
   <div class="section" id="module-hmf.cosmo">
 <span id="cosmo"></span><h1>cosmo<a class="headerlink" href="#module-hmf.cosmo" title="Permalink to this headline">¶</a></h1>
-<p>Deals with cosmological parameters in a nice way.</p>
 <dl class="class">
 <dt id="hmf.cosmo.Cosmology">
-<em class="property">class </em><tt class="descclassname">hmf.cosmo.</tt><tt class="descname">Cosmology</tt><big>(</big><em>default=None</em>, <em>force_flat=False</em>, <em>**kwargs</em><big>)</big><a class="reference internal" href="../_modules/hmf/cosmo.html#Cosmology"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.cosmo.Cosmology" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><tt class="descclassname">hmf.cosmo.</tt><tt class="descname">Cosmology</tt><big>(</big><em>default='planck1_base'</em>, <em>force_flat=False</em>, <em>**kwargs</em><big>)</big><a class="headerlink" href="#hmf.cosmo.Cosmology" title="Permalink to this definition">¶</a></dt>
 <dd><p>A class that nicely deals with cosmological parameters.</p>
-<p>Most cosmological parameters are merely input and are made available as
+<p>Most cosmological parameters are merely input and exposed as
 attributes in the class. However, more complicated relations such as 
 the interrelation of omegab, omegac, omegam, omegav for example are dealt
 with in a more robust manner.</p>
-<p>Note that currently, only several combinations of the density parameters
-are valid:</p>
-<ol class="arabic simple">
-<li><tt class="docutils literal"><span class="pre">omegab</span></tt> and <tt class="docutils literal"><span class="pre">omegac</span></tt></li>
-<li><tt class="docutils literal"><span class="pre">omegam</span></tt></li>
-<li><tt class="docutils literal"><span class="pre">omegab_h2</span></tt> and <tt class="docutils literal"><span class="pre">omegac_h2</span></tt></li>
-<li>None of them</li>
-</ol>
-<p>To this one may add <cite>omegav</cite> (dark-energy density) at will.</p>
+<p>The secondary purpose of this class is to provide simple mappings of the
+parameters to common python cosmology libraries (for now just <cite>cosmolopy</cite>
+and <cite>pycamb</cite>). It has been found by the authors that using more than one
+library becomes confusing in terms of naming all the parameters, so this 
+class helps deal with that.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">There are an incredible number of possible combinations of 
+input parameters, many of which could easily be inconsistent. To 
+this end, this class raises an exception if an inconsistent 
+parameter combination is input, eg. h = 1.0, omegab = 0.05,
+omegab_h2 = 0.06.</p>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last"><cite>force_flat</cite> is provided for convenience to ensure a flat cosmology.
+In nearly all cases (except where it would be quite perverse to do
+so) this will modify omegav if it is otherwise inconsistent. Eg. if
+<tt class="docutils literal"><span class="pre">omegam</span> <span class="pre">=</span> <span class="pre">0.3,</span> <span class="pre">omegav</span> <span class="pre">=</span> <span class="pre">0.8,</span> <span class="pre">force_flat</span> <span class="pre">=</span> <span class="pre">True</span></tt> is passed, the
+omegav will modified to 0.7.</p>
+</div>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>default</strong> : str, {<tt class="docutils literal"><span class="pre">None</span></tt>, <tt class="docutils literal"><span class="pre">&quot;planck1_base&quot;</span></tt>}</p>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>default</strong> : str, {<tt class="docutils literal"><span class="pre">&quot;planck1_base&quot;</span></tt>}</p>
 <blockquote>
 <div><p>Defines a set of default parameters, based on a published set from WMAP
 or Planck. These defaults are applied in a smart way, so as not to 
 override any user-set parameters.</p>
 <p>Current options are</p>
 <ol class="arabic simple">
-<li><tt class="docutils literal"><span class="pre">None</span></tt></li>
 <li><tt class="docutils literal"><span class="pre">&quot;planck1_base&quot;</span></tt>: The cosmology of first-year PLANCK mission (with no lensing or WP)</li>
 </ol>
 </div></blockquote>
@@ -96,7 +104,7 @@ This will modify <tt class="docutils literal"><span class="pre">omegav</span></t
 <blockquote class="last">
 <div><p>The list of available keyword arguments is as follows:</p>
 <ol class="arabic simple">
-<li><tt class="docutils literal"><span class="pre">sigma_8</span></tt>: The normalisation. Mass variance in top-hat spheres with <span class="math">\(R=8`Mpc:math:`h^{-1}\)</span></li>
+<li><tt class="docutils literal"><span class="pre">sigma_8</span></tt>: The normalisation. Mass variance in top-hat spheres with <span class="math">\(R=8Mpc h^{-1}\)</span></li>
 <li><tt class="docutils literal"><span class="pre">n</span></tt>: The spectral index</li>
 <li><tt class="docutils literal"><span class="pre">w</span></tt>: The dark-energy equation of state</li>
 <li><tt class="docutils literal"><span class="pre">cs2_lam</span></tt>: The constant comoving sound speed of dark energy</li>
@@ -117,6 +125,12 @@ This will modify <tt class="docutils literal"><span class="pre">omegav</span></t
 <li><tt class="docutils literal"><span class="pre">omegab_h2</span></tt>: The normalised baryon density by <tt class="docutils literal"><span class="pre">h**2</span></tt></li>
 <li><tt class="docutils literal"><span class="pre">omegac_h2</span></tt>: The normalised CDM density by <tt class="docutils literal"><span class="pre">h**2</span></tt></li>
 </ol>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The reason these are implemented as <cite>kwargs</cite> rather than the
+usual arguments, is because the code can&#8217;t tell <em>a priori</em> which
+combination of density parameters the user will input.</p>
+</div>
 </div></blockquote>
 </td>
 </tr>
@@ -129,23 +143,20 @@ This will modify <tt class="docutils literal"><span class="pre">omegav</span></t
 <col width="90%" />
 </colgroup>
 <tbody valign="top">
-<tr class="row-odd"><td><a class="reference internal" href="#hmf.cosmo.Cosmology.cosmolopy_dict" title="hmf.cosmo.Cosmology.cosmolopy_dict"><tt class="xref py py-obj docutils literal"><span class="pre">cosmolopy_dict</span></tt></a>()</td>
-<td>Collect parameters into a dictionary suitable for cosmolopy.</td>
-</tr>
-<tr class="row-even"><td><a class="reference internal" href="#hmf.cosmo.Cosmology.pycamb_dict" title="hmf.cosmo.Cosmology.pycamb_dict"><tt class="xref py py-obj docutils literal"><span class="pre">pycamb_dict</span></tt></a>()</td>
-<td>Collect parameters into a dictionary suitable for pycamb.</td>
+<tr class="row-odd"><td><tt class="xref py py-obj docutils literal"><span class="pre">cosmo_update</span></tt>(**kwargs)</td>
+<td></td>
 </tr>
 </tbody>
 </table>
-<dl class="method">
+<dl class="attribute">
 <dt id="hmf.cosmo.Cosmology.cosmolopy_dict">
-<tt class="descname">cosmolopy_dict</tt><big>(</big><big>)</big><a class="reference internal" href="../_modules/hmf/cosmo.html#Cosmology.cosmolopy_dict"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.cosmo.Cosmology.cosmolopy_dict" title="Permalink to this definition">¶</a></dt>
+<tt class="descname">cosmolopy_dict</tt><a class="headerlink" href="#hmf.cosmo.Cosmology.cosmolopy_dict" title="Permalink to this definition">¶</a></dt>
 <dd><p>Collect parameters into a dictionary suitable for cosmolopy.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Returns :</th><td class="field-body"><p class="first"><strong>dict</strong> :</p>
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>dict</strong> :</p>
 <blockquote class="last">
 <div><p>Dictionary of values appropriate for cosmolopy</p>
 </div></blockquote>
@@ -155,15 +166,15 @@ This will modify <tt class="docutils literal"><span class="pre">omegav</span></t
 </table>
 </dd></dl>
 
-<dl class="method">
+<dl class="attribute">
 <dt id="hmf.cosmo.Cosmology.pycamb_dict">
-<tt class="descname">pycamb_dict</tt><big>(</big><big>)</big><a class="reference internal" href="../_modules/hmf/cosmo.html#Cosmology.pycamb_dict"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#hmf.cosmo.Cosmology.pycamb_dict" title="Permalink to this definition">¶</a></dt>
+<tt class="descname">pycamb_dict</tt><a class="headerlink" href="#hmf.cosmo.Cosmology.pycamb_dict" title="Permalink to this definition">¶</a></dt>
 <dd><p>Collect parameters into a dictionary suitable for pycamb.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Returns :</th><td class="field-body"><p class="first"><strong>dict</strong> :</p>
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>dict</strong> :</p>
 <blockquote class="last">
 <div><p>Dictionary of values appropriate for pycamb</p>
 </div></blockquote>
@@ -217,13 +228,13 @@ This will modify <tt class="docutils literal"><span class="pre">omegav</span></t
         <li class="right" >
           <a href="../np-modindex.html" title="Python Module Index"
              >modules</a> |</li>
-        <li><a href="../index.html">hmf 1.3.1 documentation</a> &raquo;</li>
+        <li><a href="../index.html">hmf 1.6.2 documentation</a> &raquo;</li>
           <li><a href="../api.html" >API</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
         &copy; Copyright 2014, Steven Murray.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.2.
     </div>
   </body>
 </html>

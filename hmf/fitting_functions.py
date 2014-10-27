@@ -4,80 +4,150 @@ import cosmolopy as cp
 import sys
 import copy
 from scipy.special import gamma as Gam
+from . import cosmo
 _allfits = ["ST", "SMT", 'Jenkins', "Warren", "Reed03", "Reed07", "Peacock",
             "Angulo", "AnguloBound", "Tinker", "Watson_FoF", "Watson", "Crocce",
             "Courtin", "Bhattacharya", "Behroozi", "Tinker08", "Tinker10"]
 
 # TODO: check out units for boundaries (ie. whether they should be log or ln 1/sigma or M/h or M)
-
-def get_fit(name, h, **model_parameters):
+def get_fit(name, **kwargs):
     """
-    A function that chooses the correct Profile class and returns it
-    """
-    try:
-        return getattr(sys.modules[__name__], name)(h, **model_parameters)
-    except AttributeError:
-        raise AttributeError(str(name) + "  is not a valid FittingFunction class")
-
-class FittingFunction(object):
-    """
-    Calculates :math:`f(\sigma)` given a `MassFunction` instance.
+    Returns the correct subclass of :class:`FittingFunction`.
     
     Parameters
     ----------
-    hmf : `hmf.MassFunction` instance
-        This object contains everything that is needed to 
-        calculate :math:`f(\sigma)` -- the mass variance, redshift etc.
-    
+    name : str
+        The class name of the appropriate fit
+        
+    \*\*kwargs : 
+        Any parameters for the instantiated fit (including model parameters)
     """
+    try:
+        return getattr(sys.modules[__name__], name)(**kwargs)
+    except AttributeError:
+        raise AttributeError(str(name) + "  is not a valid FittingFunction class")
+
+def _makedoc(pdocs, lname, sname, eq, ref):
+    return \
+    r"""
+    Class representing a %s mass function fit
+    """ % lname + pdocs + \
+    r"""
+    Notes
+    -----
+    The %s [1]_ form is:
+    
+    .. math:: f_{\rm %s}(\sigma) = %s
+    
+    References
+    ----------
+    .. [1] %s
+    """ % (lname, sname, eq, ref)
+
+
+class FittingFunction(object):
+    r"""
+    Base-class for a halo mass function fit
+    
+    This class should not be called directly, rather use a subclass which is 
+    specific to a certain fitting formula. 
+    """
+    _pdocs = \
+    """
+    
+    Parameters
+    ----------
+    M   : array
+        A vector of halo masses [units M_sun/h]
+        
+    nu2  : array
+        A vector of peak-heights, :math:`\delta_c^2/\sigma^2` corresponding to ``M``
+        
+    z   : float, optional
+        The redshift. 
+        
+    delta_halo : float, optional
+        The overdensity of the halo w.r.t. the mean density of the universe.
+        
+    cosmo : :class:`cosmo.Cosmology` instance, optional
+        A cosmology. Default is the default provided by the :class:`cosmo.Cosmology`
+        class. Not required if ``omegam_z`` is passed.
+         
+    omegam_z : float, optional
+        A value for the mean matter density at the given redshift ``z``. If not
+        provided, will be calculated using the value of ``cosmo``. 
+        
+    \*\*model_parameters : unpacked-dictionary
+        These parameters are model-specific. For any model, list the available
+        parameters (and their defaults) using ``<model>._defaults``
+        
+    """
+    __doc__ += _pdocs
     _defaults = {}
 
-    def __init__(self, hmf, **model_parameters):
+    use_cosmo = False
+    def __init__(self, M, nu2, z=0, delta_halo=200, cosmo=None, omegam_z=None,
+                  **model_parameters):
+        # Check that all parameters passed are valid
         for k in model_parameters:
             if k not in self._defaults:
-                raise ValueError("%s is not a valid argument for the Fitting Function" % k)
+                raise ValueError("%s is not a valid argument for the %s Fitting Function" % (k, self.__class__.__name__))
 
+        # Gather model parameters
         self.params = copy.copy(self._defaults)
         self.params.update(model_parameters)
 
+        # Save instance variables
+        self.M = M
+        self.nu2 = nu2
+        self.nu = np.sqrt(nu2)
+        self.z = z
+        self.delta_halo = delta_halo
 
-        self.hmf = hmf
-        self.nu2 = self.hmf.nu
-        self.nu = np.sqrt(self.hmf.nu)
+        if omegam_z is None and self.use_cosmo:
+            if cosmo is None:
+                cosmo = cosmo.Cosmology()
+            self.omegam_z = cp.density.omega_M_z(self.z, **cosmo.cosmolopy_dict)
+        elif self.use_cosmo:
+            self.omegam_z = omegam_z
 
     def fsigma(self, cut_fit):
-        pass
-
-class PS(FittingFunction):
-    def fsigma(self, cut_fit):
-        """
-        Calculate :math:`f(\sigma)` for Press-Schechter form.
-
-        Press, W. H., Schechter, P., 1974. ApJ 187, 425-438.
-        http://adsabs.harvard.edu/full/1974ApJ...187..425P
+        r"""
+        Calculate :math:`f(\sigma)\equiv\nu f(\nu)`.
+        
+        Parameters
+        ----------
+        cut_fit : bool
+            Whether to cut the fit at bounds corresponding to the fitted range
+            (in mass or corresponding unit, not redshift). If so, values outside
+            this range will be set to ``NaN``. 
         
         Returns
         -------
-        vfv : array_like, len=len(pert.M)
-            The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
+        vfv : array_like, ``len=len(self.M)``
+            The function f(sigma).
         """
+        raise NotImplementedError("Please use a subclass")
+
+class PS(FittingFunction):
+    _eq = r"\sqrt{\frac{2}{\pi}}\nu\exp(-0.5\nu^2)"
+    _ref = r"""Press, W. H., Schechter, P., 1974. ApJ 187, 425-438.
+    http://adsabs.harvard.edu/full/1974ApJ...187..425P"""
+
+    __doc__ = _makedoc(FittingFunction._pdocs, "Press-Schechter", "PS", _eq, _ref)
+
+    def fsigma(self, cut_fit):
         return np.sqrt(2.0 / np.pi) * self.nu * np.exp(-0.5 * self.nu2)
 
-class ST(FittingFunction):
+class SMT(FittingFunction):
+    _eq = r"A\sqrt{2a/\pi}\nu\exp(-a\nu^2/2)(1+(a\nu^2)^{-p})"
+    _ref = r"""Sheth, R. K., Mo, H. J., Tormen, G., May 2001. MNRAS 323 (1), 1-12.
+    http://doi.wiley.com/10.1046/j.1365-8711.2001.04006.x"""
+    __doc__ = _makedoc(FittingFunction._pdocs, "Sheth-Mo-Tormen", "SMT", _eq, _ref)
+
     _defaults = {"a":0.707, "p":0.3, "A":0.3222}
 
     def fsigma(self, cut_fit):
-        """
-        Calculate :math:`f(\sigma)` for Sheth-Mo-Tormen form.
-
-        Sheth, R. K., Mo, H. J., Tormen, G., May 2001. MNRAS 323 (1), 1-12.
-        http://doi.wiley.com/10.1046/j.1365-8711.2001.04006.x
-        
-        Returns
-        -------
-        vfv : array_like, len=len(pert.M)
-            The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
-        """
         A = self.params["A"]
         a = self.params["a"]
         p = self.params['p']
@@ -87,25 +157,17 @@ class ST(FittingFunction):
 
         return vfv
 
-class SMT(ST):
+class ST(SMT):
     pass
 
 class Jenkins(FittingFunction):
+    _eq = r"A\exp(-|\ln\sigma^{-1}+b|^c)"
+    _ref = r"""Jenkins, A. R., et al., Feb. 2001. MNRAS 321 (2), 372-384.
+    http://doi.wiley.com/10.1046/j.1365-8711.2001.04029.x"""
+    __doc__ = _makedoc(FittingFunction._pdocs, "Jenkins", "Jenkins", _eq, _ref)
     _defaults = {"A":0.315, "b":0.61, "c":3.8}
-    def fsigma(self, cut_fit):
-        """
-        Calculate :math:`f(\sigma)` for Jenkins form.
 
-        Jenkins, A. R., et al., Feb. 2001. MNRAS 321 (2), 372-384.
-        http://doi.wiley.com/10.1046/j.1365-8711.2001.04029.x
-        
-        .. note:: valid for :math: -1.2 < \ln \sigma^{-1} < 1.05
-        
-        Returns
-        -------
-        vfv : array_like, len=len(pert.M)
-            The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
-        """
+    def fsigma(self, cut_fit):
         A = self.params["A"]
         b = self.params["b"]
         c = self.params['c']
@@ -117,21 +179,13 @@ class Jenkins(FittingFunction):
         return vfv
 
 class Warren(FittingFunction):
+    _eq = r"A\left[\left(\frac{e}{\sigma}\right)^b + c\right]\exp(\frac{d}{\sigma^2})"
+    _ref = r"""Warren, M. S., et al., Aug. 2006. ApJ 646 (2), 881-885.
+    http://adsabs.harvard.edu/abs/2006ApJ...646..881W"""
+    __doc__ = _makedoc(FittingFunction._pdocs, "Warren", "Warren", _eq, _ref)
+
     _defaults = {"A":0.7234, "b":1.625, "c":0.2538, "d":1.1982, "e":1}
     def fsigma(self, cut_fit):
-        """
-        Calculate :math:`f(\sigma)` for Warren form.
-
-        Warren, M. S., et al., Aug. 2006. ApJ 646 (2), 881-885.
-        http://adsabs.harvard.edu/abs/2006ApJ...646..881W
-        
-        .. note:: valid for :math:`10^{10}M_\odot < M <10^{15}M_\odot`
-        
-        Returns
-        -------
-        vfv : array_like, len=len(pert.M)
-            The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
-        """
         A = self.params["A"]
         b = self.params["b"]
         c = self.params['c']
