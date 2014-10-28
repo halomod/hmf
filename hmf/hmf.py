@@ -135,7 +135,7 @@ class MassFunction(Transfer):
         self._fsig_params = _fsig_params
 
     #===========================================================================
-    # # --- PARAMETERS -------------------------------------------------------
+    # PARAMETERS
     #===========================================================================
     @parameter
     def Mmin(self, val):
@@ -231,7 +231,21 @@ class MassFunction(Transfer):
             raise ValueError("_fsig_params must be a dictionary")
         return val
 
-    #--------------------------------  START NON-SET PROPERTIES ----------------------------------------------
+    #--------------------------------  PROPERTIES ------------------------------
+    @cached_property("z", "omegam", "omegav")
+    def omegam_z(self):
+        """
+        Density parameter at redshift of this instance.
+        """
+        return cp.cden.omega_M_z(self.z, **self.cosmolopy_dict)
+
+    @cached_property("z")
+    def mean_dens_z(self):
+        """
+        Mean density of universe at redshift z
+        """
+        return self.mean_dens * (1 + self.z) ** 3
+
     @cached_property("mf_fit", "sigma", "z", "delta_halo", "nu", "M", "_fsig_params",
                      "omegam_z", "delta_c")
     def _fit(self):
