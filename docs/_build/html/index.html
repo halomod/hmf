@@ -1,5 +1,3 @@
-
-
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
@@ -8,15 +6,15 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>hmf &mdash; hmf 1.3.1 documentation</title>
+    <title>hmf &mdash; hmf 1.6.2 documentation</title>
     
     <link rel="stylesheet" href="_static/default.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
-        URL_ROOT:    '',
-        VERSION:     '1.3.1',
+        URL_ROOT:    './',
+        VERSION:     '1.6.2',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -26,7 +24,7 @@
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
     <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
-    <link rel="top" title="hmf 1.3.1 documentation" href="#" />
+    <link rel="top" title="hmf 1.6.2 documentation" href="#" />
     <link rel="next" title="API" href="api.html" /> 
   </head>
   <body>
@@ -45,7 +43,7 @@
         <li class="right" >
           <a href="api.html" title="API"
              accesskey="N">next</a> |</li>
-        <li><a href="#">hmf 1.3.1 documentation</a> &raquo;</li> 
+        <li><a href="#">hmf 1.6.2 documentation</a> &raquo;</li> 
       </ul>
     </div>  
 
@@ -62,27 +60,18 @@ overdensity or several other variables. Addition of further variables should be 
 <p>It is also the backend to <a class="reference external" href="http://hmf.icrar.org">HMFcalc</a>, the online HMF calculator.</p>
 <div class="section" id="installation">
 <h2>Installation<a class="headerlink" href="#installation" title="Permalink to this headline">¶</a></h2>
-<p>There are several requirements to install to use <cite>hmf</cite>, as we have operated on
-the principle of not re-inventing the wheel.</p>
-<p>The dependencies will not automatically install when installing the <cite>hmf</cite>
-package, because this can create other problems, so you&#8217;ll need to do it yourself.
-Don&#8217;t worry, it&#8217;s mostly pretty easy. Just use <cite>pip</cite>, skipping anything you
-alread have:</p>
-<ol class="arabic simple">
-<li><tt class="docutils literal"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">numpy</span></tt></li>
-<li><tt class="docutils literal"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">scitools</span></tt></li>
-<li><tt class="docutils literal"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">scipy</span></tt></li>
-<li><tt class="docutils literal"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">cosmolopy</span></tt></li>
-<li><tt class="docutils literal"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">emcee</span></tt></li>
-</ol>
+<p><cite>hmf</cite> is built on several other packages, most of which will be familiar to the
+scientific python programmer. All of these dependencies <em>should</em> be automatically
+installed when installing <cite>hmf</cite>, except for one. Explicitly, the dependencies are
+numpy, scipy, scitools, cosmolopy and emcee.</p>
 <p>You will only need <cite>emcee</cite> if you are going to be using the fitting capabilities
-of <cite>hmf</cite>. Once these are installed, there is a final dependency, pycamb, which is
-a little more involved. It is not mandatory to install, but does provide some good
-features. To install pycamb:</p>
-<div class="highlight-python"><pre>cd &lt;Directory that pycamb source will live in&gt;
+of <cite>hmf</cite>. The final, optional, library is pycamb, which can not be installed
+using pip currently. To install pycamb:</p>
+<div class="highlight-python"><div class="highlight"><pre>cd &lt;Directory that pycamb source will live in&gt;
 git clone https://github.com/steven-murray/pycamb
 cd pycamb
-[sudo] python setup.py install [--get=www.address-where-camb-code-lives.org]</pre>
+[sudo] python setup.py install [--get=www.address-where-camb-code-lives.org]
+</pre></div>
 </div>
 <p>The final command gives the option of automatically downloading and
 compiling CAMB while installing pycamb. It cannot be done more automatically
@@ -168,9 +157,7 @@ documentation.</p>
 <li><a class="reference internal" href="#installation">Installation</a></li>
 <li><a class="reference internal" href="#basic-usage">Basic Usage</a></li>
 <li><a class="reference internal" href="#user-guide">User Guide</a></li>
-<li><a class="reference internal" href="#api-documentation">API Documentation</a><ul>
-</ul>
-</li>
+<li><a class="reference internal" href="#api-documentation">API Documentation</a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#indices-and-tables">Indices and tables</a></li>
@@ -216,12 +203,12 @@ documentation.</p>
         <li class="right" >
           <a href="api.html" title="API"
              >next</a> |</li>
-        <li><a href="#">hmf 1.3.1 documentation</a> &raquo;</li> 
+        <li><a href="#">hmf 1.6.2 documentation</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
         &copy; Copyright 2014, Steven Murray.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.2.
     </div>
   </body>
 </html>

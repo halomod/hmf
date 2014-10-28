@@ -113,7 +113,7 @@ class MassFunction(Transfer):
 
 
     def __init__(self, Mmin=10, Mmax=15, dlog10m=0.01, mf_fit=Tinker08, delta_h=200.0,
-                 delta_wrt='mean', cut_fit=True, z2=None, nz=None,
+                 delta_wrt='mean', cut_fit=True, z2=None, nz=None, _fsig_params={},
                  delta_c=1.686, **transfer_kwargs):
         """
         Initializes some parameters      
@@ -132,10 +132,10 @@ class MassFunction(Transfer):
         self.z2 = z2
         self.nz = nz
         self.delta_c = delta_c
-
+        self._fsig_params = _fsig_params
 
     #===========================================================================
-    # # --- PARAMETERS -------------------------------------------------------
+    # PARAMETERS
     #===========================================================================
     @parameter
     def Mmin(self, val):
@@ -225,7 +225,13 @@ class MassFunction(Transfer):
             raise ValueError("cut_fit must be a bool, " + str(val))
         return val
 
-    #--------------------------------  START NON-SET PROPERTIES ----------------------------------------------
+    @parameter
+    def _fsig_params(self, val):
+        if not isinstance(val, dict):
+            raise ValueError("_fsig_params must be a dictionary")
+        return val
+
+    #--------------------------------  PROPERTIES ------------------------------
     @cached_property("z", "omegam", "omegav")
     def omegam_z(self):
         """
@@ -240,13 +246,20 @@ class MassFunction(Transfer):
         """
         return self.mean_dens * (1 + self.z) ** 3
 
-    @cached_property("mf_fit", "sigma", "z", "delta_halo", "nu", "M")
+    @cached_property("mf_fit", "sigma", "z", "delta_halo", "nu", "M", "_fsig_params",
+                     "omegam_z", "delta_c")
     def _fit(self):
         """The actual fitting function class (as opposed to string identifier)"""
         try:
-            fit = self.mf_fit(self)
+            fit = self.mf_fit(self, M=self.M, nu2=self.nu, z=self.z,
+                              delta_halo=self.delta_halo, omegam_z=self.omegam_z,
+                              delta_c=self.delta_c, sigma=self.sigma,
+                              ** self._fsig_params)
         except:
-            fit = get_fit(self.mf_fit, self)
+            fit = get_fit(self.mf_fit, M=self.M, nu2=self.nu, z=self.z,
+                              delta_halo=self.delta_halo, omegam_z=self.omegam_z,
+                              delta_c=self.delta_c, sigma=self.sigma,
+                              ** self._fsig_params)
         return fit
 
     @cached_property("Mmin", "Mmax", "dlog10m")
@@ -348,7 +361,7 @@ class MassFunction(Transfer):
         The number density of haloes, ``len=len(M)`` [units :math:`h^4 M_\odot^{-1} Mpc^{-3}`]
         """
         if self.z2 is None:  # #This is normally the case
-            dndm = self.mean_dens * self.fsigma * np.abs(self._dlnsdlnm) / self.M ** 2
+            dndm = self.fsigma * self.mean_dens * np.abs(self._dlnsdlnm) / self.M ** 2
             if isinstance(self._fit, Behroozi):
                 ngtm_tinker = self._gtm(dndm)
                 dndm = self._fit._modify_dndm(self.M, dndm, self.z, ngtm_tinker)
