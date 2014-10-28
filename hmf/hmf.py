@@ -232,13 +232,20 @@ class MassFunction(Transfer):
         return val
 
     #--------------------------------  START NON-SET PROPERTIES ----------------------------------------------
-    @cached_property("mf_fit", "sigma", "z", "delta_halo", "nu", "M", "_fsig_params")
+    @cached_property("mf_fit", "sigma", "z", "delta_halo", "nu", "M", "_fsig_params",
+                     "omegam_z", "delta_c")
     def _fit(self):
         """The actual fitting function class (as opposed to string identifier)"""
         try:
-            fit = self.mf_fit(self, **self._fsig_params)
+            fit = self.mf_fit(self, M=self.M, nu2=self.nu, z=self.z,
+                              delta_halo=self.delta_halo, omegam_z=self.omegam_z,
+                              delta_c=self.delta_c, sigma=self.sigma,
+                              ** self._fsig_params)
         except:
-            fit = get_fit(self.mf_fit, self, **self._fsig_params)
+            fit = get_fit(self.mf_fit, M=self.M, nu2=self.nu, z=self.z,
+                              delta_halo=self.delta_halo, omegam_z=self.omegam_z,
+                              delta_c=self.delta_c, sigma=self.sigma,
+                              ** self._fsig_params)
         return fit
 
     @cached_property("Mmin", "Mmax", "dlog10m")

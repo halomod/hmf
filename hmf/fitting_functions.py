@@ -86,7 +86,7 @@ class FittingFunction(object):
     _defaults = {}
 
     use_cosmo = False
-    def __init__(self, M, nu2, z=0, delta_halo=200, cosmo=None, omegam_z=None,
+    def __init__(self, M, nu2, sigma, delta_c, z=0, delta_halo=200, cosmo=None, omegam_z=None,
                   **model_parameters):
         # Check that all parameters passed are valid
         for k in model_parameters:
@@ -103,7 +103,8 @@ class FittingFunction(object):
         self.nu = np.sqrt(nu2)
         self.z = z
         self.delta_halo = delta_halo
-
+        self.sigma = sigma
+        self.delta_c = delta_c
         if omegam_z is None and self.use_cosmo:
             if cosmo is None:
                 cosmo = cosmo.Cosmology()
