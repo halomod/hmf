@@ -21,6 +21,102 @@ import pickle
 from numbers import Number
 import copy
 
+def model(parm, h, self):
+    """
+    Calculate the log probability of a model `h` given data
+    
+    At the moment, this is a little hacky, because the parameters have to
+    be the first argument (for both Minimize and MCMC), so we use a 
+    function and pass self last.
+    
+    Parameters
+    ----------
+    parm : list of floats
+        The position of the model. Takes arbitrary parameters.
+            
+    h : instance of :class:`~cosmo.Cosmology` subclass
+        An instance of any subclass of :class:`~cosmo.Cosmology` with the 
+        desired options set. Variables of the estimation are updated within the 
+        routine.  
+        
+    Returns
+    -------
+    ll : float
+        The log likelihood of the model at the given position.
+        
+    """
+    ll = 0
+    p = copy.copy(parm)
+    for prior in self.priors:
+        # A uniform prior doesn't change likelihood but returns -inf if outside bounds
+        if isinstance(prior, Uniform):
+            index = self.attrs.index(prior.name)
+            if parm[index] < prior.low or parm[index] > prior.high:
+                return -np.inf, self.blobs
+            # If it is a log distribution, un-log it for use.
+            if isinstance(prior, Log):
+                p[index] = 10 ** parm[index]
+
+        elif isinstance(prior, Normal):
+            index = self.attrs.index(prior.name)
+            ll += norm.logpdf(parm[index], loc=prior.mean, scale=prior.sd)
+
+        elif isinstance(prior, MultiNorm):
+            indices = [self.attrs.index(name) for name in prior.name]
+            ll += _lognormpdf(np.array(parm[indices]), np.array(prior.means),
+                              prior.cov)
+
+    # Rebuild the hod dict from given vals
+    # Any attr starting with <name>: is put into a dictionary.
+    hoddict = {}
+    for attr, val in zip(self.attrs, p):
+        if ":" in attr:
+            if attr.split(":")[0] not in hoddict:
+                hoddict[attr.split(":")[0]] = {}
+
+            hoddict[attr.split(":")[0]][attr.split(":")[1]] = val
+        else:
+            hoddict[attr] = val
+
+    # Update the actual model
+    h.update(**hoddict)
+
+    # Get the quantity to compare (if exceptions are raised, treat properly)
+    try:
+        q = getattr(h, self.quantity)
+    except Exception as e:
+        if self.relax:
+            print "WARNING: PARAMETERS FAILED, RETURNING INF: ", zip(self.attrs, parm)
+            print "EXCEPTION RAISED: ", e
+            return -np.inf, self.blobs
+        else:
+            raise e
+
+    # The logprob of the model
+    if self.cov:
+        ll += _lognormpdf(q, self.data, self.sigma)
+    else:
+        ll += np.sum(norm.logpdf(self.data, loc=q, scale=self.sigma))
+
+    if self.verbose > 0:
+        print "Likelihood: ", ll
+    if self.verbose > 1 :
+        print "Update Dictionary: ", hoddict
+
+    # Get blobs to return as well.
+    if self.blobs is not None or self.store_class:
+        out = []
+        if self.store_class:
+            out.append(h)
+        for b in self.blobs:
+            if ":" not in b:
+                out.append(getattr(h, b))
+            elif ":" in b:
+                out.append(getattr(h, b.split(":")[0])[b.split(":")[1]])
+        return ll, out
+    else:
+        return ll
+
 class Fit(object):
     """
     Parameters
@@ -28,9 +124,6 @@ class Fit(object):
     priors : list of prior classes
         A list containing instances of :class:`.Prior` subclasses. These specify 
         the prior information on each parameter.
-        
-    attrs : list
-        A list of the names of parameters passed in :attr:`.parm`.
         
     data : array_like
         The data to be compared to -- must be the same length as the 
@@ -65,15 +158,15 @@ class Fit(object):
             self.priors = priors
 
         # Save which attributes are updatable as a list
-        attrs = []
+        self.attrs = []
         for prior in self.priors:
             if isinstance(prior.name, basestring):
-                attrs += [prior.name]
+                self.attrs += [prior.name]
             else:
-                attrs += prior.name
+                self.attrs += prior.name
 
         # Get the number of variables for MCMC
-        self.ndim = len(attrs)
+        self.ndim = len(self.attrs)
 
         # Ensure guess was set correctly.
         if guess and len(guess) != self.ndim:
@@ -89,6 +182,10 @@ class Fit(object):
         self.store_class = store_class
         self.relax = relax
 
+        print "guess: ", self.guess
+        print "attrs: ", self.attrs
+        print "priors: ", self.priors
+
         # Make sure sigma has right rank
         if len(self.sigma.shape) == 2:
             self.cov = True
@@ -96,99 +193,6 @@ class Fit(object):
             self.cov = False
         else:
             raise ValueError("sigma must be an array of 1 or 2 dimensions, but has %s dim" % len(sigma.shape))
-
-    def model(self, parm, h):
-        """
-        Calculate the log probability of a :class:`~hmf.MassFunction` model given data
-        
-        Parameters
-        ----------
-        parm : list of floats
-            The position of the model. Takes arbitrary parameters.
-                
-        h : instance of :class:`~cosmo.Cosmology` subclass
-            An instance of any subclass of :class:`~cosmo.Cosmology` with the 
-            desired options set. Variables of the estimation are updated within the 
-            routine.  
-            
-        Returns
-        -------
-        ll : float
-            The log likelihood of the model at the given position.
-            
-        """
-        ll = 0
-
-        p = copy.copy(parm)
-        for prior in self.priors:
-            # A uniform prior doesn't change likelihood but returns -inf if outside bounds
-            if isinstance(prior, Uniform):
-                index = self.attrs.index(prior.name)
-                if parm[index] < prior.low or parm[index] > prior.high:
-                    return -np.inf, self.blobs
-                # If it is a log distribution, un-log it for use.
-                if isinstance(prior, Log):
-                    p[index] = 10 ** parm[index]
-
-            elif isinstance(prior, Normal):
-                index = self.attrs.index(prior.name)
-                ll += norm.logpdf(parm[index], loc=prior.mean, scale=prior.sd)
-
-            elif isinstance(prior, MultiNorm):
-                indices = [self.attrs.index(name) for name in prior.name]
-                ll += _lognormpdf(np.array(parm[indices]), np.array(prior.means),
-                                  prior.cov)
-
-        # Rebuild the hod dict from given vals
-        # Any attr starting with <name>: is put into a dictionary.
-        hoddict = {}
-        for attr, val in zip(self.attrs, p):
-            if ":" in attr:
-                if attr.split(":")[0] not in hoddict:
-                    hoddict[attr.split(":")[0]] = {}
-
-                hoddict[attr.split(":")[0]][attr.split(":")[1]] = val
-            else:
-                hoddict[attr] = val
-
-        # Update the actual model
-        h.update(**hoddict)
-
-        # Get the quantity to compare (if exceptions are raised, treat properly)
-        try:
-            q = getattr(h, self.quantity)
-        except Exception as e:
-            if self.relax:
-                print "WARNING: PARAMETERS FAILED, RETURNING INF: ", zip(self.attrs, parm)
-                print "EXCEPTION RAISED: ", e
-                return -np.inf, self.blobs
-            else:
-                raise e
-
-        # The logprob of the model
-        if self.cov:
-            ll += _lognormpdf(q, self.data, self.sigma)
-        else:
-            ll += np.sum(norm.logpdf(self.data, loc=q, scale=self.sigma))
-
-        if self.verbose > 0:
-            print "Likelihood: ", ll
-        if self.verbose > 1 :
-            print "Update Dictionary: ", hoddict
-
-        # Get blobs to return as well.
-        if self.blobs is not None or self.store_class:
-            out = []
-            if self.store_class:
-                out.append(h)
-            for b in self.blobs:
-                if ":" not in b:
-                    out.append(getattr(h, b))
-                elif ":" in b:
-                    out.append(getattr(h, b.split(":")[0])[b.split(":")[1]])
-            return ll, out
-        else:
-            return ll
 
     def get_guess(self, guess):
         # Set guess if not set
@@ -201,6 +205,9 @@ class Fit(object):
                 elif isinstance(prior, MultiNorm):
                     guess += prior.means.tolist()
         return np.array(guess)
+
+    def model(self, p, h):
+        return model(p, h, self)
 
 class MCMC(Fit):
     def fit(self, h, nwalkers=100, nsamples=100, burnin=0,
@@ -268,12 +275,12 @@ class MCMC(Fit):
         getattr(h, self.quantity)
 
         # Setup the Ensemble Sampler
-        sampler = emcee.EnsembleSampler(nwalkers, self.ndim, self.model, args=[h],
-                                        threads=nthreads)
+        sampler = emcee.EnsembleSampler(nwalkers, self.ndim, model,
+                                        args=[h, self], threads=nthreads)
 
         # Get initial positions if required
         if initial_pos is None:
-            initial_pos = self.get_initial_pos(self, nwalkers)
+            initial_pos = self.get_initial_pos(nwalkers)
             extend = False
         else:
             extend = True
@@ -423,7 +430,7 @@ class MCMC(Fit):
 # Minimize Fitting Routine
 #===========================================================
 class Minimize(Fit):
-    def fit(self, h, guess=[], method="Nelder-Mead", disp=False, maxiter=30, tol=None):
+    def fit(self, h, method="Nelder-Mead", disp=False, maxiter=30, tol=None):
         """
         Run an optimization procedure to fit a model correlation function to data.
         
@@ -432,10 +439,6 @@ class Minimize(Fit):
         h : instance of :class:`~hmf.framework.Framework` subclass
             This instance will be updated with the variables of the minimization.
             Other desired options should have been set upon instantiation.
-
-        guess : array_like, default []
-            Where to start the chain. If empty, will get central values from the
-            distributions.
             
         method : str, default ``"Nelder-Mead"``
             The optimizing routine (see `scipy.optimize.minimize` for details).
@@ -458,9 +461,8 @@ class Minimize(Fit):
             :attr:`message`.
              
         """
-        res = minimize(self.negmod, guess, (h,), tol=tol,
+        res = minimize(self.negmod, self.guess, (h,), tol=tol,
                        method=method, options={"disp":disp, "maxiter":maxiter})
-
         return res
 
     def negmod(self, *args):
