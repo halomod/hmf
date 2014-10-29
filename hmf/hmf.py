@@ -5,7 +5,7 @@ The module contains a single class, `MassFunction`, which wraps almost all the
 functionality of :mod:`hmf` in an easy-to-use way.
 '''
 
-version = '1.6.2'
+version = '1.7.0'
 
 ###############################################################################
 # Some Imports
@@ -253,12 +253,12 @@ class MassFunction(Transfer):
         try:
             fit = self.mf_fit(self, M=self.M, nu2=self.nu, z=self.z,
                               delta_halo=self.delta_halo, omegam_z=self.omegam_z,
-                              delta_c=self.delta_c, sigma=self.sigma,
+                              delta_c=self.delta_c, sigma=self.sigma, n_eff=self.n_eff,
                               ** self._fsig_params)
         except:
             fit = get_fit(self.mf_fit, M=self.M, nu2=self.nu, z=self.z,
                               delta_halo=self.delta_halo, omegam_z=self.omegam_z,
-                              delta_c=self.delta_c, sigma=self.sigma,
+                              delta_c=self.delta_c, sigma=self.sigma, n_eff=self.n_eff,
                               ** self._fsig_params)
         return fit
 
