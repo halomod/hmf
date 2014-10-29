@@ -308,6 +308,7 @@ class Watson(FittingFunction):
                  "alpha_a":3.136, "alpha_b":3.058, "alpha_c":2.349,
                  "beta_a":5.907, "beta_b":3.599, "beta_c":2.344,
                  "gamma_z":1.318}
+    use_cosmo = True
     def gamma(self):
         """
         Calculate :math:`\Gamma` for the Watson fit.
