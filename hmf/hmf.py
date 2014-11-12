@@ -251,15 +251,15 @@ class MassFunction(Transfer):
     def _fit(self):
         """The actual fitting function class (as opposed to string identifier)"""
         try:
-            fit = self.mf_fit(self, M=self.M, nu2=self.nu, z=self.z,
+            fit = self.mf_fit(M=self.M, nu2=self.nu, z=self.z,
                               delta_halo=self.delta_halo, omegam_z=self.omegam_z,
                               delta_c=self.delta_c, sigma=self.sigma, n_eff=self.n_eff,
                               ** self._fsig_params)
-        except:
+        except TypeError:
             fit = get_fit(self.mf_fit, M=self.M, nu2=self.nu, z=self.z,
-                              delta_halo=self.delta_halo, omegam_z=self.omegam_z,
-                              delta_c=self.delta_c, sigma=self.sigma, n_eff=self.n_eff,
-                              ** self._fsig_params)
+                          delta_halo=self.delta_halo, omegam_z=self.omegam_z,
+                          delta_c=self.delta_c, sigma=self.sigma, n_eff=self.n_eff,
+                          ** self._fsig_params)
         return fit
 
     @cached_property("Mmin", "Mmax", "dlog10m")
