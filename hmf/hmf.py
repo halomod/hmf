@@ -167,7 +167,7 @@ class MassFunction(Transfer):
 
     @parameter
     def mf_fit(self, val):
-        if not isinstance(val, FittingFunction) and not isinstance(val, basestring):
+        if not issubclass(val, FittingFunction) and not isinstance(val, basestring):
             raise ValueError("mf_fit must be a FittingFunction or string, got %s" % type(val))
         return val
 
@@ -254,7 +254,7 @@ class MassFunction(Transfer):
                      "omegam_z", "delta_c")
     def _fit(self):
         """The actual fitting function class (as opposed to string identifier)"""
-        if isinstance(self.mf_fit, FittingFunction):
+        if issubclass(self.mf_fit, FittingFunction):
             fit = self.mf_fit(M=self.M, nu2=self.nu, z=self.z,
                               delta_halo=self.delta_halo, omegam_z=self.omegam_z,
                               delta_c=self.delta_c, sigma=self.sigma, n_eff=self.n_eff,
