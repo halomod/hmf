@@ -352,7 +352,7 @@ class Transfer(Cosmology):
 
     @parameter
     def transfer_fit(self, val):
-        if not HAVE_PYCAMB and val == "CAMB":
+        if not HAVE_PYCAMB and (val == "CAMB" or val == CAMB):
             raise ValueError("You cannot use the CAMB transfer since pycamb isn't installed")
         return val
 
@@ -371,10 +371,12 @@ class Transfer(Cosmology):
         
         This wraps the individual transfer_fit methods to provide unified access.
         """
-        try:
+        if isinstance(self.transfer_fit, GetTransfer):
             return self.transfer_fit(self).lnt(self.lnk)
-        except:
+        elif isinstance(self.transfer_fit, basestring):
             return get_transfer(self.transfer_fit, self).lnt(self.lnk)
+        else:
+            raise ValueError("transfer_fit must be string or GetTransfer subclass")
 
     @cached_property("n", "lnk", "_unnormalised_lnT")
     def _unnormalised_lnP(self):
