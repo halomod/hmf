@@ -11,6 +11,7 @@ import scipy.integrate as integ
 from _cache import cached_property, parameter
 import sys
 from halofit import _get_spec, halofit
+from numpy import issubclass_
 # import cosmolopy.density as cden
 import tools
 try:
@@ -18,7 +19,6 @@ try:
     HAVE_PYCAMB = True
 except ImportError:
     HAVE_PYCAMB = False
-
 
 #===============================================================================
 # Transfer Function Getting Routines
@@ -354,7 +354,7 @@ class Transfer(Cosmology):
     def transfer_fit(self, val):
         if not HAVE_PYCAMB and (val == "CAMB" or val == CAMB):
             raise ValueError("You cannot use the CAMB transfer since pycamb isn't installed")
-        if not (issubclass(val, GetTransfer) or isinstance(val, basestring)):
+        if not (issubclass_(val, GetTransfer) or isinstance(val, basestring)):
             raise ValueError("transfer)fit must be string or GetTransfer subclass")
         return val
 
@@ -373,7 +373,7 @@ class Transfer(Cosmology):
         
         This wraps the individual transfer_fit methods to provide unified access.
         """
-        if issubclass(self.transfer_fit, GetTransfer):
+        if issubclass_(self.transfer_fit, GetTransfer):
             return self.transfer_fit(self).lnt(self.lnk)
         elif isinstance(self.transfer_fit, basestring):
             return get_transfer(self.transfer_fit, self).lnt(self.lnk)
