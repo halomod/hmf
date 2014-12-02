@@ -25,7 +25,7 @@ from integrate_hmf import hmf_integral_gtm
 from fitting_functions import FittingFunction
 from numpy import issubclass_
 logger = logging.getLogger('hmf')
-
+from filters import TopHat, Filter, get_filter
 
 
 
@@ -116,7 +116,7 @@ class MassFunction(Transfer):
 
     def __init__(self, Mmin=10, Mmax=15, dlog10m=0.01, mf_fit=Tinker08, delta_h=200.0,
                  delta_wrt='mean', cut_fit=True, z2=None, nz=None, _fsig_params={},
-                 delta_c=1.686, **transfer_kwargs):
+                 delta_c=1.686, filter=TopHat, **transfer_kwargs):
         """
         Initializes some parameters      
         """
@@ -135,6 +135,7 @@ class MassFunction(Transfer):
         self.nz = nz
         self.delta_c = delta_c
         self._fsig_params = _fsig_params
+        self.filter = filter
 
     #===========================================================================
     # PARAMETERS
@@ -149,6 +150,12 @@ class MassFunction(Transfer):
 
     @parameter
     def dlog10m(self, val):
+        return val
+
+    @parameter
+    def filter(self, val):
+        if not issubclass_(val, Filter) and not isinstance(val, basestring):
+            raise ValueError("filter must be a Filter or string, got %s" % type(val))
         return val
 
     @parameter
@@ -266,6 +273,13 @@ class MassFunction(Transfer):
                           ** self._fsig_params)
         return fit
 
+    @cached_property("mean_dens", "filter")
+    def _filter(self):
+        if issubclass_(self.filter, Filter):
+            return self.filter(self.mean_dens)
+        elif isinstance(self.filter, basestring):
+            return get_filter(self.filter, rho_mean=self.mean_dens)
+
     @cached_property("Mmin", "Mmax", "dlog10m")
     def M(self):
         return 10 ** np.arange(self.Mmin, self.Mmax, self.dlog10m)
@@ -285,7 +299,7 @@ class MassFunction(Transfer):
         elif self.delta_wrt == 'crit':
             return self.delta_h / cp.density.omega_M_z(self.z, **self.cosmolopy_dict)
 
-    @cached_property("M", "_lnP_0", "lnk", "mean_dens")
+    @cached_property("M", "_lnP_0", "lnk", "mean_dens", "_filter")
     def _sigma_0(self):
         """
         The normalised mass variance at z=0 :math:`\sigma`
@@ -296,11 +310,9 @@ class MassFunction(Transfer):
         .. math:: \sigma^2(R) = \frac{1}{2\pi^2}\int_0^\infty{k^2P(k)W^2(kR)dk}
         
         """
-        return tools.mass_variance(self.M, self._lnP_0,
-                                   self.lnk,
-                                   self.mean_dens, "trapz")
+        return self._filter.sigma(self.M, self.lnk, self._lnP_0)
 
-    @cached_property("M", "_sigma_0", "_lnP_0", "lnk", "mean_dens")
+    @cached_property("M", "_sigma_0", "_lnP_0", "lnk", "_filter")
     def _dlnsdlnm(self):
         """
         The value of :math:`\left|\frac{\d \ln \sigma}{\d \ln M}\right|`, ``len=len(M)``
@@ -311,10 +323,7 @@ class MassFunction(Transfer):
         .. math:: frac{d\ln\sigma}{d\ln M} = \frac{3}{2\sigma^2\pi^2R^4}\int_0^\infty \frac{dW^2(kR)}{dM}\frac{P(k)}{k^2}dk
         
         """
-        return tools.dlnsdlnm(self.M, self._sigma_0, self._lnP_0,
-                                             self.lnk,
-                                             self.mean_dens)
-
+        return 0.5 * self._filter.dlnss_dlnm(self.M, self.lnk, self._lnP_0)
     @cached_property("_sigma_0", "growth")
     def sigma(self):
         """

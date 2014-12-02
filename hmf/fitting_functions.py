@@ -415,39 +415,75 @@ class Tinker08(FittingFunction):
     _ref = """Tinker, J., et al., 2008. ApJ 688, 709-728.
     http://iopscience.iop.org/0004-637X/688/2/709"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Tinker08", "Tkr", _eq, _ref)
-    _defaults = {"A_array":np.array([ 1.858659e-01, 1.995973e-01, 2.115659e-01, 2.184113e-01,
-                                     2.480968e-01, 2.546053e-01, 2.600000e-01, 2.600000e-01,
-                                     2.600000e-01]),
-                 "a_array": np.array([1.466904, 1.521782, 1.559186, 1.614585, 1.869936,
-                                     2.128056, 2.301275, 2.529241, 2.661983e+00]),
-                 "b_array": np.array([2.571104, 2.254217, 2.048674, 1.869559, 1.588649,
-                                     1.507134, 1.464374, 1.436827, 1.405210]),
-                 "c_array": np.array([1.193958, 1.270316, 1.335191, 1.446266, 1.581345,
-                                      1.795050, 1.965613, 2.237466, 2.439729]),
-                 "A_exp":0.14, "a_exp":0.06
-                 }
+    _defaults = {  # -- A
+                "A_200":1.858659e-01,
+                "A_300":1.995973e-01,
+                "A_400":2.115659e-01,
+                "A_600": 2.184113e-01,
+                "A_800":2.480968e-01,
+                "A_1200":2.546053e-01,
+                "A_1600":2.600000e-01,
+                "A_2400":2.600000e-01,
+                "A_3200":2.600000e-01,
+                # -- a
+                "a_200":1.466904,
+                "a_300":1.521782,
+                "a_400":1.559186,
+                "a_600": 1.614585,
+                "a_800":1.869936,
+                "a_1200":2.128056,
+                "a_1600":2.301275,
+                "a_2400":2.529241,
+                "a_3200":2.661983,
+                #--- b
+                "b_200":2.571104,
+                "b_300":2.254217,
+                "b_400":2.048674,
+                "b_600": 1.869559,
+                "b_800":1.588649,
+                "b_1200":1.507134,
+                "b_1600":1.464374,
+                "b_2400":1.436827,
+                "b_3200":1.405210,
+                #--- c
+                "c_200":1.193958,
+                "c_300":1.270316,
+                "c_400":1.335191,
+                "c_600": 1.446266,
+                "c_800":1.581345,
+                "c_1200": 1.795050,
+                "c_1600":1.965613,
+                "c_2400":2.237466,
+                "c_3200":2.439729,
+                # -- others
+                "A_exp":0.14, "a_exp":0.06}
 
     delta_virs = np.array([200, 300, 400, 600, 800, 1200, 1600, 2400, 3200])
 
     def __init__(self, **model_parameters):
         super(Tinker08, self).__init__(**model_parameters)
 
+
         if self.delta_halo not in self.delta_virs:
-            A_func = spline(self.delta_virs, self.params['A_array'])
-            a_func = spline(self.delta_virs, self.params['a_array'])
-            b_func = spline(self.delta_virs, self.params['b_array'])
-            c_func = spline(self.delta_virs, self.params['c_array'])
+            A_array = np.array([self.params["A_%s" % d] for d in self.delta_virs])
+            a_array = np.array([self.params["a_%s" % d] for d in self.delta_virs])
+            b_array = np.array([self.params["b_%s" % d] for d in self.delta_virs])
+            c_array = np.array([self.params["c_%s" % d] for d in self.delta_virs])
+
+            A_func = spline(self.delta_virs, A_array)
+            a_func = spline(self.delta_virs, a_array)
+            b_func = spline(self.delta_virs, b_array)
+            c_func = spline(self.delta_virs, c_array)
 
             A_0 = A_func(self.delta_halo)
             a_0 = a_func(self.delta_halo)
             b_0 = b_func(self.delta_halo)
             c_0 = c_func(self.delta_halo)
         else:
-            ind = np.where(self.delta_virs == self.delta_halo)[0][0]
-            A_0 = self.params["A_array"][ind]
-            a_0 = self.params["a_array"][ind]
-            b_0 = self.params["b_array"][ind]
-            c_0 = self.params["c_array"][ind]
+            A_0 = self.params["A_%s" % (int(self.delta_halo))]
+            a_0 = self.params["a_%s" % (int(self.delta_halo))]
+            b_0 = self.params["b_%s" % (int(self.delta_halo))]
+            c_0 = self.params["c_%s" % (int(self.delta_halo))]
 
 
         self.A = A_0 * (1 + self.z) ** (-self.params["A_exp"])
@@ -472,50 +508,93 @@ class Tinker10(FittingFunction):
     _eq = r"(1+(\beta\nu)^{-2\phi})\nu^{2\eta+1}\exp(-\gamma\nu^2/2)"
     _ref = """Tinker, J., et al., 2010. ApJ 724, 878.
     http://iopscience.iop.org/0004-637X/724/2/878/pdf/apj_724_2_878.pdf"""
-    _defaults = {"alpha_array":np.array([ 0.368, 0.363, 0.385, 0.389,
-                                         0.393, 0.365, 0.379, 0.355, 0.327]),
-                 "beta_array":np.array([0.589, 0.585, 0.544, 0.543, 0.564,
-                                        0.623, 0.637, 0.673, 0.702]),
-                 "gamma_array":np.array([0.864, 0.922, 0.987, 1.09, 1.20,
-                                          1.34, 1.50, 1.68, 1.81]),
-                 "phi_array": np.array([-0.729, -0.789, -0.910, -1.05, -1.20,
-                                        - 1.26, -1.45, -1.50, -1.49]),
-                 "eta_array":np.array([-0.243, -0.261, -0.261, -0.273, -0.278,
-                                       - 0.301, -0.301, -0.319, -0.336]),
-                 "beta_exp":0.2, "phi_exp":-0.08, "eta_exp":0.27, "gamma_exp":-0.01
-                 }
+    _defaults = {  # --- alpha
+                  "alpha_200": 0.368, "alpha_300":0.363, "alpha_400":0.385,
+                  "alpha_600":0.389, "alpha_800":0.393, "alpha_1200":0.365,
+                  "alpha_1600":0.379, "alpha_2400":0.355, "alpha_3200":0.327,
+                  #--- beta
+                  "beta_200": 0.589, "beta_300":0.585, "beta_400":0.544, "beta_600":0.543,
+                  "beta_800":0.564, "beta_1200":0.623, "beta_1600":0.637, "beta_2400":0.673,
+                  "beta_3200":0.702,
+                  # --- gamma
+                  "gamma_200": 0.864, "gamma_300":0.922, "gamma_400":0.987,
+                  "gamma_600":1.09, "gamma_800":1.2, "gamma_1200":1.34,
+                  "gamma_1600":1.5, "gamma_2400":1.68, "gamma_3200":1.81,
+                  # --- phi
+                  "phi_200":-0.729, "phi_300":-0.789, "phi_400":-0.910,
+                  "phi_600":-1.05, "phi_800":-1.2, "phi_1200":-1.26,
+                  "phi_1600":-1.45, "phi_2400":-1.5, "phi_3200":-1.49,
+                  # -- eta
+                  "eta_200":-0.243, "eta_300":-0.261, "eta_400":-0.261,
+                  "eta_600":-0.273, "eta_800":-0.278, "eta_1200":-0.301,
+                  "eta_1600":-0.301, "eta_2400":-0.319, "eta_3200":-0.336,
+                  # --others
+                  "beta_exp":0.2, "phi_exp":-0.08, "eta_exp":0.27, "gamma_exp":-0.01,
+                  "max_z":3
+                  }
 
     delta_virs = np.array([200, 300, 400, 600, 800, 1200, 1600, 2400, 3200])
+    terminate = True
+
     def __init__(self, **model_parameters):
         super(Tinker10, self).__init__(**model_parameters)
 
+
         if self.delta_halo not in self.delta_virs:
-            beta_func = spline(self.delta_virs, self.params['beta_array'])
-            gamma_func = spline(self.delta_virs, self.params['gamma_array'])
-            phi_func = spline(self.delta_virs, self.params['phi_array'])
-            eta_func = spline(self.delta_virs, self.params['eta_array'])
+            beta_array = np.array([self.params["beta_%s" % d] for d in self.delta_virs])
+            gamma_array = np.array([self.params["gamma_%s" % d] for d in self.delta_virs])
+            phi_array = np.array([self.params["phi_%s" % d] for d in self.delta_virs])
+            eta_array = np.array([self.params["eta_%s" % d] for d in self.delta_virs])
+
+            beta_func = spline(self.delta_virs, beta_array)
+            gamma_func = spline(self.delta_virs, gamma_array)
+            phi_func = spline(self.delta_virs, phi_array)
+            eta_func = spline(self.delta_virs, eta_array)
 
             beta_0 = beta_func(self.delta_halo)
             gamma_0 = gamma_func(self.delta_halo)
             phi_0 = phi_func(self.delta_halo)
             eta_0 = eta_func(self.delta_halo)
         else:
-            ind = np.where(self.delta_virs == self.delta_halo)[0][0]
-            beta_0 = self.params['beta_array'][ind]
-            gamma_0 = self.params['gamma_array'][ind]
-            phi_0 = self.params['phi_array'][ind]
-            eta_0 = self.params['eta_array'][ind]
+            beta_0 = self.params['beta_%s' % (int(self.delta_halo))]
+            gamma_0 = self.params['gamma_%s' % (int(self.delta_halo))]
+            phi_0 = self.params['phi_%s' % (int(self.delta_halo))]
+            eta_0 = self.params['eta_%s' % (int(self.delta_halo))]
 
-        self.beta = beta_0 * (1 + min(self.z, 3)) ** self.params["beta_exp"]
-        self.phi = phi_0 * (1 + min(self.z, 3)) ** self.params['phi_exp']
-        self.eta = eta_0 * (1 + min(self.z, 3)) ** self.params['eta_exp']
-        self.gamma = gamma_0 * (1 + min(self.z, 3)) ** self.params['gamma_exp']
+        self.beta = beta_0 * (1 + min(self.z, self.params["max_z"])) ** self.params["beta_exp"]
+        self.phi = phi_0 * (1 + min(self.z, self.params["max_z"])) ** self.params['phi_exp']
+        self.eta = eta_0 * (1 + min(self.z, self.params["max_z"])) ** self.params['eta_exp']
+        self.gamma = gamma_0 * (1 + min(self.z, self.params["max_z"])) ** self.params['gamma_exp']
+
+        # # The normalisation only works with specific conditions
+        # gamma > 0
+        if self.gamma <= 0:
+            if self.terminate:
+                raise ValueError("gamma must be > 0, got " + str(self.gamma))
+            else:
+                self.gamma = 1e-3
+        # eta >-0.5
+        if self.eta <= -0.5:
+            if self.terminate:
+                raise ValueError("eta must be > -0.5, got " + str(self.eta))
+            else:
+                self.eta = -0.499
+        # eta-phi >-0.5
+        if self.eta - self.phi <= -0.5:
+            if self.terminate:
+                raise ValueError("eta-phi must be >-0.5, got " + str(self.eta - self.phi))
+            else:
+                self.phi = self.eta + 0.499
+        if self.beta <= 0:
+            if self.terminate:
+                raise ValueError("beta must be > 0, got " + str(self.beta))
+            else:
+                self.beta = 1e-3
 
     @property
     def normalise(self):
         if self.delta_halo in self.delta_virs and self.z == 0:
-            ind = np.where(self.delta_virs == self.delta_halo)[0][0]
-            return self.params['alpha_array'][ind]
+            return self.params['alpha_%s' % (int(self.delta_halo))]
         else:
             return 1 / (2 ** (self.eta - self.phi - 0.5) * self.beta ** (-2 * self.phi) \
                       * self.gamma ** (-0.5 - self.eta) * (2 ** self.phi * self.beta ** (2 * self.phi)\
@@ -536,7 +615,7 @@ class Tinker10(FittingFunction):
                                   self.lnsigma / np.log(10) > 0.4)] = np.nan
         return fv
 
-class Behroozi(Tinker08):
+class Behroozi(Tinker10):
     def _modify_dndm(self, m, dndm, z, ngtm_tinker):
         a = 1 / (1 + z)
         theta = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (m / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)))

@@ -106,16 +106,19 @@ class TestGenMF(object):
         elif col is "fsigma":
             assert rms_diff(pert.fsigma, data[:, 4], 0.004)
         elif col is "ngtm":
+            # # The reason this is only good to 5% is GENMF's problem -- it uses
+            # # poor integration.
             assert rms_diff(pert.ngtm, 10 ** data[:, 2], 0.046)
 
     def test_sigmas(self):
-        for redshift in [0.0, 2.0]:
+        # # Test z=0,2. Higher redshifts are poor in genmf.
+        for redshift in [0.0, 2.0]:  # , 10, 20]:
             self.hmf.update(z=redshift)
             for col in ['sigma', 'lnsigma', 'n_eff']:
                 yield self.check_col, self.hmf, "ST", redshift, col
 
     def test_fits(self):
-        for redshift in [0.0, 2.0]:
+        for redshift in [0.0, 2.0]:  # , 10, 20]:
             self.hmf.update(z=redshift)
             for fit in ["ST", "PS", "Reed03", "Warren", "Jenkins", "Reed07"]:
                 self.hmf.update(mf_fit=fit)
