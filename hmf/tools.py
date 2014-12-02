@@ -14,6 +14,7 @@ import scipy.integrate as intg
 import collections
 import cosmolopy as cp
 import logging
+from windows import TopHat
 logger = logging.getLogger('hmf')
 #===============================================================================
 # Functions
@@ -67,8 +68,8 @@ def normalize(norm_sigma_8, unn_power, lnk, mean_dens):
     """
     # Calculate the value of sigma_8 without prior normalization.
 
-
-    sigma_8 = mass_variance(4.*np.pi * 8 ** 3 * mean_dens / 3., unn_power, lnk, mean_dens)[0]
+    filter = TopHat(mean_dens)
+    sigma_8 = filter.sigma(filter.radius_to_mass(8), lnk, unn_power)[0]
 
     # Calculate the normalization factor
     normalization = norm_sigma_8 / sigma_8
@@ -78,126 +79,6 @@ def normalize(norm_sigma_8, unn_power, lnk, mean_dens):
 
     return power, normalization
 
-def mass_variance(M, power, lnk, mean_dens, scheme='trapz'):
-    """
-    Calculate the mass variance, :math:`\sigma(M)` using the top-hat window function.
-    
-    Parameters
-    ----------
-    M : float or array_like
-        The mass of the sphere at which to calculate the mass variance.
-        
-    power : array_like
-        The (normalised) natural log of the power spectrum
-        
-    lnk : array_like
-        The natural logarithm of the values of *k/h* at which `power` is 
-        defined.
-        
-    mean_dens : float
-        Mean density of the Universe
-        
-    Returns
-    sigma : array_like ( ``len=len(M)`` )
-        The mass variance at ``M``
-        
-    """
-
-    # If we input a scalar as M, then just make it a one-element list.
-    if not isinstance(M, collections.Iterable):
-        M = [M]
-
-    dlnk = lnk[1] - lnk[0]
-    # Calculate the integrand of the function. Note that the power spectrum and k values must be
-    # 'un-logged' before use, and we multiply by k because our steps are in logk.
-    sigma = np.zeros_like(M)
-    rest = np.exp(power + 3 * lnk)
-    for i, m in enumerate(M):
-        integ = rest * top_hat_window(m, lnk, mean_dens)
-        if scheme == 'trapz':
-            sigma[i] = (0.5 / np.pi ** 2) * intg.trapz(integ, dx=dlnk)
-        elif scheme == "simps":
-            sigma[i] = (0.5 / np.pi ** 2) * intg.simps(integ, dx=dlnk)
-        elif scheme == 'romb':
-            sigma[i] = (0.5 / np.pi ** 2) * intg.romb(integ, dx=dlnk)
-    return np.sqrt(sigma)
-
-def top_hat_window(M, lnk, mean_dens):
-    """
-    The fourier-space top-hat window function
-    
-    Parameters
-    ----------
-    M : float or array of floats
-        The masses at which to evaluate the function
-        
-    lnk : float or array of floats
-        The natural log of *k/h* at which to evaluate the function. Only one 
-        of lnk or M may be an array.
-        
-    mean_dens : float
-        The mean density of the universe.
-       
-    Returns
-    -------
-    W_squared : float or array of floats 
-        The square of the top-hat window function in fourier space 
-    """
-
-    kR = np.exp(lnk) * mass_to_radius(M, mean_dens)
-    # # The following 2 lines cut the integral at small scales to prevent numerical error.
-    W_squared = np.ones(len(kR))
-    kR = kR[kR > 1.4e-6]
-
-    W_squared[-len(kR):] = (3 * (np.sin(kR) / kR ** 3 - np.cos(kR) / kR ** 2)) ** 2
-    return W_squared
-
-
-def mass_to_radius(M, mean_dens):
-    """
-    Calculate radius of a region of space from its mass.
-    
-    Parameters
-    ----------
-    M : float or array of floats
-        Masses
-        
-    mean_dens : float
-        The mean density of the universe
-        
-    Returns
-    ------
-    R : float or array of floats
-        The corresponding radii to M
-    
-    .. note :: The units of ``M`` don't matter as long as they are consistent with 
-            ``mean_dens``.
-    """
-    return (3.*M / (4.*np.pi * mean_dens)) ** (1. / 3.)
-
-def radius_to_mass(R, mean_dens):
-    """
-    Calculates mass of a region of space from its radius
-
-    Parameters
-    ----------
-    R : float or array of floats
-        Radii
-
-    mean_dens : float
-        The mean density of the universe
-
-    Returns
-    ------
-    M : float or array of floats
-        The corresponding masses in R
-
-    Notes
-    -----
-    The units of ``R`` don't matter as long as they are consistent with
-    ``mean_dens``.
-    """
-    return 4 * np.pi * R ** 3 * mean_dens / 3
 
 def wdm_transfer(m_x, power_cdm, lnk, h, omegac):
     """
@@ -238,6 +119,9 @@ def wdm_transfer(m_x, power_cdm, lnk, h, omegac):
 
     return power_cdm + 2 * np.log(transfer)
 
+def mass_to_radius(m, mean_dens):
+        return (3.*m / (4.*np.pi * mean_dens)) ** (1. / 3.)
+
 def dlnsdlnm(M, sigma, power, lnk, mean_dens):
     r"""
     Calculate :math:\frac{d \ln(\sigma)}{d \ln M}`
@@ -273,7 +157,7 @@ def dlnsdlnm(M, sigma, power, lnk, mean_dens):
         dlnsdlnM[i] = (3.0 / (2.0 * sigma[i] ** 2 * np.pi ** 2 * r ** 4)) * intg.simps(integ, dx=dlnk)
     return dlnsdlnM
 
-def dw2dm(kR):
+def dw2dm(m, kR):
     """
     The derivative of the top-hat window function squared
     
@@ -287,11 +171,11 @@ def dw2dm(kR):
     dw2dm : array
         The derivative of the top-hat window function squared.
     """
-    return (np.sin(kR) - kR * np.cos(kR)) * (np.sin(kR) * (1 - 3.0 / (kR ** 2)) + 3.0 * np.cos(kR) / kR)
+    return 6 * (np.sin(kR) - kR * np.cos(kR)) * (np.sin(kR) * (1 - 3.0 / (kR ** 2)) + 3.0 * np.cos(kR) / kR) / (m * kR ** 4)
 
 def n_eff(dlnsdlnm):
     """
-    Return the power spectral slope at the scale of the halo radius, 
+    The power spectral slope at the scale of the halo radius 
     
     Parameters
     ----------
