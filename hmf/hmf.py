@@ -273,12 +273,16 @@ class MassFunction(Transfer):
                           ** self._fsig_params)
         return fit
 
-    @cached_property("mean_dens", "filter")
-    def _filter(self):
+    @cached_property("mean_dens", "filter", "delta_c", "lnk", "power")
+    def filter_mod(self):
+
         if issubclass_(self.filter, Filter):
-            return self.filter(self.mean_dens)
+            filter = self.filter(self.mean_dens, self.delta_c, self.lnk, self.power)
         elif isinstance(self.filter, basestring):
-            return get_filter(self.filter, rho_mean=self.mean_dens)
+            filter = get_filter(self.filter, rho_mean=self.mean_dens,
+                              delta_c=self.delta_c, lnk=self.lnk, lnp=self.power)
+        print self.filter
+        return filter
 
     @cached_property("Mmin", "Mmax", "dlog10m")
     def M(self):
@@ -299,7 +303,7 @@ class MassFunction(Transfer):
         elif self.delta_wrt == 'crit':
             return self.delta_h / cp.density.omega_M_z(self.z, **self.cosmolopy_dict)
 
-    @cached_property("M", "_lnP_0", "lnk", "mean_dens", "_filter")
+    @cached_property("M", "filter_mod")
     def _sigma_0(self):
         """
         The normalised mass variance at z=0 :math:`\sigma`
@@ -310,9 +314,16 @@ class MassFunction(Transfer):
         .. math:: \sigma^2(R) = \frac{1}{2\pi^2}\int_0^\infty{k^2P(k)W^2(kR)dk}
         
         """
-        return self._filter.sigma(self.M, self.lnk, self._lnP_0)
+        return self.filter_mod.sigma(self.radii)
 
-    @cached_property("M", "_sigma_0", "_lnP_0", "lnk", "_filter")
+    @cached_property("M", "filter_mod")
+    def radii(self):
+        """
+        The radii corresponding to the masses `M`
+        """
+        return self.filter_mod.mass_to_radius(self.M)
+
+    @cached_property("M", "filter_mod")
     def _dlnsdlnm(self):
         """
         The value of :math:`\left|\frac{\d \ln \sigma}{\d \ln M}\right|`, ``len=len(M)``
@@ -323,7 +334,9 @@ class MassFunction(Transfer):
         .. math:: frac{d\ln\sigma}{d\ln M} = \frac{3}{2\sigma^2\pi^2R^4}\int_0^\infty \frac{dW^2(kR)}{dM}\frac{P(k)}{k^2}dk
         
         """
-        return 0.5 * self._filter.dlnss_dlnm(self.M, self.lnk, self._lnP_0)
+        print "dlnsdlnm: ", self.filter
+        return 0.5 * self.filter_mod.dlnss_dlnm(self.radii)
+
     @cached_property("_sigma_0", "growth")
     def sigma(self):
         """

@@ -68,8 +68,8 @@ def normalize(norm_sigma_8, unn_power, lnk, mean_dens):
     """
     # Calculate the value of sigma_8 without prior normalization.
 
-    filter = TopHat(mean_dens)
-    sigma_8 = filter.sigma(filter.radius_to_mass(8), lnk, unn_power)[0]
+    filter = TopHat(mean_dens, None, lnk, unn_power)
+    sigma_8 = filter.sigma(8.0)[0]
 
     # Calculate the normalization factor
     normalization = norm_sigma_8 / sigma_8
@@ -116,7 +116,7 @@ def wdm_transfer(m_x, power_cdm, lnk, h, omegac):
     alpha = 0.049 * (omegac / 0.25) ** 0.11 * (h / 0.7) ** 1.22 * (1 / m_x) ** 1.11 * (1.5 / g_x) ** 0.29
 
     transfer = (1 + (alpha * np.exp(lnk)) ** (2 * nu)) ** -(5.0 / nu)
-
+    print transfer
     return power_cdm + 2 * np.log(transfer)
 
 def mass_to_radius(m, mean_dens):

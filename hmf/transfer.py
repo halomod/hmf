@@ -12,6 +12,7 @@ from _cache import cached_property, parameter
 import sys
 from halofit import _get_spec, halofit
 from numpy import issubclass_
+from wdm import get_wdm, Viel05, WDM
 # import cosmolopy.density as cden
 import tools
 try:
@@ -225,6 +226,9 @@ class Transfer(Cosmology):
     takahashi : bool, default ``True``
         Whether to use updated HALOFIT coefficients from Takahashi+12
         
+    wdm_model : WDM subclass or string
+        The WDM transfer function model to use
+        
     kwargs : keywords
         The ``**kwargs`` take any cosmological parameters desired, which are 
         input to the `hmf.cosmo.Cosmology` class. `hmf.Perturbations` uses a 
@@ -257,7 +261,8 @@ class Transfer(Cosmology):
     def __init__(self, z=0.0, lnk_min=np.log(1e-8),
                  lnk_max=np.log(2e4), dlnk=0.05,
                  wdm_mass=None, transfer_fit=CAMB,
-                 transfer_options={}, takahashi=True, **kwargs):
+                 transfer_options={}, takahashi=True,
+                 wdm_model=Viel05, **kwargs):
         '''
         Initialises some parameters
         '''
@@ -273,6 +278,7 @@ class Transfer(Cosmology):
         self.transfer_fit = transfer_fit
         self.transfer_options = transfer_options
         self.takahashi = takahashi
+        self.wdm_model = wdm_model
 
     def update(self, **kwargs):
         """
@@ -299,6 +305,11 @@ class Transfer(Cosmology):
     #===========================================================================
     # Parameters
     #===========================================================================
+    @parameter
+    def wdm_model(self, val):
+        if not issubclass_(val, WDM) and not isinstance(val, basestring):
+            raise ValueError("mf_fit must be a WDM subclass or string, got %s" % type(val))
+        return val
 
     @parameter
     def transfer_options(self, val):
@@ -355,13 +366,21 @@ class Transfer(Cosmology):
         if not HAVE_PYCAMB and (val == "CAMB" or val == CAMB):
             raise ValueError("You cannot use the CAMB transfer since pycamb isn't installed")
         if not (issubclass_(val, GetTransfer) or isinstance(val, basestring)):
-            raise ValueError("transfer)fit must be string or GetTransfer subclass")
+            raise ValueError("transfer_fit must be string or GetTransfer subclass")
         return val
 
 
     #===========================================================================
     # # ---- DERIVED PROPERTIES AND FUNCTIONS ---------------
     #===========================================================================
+    @cached_property("mean_dens", "wdm_mass", "omegac", "h", "wdm_model")
+    def _wdm(self):
+        if issubclass_(self.wdm_model, WDM):
+            return self.wdm_model(self.wdm_mass, self.omegac, self.h, self.mean_dens)
+        elif isinstance(self.wdm_model, basestring):
+            return get_wdm(self.wdm_model, mx=self.wdm_mass, omegac=self.omegac,
+                           h=self.h, rho_mean=self.mean_dens)
+
     @cached_property("lnk_min", "lnk_max", "dlnk")
     def lnk(self):
         return np.arange(self.lnk_min, self.lnk_max, self.dlnk)
@@ -409,8 +428,7 @@ class Transfer(Cosmology):
         Normalised log power at :math:`z=0` (for CDM/WDM)
         """
         if self.wdm_mass is not None:
-            return tools.wdm_transfer(self.wdm_mass, self._lnP_cdm_0,
-                                      self.lnk, self.h, self.omegac)
+            return 2 * np.log(self._wdm.transfer(self.lnk)) + self._lnP_cdm_0
         else:
             return self._lnP_cdm_0
 
@@ -446,16 +464,16 @@ class Transfer(Cosmology):
         return 2 * np.log(self.growth) + self._lnP_0
 
 
-    @cached_property("wdm_mass", "_lnT_cdm", "lnk", "h", "omegac")
-    def transfer(self):
-        """
-        Normalised log transfer function for CDM/WDM
-        """
-        if self.wdm_mass is not None:
-            return tools.wdm_transfer(self.wdm_mass, self._lnT_cdm,
-                                      self.lnk, self.h, self.omegac)
-        else:
-            return self._lnT_cdm
+#     @cached_property("wdm_mass", "_lnT_cdm", "lnk", "h", "omegac")
+#     def transfer(self):
+#         """
+#         Normalised log transfer function for CDM/WDM
+#         """
+#         if self.wdm_mass is not None:
+#             return tools.wdm_transfer(self.wdm_mass, self._lnT_cdm,
+#                                       self.lnk, self.h, self.omegac)
+#         else:
+#             return self._lnT_cdm
 
     @cached_property("lnk", "power")
     def delta_k(self):
