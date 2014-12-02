@@ -25,7 +25,7 @@ from integrate_hmf import hmf_integral_gtm
 from fitting_functions import FittingFunction
 from numpy import issubclass_
 logger = logging.getLogger('hmf')
-from windows import TopHat, Filter, get_filter
+from filters import TopHat, Filter, get_filter
 
 
 
@@ -323,7 +323,7 @@ class MassFunction(Transfer):
         .. math:: frac{d\ln\sigma}{d\ln M} = \frac{3}{2\sigma^2\pi^2R^4}\int_0^\infty \frac{dW^2(kR)}{dM}\frac{P(k)}{k^2}dk
         
         """
-        return 0.5 * self._filter.dlnss_dlnm(self.M, self._sigma_0, self.lnk, self._lnP_0)
+        return 0.5 * self._filter.dlnss_dlnm(self.M, self.lnk, self._lnP_0)
     @cached_property("_sigma_0", "growth")
     def sigma(self):
         """

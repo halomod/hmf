@@ -147,13 +147,13 @@ class Filter(object):
         """
         return 1. / 3.
 
-    def dlnss_dlnm(self, m, sigma, lnk, lnp):
+    def dlnss_dlnm(self, m, lnk, lnp):
         """
         The logarithmic slope of mass variance with mass, used directly for n(m).
         
         Note this is :math:`\frac{d\ln \sigma^2}{d\ln m} = 2\frac{d\ln \sigma}{d\ln m}`
         """
-        return self.dlnss_dlnr(m, sigma, lnk, lnp) * self.dlnr_dlnm()
+        return self.dlnss_dlnr(m, lnk, lnp) * self.dlnr_dlnm()
 
     def sigma(self, m, lnk, lnp):
         """
@@ -187,7 +187,6 @@ class Filter(object):
         for i, mm in enumerate(m):
             integ = rest * self.k_space(mm, np.exp(lnk)) ** 2
             sigma[i] = (0.5 / np.pi ** 2) * intg.simps(integ, dx=dlnk)
-
         return np.sqrt(sigma)
 
 class TopHat(Filter):
@@ -219,26 +218,23 @@ class TopHat(Filter):
     def radius_to_mass(self, r):
         return 4 * np.pi * r ** 3 * self.rho_mean / 3
 
-#     def dw2dm(self, m, k):
-#         kr = k * self.mass_to_radius(m)
-#         return (np.sin(kr) - kr * np.cos(kr)) * \
-#             (np.sin(kr) * (1 - 3.0 / (kr ** 2)) + 3.0 * np.cos(kr) / kr)
-
     def dw_dlnkr(self, kr):
         out = np.zeros_like(kr)
         y = kr[kr > 1e-3]
         out[kr > 1e-3] = (9 * y * np.cos(y) + 3 * (y ** 2 - 3) * np.sin(y)) / y ** 3
         return out
 
-    def dlnss_dlnr(self, m, sigma, lnk, lnp):
+    def dlnss_dlnr(self, m, lnk, lnp):
         dlnk = lnk[1] - lnk[0]
         r = self.mass_to_radius(m)
         out = np.zeros_like(m)
+        s = self.sigma(m, lnk, lnp)
         for i, rr in enumerate(r):
             w = self.k_space(m[i], np.exp(lnk))
             dw = self.dw_dlnkr(np.exp(lnk) * rr)
             integ = w * dw * np.exp(lnp + 3 * lnk)
-            out[i] = (1 / np.pi ** 2 * sigma[i] ** 2) * intg.simps(integ, dx=dlnk)
+
+            out[i] = intg.simps(integ, dx=dlnk) / (np.pi ** 2 * s[i] ** 2)
         return out
 
 class SharpK(Filter):
@@ -262,39 +258,17 @@ class SharpK(Filter):
         out[kr == 1] = 1.0
         return out
 
-    def dlnss_dlnr(self, m, sigma, lnk, lnp):
+    def dlnss_dlnr(self, m, lnk, lnp):
+        sigma = self.sigma(m, lnk, lnp)
         r = self.mass_to_radius(m)
         power = np.exp(spline(lnk, lnp)(np.log(1 / r)))
-        return (1.0 / 2 * np.pi ** 2 * sigma ** 2) * (power / r ** 3)
+        return -power / (2 * np.pi ** 2 * sigma ** 2 * r ** 3)
 
     def mass_to_radius(self, m):
         return (1. / self.params['c']) * (3.*m / (4.*np.pi * self.rho_mean)) ** (1. / 3.)
 
     def radius_to_mass(self, r):
         return 4 * np.pi * (self.params['c'] * r) ** 3 * self.rho_mean / 3
-
-#     def sigma(self, m, lnk, lnp):
-#         # If we input a scalar as M, then just make it a one-element list.
-#         if not isinstance(m, collections.Iterable):
-#             m = [m]
-#
-#         p = spline(lnk, lnp)
-# #         dlnk = lnk[1] - lnk[0]
-#         sigma = np.zeros_like(m)
-#         kmin = np.exp(lnk.min())
-#         kmax = np.exp(lnk.max())
-#
-# #         rest = np.exp(lnp + 3 * lnk)
-#         for i, r in enumerate(self.mass_to_radius(m)):
-#             xmin = max(0, 1 - r * kmax)
-#             xmax = 1 - r * kmin
-# #             x = np.logspace(np.log(xmin), np.log(xmax), 300, base=np.e)
-#             x = np.linspace(xmin, xmax, 300)
-#             dlnx = x[1] - x[0]
-#             integ = (1 - x) ** 2 * np.exp(p(np.log((1 - x) / r)))  # * x
-#             sigma[i] = (0.5 / (np.pi ** 2 * r ** 3)) * intg.simps(integ, dx=dlnx)
-#
-#         return np.sqrt(sigma)
 
     def sigma(self, m, lnk, lnp):
         # If we input a scalar as M, then just make it a one-element list.

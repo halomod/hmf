@@ -14,7 +14,7 @@ import scipy.integrate as intg
 import collections
 import cosmolopy as cp
 import logging
-from windows import TopHat
+from filters import TopHat
 logger = logging.getLogger('hmf')
 #===============================================================================
 # Functions
@@ -152,9 +152,11 @@ def dlnsdlnm(M, sigma, power, lnk, mean_dens):
     dlnsdlnM = np.zeros_like(M)
     for i, r in enumerate(R):
         g = np.exp(lnk) * r
-        w = dw2dm(g)  # Derivative of W^2
-        integ = w * np.exp(power - lnk)
-        dlnsdlnM[i] = (3.0 / (2.0 * sigma[i] ** 2 * np.pi ** 2 * r ** 4)) * intg.simps(integ, dx=dlnk)
+        w = dw2dm(M[i], g)  # Derivative of W^2
+#         integ = w * np.exp(power - lnk)
+        integ = w * np.exp(power + 3 * lnk)
+#         dlnsdlnM[i] = (3.0 / (2.0 * sigma[i] ** 2 * np.pi ** 2 * r ** 4)) * intg.simps(integ, dx=dlnk)
+        dlnsdlnM[i] = (M[i] / (4.0 * sigma[i] ** 2 * np.pi ** 2)) * intg.simps(integ, dx=dlnk)
     return dlnsdlnM
 
 def dw2dm(m, kR):
