@@ -116,7 +116,7 @@ class MassFunction(Transfer):
 
     def __init__(self, Mmin=10, Mmax=15, dlog10m=0.01, mf_fit=Tinker08, delta_h=200.0,
                  delta_wrt='mean', cut_fit=True, z2=None, nz=None, _fsig_params={},
-                 delta_c=1.686, filter=TopHat, **transfer_kwargs):
+                 delta_c=1.686, filter=TopHat, filter_params={}, **transfer_kwargs):
         """
         Initializes some parameters      
         """
@@ -136,7 +136,7 @@ class MassFunction(Transfer):
         self.delta_c = delta_c
         self._fsig_params = _fsig_params
         self.filter = filter
-
+        self.filter_params = filter_params
     #===========================================================================
     # PARAMETERS
     #===========================================================================
@@ -190,6 +190,10 @@ class MassFunction(Transfer):
         if val > 10000:
             raise ValueError("delta_halo must be < 10,000 (", val, ")")
 
+        return val
+
+    @parameter
+    def filter_params(self, val):
         return val
 
     @parameter
@@ -273,15 +277,17 @@ class MassFunction(Transfer):
                           ** self._fsig_params)
         return fit
 
-    @cached_property("mean_dens", "filter", "delta_c", "lnk", "power")
+    @cached_property("mean_dens", "filter", "delta_c", "lnk", "_lnP_0", "filter_params")
     def filter_mod(self):
 
         if issubclass_(self.filter, Filter):
-            filter = self.filter(self.mean_dens, self.delta_c, self.lnk, self.power)
+            filter = self.filter(self.mean_dens, self.delta_c, self.lnk, self._lnP_0,
+                                 **self.filter_params)
         elif isinstance(self.filter, basestring):
             filter = get_filter(self.filter, rho_mean=self.mean_dens,
-                              delta_c=self.delta_c, lnk=self.lnk, lnp=self.power)
-        print self.filter
+                              delta_c=self.delta_c, lnk=self.lnk, lnp=self._lnP_0,
+                              **self.filter_params)
+
         return filter
 
     @cached_property("Mmin", "Mmax", "dlog10m")
@@ -334,7 +340,6 @@ class MassFunction(Transfer):
         .. math:: frac{d\ln\sigma}{d\ln M} = \frac{3}{2\sigma^2\pi^2R^4}\int_0^\infty \frac{dW^2(kR)}{dM}\frac{P(k)}{k^2}dk
         
         """
-        print "dlnsdlnm: ", self.filter
         return 0.5 * self.filter_mod.dlnss_dlnm(self.radii)
 
     @cached_property("_sigma_0", "growth")

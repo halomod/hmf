@@ -14,6 +14,7 @@ import scipy.integrate as intg
 import collections
 import cosmolopy as cp
 import logging
+from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from filters import TopHat
 logger = logging.getLogger('hmf')
 #===============================================================================
@@ -198,7 +199,7 @@ def n_eff(dlnsdlnm):
     return n_eff
 
 
-def d_plus(z, cdict):
+def d_plus(z, cdict, getvec=False):
     """
     Finds the factor :math:`D^+(a)`, from Lukic et. al. 2007, eq. 8.
     
@@ -222,13 +223,23 @@ def d_plus(z, cdict):
     z_vec = 1.0 / np.exp(lna) - 1.0
 
     integrand = 1.0 / (np.exp(lna) * cp.distance.e_z(z_vec, **cdict)) ** 3
-
     integral = intg.simps(np.exp(lna) * integrand, dx=lna[1] - lna[0])
     dplus = 5.0 * cdict["omega_M_0"] * cp.distance.e_z(z, **cdict) * integral / 2.0
 
+    if getvec:
+        lna = np.linspace(lna[-1], 0.0, 1000)
+        z_vec = 1.0 / np.exp(lna) - 1.0
+        integrand = 1.0 / (np.exp(lna) * cp.distance.e_z(z_vec, **cdict)) ** 3
+        integral = intg.cumtrapz(np.exp(lna) * integrand, dx=lna[1] - lna[0], initial=0.0)
+
+        dplus += 5.0 * cdict["omega_M_0"] * cp.distance.e_z(z_vec, **cdict) * integral / 2.0
+
+    if getvec:
+        dplus = np.vstack((z_vec, dplus))  # spline(z_vec[1:], dplus)
+
     return dplus
 
-def growth_factor(z, cdict):
+def growth_factor(z, cdict, getvec=False):
     """
     Calculate :math:`d(a) = D^+(a)/D^+(a=1)`, from Lukic et. al. 2007, eq. 7.
     
@@ -245,8 +256,12 @@ def growth_factor(z, cdict):
     growth : float
         The normalised growth factor.
     """
-
-    growth = d_plus(z, cdict) / d_plus(0.0, cdict)
+    if not getvec:
+        growth = d_plus(z, cdict, getvec) / d_plus(0.0, cdict)
+    else:
+        growth = d_plus(z, cdict, getvec)
+        growth[1, :] /= d_plus(0.0, cdict)
+#         growth = lambda z: dp(z) / d_plus(0.0, cdict)
 
     return growth
 
