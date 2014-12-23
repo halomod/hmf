@@ -63,6 +63,11 @@ def _get_spec(lnk, delta_k, sigma_8):
             integrand = delta_k * np.exp(-(k * R) ** 2)
             sigma2 = simps(integrand, np.log(k))
             lnsig[i] = np.log(sigma2)
+        lnr = lnr[np.logical_not(np.isnan(lnsig))]
+        lnsig = lnsig[np.logical_not(np.isnan(lnsig))]
+        if len(lnr) < 2:
+            raise Exception("Lots of things went wrong in halofit")
+
         sig_of_r = spline(lnr, lnsig, k=5)
         dev1, dev2 = sig_of_r.derivatives(np.log(1.0 / rknl))[1:3]
 
