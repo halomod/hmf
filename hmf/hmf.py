@@ -310,6 +310,10 @@ class MassFunction(Transfer):
         
         .. math:: frac{d\ln\sigma}{d\ln M} = \frac{3}{2\sigma^2\pi^2R^4}\int_0^\infty \frac{dW^2(kR)}{dM}\frac{P(k)}{k^2}dk
         
+        This function, and any derived quantities, can show small non-physical 
+        'wiggles' at the 0.1% level, if too coarse a grid in ln(k) is used. If
+        applications are sensitive at this level, please use a very fine k-space
+        grid.
         """
         return tools.dlnsdlnm(self.M, self._sigma_0, self._lnP_0,
                                              self.lnk,
@@ -340,6 +344,14 @@ class MassFunction(Transfer):
     def n_eff(self):
         """
         Effective spectral index at scale of halo radius, ``len=len(M)``
+        
+        Notes
+        -----
+        
+        This function, and any derived quantities, can show small non-physical 
+        'wiggles' at the 0.1% level, if too coarse a grid in ln(k) is used. If
+        applications are sensitive at this level, please use a very fine k-space
+        grid.
         """
         return tools.n_eff(self._dlnsdlnm)
 

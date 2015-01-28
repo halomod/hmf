@@ -36,6 +36,10 @@ See LICENSE.txt for details.
 
 HISTORY
 -------
+1.7.1 - January 28, 2015
+		Added warning to docstring of _dlnsdlnm and n_eff for non-physical 
+		oscillations.
+		
 1.7.0 - October 28, 2014
 		Modified get_hmf to be more general
 		Moved get_hmf and related functions to "functional.py"
