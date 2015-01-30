@@ -11,10 +11,9 @@ flexibility.
 #===============================================================================
 import numpy as np
 import scipy.integrate as intg
-import collections
 import cosmolopy as cp
 import logging
-from scipy.interpolate import InterpolatedUnivariateSpline as spline
+
 from filters import TopHat
 logger = logging.getLogger('hmf')
 #===============================================================================
@@ -79,124 +78,6 @@ def normalize(norm_sigma_8, unn_power, lnk, mean_dens):
     power = 2 * np.log(normalization) + unn_power
 
     return power, normalization
-
-
-def wdm_transfer(m_x, power_cdm, lnk, h, omegac):
-    """
-    Transform a CDM Power Spectrum into WDM.
-    
-    Formula from Bode et. al. 2001 eq. A9
-    
-    Parameters
-    ----------
-    m_x : float
-        The mass of the single-species WDM particle in *keV*
-        
-    power_cdm : array
-        The normalised power spectrum of CDM.
-        
-    lnk : array
-        The wavenumbers *k/h* corresponding to  ``power_cdm``.
-        
-    h : float
-        Hubble parameter
-        
-    omegac : float
-        The dark matter density as a ratio of critical density at the current 
-        epoch.
-    
-    Returns
-    -------
-    power_wdm : array
-        The normalised WDM power spectrum at ``lnk``.
-        
-    """
-    g_x = 1.5
-    nu = 1.12
-
-    alpha = 0.049 * (omegac / 0.25) ** 0.11 * (h / 0.7) ** 1.22 * (1 / m_x) ** 1.11 * (1.5 / g_x) ** 0.29
-
-    transfer = (1 + (alpha * np.exp(lnk)) ** (2 * nu)) ** -(5.0 / nu)
-    print transfer
-    return power_cdm + 2 * np.log(transfer)
-
-def mass_to_radius(m, mean_dens):
-        return (3.*m / (4.*np.pi * mean_dens)) ** (1. / 3.)
-
-def dlnsdlnm(M, sigma, power, lnk, mean_dens):
-    r"""
-    Calculate :math:\frac{d \ln(\sigma)}{d \ln M}`
-    
-    Parameters
-    ----------
-    M : array
-        The masses 
-        
-    sigma : array
-        Mass variance at M
-
-    power : array
-        The logarithmic power spectrum at ``lnk``
-        
-    lnk : array
-        The wavenumbers *k/h* corresponding to the power
-        
-    mean_dens : float
-        Mean density of the universe.
-    
-    Returns
-    -------
-    dlnsdlnM : array
-    """
-    dlnk = lnk[1] - lnk[0]
-    R = mass_to_radius(M, mean_dens)
-    dlnsdlnM = np.zeros_like(M)
-    for i, r in enumerate(R):
-        g = np.exp(lnk) * r
-        w = dw2dm(M[i], g)  # Derivative of W^2
-#         integ = w * np.exp(power - lnk)
-        integ = w * np.exp(power + 3 * lnk)
-#         dlnsdlnM[i] = (3.0 / (2.0 * sigma[i] ** 2 * np.pi ** 2 * r ** 4)) * intg.simps(integ, dx=dlnk)
-        dlnsdlnM[i] = (M[i] / (4.0 * sigma[i] ** 2 * np.pi ** 2)) * intg.simps(integ, dx=dlnk)
-    return dlnsdlnM
-
-def dw2dm(m, kR):
-    """
-    The derivative of the top-hat window function squared
-    
-    Parameters
-    ----------
-    kR : array
-        Product of wavenumber with R [final product is unitless]
-        
-    Returns
-    -------
-    dw2dm : array
-        The derivative of the top-hat window function squared.
-    """
-    return 6 * (np.sin(kR) - kR * np.cos(kR)) * (np.sin(kR) * (1 - 3.0 / (kR ** 2)) + 3.0 * np.cos(kR) / kR) / (m * kR ** 4)
-
-def n_eff(dlnsdlnm):
-    """
-    The power spectral slope at the scale of the halo radius 
-    
-    Parameters
-    ----------
-    dlnsdlnm : array
-        The derivative of log sigma with log M
-    
-    Returns
-    -------
-    n_eff : float
-
-    Notes
-    -----
-    Uses eq. 42 in Lukic et. al 2007.
-    """
-
-    n_eff = -3.0 * (2.0 * dlnsdlnm + 1.0)
-
-    return n_eff
 
 
 def d_plus(z, cdict, getvec=False):
