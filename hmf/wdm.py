@@ -64,9 +64,7 @@ class WDM(object):
             
         power_cdm : array
             The normalised power spectrum of CDM.
-            
-        
-            
+                  
         h : float
             Hubble parameter
             
@@ -82,27 +80,25 @@ class WDM(object):
         """
         pass
 
-class Bode01(WDM):
-    _defaults = {"g_x":1.5,
-                 "nu":1.12}
-    def transfer(self, lnk):
-        g_x = self.params['g_x']
-        nu = self.params["nu"]
-
-        alpha = 0.049 * (omegac / 0.25) ** 0.11 * (h / 0.7) ** 1.22 * (1 / m_x) ** 1.11 * (1.5 / g_x) ** 0.29
-
-        transfer = (1 + (alpha * np.exp(lnk)) ** (2 * nu)) ** -(5.0 / nu)
-
 
 
 class Viel05(WDM):
-    _defaults = {"mu":1.12}
+    """
+    Transfer function from Viel 2005 (which is exactly the same as Bode et al. 
+    2001).
+    
+    Formula from Bode et. al. 2001 eq. A9
+    """
+
+    _defaults = {"mu":1.12,
+                 "g_x":1.5}
+
     def transfer(self, lnk):
         return (1 + (self.lam_eff_fs * np.exp(lnk)) ** (2 * self.params["mu"])) ** (-5.0 / self.params["mu"])
 
     @property
     def lam_eff_fs(self):
-        return 0.049 * self.mx ** -1.11 * (self.omegac / 0.25) ** 0.11 * (self.h / 0.7) ** 1.22
+        return 0.049 * self.mx ** -1.11 * (self.omegac / 0.25) ** 0.11 * (self.h / 0.7) ** 1.22 * (1.5 / self.params['g_x']) ** 0.29
 
     @property
     def m_fs(self):

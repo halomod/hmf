@@ -262,7 +262,7 @@ class Transfer(Cosmology):
                  lnk_max=np.log(2e4), dlnk=0.05,
                  wdm_mass=None, transfer_fit=CAMB,
                  transfer_options={}, takahashi=True,
-                 wdm_model=Viel05, **kwargs):
+                 wdm_transfer=Viel05, wdm_params={}, **kwargs):
         '''
         Initialises some parameters
         '''
@@ -278,7 +278,8 @@ class Transfer(Cosmology):
         self.transfer_fit = transfer_fit
         self.transfer_options = transfer_options
         self.takahashi = takahashi
-        self.wdm_model = wdm_model
+        self.wdm_transfer = wdm_transfer
+        self.wdm_params = wdm_params
 
     def update(self, **kwargs):
         """
@@ -306,9 +307,13 @@ class Transfer(Cosmology):
     # Parameters
     #===========================================================================
     @parameter
-    def wdm_model(self, val):
+    def wdm_transfer(self, val):
         if not issubclass_(val, WDM) and not isinstance(val, basestring):
-            raise ValueError("mf_fit must be a WDM subclass or string, got %s" % type(val))
+            raise ValueError("wdm_transfer must be a WDM subclass or string, got %s" % type(val))
+        return val
+
+    @parameter
+    def wdm_params(self, val):
         return val
 
     @parameter
@@ -373,13 +378,15 @@ class Transfer(Cosmology):
     #===========================================================================
     # # ---- DERIVED PROPERTIES AND FUNCTIONS ---------------
     #===========================================================================
-    @cached_property("mean_dens", "wdm_mass", "omegac", "h", "wdm_model")
+    @cached_property("mean_dens", "wdm_mass", "omegac", "h", "wdm_transfer", "wdm_params")
     def _wdm(self):
-        if issubclass_(self.wdm_model, WDM):
-            return self.wdm_model(self.wdm_mass, self.omegac, self.h, self.mean_dens)
-        elif isinstance(self.wdm_model, basestring):
-            return get_wdm(self.wdm_model, mx=self.wdm_mass, omegac=self.omegac,
-                           h=self.h, rho_mean=self.mean_dens)
+        if issubclass_(self.wdm_transfer, WDM):
+            return self.wdm_transfer(self.wdm_mass, self.omegac, self.h, self.mean_dens,
+                                     **self.wdm_params)
+        elif isinstance(self.wdm_transfer, basestring):
+            return get_wdm(self.wdm_transfer, mx=self.wdm_mass, omegac=self.omegac,
+                           h=self.h, rho_mean=self.mean_dens,
+                           **self.wdm_params)
 
     @cached_property("lnk_min", "lnk_max", "dlnk")
     def lnk(self):
