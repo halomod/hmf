@@ -25,7 +25,7 @@ from integrate_hmf import hmf_integral_gtm
 from fitting_functions import FittingFunction
 from numpy import issubclass_
 logger = logging.getLogger('hmf')
-
+from filters import TopHat, Filter, get_filter
 
 
 
@@ -116,7 +116,8 @@ class MassFunction(Transfer):
 
     def __init__(self, Mmin=10, Mmax=15, dlog10m=0.01, mf_fit=Tinker08, delta_h=200.0,
                  delta_wrt='mean', cut_fit=True, z2=None, nz=None, _fsig_params={},
-                 delta_c=1.686, **transfer_kwargs):
+                 delta_c=1.686, filter=TopHat, filter_params={},
+                 **transfer_kwargs):
         """
         Initializes some parameters      
         """
@@ -135,6 +136,8 @@ class MassFunction(Transfer):
         self.nz = nz
         self.delta_c = delta_c
         self._fsig_params = _fsig_params
+        self.filter = filter
+        self.filter_params = filter_params
 
     #===========================================================================
     # PARAMETERS
@@ -149,6 +152,14 @@ class MassFunction(Transfer):
 
     @parameter
     def dlog10m(self, val):
+        return val
+
+
+
+    @parameter
+    def filter(self, val):
+        if not issubclass_(val, Filter) and not isinstance(val, basestring):
+            raise ValueError("filter must be a Filter or string, got %s" % type(val))
         return val
 
     @parameter
@@ -183,6 +194,10 @@ class MassFunction(Transfer):
         if val > 10000:
             raise ValueError("delta_halo must be < 10,000 (", val, ")")
 
+        return val
+
+    @parameter
+    def filter_params(self, val):
         return val
 
     @parameter
@@ -266,6 +281,19 @@ class MassFunction(Transfer):
                           ** self._fsig_params)
         return fit
 
+    @cached_property("mean_dens", "filter", "delta_c", "lnk", "_lnP_0", "filter_params")
+    def filter_mod(self):
+
+        if issubclass_(self.filter, Filter):
+            filter = self.filter(self.mean_dens, self.delta_c, self.lnk, self._lnP_0,
+                                 **self.filter_params)
+        elif isinstance(self.filter, basestring):
+            filter = get_filter(self.filter, rho_mean=self.mean_dens,
+                              delta_c=self.delta_c, lnk=self.lnk, lnp=self._lnP_0,
+                              **self.filter_params)
+
+        return filter
+
     @cached_property("Mmin", "Mmax", "dlog10m")
     def M(self):
         return 10 ** np.arange(self.Mmin, self.Mmax, self.dlog10m)
@@ -285,7 +313,7 @@ class MassFunction(Transfer):
         elif self.delta_wrt == 'crit':
             return self.delta_h / cp.density.omega_M_z(self.z, **self.cosmolopy_dict)
 
-    @cached_property("M", "_lnP_0", "lnk", "mean_dens")
+    @cached_property("M", "filter_mod")
     def _sigma_0(self):
         """
         The normalised mass variance at z=0 :math:`\sigma`
@@ -296,11 +324,16 @@ class MassFunction(Transfer):
         .. math:: \sigma^2(R) = \frac{1}{2\pi^2}\int_0^\infty{k^2P(k)W^2(kR)dk}
         
         """
-        return tools.mass_variance(self.M, self._lnP_0,
-                                   self.lnk,
-                                   self.mean_dens, "trapz")
+        return self.filter_mod.sigma(self.radii)
 
-    @cached_property("M", "_sigma_0", "_lnP_0", "lnk", "mean_dens")
+    @cached_property("M", "filter_mod")
+    def radii(self):
+        """
+        The radii corresponding to the masses `M`
+        """
+        return self.filter_mod.mass_to_radius(self.M)
+
+    @cached_property("M", "filter_mod")
     def _dlnsdlnm(self):
         """
         The value of :math:`\left|\frac{\d \ln \sigma}{\d \ln M}\right|`, ``len=len(M)``
@@ -310,14 +343,8 @@ class MassFunction(Transfer):
         
         .. math:: frac{d\ln\sigma}{d\ln M} = \frac{3}{2\sigma^2\pi^2R^4}\int_0^\infty \frac{dW^2(kR)}{dM}\frac{P(k)}{k^2}dk
         
-        This function, and any derived quantities, can show small non-physical 
-        'wiggles' at the 0.1% level, if too coarse a grid in ln(k) is used. If
-        applications are sensitive at this level, please use a very fine k-space
-        grid.
         """
-        return tools.dlnsdlnm(self.M, self._sigma_0, self._lnP_0,
-                                             self.lnk,
-                                             self.mean_dens)
+        return 0.5 * self.filter_mod.dlnss_dlnm(self.radii)
 
     @cached_property("_sigma_0", "growth")
     def sigma(self):
@@ -352,8 +379,9 @@ class MassFunction(Transfer):
         'wiggles' at the 0.1% level, if too coarse a grid in ln(k) is used. If
         applications are sensitive at this level, please use a very fine k-space
         grid.
+        Uses eq. 42 in Lukic et. al 2007.
         """
-        return tools.n_eff(self._dlnsdlnm)
+        return -3.0 * (2.0 * self._dlnsdlnm + 1.0)
 
     @cached_property("_fit", "cut_fit", "sigma", "z", "delta_halo", "nu", "M")
     def fsigma(self):
@@ -407,6 +435,7 @@ class MassFunction(Transfer):
 #             numerator = intg.simps(integrand, x=zcentres)
 #             denom = intg.simps(vol, zcentres)
 #             dndm = numerator / denom
+
         return dndm
 
     @cached_property("M", "dndm")

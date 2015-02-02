@@ -38,8 +38,8 @@ def _get_spec(lnk, delta_k, sigma_8):
 
             lnsig_old = copy.copy(lnsig1)
 
-        lnr = np.linspace(np.log(0.01), np.log(10 * lnsig1), 500)
-        lnsig = np.empty(500)
+        lnr = np.linspace(np.log(0.1 * r), np.log(r), 250)
+        lnsig = np.empty(250)
 
         for i, r in enumerate(lnr):
             R = np.exp(r)
@@ -51,10 +51,10 @@ def _get_spec(lnk, delta_k, sigma_8):
     rknl = 1.0 / np.exp(r_of_sig(0.0))
 
     sig_of_r = spline(lnr, lnsig, k=5)
-
     try:
         dev1, dev2 = sig_of_r.derivatives(np.log(1.0 / rknl))[1:3]
-    except:
+    except Exception as e:
+        print "WARNING: ", e
         lnr = np.linspace(np.log(0.2 / rknl), np.log(5 / rknl), 100)
         lnsig = np.empty(100)
 
@@ -63,6 +63,11 @@ def _get_spec(lnk, delta_k, sigma_8):
             integrand = delta_k * np.exp(-(k * R) ** 2)
             sigma2 = simps(integrand, np.log(k))
             lnsig[i] = np.log(sigma2)
+        lnr = lnr[np.logical_not(np.isinf(lnsig))]
+        lnsig = lnsig[np.logical_not(np.isinf(lnsig))]
+        if len(lnr) < 2:
+            raise Exception("Lots of things went wrong in halofit")
+
         sig_of_r = spline(lnr, lnsig, k=5)
         dev1, dev2 = sig_of_r.derivatives(np.log(1.0 / rknl))[1:3]
 
