@@ -116,7 +116,7 @@ class MassFunction(Transfer):
 
     def __init__(self, Mmin=10, Mmax=15, dlog10m=0.01, mf_fit=Tinker08, delta_h=200.0,
                  delta_wrt='mean', cut_fit=True, z2=None, nz=None, _fsig_params={},
-                 delta_c=1.686, filter=TopHat, filter_params={}, wdm_alter=False,
+                 delta_c=1.686, filter=TopHat, filter_params={},
                  **transfer_kwargs):
         """
         Initializes some parameters      
@@ -138,7 +138,7 @@ class MassFunction(Transfer):
         self._fsig_params = _fsig_params
         self.filter = filter
         self.filter_params = filter_params
-        self.wdm_alter = wdm_alter
+
     #===========================================================================
     # PARAMETERS
     #===========================================================================
@@ -154,9 +154,7 @@ class MassFunction(Transfer):
     def dlog10m(self, val):
         return val
 
-    @parameter
-    def wdm_alter(self, val):
-        return val
+
 
     @parameter
     def filter(self, val):
@@ -396,7 +394,7 @@ class MassFunction(Transfer):
         return fsigma
 
     @cached_property("z2", "fsigma", "mean_dens", "_dlnsdlnm", "M", "z",
-                     "nz", "cosmolopy_dict", "wdm_alter")
+                     "nz", "cosmolopy_dict")
     def dndm(self):
         """
         The number density of haloes, ``len=len(M)`` [units :math:`h^4 M_\odot^{-1} Mpc^{-3}`]
@@ -432,12 +430,6 @@ class MassFunction(Transfer):
 #             numerator = intg.simps(integrand, x=zcentres)
 #             denom = intg.simps(vol, zcentres)
 #             dndm = numerator / denom
-
-        # if using schneider wdm model, modify here
-        print "alter is ", self.wdm_alter
-        if self.wdm_alter:
-            print "YUP ACTUALLY MAKING CHANGE"
-            dndm *= (1 + self._wdm.m_hm / self.M) ** -0.6
 
         return dndm
 

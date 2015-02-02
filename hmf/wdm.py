@@ -8,6 +8,10 @@ Module containing WDM models
 import copy
 import sys
 import numpy as np
+from transfer import Transfer
+from hmf import MassFunction
+from _cache import parameter, cached_property
+from numpy import issubclass_
 
 def get_wdm(name, **kwargs):
     """
@@ -111,3 +115,78 @@ class Viel05(WDM):
     @property
     def m_hm(self):
         return (4.0 / 3.0) * np.pi * self.rho_mean * (self.lam_hm / 2) ** 3
+
+
+class TransferWDM(Transfer):
+    def __init__(self, wdm_mass=3.0, wdm_transfer=Viel05, wdm_params={},
+                 **transfer_kwargs):
+        # Call standard transfer
+        super(TransferWDM, self).__init__(**transfer_kwargs)
+
+        # Set given parameters
+        self.wdm_mass = wdm_mass
+        self.wdm_transfer = wdm_transfer
+        self.wdm_params = wdm_params
+
+    #===========================================================================
+    # Parameters
+    #===========================================================================
+    @parameter
+    def wdm_transfer(self, val):
+        if not issubclass_(val, WDM) and not isinstance(val, basestring):
+            raise ValueError("wdm_transfer must be a WDM subclass or string, got %s" % type(val))
+        return val
+
+    @parameter
+    def wdm_params(self, val):
+        return val
+
+    @parameter
+    def wdm_mass(self, val):
+        try:
+            val = float(val)
+        except ValueError:
+            raise ValueError("wdm_mass must be a number (", val, ")")
+
+        if val <= 0:
+            raise ValueError("wdm_mass must be > 0 (", val, ")")
+        return val
+
+    #===========================================================================
+    # Derived properties
+    #===========================================================================
+    @cached_property("mean_dens", "wdm_mass", "omegac", "h", "wdm_transfer", "wdm_params")
+    def _wdm(self):
+        if issubclass_(self.wdm_transfer, WDM):
+            return self.wdm_transfer(self.wdm_mass, self.omegac, self.h, self.mean_dens,
+                                     **self.wdm_params)
+        elif isinstance(self.wdm_transfer, basestring):
+            return get_wdm(self.wdm_transfer, mx=self.wdm_mass, omegac=self.omegac,
+                           h=self.h, rho_mean=self.mean_dens,
+                           **self.wdm_params)
+
+    @cached_property("_wdm")
+    def _lnP_0(self):
+        """
+        Normalised log power at :math:`z=0`
+        """
+        lnp_cdm = super(TransferWDM, self)._lnP_0
+        return 2 * np.log(self._wdm.transfer(self.lnk)) + lnp_cdm
+
+class MassFunctionWDM(MassFunction, TransferWDM):
+    def __init__(self, wdm_alter=False, **kwargs):
+        super(MassFunctionWDM, self).__init__(**kwargs)
+
+        self.wdm_alter = wdm_alter
+
+    @parameter
+    def wdm_alter(self, val):
+        return val
+
+    @cached_property("wdm_alter", "_wdm")
+    def dndm(self):
+        dndm = super(MassFunctionWDM, self).dndm
+        if self.wdm_alter:
+            dndm *= (1 + self._wdm.m_hm / self.M) ** -0.6
+
+        return dndm
