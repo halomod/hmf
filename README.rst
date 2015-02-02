@@ -36,6 +36,13 @@ See LICENSE.txt for details.
 
 HISTORY
 -------
+1.8.0 - February 2, 2015
+		Added better WDM models
+		Separated WDM models from main class for extendibility
+		Enhanced caching to deal with subclassing
+		Added SharpK and SharpKEllipsoid filters and overhauled filter system.
+		Minor bugfixes
+		
 1.7.1 - January 28, 2015
 		Added warning to docstring of _dlnsdlnm and n_eff for non-physical 
 		oscillations.

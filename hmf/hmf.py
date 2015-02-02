@@ -5,7 +5,7 @@ The module contains a single class, `MassFunction`, which wraps almost all the
 functionality of :mod:`hmf` in an easy-to-use way.
 '''
 
-version = '1.7.0'
+version = '1.8.0'
 
 ###############################################################################
 # Some Imports
@@ -374,11 +374,11 @@ class MassFunction(Transfer):
         
         Notes
         -----
-        
         This function, and any derived quantities, can show small non-physical 
         'wiggles' at the 0.1% level, if too coarse a grid in ln(k) is used. If
         applications are sensitive at this level, please use a very fine k-space
         grid.
+        
         Uses eq. 42 in Lukic et. al 2007.
         """
         return -3.0 * (2.0 * self._dlnsdlnm + 1.0)
