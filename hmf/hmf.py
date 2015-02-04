@@ -23,7 +23,8 @@ from fitting_functions import FittingFunction
 from numpy import issubclass_
 logger = logging.getLogger('hmf')
 from filters import TopHat, Filter, get_filter
-
+import astropy.units as u
+from tools import h_unit
 class MassFunction(Transfer):
     """
     An object containing all relevant quantities for the mass function.
@@ -267,28 +268,28 @@ class MassFunction(Transfer):
                           ** self._fsig_params)
         return fit
 
-    @cached_property("mean_density0", "filter", "delta_c", "lnk", "_lnP_0", "filter_params")
+    @cached_property("mean_density0", "filter", "delta_c", "k", "_power0", "filter_params")
     def filter_mod(self):
 
         if issubclass_(self.filter, Filter):
-            filter = self.filter(self.mean_density0, self.delta_c, self.lnk, self._lnP_0,
+            filter = self.filter(self.mean_density0, self.delta_c, self.k, self._power0,
                                  **self.filter_params)
         elif isinstance(self.filter, basestring):
             filter = get_filter(self.filter, rho_mean=self.mean_density0,
-                              delta_c=self.delta_c, lnk=self.lnk, lnp=self._lnP_0,
+                              delta_c=self.delta_c, lnk=self.k, lnp=self._power0,
                               **self.filter_params)
 
         return filter
 
     @cached_property("Mmin", "Mmax", "dlog10m")
     def M(self):
-        return 10 ** np.arange(self.Mmin, self.Mmax, self.dlog10m)
+        return (10 ** np.arange(self.Mmin, self.Mmax, self.dlog10m)) * u.MsolMass / h_unit
 
 
-    @cached_property("M", "lnk", "mean_density0")
-    def kr_warning(self):
-        return tools.check_kr(self.M[0], self.M[-1], self.mean_density0,
-                              self.lnk[0], self.lnk[-1])
+#     @cached_property("M", "lnk", "mean_density0")
+#     def kr_warning(self):
+#         return tools.check_kr(self.M[0], self.M[-1], self.mean_density0,
+#                               self.lnk[0], self.lnk[-1])
 
     @cached_property("delta_wrt", "delta_h", "z", "cosmo")
     def delta_halo(self):

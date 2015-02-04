@@ -12,8 +12,10 @@ import sys
 from halofit import _get_spec, halofit
 from numpy import issubclass_
 from astropy.cosmology import Planck13
+import astropy.units as u
+from tools import h_unit
 
-# import cosmolopy.density as cden
+
 import tools
 try:
     import pycamb
@@ -378,7 +380,8 @@ class Transfer(Cache):
     #===========================================================================
     @cached_property("cosmo")
     def mean_density0(self):
-        return self.cosmo.Om0 * self.cosmo.critical_density0
+        # fixme: why the *1e6??
+        return h_unit ** 2 * (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2).to(u.MsolMass / u.Mpc ** 3) * 1e6
 
     @cached_property("cosmo", "n")
     def pycamb_dict(self):
@@ -392,7 +395,7 @@ class Transfer(Cache):
         """
         return_dict = {"w_lam":self.cosmo.w(0),
                        "TCMB":self.cosmo.Tcmb0.value,
-                       "N_nu":self.cosmo.Neff,
+                       "Num_Nu_massless":self.cosmo.Neff,
                        "omegab":self.cosmo.Ob0,
                        "omegac":self.cosmo.Om0 - self.cosmo.Ob0,
                        "H0":self.cosmo.H0.value,
@@ -405,10 +408,10 @@ class Transfer(Cache):
         return return_dict
 
     @cached_property("lnk_min", "lnk_max", "dlnk")
-    def lnk(self):
-        return np.arange(self.lnk_min, self.lnk_max, self.dlnk)
+    def k(self):
+        return np.exp(np.arange(self.lnk_min, self.lnk_max, self.dlnk)) * h_unit / u.Mpc
 
-    @cached_property("lnk", "pycamb_dict", "transfer_options", "transfer_fit")
+    @cached_property("k", "pycamb_dict", "transfer_options", "transfer_fit")
     def _unnormalised_lnT(self):
         """
         The un-normalised transfer function
@@ -416,34 +419,34 @@ class Transfer(Cache):
         This wraps the individual transfer_fit methods to provide unified access.
         """
         if issubclass_(self.transfer_fit, GetTransfer):
-            return self.transfer_fit(self).lnt(self.lnk)
+            return self.transfer_fit(self).lnt(np.log(self.k.value))
         elif isinstance(self.transfer_fit, basestring):
-            return get_transfer(self.transfer_fit, self).lnt(self.lnk)
+            return get_transfer(self.transfer_fit, self).lnt(np.log(self.k.value))
 
-    @cached_property("n", "lnk", "_unnormalised_lnT")
-    def _unnormalised_lnP(self):
+    @cached_property("n", "k", "_unnormalised_lnT")
+    def _unnormalised_power(self):
         """
-        Un-normalised CDM log power at :math:`z=0` [units :math:`Mpc^3/h^3`]
+        Un-normalised CDM power at :math:`z=0` [units :math:`Mpc^3/h^3`]
         """
-        return self.n * self.lnk + 2 * self._unnormalised_lnT
+        return self.k.value ** self.n * np.exp(self._unnormalised_lnT) ** 2 * u.Mpc ** 3 / h_unit ** 3
 
-    @cached_property("sigma_8", "_unnormalised_lnP", "lnk", "mean_density0")
-    def _lnP_0(self):
+    @cached_property("sigma_8", "_unnormalised_power", "k", "mean_density0")
+    def _power0(self):
         """
-        Normalised CDM log power at z=0 [units :math:`Mpc^3/h^3`]
+        Normalised power spectrum at z=0 [units :math:`Mpc^3/h^3`]
         """
         return tools.normalize(self.sigma_8,
-                               self._unnormalised_lnP,
-                               self.lnk, self.mean_density0)[0]
+                               self._unnormalised_power,
+                               self.k, self.mean_density0)[0]
 
-    @cached_property("sigma_8", "_unnormalised_lnT", "lnk", "mean_density0")
-    def _lnT(self):
-        """
-        Normalised CDM log transfer function
-        """
-        return tools.normalize(self.sigma_8,
-                               self._unnormalised_lnT,
-                               self.lnk, self.mean_density0)[0]
+#     @cached_property("sigma_8", "_unnormalised_lnT", "lnk", "mean_density0")
+#     def _lnT(self):
+#         """
+#         Normalised CDM log transfer function
+#         """
+#         return tools.normalize(self.sigma_8,
+#                                self._unnormalised_lnT,
+#                                self.lnk, self.mean_density0)[0]
 
     @cached_property("z", "cosmo")
     def growth(self):
@@ -463,21 +466,21 @@ class Transfer(Cache):
         else:
             return 1.0
 
-    @cached_property("growth", "_lnP_0")
+    @cached_property("growth", "_power0")
     def power(self):
         """
         Normalised log power spectrum [units :math:`Mpc^3/h^3`]
         """
-        return 2 * np.log(self.growth) + self._lnP_0
+        return self.growth ** 2 * self._power0
 
-    @cached_property("lnk", "power")
+    @cached_property("k", "power")
     def delta_k(self):
         r"""
         Dimensionless power spectrum, :math:`\Delta_k = \frac{k^3 P(k)}{2\pi^2}`
         """
-        return 3 * self.lnk + self.power - np.log(2 * np.pi ** 2)
+        return self.k ** 3 * self.power / (2 * np.pi ** 2)
 
-    @cached_property("lnk", "nonlinear_delta_k")
+    @cached_property("k", "nonlinear_delta_k")
     def nonlinear_power(self):
         """
         Non-linear log power [units :math:`Mpc^3/h^3`]
@@ -485,21 +488,20 @@ class Transfer(Cache):
         Non-linear corrections come from HALOFIT (Smith2003) with updated
         parameters from Takahashi2012. 
         """
-        return -3 * self.lnk + self.nonlinear_delta_k + np.log(2 * np.pi ** 2)
+        return self.k ** -3 * self.nonlinear_delta_k * (2 * np.pi ** 2)
 
-    @cached_property("delta_k", "lnk", "z", "sigma_8", "cosmo", 'takahashi')
+    @cached_property("delta_k", "k", "z", "sigma_8", "cosmo", 'takahashi')
     def nonlinear_delta_k(self):
         r"""
         Dimensionless nonlinear power spectrum, :math:`\Delta_k = \frac{k^3 P_{\rm nl}(k)}{2\pi^2}`
         """
         rknl, rneff, rncur = _get_spec(self.lnk, self.delta_k, self.sigma_8)
-        mask = np.exp(self.lnk) > 0.005
+        mask = self.k > 0.005
         plin = np.exp(self.delta_k[mask])
-        k = np.exp(self.lnk[mask])
+        k = self.k[mask]
         pnl = halofit(k, self.z, self.cosmo.Om0, self.cosmo.Ode0, self.cosmo.w(0),
                       self.cosmo.Onu0, rneff, rncur, rknl, plin, self.takahashi)
-        nonlinear_delta_k = np.exp(self.delta_k)
+        nonlinear_delta_k = self.delta_k
         nonlinear_delta_k[mask] = pnl
-        nonlinear_delta_k = np.log(nonlinear_delta_k)
         return nonlinear_delta_k
 

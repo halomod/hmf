@@ -13,6 +13,10 @@ import numpy as np
 import scipy.integrate as intg
 import cosmolopy as cp
 import logging
+import astropy.units as u
+
+# The hubble parameter unit
+h_unit = u.def_unit("h")
 
 from filters import TopHat
 logger = logging.getLogger('hmf')
@@ -38,7 +42,7 @@ logger = logging.getLogger('hmf')
 #     elif np.exp(mink) * max_r > 0.1:
 #         logger.warn("r_max (%s) * k_min (%s) > 0.1. Mass variance could be inaccurate." % (max_r, np.exp(mink)))
 
-def normalize(norm_sigma_8, unn_power, lnk, mean_dens):
+def normalize(norm_sigma_8, unn_power, k, mean_dens):
     """
     Normalize the power spectrum to a given :math:`\sigma_8`
     
@@ -68,14 +72,14 @@ def normalize(norm_sigma_8, unn_power, lnk, mean_dens):
     """
     # Calculate the value of sigma_8 without prior normalization.
 
-    filter = TopHat(mean_dens, None, lnk, unn_power)
-    sigma_8 = filter.sigma(8.0)[0]
+    filter = TopHat(mean_dens, None, k, unn_power)
+    sigma_8 = filter.sigma(8.0 * u.Mpc / h_unit)[0]
 
     # Calculate the normalization factor
     normalization = norm_sigma_8 / sigma_8
 
     # Normalize the previously calculated power spectrum.
-    power = 2 * np.log(normalization) + unn_power
+    power = normalization ** 2 * unn_power
 
     return power, normalization
 
