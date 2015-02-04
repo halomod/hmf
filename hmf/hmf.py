@@ -10,10 +10,7 @@ version = '1.8.0'
 ###############################################################################
 # Some Imports
 ###############################################################################
-from scipy.interpolate import InterpolatedUnivariateSpline as spline
-import scipy.integrate as intg
 import numpy as np
-# from numpy import sin, cos, tan, abs, arctan, arccos, arcsin, exp
 import copy
 import logging
 import cosmolopy as cp
@@ -26,10 +23,6 @@ from fitting_functions import FittingFunction
 from numpy import issubclass_
 logger = logging.getLogger('hmf')
 from filters import TopHat, Filter, get_filter
-
-
-
-
 
 class MassFunction(Transfer):
     """
@@ -251,44 +244,37 @@ class MassFunction(Transfer):
         return val
 
     #--------------------------------  PROPERTIES ------------------------------
-    @cached_property("z", "omegam", "omegav")
-    def omegam_z(self):
-        """
-        Density parameter at redshift of this instance.
-        """
-        return cp.cden.omega_M_z(self.z, **self.cosmolopy_dict)
-
-    @cached_property("z")
-    def mean_dens_z(self):
+    @cached_property("z", "mean_density0")
+    def mean_density(self):
         """
         Mean density of universe at redshift z
         """
-        return self.mean_dens * (1 + self.z) ** 3
+        return self.mean_density0 * (1 + self.z) ** 3
 
     @cached_property("mf_fit", "sigma", "z", "delta_halo", "nu", "M", "_fsig_params",
-                     "omegam_z", "delta_c")
+                     "cosmo", "delta_c")
     def _fit(self):
         """The actual fitting function class (as opposed to string identifier)"""
         if issubclass_(self.mf_fit, FittingFunction):
             fit = self.mf_fit(M=self.M, nu2=self.nu, z=self.z,
-                              delta_halo=self.delta_halo, omegam_z=self.omegam_z,
+                              delta_halo=self.delta_halo, omegam_z=self.cosmo.Om(self.z),
                               delta_c=self.delta_c, sigma=self.sigma, n_eff=self.n_eff,
                               ** self._fsig_params)
         elif isinstance(self.mf_fit, basestring):
             fit = get_fit(self.mf_fit, M=self.M, nu2=self.nu, z=self.z,
-                          delta_halo=self.delta_halo, omegam_z=self.omegam_z,
+                          delta_halo=self.delta_halo, omegam_z=self.cosmo.Om(self.z),
                           delta_c=self.delta_c, sigma=self.sigma, n_eff=self.n_eff,
                           ** self._fsig_params)
         return fit
 
-    @cached_property("mean_dens", "filter", "delta_c", "lnk", "_lnP_0", "filter_params")
+    @cached_property("mean_density0", "filter", "delta_c", "lnk", "_lnP_0", "filter_params")
     def filter_mod(self):
 
         if issubclass_(self.filter, Filter):
-            filter = self.filter(self.mean_dens, self.delta_c, self.lnk, self._lnP_0,
+            filter = self.filter(self.mean_density0, self.delta_c, self.lnk, self._lnP_0,
                                  **self.filter_params)
         elif isinstance(self.filter, basestring):
-            filter = get_filter(self.filter, rho_mean=self.mean_dens,
+            filter = get_filter(self.filter, rho_mean=self.mean_density0,
                               delta_c=self.delta_c, lnk=self.lnk, lnp=self._lnP_0,
                               **self.filter_params)
 
@@ -299,19 +285,19 @@ class MassFunction(Transfer):
         return 10 ** np.arange(self.Mmin, self.Mmax, self.dlog10m)
 
 
-    @cached_property("M", "lnk", "mean_dens")
+    @cached_property("M", "lnk", "mean_density0")
     def kr_warning(self):
-        return tools.check_kr(self.M[0], self.M[-1], self.mean_dens,
+        return tools.check_kr(self.M[0], self.M[-1], self.mean_density0,
                               self.lnk[0], self.lnk[-1])
 
-    @cached_property("delta_wrt", "delta_h", "z", "cosmolopy_dict")
+    @cached_property("delta_wrt", "delta_h", "z", "cosmo")
     def delta_halo(self):
         """ Overdensity of a halo w.r.t mean density"""
         if self.delta_wrt == 'mean':
             return self.delta_h
 
         elif self.delta_wrt == 'crit':
-            return self.delta_h / cp.density.omega_M_z(self.z, **self.cosmolopy_dict)
+            return self.delta_h / self.cosmo.Om(self.z)
 
     @cached_property("M", "filter_mod")
     def _sigma_0(self):
@@ -398,14 +384,13 @@ class MassFunction(Transfer):
 
         return fsigma
 
-    @cached_property("z2", "fsigma", "mean_dens", "_dlnsdlnm", "M", "z",
-                     "nz", "cosmolopy_dict")
+    @cached_property("z2", "fsigma", "mean_density0", "_dlnsdlnm", "M", "z", "nz")
     def dndm(self):
         """
         The number density of haloes, ``len=len(M)`` [units :math:`h^4 M_\odot^{-1} Mpc^{-3}`]
         """
         if self.z2 is None:  # #This is normally the case
-            dndm = self.fsigma * self.mean_dens * np.abs(self._dlnsdlnm) / self.M ** 2
+            dndm = self.fsigma * self.mean_density0 * np.abs(self._dlnsdlnm) / self.M ** 2
             if isinstance(self._fit, Behroozi):
                 ngtm_tinker = self._gtm(dndm)
                 dndm = self._fit._modify_dndm(self.M, dndm, self.z, ngtm_tinker)
@@ -530,7 +515,7 @@ class MassFunction(Transfer):
         return self._gtm(self.dndm, mass_density=True)
 
 
-    @cached_property("mean_dens", 'rho_gtm')
+    @cached_property("mean_density0", 'rho_gtm')
     def rho_ltm(self):
         """
         Mass density in haloes `<M`, ``len=len(M)`` [units :math:`M_\odot h^2 Mpc^{-3}`]
@@ -551,7 +536,7 @@ class MassFunction(Transfer):
         range except by the power-law fit, thus one should be careful to supply
         appropriate mass ranges in this case.
         """
-        return self.mean_dens - self.rho_gtm
+        return self.mean_density0 - self.rho_gtm
 
 
     @cached_property("ngtm")

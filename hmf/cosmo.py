@@ -471,35 +471,35 @@ class Cosmology(Cache):
 
         return return_dict
 
-    @cached_property("w", "tau", "z_reion", "omegab", "sigma_8",
-                     "h", "omegav", "omegak", "omegan", "n", "N_nu_massive")
-    def cosmolopy_dict(self):
-        """
-        Collect parameters into a dictionary suitable for cosmolopy.
-        
-        Returns
-        -------
-        dict
-            Dictionary of values appropriate for cosmolopy
-        """
-        amap = {"tau":"tau",
-               "z_reion":"z_reion",
-               "omegab":"omega_b_0",
-               "h":"h",
-               "omegav":"omega_lambda_0",
-               "omegak":"omega_k_0",
-               "sigma_8":"sigma_8",
-               "omegam":"omega_M_0",
-               "n":"n",
-               "omegan":"omega_n_0",
-               "N_nu_massive":"N_nu",
-               "w":"w"}
-
-        return_dict = {}
-        for k, v in amap.iteritems():
-            return_dict.update({v:getattr(self, k)})
-
-        return return_dict
+#     @cached_property("w", "tau", "z_reion", "omegab", "sigma_8",
+#                      "h", "omegav", "omegak", "omegan", "n", "N_nu_massive")
+#     def cosmolopy_dict(self):
+#         """
+#         Collect parameters into a dictionary suitable for cosmolopy.
+#
+#         Returns
+#         -------
+#         dict
+#             Dictionary of values appropriate for cosmolopy
+#         """
+#         amap = {"tau":"tau",
+#                "z_reion":"z_reion",
+#                "omegab":"omega_b_0",
+#                "h":"h",
+#                "omegav":"omega_lambda_0",
+#                "omegak":"omega_k_0",
+#                "sigma_8":"sigma_8",
+#                "omegam":"omega_M_0",
+#                "n":"n",
+#                "omegan":"omega_n_0",
+#                "N_nu_massive":"N_nu",
+#                "w":"w"}
+#
+#         return_dict = {}
+#         for k, v in amap.iteritems():
+#             return_dict.update({v:getattr(self, k)})
+#
+#         return return_dict
 
 #===============================================================================
 # SOME BASE COSMOLOGIES

@@ -19,24 +19,24 @@ logger = logging.getLogger('hmf')
 #===============================================================================
 # Functions
 #===============================================================================
-def check_kr(min_m, max_m, mean_dens, mink, maxk):
-    """
-    Check the bounds of the product of k*r
-    
-    If the bounds are not high/low enough, then there can be information loss
-    in the calculation of the mass variance. This routine returns a warning
-    indicating the necessary adjustment for requisite accuracy.
-    
-    See http://arxiv.org/abs/1306.6721 for details. 
-    """
-    # Define min and max radius
-    min_r = mass_to_radius(min_m, mean_dens)
-    max_r = mass_to_radius(max_m, mean_dens)
-
-    if np.exp(maxk) * min_r < 3:
-        logger.warn("r_min (%s) * k_max (%s) < 3. Mass variance could be inaccurate." % (min_r, np.exp(maxk)))
-    elif np.exp(mink) * max_r > 0.1:
-        logger.warn("r_max (%s) * k_min (%s) > 0.1. Mass variance could be inaccurate." % (max_r, np.exp(mink)))
+# def check_kr(min_m, max_m, mean_dens, mink, maxk):
+#     """
+#     Check the bounds of the product of k*r
+#
+#     If the bounds are not high/low enough, then there can be information loss
+#     in the calculation of the mass variance. This routine returns a warning
+#     indicating the necessary adjustment for requisite accuracy.
+#
+#     See http://arxiv.org/abs/1306.6721 for details.
+#     """
+#     # Define min and max radius
+#     min_r = mass_to_radius(min_m, mean_dens)
+#     max_r = mass_to_radius(max_m, mean_dens)
+#
+#     if np.exp(maxk) * min_r < 3:
+#         logger.warn("r_min (%s) * k_max (%s) < 3. Mass variance could be inaccurate." % (min_r, np.exp(maxk)))
+#     elif np.exp(mink) * max_r > 0.1:
+#         logger.warn("r_max (%s) * k_min (%s) > 0.1. Mass variance could be inaccurate." % (max_r, np.exp(mink)))
 
 def normalize(norm_sigma_8, unn_power, lnk, mean_dens):
     """
@@ -80,7 +80,7 @@ def normalize(norm_sigma_8, unn_power, lnk, mean_dens):
     return power, normalization
 
 
-def d_plus(z, cdict, getvec=False):
+def d_plus(z, cosmo, getvec=False):
     """
     Finds the factor :math:`D^+(a)`, from Lukic et. al. 2007, eq. 8.
     
@@ -91,8 +91,8 @@ def d_plus(z, cdict, getvec=False):
     z : float
         The redshift
         
-    cosmo : ``hmf.cosmo.Cosmology()`` object
-        Cosmological parameters 
+    cosmo : ``astropy.cosmology.FLRW()`` object or subclass
+        Cosmological model
     
     Returns
     -------
@@ -103,24 +103,24 @@ def d_plus(z, cdict, getvec=False):
     lna = np.linspace(np.log(1e-8), np.log(a_upper), 1000)
     z_vec = 1.0 / np.exp(lna) - 1.0
 
-    integrand = 1.0 / (np.exp(lna) * cp.distance.e_z(z_vec, **cdict)) ** 3
+    integrand = 1.0 / (np.exp(lna) * cosmo.efunc(z)) ** 3
     integral = intg.simps(np.exp(lna) * integrand, dx=lna[1] - lna[0])
-    dplus = 5.0 * cdict["omega_M_0"] * cp.distance.e_z(z, **cdict) * integral / 2.0
+    dplus = 5.0 * cosmo.Om0 * cosmo.efunc(z) * integral / 2.0
 
     if getvec:
         lna = np.linspace(lna[-1], 0.0, 1000)
         z_vec = 1.0 / np.exp(lna) - 1.0
-        integrand = 1.0 / (np.exp(lna) * cp.distance.e_z(z_vec, **cdict)) ** 3
+        integrand = 1.0 / (np.exp(lna) * cosmo.efunc(z)) ** 3
         integral = intg.cumtrapz(np.exp(lna) * integrand, dx=lna[1] - lna[0], initial=0.0)
 
-        dplus += 5.0 * cdict["omega_M_0"] * cp.distance.e_z(z_vec, **cdict) * integral / 2.0
+        dplus += 5.0 * cosmo.Om0 * cosmo.efunc(z) * integral / 2.0
 
     if getvec:
         dplus = np.vstack((z_vec, dplus))  # spline(z_vec[1:], dplus)
 
     return dplus
 
-def growth_factor(z, cdict, getvec=False):
+def growth_factor(z, cosmo, getvec=False):
     """
     Calculate :math:`d(a) = D^+(a)/D^+(a=1)`, from Lukic et. al. 2007, eq. 7.
     
@@ -129,8 +129,8 @@ def growth_factor(z, cdict, getvec=False):
     z : float
         The redshift
         
-    cosmo : ``hmf.cosmo.Cosmology()`` object
-        Cosmological parameters 
+    cosmo : ``astropy.cosmology.FLRW()`` object or subclass
+        Cosmological model
     
     Returns
     -------
@@ -138,11 +138,10 @@ def growth_factor(z, cdict, getvec=False):
         The normalised growth factor.
     """
     if not getvec:
-        growth = d_plus(z, cdict, getvec) / d_plus(0.0, cdict)
+        growth = d_plus(z, cosmo, getvec) / d_plus(0.0, cosmo)
     else:
-        growth = d_plus(z, cdict, getvec)
-        growth[1, :] /= d_plus(0.0, cdict)
-#         growth = lambda z: dp(z) / d_plus(0.0, cdict)
+        growth = d_plus(z, cosmo, getvec)
+        growth[1, :] /= d_plus(0.0, cosmo)
 
     return growth
 

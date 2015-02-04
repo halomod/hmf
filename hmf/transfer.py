@@ -7,11 +7,12 @@ import numpy as np
 from cosmo import Cosmology
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import cosmolopy as cp
-import scipy.integrate as integ
-from _cache import cached_property, parameter
+from _cache import cached_property, parameter, Cache
 import sys
 from halofit import _get_spec, halofit
 from numpy import issubclass_
+from astropy.cosmology import Planck13
+
 # import cosmolopy.density as cden
 import tools
 try:
@@ -148,7 +149,7 @@ class BondEfs(GetTransfer):
         return np.log((1 + (a * k + (b * k) ** 1.5 + (c * k) ** 2) ** nu) ** (-1 / nu))
 
 
-class Transfer(Cosmology):
+class Transfer(Cache):
     '''
     Neatly deals with different transfer functions and their routines.
     
@@ -257,7 +258,8 @@ class Transfer(Cosmology):
         :default: [``"planck1_base"``] A default set of cosmological parameters
     '''
 
-    def __init__(self, z=0.0, lnk_min=np.log(1e-8),
+    def __init__(self, cosmo=Planck13, sigma_8=0.8, n=1.0, Ob0=0.05,
+                 z=0.0, lnk_min=np.log(1e-8),
                  lnk_max=np.log(2e4), dlnk=0.05,
                  transfer_fit=CAMB,
                  transfer_options={}, takahashi=True,
@@ -269,6 +271,10 @@ class Transfer(Cosmology):
         super(Transfer, self).__init__(**kwargs)
 
         # Set all given parameters
+        self.cosmo = cosmo
+        self.n = n
+        self.sigma_8 = sigma_8
+        self.cosmo.Ob0 = Ob0  # deprecated when astropy includes Ob0
         self.lnk_min = lnk_min
         self.lnk_max = lnk_max
         self.dlnk = dlnk
@@ -297,6 +303,9 @@ class Transfer(Cosmology):
                 setattr(self, k, v)
             del kwargs[k]
 
+        if "Ob0" in kwargs:  # deprecated when astropy includes Ob0
+            self.cosmo.Ob0 = kwargs["Ob0"]
+
         if kwargs:
             raise ValueError("Invalid arguments: %s" % kwargs)
 
@@ -311,6 +320,18 @@ class Transfer(Cosmology):
 #                          'AccuracyBoost', 'w_perturb', 'transfer__k_per_logint',
 #                          'transfer__kmax', 'ThreadNum']:
 #                 raise ValueError("%s not a valid camb option" % v)
+        return val
+
+    @parameter
+    def sigma_8(self, val):
+        if val < 0.1 or val > 10:
+            raise ValueError("sigma_8 out of bounds, %s" % val)
+        return val
+
+    @parameter
+    def n(self, val):
+        if val < -3 or val > 4:
+            raise ValueError("n out of bounds, %s" % val)
         return val
 
     @parameter
@@ -355,7 +376,33 @@ class Transfer(Cosmology):
     #===========================================================================
     # # ---- DERIVED PROPERTIES AND FUNCTIONS ---------------
     #===========================================================================
+    @cached_property("cosmo")
+    def mean_density0(self):
+        return self.cosmo.Om0 * self.cosmo.critical_density0
 
+    @cached_property("cosmo", "n")
+    def pycamb_dict(self):
+        """
+        Collect parameters into a dictionary suitable for pycamb.
+        
+        Returns
+        -------
+        dict
+            Dictionary of values appropriate for pycamb
+        """
+        return_dict = {"w_lam":self.cosmo.w(0),
+                       "TCMB":self.cosmo.Tcmb0.value,
+                       "N_nu":self.cosmo.Neff,
+                       "omegab":self.cosmo.Ob0,
+                       "omegac":self.cosmo.Om0 - self.cosmo.Ob0,
+                       "H0":self.cosmo.H0.value,
+                       "omegav":self.cosmo.Ode0,
+                       "omegak":self.cosmo.Ok0,
+                       "omegan":self.cosmo.Onu0,
+                       "scalar_index":self.n,
+                       }
+
+        return return_dict
 
     @cached_property("lnk_min", "lnk_max", "dlnk")
     def lnk(self):
@@ -380,25 +427,25 @@ class Transfer(Cosmology):
         """
         return self.n * self.lnk + 2 * self._unnormalised_lnT
 
-    @cached_property("sigma_8", "_unnormalised_lnP", "lnk", "mean_dens")
+    @cached_property("sigma_8", "_unnormalised_lnP", "lnk", "mean_density0")
     def _lnP_0(self):
         """
         Normalised CDM log power at z=0 [units :math:`Mpc^3/h^3`]
         """
         return tools.normalize(self.sigma_8,
                                self._unnormalised_lnP,
-                               self.lnk, self.mean_dens)[0]
+                               self.lnk, self.mean_density0)[0]
 
-    @cached_property("sigma_8", "_unnormalised_lnT", "lnk", "mean_dens")
+    @cached_property("sigma_8", "_unnormalised_lnT", "lnk", "mean_density0")
     def _lnT(self):
         """
         Normalised CDM log transfer function
         """
         return tools.normalize(self.sigma_8,
                                self._unnormalised_lnT,
-                               self.lnk, self.mean_dens)[0]
+                               self.lnk, self.mean_density0)[0]
 
-    @cached_property("z", "omegam", "omegav", "omegak")
+    @cached_property("z", "cosmo")
     def growth(self):
         r"""
         The growth factor :math:`d(z)`
@@ -409,15 +456,10 @@ class Transfer(Cosmology):
                 
         where
         
-        .. math:: D^+(z) = \frac{5\Omega_m}{2}\frac{H(z)}{H_0}\int_z^{\infty}{\frac{(1+z')dz'}{[H(z')/H_0]^3}}
-        
-        and
-        
-        .. math:: H(z) = H_0\sqrt{\Omega_m (1+z)^3 + (1-\Omega_m)}
-        
+        .. math:: D^+(z) = \frac{5\Omega_m}{2}\frac{H(z)}{H_0}\int_z^{\infty}{\frac{(1+z')dz'}{[H(z')/H_0]^3}}        
         """
         if self.z > 0:
-            return tools.growth_factor(self.z, self.cosmolopy_dict)
+            return tools.growth_factor(self.z, self.cosmo)
         else:
             return 1.0
 
@@ -442,15 +484,10 @@ class Transfer(Cosmology):
         
         Non-linear corrections come from HALOFIT (Smith2003) with updated
         parameters from Takahashi2012. 
-        
-        This code was heavily influenced by the HaloFit class from the 
-        `chomp` python package by Christopher Morrison, Ryan Scranton 
-        and Michael Schneider (https://code.google.com/p/chomp/). It has 
-        been modified to improve its integration with this package.        
         """
         return -3 * self.lnk + self.nonlinear_delta_k + np.log(2 * np.pi ** 2)
 
-    @cached_property("delta_k", "lnk", "z", "omegam", "omegav", "omegak", "omegan", 'w', 'takahashi')
+    @cached_property("delta_k", "lnk", "z", "sigma_8", "cosmo", 'takahashi')
     def nonlinear_delta_k(self):
         r"""
         Dimensionless nonlinear power spectrum, :math:`\Delta_k = \frac{k^3 P_{\rm nl}(k)}{2\pi^2}`
@@ -459,8 +496,8 @@ class Transfer(Cosmology):
         mask = np.exp(self.lnk) > 0.005
         plin = np.exp(self.delta_k[mask])
         k = np.exp(self.lnk[mask])
-        pnl = halofit(k, self.z, self.omegam, self.omegav, self.w, self.omegan,
-                      rneff, rncur, rknl, plin, self.takahashi)
+        pnl = halofit(k, self.z, self.cosmo.Om0, self.cosmo.Ode0, self.cosmo.w(0),
+                      self.cosmo.Onu0, rneff, rncur, rknl, plin, self.takahashi)
         nonlinear_delta_k = np.exp(self.delta_k)
         nonlinear_delta_k[mask] = pnl
         nonlinear_delta_k = np.log(nonlinear_delta_k)
