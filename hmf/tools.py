@@ -11,7 +11,6 @@ flexibility.
 #===============================================================================
 import numpy as np
 import scipy.integrate as intg
-import cosmolopy as cp
 import logging
 import astropy.units as u
 

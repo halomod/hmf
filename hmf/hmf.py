@@ -13,7 +13,6 @@ version = '1.8.0'
 import numpy as np
 import copy
 import logging
-import cosmolopy as cp
 import tools
 from fitting_functions import Tinker08, get_fit, Behroozi
 from transfer import Transfer
