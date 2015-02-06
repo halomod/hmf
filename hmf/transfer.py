@@ -7,11 +7,10 @@ import numpy as np
 from cosmo import Cosmology
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import cosmolopy as cp
-from _cache import cached_property, parameter, Cache
+from _cache import cached_property, parameter
 import sys
 from halofit import _get_spec, halofit
 from numpy import issubclass_
-from astropy.cosmology import Planck13
 import astropy.units as u
 from tools import h_unit
 
@@ -151,7 +150,7 @@ class BondEfs(GetTransfer):
         return np.log((1 + (a * k + (b * k) ** 1.5 + (c * k) ** 2) ** nu) ** (-1 / nu))
 
 
-class Transfer(Cache):
+class Transfer(Cosmology):
     '''
     Neatly deals with different transfer functions and their routines.
     
@@ -260,7 +259,7 @@ class Transfer(Cache):
         :default: [``"planck1_base"``] A default set of cosmological parameters
     '''
 
-    def __init__(self, cosmo=Planck13, sigma_8=0.8, n=1.0, Ob0=0.05,
+    def __init__(self, sigma_8=0.8, n=1.0,
                  z=0.0, lnk_min=np.log(1e-8),
                  lnk_max=np.log(2e4), dlnk=0.05,
                  transfer_fit=CAMB,
@@ -273,10 +272,9 @@ class Transfer(Cache):
         super(Transfer, self).__init__(**kwargs)
 
         # Set all given parameters
-        self.cosmo = cosmo
         self.n = n
         self.sigma_8 = sigma_8
-        self.cosmo.Ob0 = Ob0  # deprecated when astropy includes Ob0
+
         self.lnk_min = lnk_min
         self.lnk_max = lnk_max
         self.dlnk = dlnk
@@ -285,36 +283,9 @@ class Transfer(Cache):
         self.transfer_options = transfer_options
         self.takahashi = takahashi
 
-
-    def update(self, **kwargs):
-        """
-        Update the class optimally with given arguments.
-        
-        Accepts any argument that the constructor takes
-        """
-        # Cosmology arguments are treated differently
-        cosmo_kw = {k:v for k, v in kwargs.iteritems() if hasattr(Cosmology, k)}
-        if cosmo_kw:
-            self.cosmo_update(**cosmo_kw)
-            # Remove cosmo from kwargs
-            for k in cosmo_kw:
-                del kwargs[k]
-
-        for k, v in kwargs.items():
-            if hasattr(self, k):
-                setattr(self, k, v)
-            del kwargs[k]
-
-        if "Ob0" in kwargs:  # deprecated when astropy includes Ob0
-            self.cosmo.Ob0 = kwargs["Ob0"]
-
-        if kwargs:
-            raise ValueError("Invalid arguments: %s" % kwargs)
-
     #===========================================================================
     # Parameters
     #===========================================================================
-
     @parameter
     def transfer_options(self, val):
 #         for v in val:
@@ -376,13 +347,8 @@ class Transfer(Cache):
 
 
     #===========================================================================
-    # # ---- DERIVED PROPERTIES AND FUNCTIONS ---------------
+    # DERIVED PROPERTIES AND FUNCTIONS
     #===========================================================================
-    @cached_property("cosmo")
-    def mean_density0(self):
-        # fixme: why the *1e6??
-        return h_unit ** 2 * (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2).to(u.MsolMass / u.Mpc ** 3) * 1e6
-
     @cached_property("cosmo", "n")
     def pycamb_dict(self):
         """
@@ -504,4 +470,7 @@ class Transfer(Cache):
         nonlinear_delta_k = self.delta_k
         nonlinear_delta_k[mask] = pnl
         return nonlinear_delta_k
+
+
+
 
