@@ -24,6 +24,7 @@ logger = logging.getLogger('hmf')
 from filters import TopHat, Filter, get_filter
 import astropy.units as u
 from tools import h_unit
+
 class MassFunction(Transfer):
     """
     An object containing all relevant quantities for the mass function.
@@ -460,16 +461,18 @@ class MassFunction(Transfer):
         # If the highest mass is very low, we try calculating it to higher masses
         # The dlog10m is NOT CHANGED, so the input needs to be finely spaced.
         # If the top value of dndm is NaN, don't try calculating higher masses.
-        if m[-1] < 10 ** 16.5 and not np.isnan(dndm[-1]):
+        if m[-1].value < 10 ** 16.5 and not np.isnan(dndm[-1]):
             # Behroozi function won't work here.
             if isinstance(self._fit, Behroozi):
                 pass
             else:
                 new_mf = copy.deepcopy(self)
-                new_mf.update(Mmin=np.log10(self.M[-1]) + self.dlog10m, Mmax=18)
-                dndm = np.concatenate((dndm, new_mf.dndm))
-                m = np.concatenate((m, new_mf.M))
+                new_mf.update(Mmin=np.log10(self.M[-1].value) + self.dlog10m, Mmax=18)
+                dndm = np.concatenate((dndm, new_mf.dndm)) * dndm.unit
+                m = np.concatenate((m, new_mf.M)) * m.unit
 
+        print "m unit in _gtm: ", m.unit
+        print "dndm unit in _gtm: ", dndm.unit
         ngtm = hmf_integral_gtm(m, dndm, mass_density)
 
         # We need to set ngtm back in the original length vector with nans where they were originally
