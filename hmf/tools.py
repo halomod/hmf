@@ -106,7 +106,7 @@ def d_plus(z, cosmo, getvec=False):
     lna = np.linspace(np.log(1e-8), np.log(a_upper), 1000)
     z_vec = 1.0 / np.exp(lna) - 1.0
 
-    integrand = 1.0 / (np.exp(lna) * cosmo.efunc(z)) ** 3
+    integrand = 1.0 / (np.exp(lna) * cosmo.efunc(z_vec)) ** 3
     integral = intg.simps(np.exp(lna) * integrand, dx=lna[1] - lna[0])
     dplus = 5.0 * cosmo.Om0 * cosmo.efunc(z) * integral / 2.0
 
