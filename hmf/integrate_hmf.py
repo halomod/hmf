@@ -8,19 +8,31 @@ def hmf_integral_gtm(M, dndm, mass_density=False):
     
     Parameters
     ----------
-    M : array_like
-        Array of masses
+    M : array_like `astropy.units.Quantity` with mass units.
+        Array of masses.
         
-    dndm : array_like
+    dndm : array_like `astropy.units.Quantity` with inverse volume per mass units.
         Array of dn/dm (corresponding to M)
         
     mass_density : bool, `False`
         Whether to calculate mass density (or number density).
     """
+    if not hasattr(M, "unit"):
+        raise TypeError("M must be of quantity type")
+    if not hasattr(dndm, "unit"):
+        raise TypeError("dndm must be of quantity type")
+
     # Eliminate NaN's
     m = M[np.logical_not(np.isnan(dndm))]
     dndm = dndm[np.logical_not(np.isnan(dndm))]
     dndlnm = m * dndm
+
+    final_units = dndlnm.unit
+    m_unit = m.unit
+
+    m = m.value
+    dndm = dndm.value
+    dndlnm = dndlnm.value
     # Calculate the mass function (and its integral) from the highest M up to 10**18
     if m[-1] < m[0] * 10 ** 18 / m[3]:
         m_upper = np.arange(np.log(m[-1]), np.log(10 ** 18), np.log(m[1]) - np.log(m[0]))
@@ -38,6 +50,7 @@ def hmf_integral_gtm(M, dndm, mass_density=False):
     if not mass_density:
         ngtm = np.concatenate((cumtrapz(dndlnm[::-1], dx=np.log(m[1]) - np.log(m[0]))[::-1], np.zeros(1)))
     else:
+        final_units *= m_unit
         ngtm = np.concatenate((cumtrapz(m[::-1] * dndlnm[::-1], dx=np.log(m[1]) - np.log(m[0]))[::-1], np.zeros(1)))
 
-    return (ngtm + int_upper) * dndlnm.unit
+    return (ngtm + int_upper) * final_units

@@ -58,7 +58,7 @@ class TestCumulants(object):
         hmf.update(Mmin=minm, Mmax=maxm)
         anl = fcoll_Peacock(np.sqrt(hmf.nu))
         num = hmf.rho_gtm / hmf.mean_density0
-        err = np.abs((num - anl) / anl)[np.logical_and(hmf.M > 10 ** 10, hmf.M < 10 ** 15)]
+        err = np.abs((num - anl) / anl)[np.logical_and(hmf.M.value > 10 ** 10, hmf.M.value < 10 ** 15)]
         err = err[np.logical_not(np.isnan(err))]
         print np.max(err)
         assert np.max(err) < TestCumulants.tol
@@ -79,8 +79,8 @@ class TestCumulants(object):
 
     def check_mgtm(self, hmf, maxm):
         hmf.update(Mmin=0, Mmax=maxm, dlog10m=0.01)
-        print hmf.rho_gtm.unit
-        print hmf.mean_density0.unit
+        print "rhogtm: ", hmf.rho_gtm.unit
+        print "rhomean:", hmf.mean_density0.unit
         assert np.abs(hmf.rho_gtm[0] / hmf.mean_density0 - 1) < 0.1  # THIS IS PRETTY BIG!
 
 

@@ -99,7 +99,7 @@ class FittingFunction(object):
         self.params.update(model_parameters)
 
         # Save instance variables
-        self.M = M
+        self.M = M.value
         self.nu2 = nu2
         self.nu = np.sqrt(nu2)
         self.z = z

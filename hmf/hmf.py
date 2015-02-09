@@ -457,7 +457,6 @@ class MassFunction(Transfer):
         # Get required local variables
         size = len(dndm)
         m = self.M
-
         # If the highest mass is very low, we try calculating it to higher masses
         # The dlog10m is NOT CHANGED, so the input needs to be finely spaced.
         # If the top value of dndm is NaN, don't try calculating higher masses.
@@ -468,19 +467,20 @@ class MassFunction(Transfer):
             else:
                 new_mf = copy.deepcopy(self)
                 new_mf.update(Mmin=np.log10(self.M[-1].value) + self.dlog10m, Mmax=18)
-                dndm = np.concatenate((dndm, new_mf.dndm)) * dndm.unit
-                m = np.concatenate((m, new_mf.M)) * m.unit
+                dndm = np.concatenate((dndm.value, new_mf.dndm.value))
+                dndm *= new_mf.dndm.unit
 
-        print "m unit in _gtm: ", m.unit
-        print "dndm unit in _gtm: ", dndm.unit
+                m = np.concatenate((m.value, new_mf.M.value))
+                m *= new_mf.M.unit
+
         ngtm = hmf_integral_gtm(m, dndm, mass_density)
 
         # We need to set ngtm back in the original length vector with nans where they were originally
         if len(ngtm) < len(m):  # Will happen if some dndlnm are NaN
-            ngtm_temp = np.zeros_like(dndm)
+            ngtm_temp = np.zeros(len(dndm))
             ngtm_temp[:] = np.nan
-            ngtm_temp[np.logical_not(np.isnan(dndm))] = ngtm
-            ngtm = ngtm_temp
+            ngtm_temp[np.logical_not(np.isnan(dndm))] = ngtm.value
+            ngtm = ngtm_temp * ngtm.unit
 
         # Since ngtm may have been extended, we cut it back
         return ngtm[:size]
