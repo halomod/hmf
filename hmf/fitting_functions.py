@@ -1,6 +1,5 @@
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
-import cosmolopy as cp
 import sys
 import copy
 from scipy.special import gamma as Gam
@@ -118,7 +117,7 @@ class FittingFunction(object):
         if omegam_z is None and self.use_cosmo:
             if cosmo is None:
                 cosmo = cosmo.Cosmology()
-            self.omegam_z = cp.density.omega_M_z(self.z, **cosmo.cosmolopy_dict)
+            self.omegam_z = cosmo.cosmo.Om(self.z)
         elif self.use_cosmo:
             self.omegam_z = omegam_z
 
