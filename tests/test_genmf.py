@@ -46,9 +46,9 @@ To be more explicit, the power spectrum in all cases is produced with the follow
 #===============================================================================
 import numpy as np
 from hmf import MassFunction
-# from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import inspect
 import os
+from astropy.cosmology import LambdaCDM
 
 LOCATION = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 #=======================================================================
@@ -83,15 +83,14 @@ def max_diff(vec1, vec2, tol):
 #===============================================================================
 class TestGenMF(object):
     def __init__(self):
-        self.hmf = MassFunction(Mmin=7, Mmax=15.001, dlog10m=0.01, omegab=0.05, omegac=0.25,
-                            omegav=0.7, sigma_8=0.8, n=1, H0=70.0,
-                            lnk_min=-11, lnk_max=11, dlnk=0.01, transfer_options={"fname":LOCATION + "/data/transfer_for_hmf_tests.dat"},
-                            mf_fit='ST', z=0.0, transfer_fit="FromFile")
+        self.hmf = MassFunction(Mmin=7, Mmax=15.001, dlog10m=0.01, Ob0=0.05,
+                                sigma_8=0.8, n=1,
+                                base_cosmo=LambdaCDM(Om0=0.3, Ode0=0.7, H0=70.0),
+                                lnk_min=-11, lnk_max=11, dlnk=0.01, transfer_options={"fname":LOCATION + "/data/transfer_for_hmf_tests.dat"},
+                                mf_fit='ST', z=0.0, transfer_fit="FromFile", growth_model="GenMFGrowth")
 
     def check_col(self, pert, fit, redshift, col):
-        """ Able to check all columns only dependent on base cosmology (not fit) """
-
-
+        """ Able to check all columns"""
         data = np.genfromtxt(LOCATION + "/data/" + fit + '_' + str(int(redshift)))[::-1][400:1201]
 
         # We have to do funky stuff to the data if its been cut by genmf
@@ -102,13 +101,13 @@ class TestGenMF(object):
         elif col is "n_eff":
             assert max_diff_rel(pert.n_eff, data[:, 6], 0.001)
         elif col is "dndlog10m":
-            assert rms_diff(pert.dndlog10m, 10 ** data[:, 1], 0.004)
+            assert rms_diff(pert.dndlog10m.value, 10 ** data[:, 1], 0.004)
         elif col is "fsigma":
             assert rms_diff(pert.fsigma, data[:, 4], 0.004)
         elif col is "ngtm":
             # # The reason this is only good to 5% is GENMF's problem -- it uses
             # # poor integration.
-            assert rms_diff(pert.ngtm, 10 ** data[:, 2], 0.046)
+            assert rms_diff(pert.ngtm.value, 10 ** data[:, 2], 0.046)
 
     def test_sigmas(self):
         # # Test z=0,2. Higher redshifts are poor in genmf.
