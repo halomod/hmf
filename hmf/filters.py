@@ -243,7 +243,7 @@ class SharpK(Filter):
 
     def dlnss_dlnr(self, r):
         sigma = self.sigma(r)
-        power = spline(self.k, self.p)(1 / r)
+        power = spline(self.k, self.power)(1 / r)
         return -power / (2 * np.pi ** 2 * sigma ** 2 * r ** 3)
 
     def mass_to_radius(self, m):
