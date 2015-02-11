@@ -107,7 +107,7 @@ class TestGenMF(object):
         elif col is "ngtm":
             # # The reason this is only good to 5% is GENMF's problem -- it uses
             # # poor integration.
-            assert rms_diff(pert.ngtm.value, 10 ** data[:, 2], 0.046)
+            assert rms_diff(pert.ngtm.value, 10 ** data[:, 2], 0.047)
 
     def test_sigmas(self):
         # # Test z=0,2. Higher redshifts are poor in genmf.
