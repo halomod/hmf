@@ -5,16 +5,13 @@ related quantities.
 """
 import numpy as np
 from cosmo import Cosmology
-from scipy.interpolate import InterpolatedUnivariateSpline as spline
-import cosmolopy as cp
 from _cache import cached_property, parameter
-import sys
 from halofit import _get_spec, halofit
 from numpy import issubclass_
 import astropy.units as u
 from tools import h_unit
-
-
+from growth_factor import GrowthFactor, get_growth
+import transfer_models as tm
 import tools
 try:
     import pycamb
@@ -22,137 +19,9 @@ try:
 except ImportError:
     HAVE_PYCAMB = False
 
-#===============================================================================
-# Transfer Function Getting Routines
-#===============================================================================
-def get_transfer(name, t):
-    """
-    A function that chooses the correct Profile class and returns it
-    """
-    try:
-        return getattr(sys.modules[__name__], name)(t)
-    except AttributeError:
-        raise AttributeError(str(name) + "  is not a valid GetTransfer class")
-
-_allfits = ["CAMB", "FromFile", "EH", "BBKS", "BondEfs"]
-
-class GetTransfer(object):
-    def __init__(self, t):
-        self.t = t
-
-    def lnt(self, lnk):
-        pass
-
-class CAMB(GetTransfer):
-    option_defaults = {"Scalar_initial_condition":1,
-                       "lAccuracyBoost":1,
-                       "AccuracyBoost":1,
-                       "w_perturb":False,
-                       "transfer__k_per_logint":11,
-                       "transfer__kmax":5,
-                       "ThreadNum":0}
-    def _check_low_k(self, lnk, lnT):
-        """
-        Check convergence of transfer function at low k.
-        
-        Unfortunately, some versions of CAMB produce a transfer which has a
-        turn-up at low k, which is what we seek to cut out here.
-        
-        Parameters
-        ----------
-        lnk : array_like
-            Value of log(k)
-            
-        lnT : array_like
-            Value of log(transfer)
-        """
-
-        start = 0
-        for i in range(len(lnk) - 1):
-            if abs((lnT[i + 1] - lnT[i]) / (lnk[i + 1] - lnk[i])) < 0.01:
-                start = i
-                break
-        lnT = lnT[start:-1]
-        lnk = lnk[start:-1]
-
-        return lnk, lnT
-
-    def lnt(self, lnk):
-        """
-        Generate transfer function with CAMB
-        
-        .. note :: This should not be called by the user!
-        """
-        for k in self.option_defaults:
-            if k not in self.t.transfer_options:
-                self.t.transfer_options[k] = self.option_defaults[k]
-
-        cdict = dict(self.t.pycamb_dict,
-                     **self.t.transfer_options)
-        T = pycamb.transfers(**cdict)[1]
-        T = np.log(T[[0, 6], :, 0])
-
-        lnkout, lnT = self._check_low_k(T[0, :], T[1, :])
-
-        return spline(lnkout, lnT, k=1)(lnk)
-
-class FromFile(CAMB):
-    def lnt(self, lnk):
-        """
-        Import the transfer function from file.
-        
-        The format should be the same as CAMB output, or a simple 2-column file.
-        """
-        try:
-            T = np.log(np.genfromtxt(self.t.transfer_options["fname"])[:, [0, 6]].T)
-        except IndexError:
-            T = np.log(np.genfromtxt(self.t.transfer_options["fname"])[:, [0, 1]].T)
-
-        lnkout, lnT = self._check_low_k(T[0, :], T[1, :])
-        return spline(lnkout, lnT, k=1)(lnk)
-
-
-class EH(GetTransfer):
-    def lnt(self, lnk):
-        """
-        Eisenstein-Hu transfer function
-        """
-
-        T = np.log(cp.perturbation.transfer_function_EH(np.exp(lnk) * self.t.h,
-                                    **self.t.cosmolopy_dict)[1])
-        return T
-
-class BBKS(GetTransfer):
-    def lnt(self, lnk):
-        """
-        BBKS transfer function.
-        """
-        Gamma = self.t.omegam * self.t.h
-        q = np.exp(lnk) / Gamma * np.exp(self.t.omegab + np.sqrt(2 * self.t.h) *
-                               self.t.omegab / self.t.omegam)
-        return np.log((np.log(1.0 + 2.34 * q) / (2.34 * q) *
-                (1 + 3.89 * q + (16.1 * q) ** 2 + (5.47 * q) ** 3 +
-                 (6.71 * q) ** 4) ** (-0.25)))
-
-class BondEfs(GetTransfer):
-    def lnt(self, lnk):
-        """
-        Bond and Efstathiou transfer function.
-        """
-
-        omegah2 = 1.0 / (self.t.omegam * self.t.h ** 2)
-
-        a = 6.4 * omegah2
-        b = 3.0 * omegah2
-        c = 1.7 * omegah2
-        nu = 1.13
-        k = np.exp(lnk)
-        return np.log((1 + (a * k + (b * k) ** 1.5 + (c * k) ** 2) ** nu) ** (-1 / nu))
-
-
 class Transfer(Cosmology):
     '''
-    Neatly deals with different transfer functions and their routines.
+    Neatly deals with different transfer functions.
     
     The purpose of this class is to calculate transfer functions, power spectra
     and several tightly associated quantities using many of the available fits
@@ -196,33 +65,6 @@ class Transfer(Cosmology):
         Defines which transfer function fit to use. If not defined from the
         listed options, it will be treated as a filename to be read in. In this
         case the file must contain a transfer function in CAMB output format. 
-           
-    Scalar_initial_condition : int, {1,2,3,4,5}
-        (CAMB-only) Initial scalar perturbation mode (adiabatic=1, CDM iso=2, 
-        Baryon iso=3,neutrino density iso =4, neutrino velocity iso = 5) 
-        
-    lAccuracyBoost : float, optional, default ``1.0``
-        (CAMB-only) Larger to keep more terms in the hierarchy evolution
-    
-    AccuracyBoost : float, optional, default ``1.0``
-        (CAMB-only) Increase accuracy_boost to decrease time steps, use more k 
-        values,  etc.Decrease to speed up at cost of worse accuracy. 
-        Suggest 0.8 to 3.
-        
-    w_perturb : bool, optional, default ``False``
-        (CAMB-only) 
-    
-    transfer__k_per_logint : int, optional, default ``11``
-        (CAMB-only) Number of wavenumbers estimated per log interval by CAMB
-        Default of 11 gets best performance for requisite accuracy of mass function.
-        
-    transfer__kmax : float, optional, default ``0.25``
-        (CAMB-only) Maximum value of the wavenumber.
-        Default of 0.25 is high enough for requisite accuracy of mass function.
-        
-    ThreadNum : int, optional, default ``0``
-        (CAMB-only) Number of threads to use for calculation of transfer 
-        function by CAMB. Default 0 automatically determines the number.
                        
     takahashi : bool, default ``True``
         Whether to use updated HALOFIT coefficients from Takahashi+12
@@ -232,31 +74,7 @@ class Transfer(Cosmology):
         
     kwargs : keywords
         The ``**kwargs`` take any cosmological parameters desired, which are 
-        input to the `hmf.cosmo.Cosmology` class. `hmf.Perturbations` uses a 
-        default parameter set from the first-year PLANCK mission, with optional 
-        modifications by the user. Here is a list of parameters currently 
-        available (and their defaults in `Transfer`):       
-                 
-        :sigma_8: [0.8344] The normalisation. Mass variance in top-hat spheres 
-            with :math:`R=8Mpc h^{-1}`   
-        :n: [0.9624] The spectral index 
-        :w: [-1] The dark-energy equation of state
-        :cs2_lam: [1] The constant comoving sound speed of dark energy
-        :t_cmb: [2.725] Temperature of the CMB
-        :y_he: [0.24] Helium fraction
-        :N_nu: [3.04] Number of massless neutrino species
-        :N_nu_massive: [0] Number of massive neutrino species
-        :delta_c: [1.686] The critical overdensity for collapse
-        :H0: [67.11] The hubble constant
-        :h: [``H0/100.0``] The hubble parameter
-        :omegan: [0] The normalised density of neutrinos
-        :omegab_h2: [0.022068] The normalised baryon density by ``h**2``
-        :omegac_h2: [0.12029] The normalised CDM density by ``h**2``
-        :omegav: [0.6825] The normalised density of dark energy
-        :omegab: [``omegab_h2/h**2``] The normalised baryon density
-        :omegac: [``omegac_h2/h**2``] The normalised CDM density     
-        :force_flat: [False] Whether to force the cosmology to be flat (affects only ``omegav``)
-        :default: [``"planck1_base"``] A default set of cosmological parameters
+        input to the `hmf.cosmo.Cosmology` class.
     '''
 
     def __init__(self, sigma_8=0.8, n=1.0,
@@ -274,7 +92,6 @@ class Transfer(Cosmology):
         # Set all given parameters
         self.n = n
         self.sigma_8 = sigma_8
-
         self.lnk_min = lnk_min
         self.lnk_max = lnk_max
         self.dlnk = dlnk
@@ -282,10 +99,20 @@ class Transfer(Cosmology):
         self.transfer_fit = transfer_fit
         self.transfer_options = transfer_options
         self.takahashi = takahashi
-
     #===========================================================================
     # Parameters
     #===========================================================================
+    @parameter
+    def growth_model(self, val):
+        if not issubclass_(val, GrowthFactor) and not isinstance(val, basestring):
+            raise ValueError("growth_model must be a GrowthFactor or string, got %s" % type(val))
+        print "HEY HEY EY"
+        return val
+
+    @parameter
+    def _growth_params(self, val):
+        return val
+
     @parameter
     def transfer_options(self, val):
 #         for v in val:
@@ -339,55 +166,31 @@ class Transfer(Cosmology):
 
     @parameter
     def transfer_fit(self, val):
-        if not HAVE_PYCAMB and (val == "CAMB" or val == CAMB):
+        if not HAVE_PYCAMB and (val == "CAMB" or val == tm.CAMB):
             raise ValueError("You cannot use the CAMB transfer since pycamb isn't installed")
-        if not (issubclass_(val, GetTransfer) or isinstance(val, basestring)):
-            raise ValueError("transfer_fit must be string or GetTransfer subclass")
+        if not (issubclass_(val, tm.Transfer) or isinstance(val, basestring)):
+            raise ValueError("transfer_fit must be string or Transfer subclass")
         return val
 
 
     #===========================================================================
     # DERIVED PROPERTIES AND FUNCTIONS
     #===========================================================================
-    @cached_property("cosmo", "n")
-    def pycamb_dict(self):
-        """
-        Collect parameters into a dictionary suitable for pycamb.
-        
-        Returns
-        -------
-        dict
-            Dictionary of values appropriate for pycamb
-        """
-        return_dict = {"w_lam":self.cosmo.w(0),
-                       "TCMB":self.cosmo.Tcmb0.value,
-                       "Num_Nu_massless":self.cosmo.Neff,
-                       "omegab":self.cosmo.Ob0,
-                       "omegac":self.cosmo.Om0 - self.cosmo.Ob0,
-                       "H0":self.cosmo.H0.value,
-                       "omegav":self.cosmo.Ode0,
-                       "omegak":self.cosmo.Ok0,
-                       "omegan":self.cosmo.Onu0,
-                       "scalar_index":self.n,
-                       }
-
-        return return_dict
-
     @cached_property("lnk_min", "lnk_max", "dlnk")
     def k(self):
         return np.exp(np.arange(self.lnk_min, self.lnk_max, self.dlnk)) * h_unit / u.Mpc
 
-    @cached_property("k", "pycamb_dict", "transfer_options", "transfer_fit")
+    @cached_property("k", "cosmo", "transfer_options", "transfer_fit")
     def _unnormalised_lnT(self):
         """
         The un-normalised transfer function
         
         This wraps the individual transfer_fit methods to provide unified access.
         """
-        if issubclass_(self.transfer_fit, GetTransfer):
-            return self.transfer_fit(self).lnt(np.log(self.k.value))
+        if issubclass_(self.transfer_fit, tm.Transfer):
+            return self.transfer_fit(self.cosmo, **self.transfer_options).lnt(np.log(self.k.value))
         elif isinstance(self.transfer_fit, basestring):
-            return get_transfer(self.transfer_fit, self).lnt(np.log(self.k.value))
+            return tm.get_transfer(self.transfer_fit, self.cosmo, **self.transfer_options).lnt(np.log(self.k.value))
 
     @cached_property("n", "k", "_unnormalised_lnT")
     def _unnormalised_power(self):
@@ -414,7 +217,7 @@ class Transfer(Cosmology):
 #                                self._unnormalised_lnT,
 #                                self.lnk, self.mean_density0)[0]
 
-    @cached_property("z", "cosmo")
+    @cached_property("z", "cosmo", "growth_model", "_growth_params")
     def growth(self):
         r"""
         The growth factor :math:`d(z)`
@@ -428,7 +231,13 @@ class Transfer(Cosmology):
         .. math:: D^+(z) = \frac{5\Omega_m}{2}\frac{H(z)}{H_0}\int_z^{\infty}{\frac{(1+z')dz'}{[H(z')/H_0]^3}}        
         """
         if self.z > 0:
-            return tools.growth_factor(self.z, self.cosmo)
+            if issubclass_(self.growth_model, GrowthFactor):
+                g = self.growth_model(self.cosmo, **self._growth_params)
+            elif isinstance(self.growth_model, basestring):
+                g = get_growth(self.growth_model, self.cosmo,
+                               **self._growth_params)
+
+            return g.growth_factor(self.z)
         else:
             return 1.0
 
@@ -461,12 +270,11 @@ class Transfer(Cosmology):
         r"""
         Dimensionless nonlinear power spectrum, :math:`\Delta_k = \frac{k^3 P_{\rm nl}(k)}{2\pi^2}`
         """
-        rknl, rneff, rncur = _get_spec(self.lnk, self.delta_k, self.sigma_8)
-        mask = self.k > 0.005
+        rknl, rneff, rncur = _get_spec(self.k, self.delta_k, self.sigma_8)
+        mask = self.k.value > 0.005
         plin = np.exp(self.delta_k[mask])
         k = self.k[mask]
-        pnl = halofit(k, self.z, self.cosmo.Om0, self.cosmo.Ode0, self.cosmo.w(0),
-                      self.cosmo.Onu0, rneff, rncur, rknl, plin, self.takahashi)
+        pnl = halofit(k.value, self.z, self.cosmo, rneff, rncur, rknl, plin, self.takahashi)
         nonlinear_delta_k = self.delta_k
         nonlinear_delta_k[mask] = pnl
         return nonlinear_delta_k
