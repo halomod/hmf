@@ -243,7 +243,7 @@ class SharpK(Filter):
 
     def dlnss_dlnr(self, r):
         sigma = self.sigma(r)
-        power = spline(self.k, self.power)(1 / r)
+        power = spline(self.k, self.power)(1 / r) * self.power.unit
         return -power / (2 * np.pi ** 2 * sigma ** 2 * r ** 3)
 
     def mass_to_radius(self, m):
@@ -259,13 +259,13 @@ class SharpK(Filter):
 
         # # Need to re-define this because the integral needs to go exactly kr=1
         # # or else the function 'jitters'
-        sigma = np.zeros_like(r)
-        power = spline(self.lnk, self.lnp)
+        sigma = np.zeros(len(r))
+        power = spline(self.k, self.power)
         for i, rr in enumerate(r):
-            lnk = np.linspace(self.lnk[0], np.log(1.0 / rr), len(self.lnk))
-            p = power(lnk)
-            dlnk = lnk[1] - lnk[0]
-            integ = np.exp(p + (3 + 2 * order) * lnk)
+            k = np.logspace(np.log(self.k[0].value), np.log(1.0 / rr.value), len(self.k), base=np.e)
+            p = power(k)
+            dlnk = np.log(k[1] / k[0])
+            integ = p * k ** (3 + 2 * order)
             sigma[i] = (0.5 / (np.pi ** 2)) * intg.simps(integ, dx=dlnk)
 
         return np.sqrt(sigma)

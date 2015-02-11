@@ -36,14 +36,14 @@ class WDM(object):
     '''
 
     _defaults = {}
-    def __init__(self, mx, omegac, h, rho_mean, **model_params):
+    def __init__(self, mx, cosmo, **model_params):
         '''
         Constructor
         '''
         self.mx = mx
-        self.omegac = omegac
-        self.h = h
-        self.rho_mean = rho_mean
+        self.cosmo = cosmo
+        self.rho_mean = cosmo.Om0 * cosmo.critical_density0
+        self.Oc0 = cosmo.Om0 - cosmo.Ob0
 
         # Check that all parameters passed are valid
         for k in model_params:
@@ -97,12 +97,12 @@ class Viel05(WDM):
     _defaults = {"mu":1.12,
                  "g_x":1.5}
 
-    def transfer(self, lnk):
-        return (1 + (self.lam_eff_fs * np.exp(lnk)) ** (2 * self.params["mu"])) ** (-5.0 / self.params["mu"])
+    def transfer(self, k):
+        return (1 + (self.lam_eff_fs * k.value) ** (2 * self.params["mu"])) ** (-5.0 / self.params["mu"])
 
     @property
     def lam_eff_fs(self):
-        return 0.049 * self.mx ** -1.11 * (self.omegac / 0.25) ** 0.11 * (self.h / 0.7) ** 1.22 * (1.5 / self.params['g_x']) ** 0.29
+        return 0.049 * self.mx ** -1.11 * (self.Oc0 / 0.25) ** 0.11 * (self.cosmo.h / 0.7) ** 1.22 * (1.5 / self.params['g_x']) ** 0.29
 
     @property
     def m_fs(self):
@@ -155,23 +155,22 @@ class TransferWDM(Transfer):
     #===========================================================================
     # Derived properties
     #===========================================================================
-    @cached_property("mean_dens", "wdm_mass", "omegac", "h", "wdm_transfer", "wdm_params")
+    @cached_property("cosmo", "wdm_mass", "wdm_transfer", "wdm_params")
     def _wdm(self):
         if issubclass_(self.wdm_transfer, WDM):
-            return self.wdm_transfer(self.wdm_mass, self.omegac, self.h, self.mean_dens,
-                                     **self.wdm_params)
+            return self.wdm_transfer(self.wdm_mass, self.cosmo,
+                                     ** self.wdm_params)
         elif isinstance(self.wdm_transfer, basestring):
-            return get_wdm(self.wdm_transfer, mx=self.wdm_mass, omegac=self.omegac,
-                           h=self.h, rho_mean=self.mean_dens,
+            return get_wdm(self.wdm_transfer, mx=self.wdm_mass, cosmo=self.cosmo,
                            **self.wdm_params)
 
     @cached_property("_wdm")
-    def _lnP_0(self):
+    def _power0(self):
         """
         Normalised log power at :math:`z=0`
         """
-        lnp_cdm = super(TransferWDM, self)._lnP_0
-        return 2 * np.log(self._wdm.transfer(self.lnk)) + lnp_cdm
+        powercdm = super(TransferWDM, self)._power0
+        return self._wdm.transfer(self.k) ** 2 * powercdm
 
 class MassFunctionWDM(MassFunction, TransferWDM):
     def __init__(self, wdm_alter=False, **kwargs):

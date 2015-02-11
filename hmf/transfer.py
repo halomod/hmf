@@ -106,7 +106,6 @@ class Transfer(Cosmology):
     def growth_model(self, val):
         if not issubclass_(val, GrowthFactor) and not isinstance(val, basestring):
             raise ValueError("growth_model must be a GrowthFactor or string, got %s" % type(val))
-        print "HEY HEY EY"
         return val
 
     @parameter

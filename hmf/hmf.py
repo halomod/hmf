@@ -276,8 +276,8 @@ class MassFunction(Transfer):
                                  **self.filter_params)
         elif isinstance(self.filter, basestring):
             filter = get_filter(self.filter, rho_mean=self.mean_density0,
-                              delta_c=self.delta_c, lnk=self.k, lnp=self._power0,
-                              **self.filter_params)
+                                delta_c=self.delta_c, k=self.k, power=self._power0,
+                                **self.filter_params)
 
         return filter
 
