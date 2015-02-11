@@ -128,7 +128,6 @@ class GenMFGrowth(GrowthFactor):
     Port of growth factor routines found in the genmf code.
     """
     def growth_factor(self, z):
-        print "DERP DERP DERP"
         a = 1 / (1 + z)
         w = 1 / self.cosmo.Om0 - 1.0
         sum = self.cosmo.Om0 + self.cosmo.Ode0
