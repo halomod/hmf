@@ -77,27 +77,27 @@ class Transfer(Cosmology):
         input to the `hmf.cosmo.Cosmology` class.
     '''
 
-    def __init__(self, sigma_8=0.8, n=1.0,
-                 z=0.0, lnk_min=np.log(1e-8),
-                 lnk_max=np.log(2e4), dlnk=0.05,
-                 transfer_fit=CAMB,
-                 transfer_options={}, takahashi=True,
-                  **kwargs):
-        '''
-        Initialises some parameters
-        '''
+    def __init__(self, sigma_8=0.8, n=1.0, z=0.0, lnk_min=np.log(1e-8),
+                 lnk_max=np.log(2e4), dlnk=0.05, transfer_fit=tm.CAMB,
+                 transfer_options=None, takahashi=True, growth_model=GrowthFactor,
+                 _growth_params=None, **kwargs):
+        # Note the parameters that have empty dicts as defaults must be specified
+        # as None, or the defaults themselves are updated!
+
         # Call Cosmology init
         super(Transfer, self).__init__(**kwargs)
 
         # Set all given parameters
         self.n = n
         self.sigma_8 = sigma_8
+        self.growth_model = growth_model
+        self._growth_params = _growth_params or {}
         self.lnk_min = lnk_min
         self.lnk_max = lnk_max
         self.dlnk = dlnk
         self.z = z
         self.transfer_fit = transfer_fit
-        self.transfer_options = transfer_options
+        self.transfer_options = transfer_options or {}
         self.takahashi = takahashi
     #===========================================================================
     # Parameters

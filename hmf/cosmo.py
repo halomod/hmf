@@ -77,6 +77,7 @@ class Cosmology(Cache):
         :Om0: The normalised matter density at z=0     
 
     """
+    def __init__(self, base_cosmo=Planck13, Ob0=0.05, cosmo_params=None):
         # Call Cosmology init
         super(Cosmology, self).__init__()
 

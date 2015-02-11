@@ -109,8 +109,8 @@ class MassFunction(Transfer):
 
 
     def __init__(self, Mmin=10, Mmax=15, dlog10m=0.01, mf_fit=Tinker08, delta_h=200.0,
-                 delta_wrt='mean', cut_fit=True, z2=None, nz=None, _fsig_params={},
-                 delta_c=1.686, filter=TopHat, filter_params={},
+                 delta_wrt='mean', cut_fit=True, z2=None, nz=None, _fsig_params=None,
+                 delta_c=1.686, filter=TopHat, filter_params=None,
                  **transfer_kwargs):
         """
         Initializes some parameters      
@@ -129,9 +129,9 @@ class MassFunction(Transfer):
         self.z2 = z2
         self.nz = nz
         self.delta_c = delta_c
-        self._fsig_params = _fsig_params
+        self._fsig_params = _fsig_params or {}
         self.filter = filter
-        self.filter_params = filter_params
+        self.filter_params = filter_params or {}
 
     #===========================================================================
     # PARAMETERS
