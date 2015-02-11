@@ -77,13 +77,12 @@ class Cosmology(Cache):
         :Om0: The normalised matter density at z=0     
 
     """
-    def __init__(self, base_cosmo=Planck13, Ob0=0.05, cosmo_params={}):
         # Call Cosmology init
         super(Cosmology, self).__init__()
 
         # Set all given parameters
         self.base_cosmo = base_cosmo
-        self.cosmo_params = cosmo_params
+        self.cosmo_params = cosmo_params or {}
         self.cosmo.Ob0 = Ob0  # deprecated when astropy includes Ob0
 
     def update(self, **kwargs):
@@ -93,17 +92,21 @@ class Cosmology(Cache):
         Accepts any argument that the constructor takes
         """
         # # All the following is deprecated when astropy includes Ob0
+        Ob0 = self.cosmo.Ob0
         if "Ob0" in kwargs:
             self.cosmo.Ob0 = kwargs.pop("Ob0")
         elif "base_cosmo" in kwargs:
-            Ob0 = self.cosmo.Ob0
             setattr(self, "base_cosmo", kwargs.pop("base_cosmo"))
+            self.cosmo.Ob0 = Ob0
+        elif "cosmo_params" in kwargs:
+            setattr(self, "cosmo_params", kwargs.pop("cosmo_params"))
             self.cosmo.Ob0 = Ob0
 
         for k, v in kwargs.items():
             if hasattr(self, k):
                 setattr(self, k, v)
             del kwargs[k]
+
 
         if kwargs:
             raise ValueError("Invalid arguments: %s" % kwargs)
