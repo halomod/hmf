@@ -68,8 +68,8 @@ def cached_property(*parents):
             is_sub = False
             not_in_papr = any(p not in getattr(self, recalc_papr) for p in parents)
             if not_in_papr and name in getattr(self, recalc):
+                all_pars = []
                 if any(p in getattr(self, recalc_prpa) for p in parents):
-                    all_pars = []
                     for p in parents:
                         all_pars += list(getattr(self, recalc_prpa).get(p, []))
                 if any(p not in getattr(self, recalc_prpa)[name] for p in all_pars):

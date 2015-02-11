@@ -12,6 +12,7 @@ import scipy.integrate as intg
 import collections
 import sys
 import copy
+import astropy.units as u
 
 def get_filter(name, **kwargs):
     """
@@ -34,11 +35,11 @@ def get_filter(name, **kwargs):
 class Filter(object):
     _defaults = {}
 
-    def __init__(self, rho_mean, delta_c, lnk, lnp, **model_parameters):
+    def __init__(self, rho_mean, delta_c, k, power, **model_parameters):
         self.rho_mean = rho_mean
         self.delta_c = delta_c
-        self.lnk = lnk
-        self.lnp = lnp
+        self.k = k
+        self.power = power
 
         # Check that all parameters passed are valid
         for k in model_parameters:
@@ -118,11 +119,11 @@ class Filter(object):
         pass
 
     def dlnss_dlnr(self, r):
-        dlnk = self.lnk[1] - self.lnk[0]
-        out = np.zeros_like(r)
+        dlnk = np.log(self.k[1] / self.k[0])
+        out = np.zeros(len(r))
         s = self.sigma(r)
-        k = np.exp(self.lnk)
-        rest = np.exp(self.lnp + 3 * self.lnk)
+        k = self.k
+        rest = self.power * k ** 3
         for i, rr in enumerate(r):
             y = rr * k
             w = self.k_space(y)
@@ -158,24 +159,25 @@ class Filter(object):
         r : float or array_like
             The radii of the spheres at which to calculate the mass variance.
             
-        lnk, lnp : array_like
-            The associated log wavenumber and power spectrum
-            
         Returns
         -------
         sigma : array_like ( ``len=len(m)`` )
             The square root of the mass variance at ``m``
         """
         # If we input a scalar as M, then just make it a one-element list.
-        if not isinstance(r, collections.Iterable):
+        try:
+            len(r)
+        except TypeError:
             r = [r]
+#         if not isinstance(r, collections.Iterable):
+#             r = [r]
 
-        dlnk = self.lnk[1] - self.lnk[0]
+        dlnk = np.log(self.k[1] / self.k[0])
         # Calculate the integrand of the function. Note that the power spectrum and k values must be
         # 'un-logged' before use, and we multiply by k because our steps are in logk.
-        sigma = np.zeros_like(r)
-        rest = np.exp(self.lnp + (3 + order * 2) * self.lnk)
-        k = np.exp(self.lnk)
+        sigma = np.zeros(len(r))
+        rest = self.power * self.k ** (3 + order * 2)
+        k = self.k
         for i, rr in enumerate(r):
             integ = rest * self.k_space(rr * k) ** 2
             sigma[i] = (0.5 / np.pi ** 2) * intg.simps(integ, dx=dlnk)
@@ -203,7 +205,7 @@ class TopHat(Filter):
         w = np.ones(len(kr))
         K = kr[kr > 1.4e-6]
         # Truncate the filter at small kr for numerical reasons
-        w[kr > 1.4e-6] = (3 / K ** 3) * (np.sin(K) - K * np.cos(K))
+        w[kr > 1.4e-6] = (3 / K ** 3) * (np.sin(K * u.rad) - K * np.cos(K * u.rad))
         return w
 
     def mass_to_radius(self, m):
@@ -215,7 +217,7 @@ class TopHat(Filter):
     def dw_dlnkr(self, kr):
         out = np.zeros_like(kr)
         y = kr[kr > 1e-3]
-        out[kr > 1e-3] = (9 * y * np.cos(y) + 3 * (y ** 2 - 3) * np.sin(y)) / y ** 3
+        out[kr > 1e-3] = (9 * y * np.cos(y * u.rad) + 3 * (y ** 2 - 3) * np.sin(y * u.rad)) / y ** 3
         return out
 
 class SharpK(Filter):
@@ -241,7 +243,7 @@ class SharpK(Filter):
 
     def dlnss_dlnr(self, r):
         sigma = self.sigma(r)
-        power = np.exp(spline(self.lnk, self.lnp)(np.log(1 / r)))
+        power = spline(self.k, self.power)(1 / r) * self.power.unit
         return -power / (2 * np.pi ** 2 * sigma ** 2 * r ** 3)
 
     def mass_to_radius(self, m):
@@ -257,13 +259,13 @@ class SharpK(Filter):
 
         # # Need to re-define this because the integral needs to go exactly kr=1
         # # or else the function 'jitters'
-        sigma = np.zeros_like(r)
-        power = spline(self.lnk, self.lnp)
+        sigma = np.zeros(len(r))
+        power = spline(self.k, self.power)
         for i, rr in enumerate(r):
-            lnk = np.linspace(self.lnk[0], np.log(1.0 / rr), len(self.lnk))
-            p = power(lnk)
-            dlnk = lnk[1] - lnk[0]
-            integ = np.exp(p + (3 + 2 * order) * lnk)
+            k = np.logspace(np.log(self.k[0].value), np.log(1.0 / rr.value), len(self.k), base=np.e)
+            p = power(k)
+            dlnk = np.log(k[1] / k[0])
+            integ = p * k ** (3 + 2 * order)
             sigma[i] = (0.5 / (np.pi ** 2)) * intg.simps(integ, dx=dlnk)
 
         return np.sqrt(sigma)
