@@ -1,5 +1,5 @@
 '''
-This module provides some tests of mgtm/mean_dens against analytic f_coll.
+This module provides some tests of mgtm/mean_density0 against analytic f_coll.
 
 As such, it is the best test of all calculations after sigma.
 '''
@@ -19,11 +19,11 @@ class TestFcoll(object):
     def check_fcoll(self, pert, fit):
         if fit == "PS":
             anl = fcoll_PS(np.sqrt(pert.nu))
-            num = pert.rho_gtm / pert.mean_dens
+            num = pert.rho_gtm / pert.mean_density0
 
         elif fit == "Peacock":
             anl = fcoll_Peacock(np.sqrt(pert.nu))
-            num = pert.rho_gtm / pert.mean_dens
+            num = pert.rho_gtm / pert.mean_density0
 
         err = np.abs((num - anl) / anl)
         print np.max(err)
@@ -57,8 +57,8 @@ class TestCumulants(object):
     def check(self, hmf, minm, maxm):
         hmf.update(Mmin=minm, Mmax=maxm)
         anl = fcoll_Peacock(np.sqrt(hmf.nu))
-        num = hmf.rho_gtm / hmf.mean_dens
-        err = np.abs((num - anl) / anl)[np.logical_and(hmf.M > 10 ** 10, hmf.M < 10 ** 15)]
+        num = hmf.rho_gtm / hmf.mean_density0
+        err = np.abs((num - anl) / anl)[np.logical_and(hmf.M.value > 10 ** 10, hmf.M.value < 10 ** 15)]
         err = err[np.logical_not(np.isnan(err))]
         print np.max(err)
         assert np.max(err) < TestCumulants.tol
@@ -79,7 +79,9 @@ class TestCumulants(object):
 
     def check_mgtm(self, hmf, maxm):
         hmf.update(Mmin=0, Mmax=maxm, dlog10m=0.01)
-        assert np.abs(hmf.rho_gtm[0] / hmf.mean_dens - 1) < 0.1  # THIS IS PRETTY BIG!
+        print "rhogtm: ", hmf.rho_gtm.unit
+        print "rhomean:", hmf.mean_density0.unit
+        assert np.abs(hmf.rho_gtm[0] / hmf.mean_density0 - 1) < 0.1  # THIS IS PRETTY BIG!
 
 
     def test_mgtm(self):
@@ -89,8 +91,8 @@ class TestCumulants(object):
 
     def check_mltm(self, hmf, maxm):
         hmf.update(Mmin=3, Mmax=maxm, dlog10m=0.01)
-        print np.abs(hmf.rho_ltm[-1] / hmf.mean_dens - 1)
-        assert np.abs(hmf.rho_ltm[-1] / hmf.mean_dens - 1) < 0.2
+        print np.abs(hmf.rho_ltm[-1] / hmf.mean_density0 - 1)
+        assert np.abs(hmf.rho_ltm[-1] / hmf.mean_density0 - 1) < 0.2
 
     def test_mltm(self):
         hmf = MassFunction(mf_fit="PS", cut_fit=False)

@@ -27,7 +27,7 @@ def test_delta_halo_mean():
 
 
 def test_delta_halo_crit():
-    hmf = MassFunction(delta_h=180, delta_wrt="crit", omegab=0.05, omegac=0.25)
+    hmf = MassFunction(delta_h=180, delta_wrt="crit", cosmo_params={"Om0":0.3})
     assert abs(hmf.delta_halo - 600.0) < 1e-3
 
 

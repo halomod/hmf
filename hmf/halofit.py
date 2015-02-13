@@ -1,16 +1,24 @@
+"""
+HALOFIT code ported to python.
+
+This code was heavily influenced by the HaloFit class from the 
+`chomp` python package by Christopher Morrison, Ryan Scranton 
+and Michael Schneider (https://code.google.com/p/chomp/). It has 
+been modified to improve its integration with this package.
+"""
 import numpy as np
 from scipy.integrate import simps
 import copy
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import cosmolopy as cp
 
-def _get_spec(lnk, delta_k, sigma_8):
+def _get_spec(k, delta_k, sigma_8):
     """
     Calculate nonlinear wavenumber, effective spectral index and curvature
     of the power spectrum.
     """
-    k = np.exp(lnk)
-    delta_k = np.exp(delta_k)
+    k = k.value
+    delta_k = delta_k
 
     # Initialize sigma spline
     if sigma_8 < 1.0 and sigma_8 > 0.6:
@@ -76,7 +84,7 @@ def _get_spec(lnk, delta_k, sigma_8):
 
     return rknl, rneff, rncur
 
-def halofit(k, z, omegam, omegav, w, omegan, neff, rncur, rknl, plin, takahashi=True):
+def halofit(k, z, cosmo, neff, rncur, rknl, plin, takahashi=True):
     """
     Halofit routine to calculate pnl and plin.
     
@@ -84,11 +92,13 @@ def halofit(k, z, omegam, omegav, w, omegan, neff, rncur, rknl, plin, takahashi=
     """
 
     # Define the cosmology at redshift
-    omegamz = cp.density.omega_M_z(z, omega_M_0=omegam, omega_lambda_0=omegav, omega_k_0=1 - omegav - omegam, w=w)
-    omegavz = omegav / cp.distance.e_z(z, omega_M_0=omegam, omega_lambda_0=omegav, omega_k_0=1 - omegav - omegam, w=w) ** 2
 
-    w = w
-    fnu = omegan / omegam
+    omegamz = cosmo.Om(z)
+    omegavz = cosmo.Ode(z)
+
+    w = cosmo.w(z)
+    fnu = cosmo.Onu0 / cosmo.Om0
+
 
     if takahashi:
         a = 10 ** (1.5222 + 2.8553 * neff + 2.3706 * neff ** 2 +
@@ -137,7 +147,7 @@ def halofit(k, z, omegam, omegav, w, omegan, neff, rncur, rknl, plin, takahashi=
     y = k / rknl
 
     ph = a * y ** (f1 * 3) / (1 + b * y ** f2 + (f3 * c * y) ** (3 - gam))
-    ph = ph / (1 + xmu / y + xnu * y ** -2) * (1 + fnu * (0.977 - 18.015 * (omegam - 0.3)))
+    ph = ph / (1 + xmu / y + xnu * y ** -2) * (1 + fnu * (0.977 - 18.015 * (cosmo.Om0 - 0.3)))
 
     plinaa = plin * (1 + fnu * 47.48 * k ** 2 / (1 + 1.5 * k ** 2))
     pq = plin * (1 + plinaa) ** beta / (1 + plinaa * alpha) * np.exp(-y / 4.0 - y ** 2 / 8.0)
