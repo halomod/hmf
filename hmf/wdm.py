@@ -5,37 +5,17 @@ Created on 02/12/2014
 
 Module containing WDM models
 '''
-import copy
-import sys
 import numpy as np
 from transfer import Transfer
 from hmf import MassFunction
 from _cache import parameter, cached_property
 from numpy import issubclass_
+from _framework import Model, get_model
 
-def get_wdm(name, **kwargs):
-    """
-    Returns the correct subclass of :class:`WDM`.
-    
-    Parameters
-    ----------
-    name : str
-        The class name of the appropriate model
-        
-    \*\*kwargs : 
-        Any parameters for the instantiated fit (including model parameters)
-    """
-    try:
-        return getattr(sys.modules[__name__], name)(**kwargs)
-    except AttributeError:
-        raise AttributeError(str(name) + "  is not a valid WDM class")
-
-class WDM(object):
+class WDM(Model):
     '''
     Abstract base class for all WDM models
     '''
-
-    _defaults = {}
     def __init__(self, mx, cosmo, **model_params):
         '''
         Constructor
@@ -45,14 +25,7 @@ class WDM(object):
         self.rho_mean = cosmo.Om0 * cosmo.critical_density0
         self.Oc0 = cosmo.Om0 - cosmo.Ob0
 
-        # Check that all parameters passed are valid
-        for k in model_params:
-            if k not in self._defaults:
-                raise ValueError("%s is not a valid argument for the %s WDM model" % (k, self.__class__.__name__))
-
-        # Gather model parameters
-        self.params = copy.copy(self._defaults)
-        self.params.update(model_params)
+        super(WDM, self).__init__(**model_params)
 
     def transfer(self, lnk):
         """
@@ -117,6 +90,34 @@ class Viel05(WDM):
         return (4.0 / 3.0) * np.pi * self.rho_mean * (self.lam_hm / 2) ** 3
 
 
+class WDMRecalibrateMF(Model):
+    def __init__(self, M, dndm0, wdm, **model_parameters):
+        self.M = M
+        self.dndm0 = dndm0
+        self.wdm = wdm
+        super(WDMRecalibrateMF, self).__init__(**model_parameters)
+
+    def dndm_alter(self):
+        pass
+
+class Schneider12_vCDM(WDMRecalibrateMF):
+    _defaults = {"beta":1.16}
+
+    def dndm_alter(self):
+        return self.dndm0 * (1 + self.wdm.m_hm / self.M) ** (-self.params["beta"])
+
+class Schneider12(WDMRecalibrateMF):
+    _defaults = {"alpha":0.6}
+
+    def dndm_alter(self):
+        return self.dndm0 * (1 + self.wdm.m_hm / self.M) ** (-self.params["alpha"])
+
+class Lovell14(WDMRecalibrateMF):
+    _defaults = {"beta":0.99, "gamma":2.7}
+
+    def dndm_alter(self):
+        return self.dndm0 * (1 + self.params["gamma"] * self.wdm.m_hm / self.M) ** (-self.params["beta"])
+
 class TransferWDM(Transfer):
     def __init__(self, wdm_mass=3.0, wdm_transfer=Viel05, wdm_params={},
                  **transfer_kwargs):
@@ -173,19 +174,35 @@ class TransferWDM(Transfer):
         return self._wdm.transfer(self.k) ** 2 * powercdm
 
 class MassFunctionWDM(MassFunction, TransferWDM):
-    def __init__(self, wdm_alter=False, **kwargs):
+    def __init__(self, alter_dndm=None, alter_params=None, **kwargs):
         super(MassFunctionWDM, self).__init__(**kwargs)
 
-        self.wdm_alter = wdm_alter
+        self.alter_dndm = alter_dndm
+        self.alter_params = alter_params or {}
 
     @parameter
-    def wdm_alter(self, val):
+    def alter_dndm(self, val):
+        if not np.issubclass_(val, WDMRecalibrateMF) and val is not None and not np.issubclass_(val, basestring):
+
+            raise TypeError("alter_dndm must be a WDMRecalibrateMF subclass, string, or None")
+        else:
+            return val
+
+    @parameter
+    def alter_params(self, val):
         return val
 
-    @cached_property("wdm_alter", "_wdm")
+    @cached_property("alter_dndm", "M", "_wdm", "alter_params")
     def dndm(self):
         dndm = super(MassFunctionWDM, self).dndm
-        if self.wdm_alter:
-            dndm *= (1 + self._wdm.m_hm / self.M) ** -0.6
+
+        if self.alter_dndm is not None:
+            if np.issubclass_(self.alter_dndm, WDMRecalibrateMF):
+                alter = self.alter_dndm(M=self.M, dndm0=dndm, wdm=self._wdm,
+                                        **self.alter_params)
+            else:
+                alter = get_model(self.alter_dndm, __name__, M=self.M,
+                                  dndm0=dndm, wdm=self._wdm, **self.alter_params)
+            dndm = alter.dndm_alter()
 
         return dndm

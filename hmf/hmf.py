@@ -13,17 +13,17 @@ version = '1.8.0'
 import numpy as np
 import copy
 import logging
-import tools
-from fitting_functions import Tinker08, get_fit, Behroozi
+from fitting_functions import Tinker08, Behroozi
 from transfer import Transfer
 from _cache import parameter, cached_property
 from integrate_hmf import hmf_integral_gtm
 from fitting_functions import FittingFunction
 from numpy import issubclass_
 logger = logging.getLogger('hmf')
-from filters import TopHat, Filter, get_filter
+from filters import TopHat, Filter
 import astropy.units as u
 from tools import h_unit
+from _framework import get_model
 
 class MassFunction(Transfer):
     """
@@ -262,10 +262,11 @@ class MassFunction(Transfer):
                               delta_c=self.delta_c, sigma=self.sigma, n_eff=self.n_eff,
                               ** self._fsig_params)
         elif isinstance(self.mf_fit, basestring):
-            fit = get_fit(self.mf_fit, M=self.M, nu2=self.nu, z=self.z,
-                          delta_halo=self.delta_halo, omegam_z=self.cosmo.Om(self.z),
-                          delta_c=self.delta_c, sigma=self.sigma, n_eff=self.n_eff,
-                          ** self._fsig_params)
+            fit = get_model(self.mf_fit, "hmf.fitting_functions",
+                            M=self.M, nu2=self.nu, z=self.z,
+                            delta_halo=self.delta_halo, omegam_z=self.cosmo.Om(self.z),
+                            delta_c=self.delta_c, sigma=self.sigma, n_eff=self.n_eff,
+                            ** self._fsig_params)
         return fit
 
     @cached_property("mean_density0", "filter", "delta_c", "k", "_power0", "filter_params")
@@ -275,7 +276,7 @@ class MassFunction(Transfer):
             filter = self.filter(self.mean_density0, self.delta_c, self.k, self._power0,
                                  **self.filter_params)
         elif isinstance(self.filter, basestring):
-            filter = get_filter(self.filter, rho_mean=self.mean_density0,
+            filter = get_models(self.filter, "hmf.filters", rho_mean=self.mean_density0,
                                 delta_c=self.delta_c, k=self.k, power=self._power0,
                                 **self.filter_params)
 

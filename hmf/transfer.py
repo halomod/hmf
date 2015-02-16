@@ -10,9 +10,11 @@ from halofit import _get_spec, halofit
 from numpy import issubclass_
 import astropy.units as u
 from tools import h_unit
-from growth_factor import GrowthFactor, get_growth
+from growth_factor import GrowthFactor
 import transfer_models as tm
+import growth_factor as gf
 import tools
+from _framework import get_model
 try:
     import pycamb
     HAVE_PYCAMB = True
@@ -189,7 +191,8 @@ class Transfer(Cosmology):
         if issubclass_(self.transfer_fit, tm.Transfer):
             return self.transfer_fit(self.cosmo, **self.transfer_options).lnt(np.log(self.k.value))
         elif isinstance(self.transfer_fit, basestring):
-            return tm.get_transfer(self.transfer_fit, self.cosmo, **self.transfer_options).lnt(np.log(self.k.value))
+            return get_model(self.transfer_fit, "hmf.transfer_models", cosmo=self.cosmo,
+                             **self.transfer_options).lnt(np.log(self.k.value))
 
     @cached_property("n", "k", "_unnormalised_lnT")
     def _unnormalised_power(self):
@@ -233,8 +236,8 @@ class Transfer(Cosmology):
             if issubclass_(self.growth_model, GrowthFactor):
                 g = self.growth_model(self.cosmo, **self._growth_params)
             elif isinstance(self.growth_model, basestring):
-                g = get_growth(self.growth_model, self.cosmo,
-                               **self._growth_params)
+                g = get_model(self.growth_model, "hmf.growth_factor", cosmo=self.cosmo,
+                              **self._growth_params)
 
             return g.growth_factor(self.z)
         else:

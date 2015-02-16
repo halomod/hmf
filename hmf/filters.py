@@ -13,27 +13,9 @@ import collections
 import sys
 import copy
 import astropy.units as u
+from _framework import Model
 
-def get_filter(name, **kwargs):
-    """
-    Returns the correct subclass of :class:`Filter`.
-    
-    Parameters
-    ----------
-    name : str
-        The class name of the appropriate filter
-        
-    \*\*kwargs : 
-        Any parameters for the instantiated filter (including model parameters)
-    """
-    try:
-        return getattr(sys.modules[__name__], name)(**kwargs)
-    except AttributeError:
-        raise AttributeError(str(name) + "  is not a valid Filter class")
-
-
-class Filter(object):
-    _defaults = {}
+class Filter(Model):
 
     def __init__(self, rho_mean, delta_c, k, power, **model_parameters):
         self.rho_mean = rho_mean
@@ -41,14 +23,7 @@ class Filter(object):
         self.k = k
         self.power = power
 
-        # Check that all parameters passed are valid
-        for k in model_parameters:
-            if k not in self._defaults:
-                raise ValueError("%s is not a valid argument for the %s Filter" % (k, self.__class__.__name__))
-
-        # Gather model parameters
-        self.params = copy.copy(self._defaults)
-        self.params.update(model_parameters)
+        super(Filter, self).__init__(**model_parameters)
 
     def real_space(self, m, r):
         pass
