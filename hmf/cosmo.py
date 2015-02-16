@@ -10,31 +10,15 @@ Cosmology framework. All custom subclasses of :class:`astropy.cosmology.FLRW`
 may be used as inputs.
 """
 
-from _cache import parameter, Cache, cached_property
+from _cache import parameter, cached_property
 from astropy.cosmology import Planck13, FLRW, WMAP5, WMAP7, WMAP9
 from types import MethodType
 from tools import h_unit
 import astropy.units as u
+from _framework import Framework
 import sys
 
-def get_cosmo(name):
-    """
-    Returns a valid instance of a cosmology object from a string
-    
-    Parameters
-    ----------
-    name : str
-        The name of the cosmology
-    """
-    try:
-        cosmo = getattr(sys.modules[__name__], name)
-        if not isinstance(cosmo, FLRW):
-            raise TypeError("%s is not a valid Cosmology object" % name)
-        return cosmo
-    except:
-        raise AttributeError("%s is not a valid Cosmology object" % name)
-
-class Cosmology(Cache):
+class Cosmology(Framework):
     """
     Basic Cosmology object.
     
@@ -103,14 +87,7 @@ class Cosmology(Cache):
             setattr(self, "cosmo_params", kwargs.pop("cosmo_params"))
             self.cosmo.Ob0 = Ob0
 
-        for k, v in kwargs.items():
-            if hasattr(self, k):
-                setattr(self, k, v)
-            del kwargs[k]
-
-
-        if kwargs:
-            raise ValueError("Invalid arguments: %s" % kwargs)
+        super(Cosmology, self).update(**kwargs)
 
 
     #===========================================================================
@@ -215,6 +192,20 @@ def clone(self, **kwargs):
 
     return self.__class__(**argdict)
 
+def get_cosmo(name):
+    """
+    Returns a cosmology.
+    
+    Parameters
+    ----------
+    name : str
+        The class name of the appropriate model
+    """
+    if isinstance(getattr(sys.modules[__name__], name), FLRW):
+        return getattr(sys.modules[__name__], name)
+    else:
+        raise ValueError("%s is not a valid cosmology" % name)
+    return getattr(sys.modules[name], name)(**kwargs)
 #===============================================================================
 # Some Extra Cosmology classes
 #===============================================================================

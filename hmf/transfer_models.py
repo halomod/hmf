@@ -8,6 +8,7 @@ import sys
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import copy
+from _framework import Model
 try:
     import pycamb
 except ImportError:
@@ -17,30 +18,10 @@ except ImportError:
 _allfits = ["CAMB", "FromFile", "EH_BAO", "EH_NoBAO", "BBKS", "BondEfs"]
 
 
-def get_transfer(name, cosmo, **kwargs):
-    """
-    A function that chooses the correct Transfer class and returns it
-    """
-    try:
-        return getattr(sys.modules[__name__], name)(cosmo, **kwargs)
-    except AttributeError:
-        raise AttributeError(str(name) + "  is not a valid Transfer class")
-
-
-
-class Transfer(object):
-    _defaults = {}
+class Transfer(Model):
     def __init__(self, cosmo, **model_parameters):
         self.cosmo = cosmo
-        print "MODEL PARAMS: ", model_parameters
-        # Check that all parameters passed are valid
-        for k in model_parameters:
-            if k not in self._defaults:
-                raise ValueError("%s is not a valid argument for %s" % (k, self.__class__.__name__))
-
-        # Gather model parameters
-        self.params = copy.copy(self._defaults)
-        self.params.update(model_parameters)
+        super(Transfer, self).__init__(**model_parameters)
 
     def lnt(self, lnk):
         pass

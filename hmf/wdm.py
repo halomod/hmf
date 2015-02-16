@@ -5,37 +5,17 @@ Created on 02/12/2014
 
 Module containing WDM models
 '''
-import copy
-import sys
 import numpy as np
 from transfer import Transfer
 from hmf import MassFunction
 from _cache import parameter, cached_property
 from numpy import issubclass_
+from _framework import Model, get_model
 
-def get_wdm(name, **kwargs):
-    """
-    Returns the correct subclass of :class:`WDM`.
-    
-    Parameters
-    ----------
-    name : str
-        The class name of the appropriate model
-        
-    \*\*kwargs : 
-        Any parameters for the instantiated fit (including model parameters)
-    """
-    try:
-        return getattr(sys.modules[__name__], name)(**kwargs)
-    except AttributeError:
-        raise AttributeError(str(name) + "  is not a valid WDM class")
-
-class WDM(object):
+class WDM(Model):
     '''
     Abstract base class for all WDM models
     '''
-
-    _defaults = {}
     def __init__(self, mx, cosmo, **model_params):
         '''
         Constructor
@@ -45,14 +25,7 @@ class WDM(object):
         self.rho_mean = cosmo.Om0 * cosmo.critical_density0
         self.Oc0 = cosmo.Om0 - cosmo.Ob0
 
-        # Check that all parameters passed are valid
-        for k in model_params:
-            if k not in self._defaults:
-                raise ValueError("%s is not a valid argument for the %s WDM model" % (k, self.__class__.__name__))
-
-        # Gather model parameters
-        self.params = copy.copy(self._defaults)
-        self.params.update(model_params)
+        super(WDM, self).__init__(**model_params)
 
     def transfer(self, lnk):
         """

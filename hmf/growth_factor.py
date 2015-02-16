@@ -4,30 +4,12 @@ Module for calculating the growth factor (in various ways)
 The main class, which is a numerical calculator, is extensible to provide simpler
 fitting functions
 '''
-import sys
 import numpy as np
 from scipy import integrate as intg
 import copy
+from _framework import Model
 
-def get_growth(name, cosmo, **kwargs):
-    """
-    Returns the correct subclass of :class:`GrowthFactor`.
-    
-    Parameters
-    ----------
-    name : str
-        The class name of the appropriate fit
-        
-    \*\*kwargs : 
-        Any parameters for the instantiated fit (including model parameters)
-    """
-    try:
-        return getattr(sys.modules[__name__], name)(cosmo, **kwargs)
-    except AttributeError:
-        raise AttributeError(str(name) + "  is not a valid GrowthFactor class")
-
-class GrowthFactor(object):
-    _defaults = {}
+class GrowthFactor(Model):
     r"""
     General class for a growth factor calculation
      
@@ -40,17 +22,11 @@ class GrowthFactor(object):
         model_parameters : 
             Other parameters of the specific model
         """
-        # Check that all parameters passed are valid
-        for k in model_parameters:
-            if k not in self._defaults:
-                raise ValueError("%s is not a valid argument for %s" % (k, self.__class__.__name__))
-
-        # Gather model parameters
-        self.params = copy.copy(self._defaults)
-        self.params.update(model_parameters)
 
         # Set simple parameters
         self.cosmo = cosmo
+
+        super(GrowthFactor, self).__init__(**model_parameters)
 
     def d_plus(self, z):
         """
