@@ -9,8 +9,6 @@ flexibility.
 #===============================================================================
 # Imports
 #===============================================================================
-import numpy as np
-import scipy.integrate as intg
 import logging
 import astropy.units as u
 
