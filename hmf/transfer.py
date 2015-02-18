@@ -12,9 +12,10 @@ import astropy.units as u
 # from tools import h_unit
 from growth_factor import GrowthFactor
 import transfer_models as tm
-import growth_factor as gf
 import tools
 from _framework import get_model
+from filters import TopHat
+
 try:
     import pycamb
     HAVE_PYCAMB = True
@@ -101,9 +102,12 @@ class Transfer(Cosmology):
         self.transfer_fit = transfer_fit
         self.transfer_options = transfer_options or {}
         self.takahashi = takahashi
+
+
     #===========================================================================
     # Parameters
     #===========================================================================
+
     @parameter
     def growth_model(self, val):
         if not issubclass_(val, GrowthFactor) and not isinstance(val, basestring):
@@ -201,14 +205,20 @@ class Transfer(Cosmology):
         """
         return self.k.value ** self.n * np.exp(self._unnormalised_lnT) ** 2 * u.Mpc ** 3 / self._hunit ** 3
 
-    @cached_property("sigma_8", "_unnormalised_power", "k", "mean_density0")
+    @cached_property("mean_density0", "k", "_unnormalised_power", "sigma_8")
+    def _normalisation(self):
+        filter = TopHat(self.mean_density0, None, self.k, self._unnormalised_power)
+        sigma_8 = filter.sigma(8.0 * u.Mpc / self._hunit)[0]
+
+        # Calculate the normalization factor
+        return self.sigma_8 / sigma_8
+
+    @cached_property("_normalisation", "_unnormalised_power")
     def _power0(self):
         """
         Normalised power spectrum at z=0 [units :math:`Mpc^3/h^3`]
         """
-        return tools.normalize(self.sigma_8,
-                               self._unnormalised_power,
-                               self.k, self.mean_density0)[0]
+        return self._normalisation ** 2 * self._unnormalised_power
 
 #     @cached_property("sigma_8", "_unnormalised_lnT", "lnk", "mean_density0")
 #     def _lnT(self):
