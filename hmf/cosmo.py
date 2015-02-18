@@ -12,11 +12,11 @@ may be used as inputs.
 
 from _cache import parameter, cached_property
 from astropy.cosmology import Planck13, FLRW, WMAP5, WMAP7, WMAP9
-from types import MethodType
-from tools import h_unit
+# from types import MethodType
 import astropy.units as u
 from _framework import Framework
 import sys
+h_unit = u.def_unit("h")
 
 class Cosmology(Framework):
     """
@@ -70,6 +70,8 @@ class Cosmology(Framework):
         self.cosmo_params = cosmo_params or {}
         self.cosmo.Ob0 = Ob0  # deprecated when astropy includes Ob0
 
+        # An additional unchangeable parameter for the h unit
+        self._hunit = h_unit
     def update(self, **kwargs):
         """
         Update the class optimally with given arguments.
@@ -98,14 +100,13 @@ class Cosmology(Framework):
         """:class:`~astropy.cosmology.FLRW` instance"""
         if isinstance(val, basestring):
             cosmo = get_cosmo(val)
-            cosmo.clone = MethodType(clone, cosmo)
             return cosmo
 
         if not isinstance(val, FLRW):
                 raise ValueError("base_cosmo must be an instance of astropy.cosmology.FLRW")
         else:
             # monkey-patch on the clone method
-            val.clone = MethodType(clone, val)
+#            val.clone = MethodType(clone, val)
             return val
 
     @parameter
@@ -117,7 +118,7 @@ class Cosmology(Framework):
     #===========================================================================
     @cached_property("cosmo_params", "base_cosmo")
     def cosmo(self):
-        return self.base_cosmo.clone(**self.cosmo_params)
+        return clone(self.base_cosmo, **self.cosmo_params)
 
     @cached_property("cosmo")
     def mean_density0(self):

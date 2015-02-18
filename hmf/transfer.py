@@ -9,12 +9,13 @@ from _cache import cached_property, parameter
 from halofit import _get_spec, halofit
 from numpy import issubclass_
 import astropy.units as u
-from tools import h_unit
+# from tools import h_unit
 from growth_factor import GrowthFactor
 import transfer_models as tm
-import growth_factor as gf
 import tools
 from _framework import get_model
+from filters import TopHat
+
 try:
     import pycamb
     HAVE_PYCAMB = True
@@ -101,9 +102,12 @@ class Transfer(Cosmology):
         self.transfer_fit = transfer_fit
         self.transfer_options = transfer_options or {}
         self.takahashi = takahashi
+
+
     #===========================================================================
     # Parameters
     #===========================================================================
+
     @parameter
     def growth_model(self, val):
         if not issubclass_(val, GrowthFactor) and not isinstance(val, basestring):
@@ -179,7 +183,7 @@ class Transfer(Cosmology):
     #===========================================================================
     @cached_property("lnk_min", "lnk_max", "dlnk")
     def k(self):
-        return np.exp(np.arange(self.lnk_min, self.lnk_max, self.dlnk)) * h_unit / u.Mpc
+        return np.exp(np.arange(self.lnk_min, self.lnk_max, self.dlnk)) * self._hunit / u.Mpc
 
     @cached_property("k", "cosmo", "transfer_options", "transfer_fit")
     def _unnormalised_lnT(self):
@@ -199,16 +203,22 @@ class Transfer(Cosmology):
         """
         Un-normalised CDM power at :math:`z=0` [units :math:`Mpc^3/h^3`]
         """
-        return self.k.value ** self.n * np.exp(self._unnormalised_lnT) ** 2 * u.Mpc ** 3 / h_unit ** 3
+        return self.k.value ** self.n * np.exp(self._unnormalised_lnT) ** 2 * u.Mpc ** 3 / self._hunit ** 3
 
-    @cached_property("sigma_8", "_unnormalised_power", "k", "mean_density0")
+    @cached_property("mean_density0", "k", "_unnormalised_power", "sigma_8")
+    def _normalisation(self):
+        filter = TopHat(self.mean_density0, None, self.k, self._unnormalised_power)
+        sigma_8 = filter.sigma(8.0 * u.Mpc / self._hunit)[0]
+
+        # Calculate the normalization factor
+        return self.sigma_8 / sigma_8
+
+    @cached_property("_normalisation", "_unnormalised_power")
     def _power0(self):
         """
         Normalised power spectrum at z=0 [units :math:`Mpc^3/h^3`]
         """
-        return tools.normalize(self.sigma_8,
-                               self._unnormalised_power,
-                               self.k, self.mean_density0)[0]
+        return self._normalisation ** 2 * self._unnormalised_power
 
 #     @cached_property("sigma_8", "_unnormalised_lnT", "lnk", "mean_density0")
 #     def _lnT(self):

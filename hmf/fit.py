@@ -10,20 +10,26 @@ function data. It uses MCMC techniques to do so.
 # IMPORTS
 #===============================================================================
 import numpy as np
-import emcee
 from scipy.stats import norm
 from scipy.optimize import minimize
 from multiprocessing import cpu_count
 import time
-import cosmolopy as cp
 import warnings
 import pickle
 from numbers import Number
 import copy
+import traceback
+
+try:
+    import emcee
+    HAVE_EMCEE = True
+except ImportError:
+    HAVE_EMCEE = False
 
 def model(parm, h, self):
     """
-    Calculate the log probability of a model `h` given data
+    Calculate the log probability of a model `h` 
+    [instance of :class:`hmf._framework.Framework`] with parameters ``parm``.
     
     At the moment, this is a little hacky, because the parameters have to
     be the first argument (for both Minimize and MCMC), so we use a 
@@ -34,16 +40,15 @@ def model(parm, h, self):
     parm : list of floats
         The position of the model. Takes arbitrary parameters.
             
-    h : instance of :class:`~cosmo.Cosmology` subclass
-        An instance of any subclass of :class:`~cosmo.Cosmology` with the 
+    h : instance of :class:`~_framework.Framework`
+        An instance of any subclass of :class:`~_framework.Framework` with the 
         desired options set. Variables of the estimation are updated within the 
         routine.  
         
     Returns
     -------
     ll : float
-        The log likelihood of the model at the given position.
-        
+        The log likelihood of the model at the given position.      
     """
     ll = 0
     p = copy.copy(parm)
@@ -66,20 +71,39 @@ def model(parm, h, self):
             ll += _lognormpdf(np.array(parm[indices]), np.array(prior.means),
                               prior.cov)
 
+    # Store initial H0 value for use in renormalising
+#     h_before = h.h
+
     # Rebuild the hod dict from given vals
     # Any attr starting with <name>: is put into a dictionary.
-    hoddict = {}
+    param_dict = {}
     for attr, val in zip(self.attrs, p):
         if ":" in attr:
-            if attr.split(":")[0] not in hoddict:
-                hoddict[attr.split(":")[0]] = {}
+            if attr.split(":")[0] not in param_dict:
+                param_dict[attr.split(":")[0]] = {}
 
-            hoddict[attr.split(":")[0]][attr.split(":")[1]] = val
+            param_dict[attr.split(":")[0]][attr.split(":")[1]] = val
         else:
-            hoddict[attr] = val
+            param_dict[attr] = val
 
     # Update the actual model
-    h.update(**hoddict)
+    try:  # This try: except: should capture poor parameter choices quickly.
+        h.update(**param_dict)
+    except ValueError as e:
+        if self.relax:
+            print "WARNING: PARAMETERS FAILED, RETURNING INF: ", zip(self.attrs, parm)
+            print e
+            print traceback.format_exc()
+            return -np.inf, self.blobs
+        else:
+            print traceback.format_exc()
+            raise e
+
+
+#     # Get r correct (with h)
+#     if h_before != h.h:
+#         h.update(Mmin=h.Mmin * h.h / h_before,
+#                  Mmax=h.Mmax * h.h / h_before)
 
     # Get the quantity to compare (if exceptions are raised, treat properly)
     try:
@@ -87,10 +111,13 @@ def model(parm, h, self):
     except Exception as e:
         if self.relax:
             print "WARNING: PARAMETERS FAILED, RETURNING INF: ", zip(self.attrs, parm)
-            print "EXCEPTION RAISED: ", e
+            print e
             return -np.inf, self.blobs
+            print traceback.format_exc()
         else:
+            print traceback.format_exc()
             raise e
+
 
     # The logprob of the model
     if self.cov:
@@ -101,7 +128,7 @@ def model(parm, h, self):
     if self.verbose > 0:
         print "Likelihood: ", ll
     if self.verbose > 1 :
-        print "Update Dictionary: ", hoddict
+        print "Update Dictionary: ", param_dict
 
     # Get blobs to return as well.
     if self.blobs is not None or self.store_class:
@@ -115,6 +142,7 @@ def model(parm, h, self):
                 out.append(getattr(h, b.split(":")[0])[b.split(":")[1]])
         return ll, out
     else:
+
         return ll
 
 class Fit(object):
@@ -126,7 +154,8 @@ class Fit(object):
         the prior information on each parameter.
         
     data : array_like
-        The data to be compared to -- must be the same length as the 
+        The data to be compared to -- must be the same length as the intended 
+        quantity. Also must be free from NaN values or a ValueError will be raised.
         
     quantity : str
         The quantity to be compared (eg. ``"dndm"``)
@@ -174,6 +203,9 @@ class Fit(object):
             guess = []
 
         self.guess = self.get_guess(guess)
+        if np.any(np.isnan(data)):
+            raise ValueError("The data must contain no NaN values")
+
         self.data = data
         self.quantity = quantity
         self.sigma = sigma
@@ -210,6 +242,12 @@ class Fit(object):
         return model(p, h, self)
 
 class MCMC(Fit):
+    def __init__(self, *args, **kwargs):
+        if not HAVE_EMCEE:
+            raise TypeError("You need emcee to use this class, aborting. ['pip install emcee']")
+
+        super(MCMC, self).__init__(*args, **kwargs)
+
     def fit(self, h, nwalkers=100, nsamples=100, burnin=0,
             nthreads=0, prefix=None, chunks=None,
             initial_pos=None):
@@ -221,7 +259,7 @@ class MCMC(Fit):
         
         Parameters
         ----------
-        h : instance of :class:`~hmf.framework.Framework` subclass
+        h : instance of :class:`~hmf._framework.Framework` subclass
             This instance will be updated with the variables of the minimization.
             Other desired options should have been set upon instantiation.
 
@@ -330,9 +368,9 @@ class MCMC(Fit):
             # If storing the whole class, add the label to front of blobs
             if self.store_class:
                 try:
-                    blobs = ["HaloModel"] + self.blobs
+                    blobs = [h.__class__.__name__] + self.blobs
                 except TypeError:
-                    blobs = ["HaloModel"]
+                    blobs = [h.__class__.__name__]
 
             if chunks == 0 or chunks > nsamples:
                 chunks = nsamples
@@ -430,7 +468,8 @@ class MCMC(Fit):
 # Minimize Fitting Routine
 #===========================================================
 class Minimize(Fit):
-    def fit(self, h, method="Nelder-Mead", disp=False, maxiter=30, tol=None):
+    def fit(self, h, method="Nelder-Mead", disp=False, maxiter=30, tol=None,
+            **minimize_kwargs):
         """
         Run an optimization procedure to fit a model correlation function to data.
         
@@ -452,6 +491,9 @@ class Minimize(Fit):
         tol : float, default None
             Tolerance for termination
             
+        \*\*kwargs : 
+            Arguments passed directly to :func:`scipy.optimize.minimize`.
+            
         Returns
         -------
         res : instance of :class:`scipy.optimize.Result`
@@ -462,7 +504,8 @@ class Minimize(Fit):
              
         """
         res = minimize(self.negmod, self.guess, (h,), tol=tol,
-                       method=method, options={"disp":disp, "maxiter":maxiter})
+                       method=method, options={"disp":disp, "maxiter":maxiter},
+                       **minimize_kwargs)
         return res
 
     def negmod(self, *args):
@@ -543,4 +586,3 @@ def _lognormpdf(x, mu, S):
     """ Log of Multinormal PDF at x, up to scale-factors."""
     err = x - mu
     return -0.5 * np.linalg.solve(S, err).T.dot(err)
-
