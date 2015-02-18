@@ -10,8 +10,8 @@ install:
 - cd ..
 - sudo rm -rf pycamb
 - sudo apt-get install python-numpy python-scipy
-- pip install cosmolopy
 - pip install emcee
+- pip install astropy
 deploy: 
   user: stevenjeanette
   on: 
