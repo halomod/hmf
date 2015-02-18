@@ -22,7 +22,6 @@ from numpy import issubclass_
 logger = logging.getLogger('hmf')
 from filters import TopHat, Filter
 import astropy.units as u
-from tools import h_unit
 from _framework import get_model
 
 class MassFunction(Transfer):
@@ -284,7 +283,7 @@ class MassFunction(Transfer):
 
     @cached_property("Mmin", "Mmax", "dlog10m")
     def M(self):
-        return (10 ** np.arange(self.Mmin, self.Mmax, self.dlog10m)) * u.MsolMass / h_unit
+        return (10 ** np.arange(self.Mmin, self.Mmax, self.dlog10m)) * u.MsolMass / self._hunit
 
 
 #     @cached_property("M", "lnk", "mean_density0")

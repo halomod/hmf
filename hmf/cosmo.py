@@ -13,10 +13,10 @@ may be used as inputs.
 from _cache import parameter, cached_property
 from astropy.cosmology import Planck13, FLRW, WMAP5, WMAP7, WMAP9
 from types import MethodType
-from tools import h_unit
 import astropy.units as u
 from _framework import Framework
 import sys
+h_unit = u.def_unit("h")
 
 class Cosmology(Framework):
     """
@@ -70,6 +70,8 @@ class Cosmology(Framework):
         self.cosmo_params = cosmo_params or {}
         self.cosmo.Ob0 = Ob0  # deprecated when astropy includes Ob0
 
+        # An additional unchangeable parameter for the h unit
+        self._hunit = h_unit
     def update(self, **kwargs):
         """
         Update the class optimally with given arguments.

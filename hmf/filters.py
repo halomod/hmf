@@ -10,8 +10,6 @@ import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import scipy.integrate as intg
 import collections
-import sys
-import copy
 import astropy.units as u
 from _framework import Model
 

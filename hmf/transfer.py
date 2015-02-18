@@ -9,7 +9,7 @@ from _cache import cached_property, parameter
 from halofit import _get_spec, halofit
 from numpy import issubclass_
 import astropy.units as u
-from tools import h_unit
+# from tools import h_unit
 from growth_factor import GrowthFactor
 import transfer_models as tm
 import growth_factor as gf
@@ -179,7 +179,7 @@ class Transfer(Cosmology):
     #===========================================================================
     @cached_property("lnk_min", "lnk_max", "dlnk")
     def k(self):
-        return np.exp(np.arange(self.lnk_min, self.lnk_max, self.dlnk)) * h_unit / u.Mpc
+        return np.exp(np.arange(self.lnk_min, self.lnk_max, self.dlnk)) * self._hunit / u.Mpc
 
     @cached_property("k", "cosmo", "transfer_options", "transfer_fit")
     def _unnormalised_lnT(self):
@@ -199,7 +199,7 @@ class Transfer(Cosmology):
         """
         Un-normalised CDM power at :math:`z=0` [units :math:`Mpc^3/h^3`]
         """
-        return self.k.value ** self.n * np.exp(self._unnormalised_lnT) ** 2 * u.Mpc ** 3 / h_unit ** 3
+        return self.k.value ** self.n * np.exp(self._unnormalised_lnT) ** 2 * u.Mpc ** 3 / self._hunit ** 3
 
     @cached_property("sigma_8", "_unnormalised_power", "k", "mean_density0")
     def _power0(self):
