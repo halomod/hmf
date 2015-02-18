@@ -10,7 +10,6 @@ import numpy as np
 from scipy.integrate import simps
 import copy
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
-import cosmolopy as cp
 
 def _get_spec(k, delta_k, sigma_8):
     """
