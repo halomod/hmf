@@ -12,8 +12,6 @@ flexibility.
 import logging
 import astropy.units as u
 
-# The hubble parameter unit
-h_unit = u.def_unit("h")
 
 from filters import TopHat
 logger = logging.getLogger('hmf')
