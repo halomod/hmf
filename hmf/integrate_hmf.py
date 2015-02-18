@@ -2,6 +2,9 @@ from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import numpy as np
 from scipy.integrate import simps, cumtrapz
 
+class NaNException(Exception):
+    pass
+
 def hmf_integral_gtm(M, dndm, mass_density=False):
     """
     Integrate dn/dm to get number or mass density above M
@@ -26,6 +29,9 @@ def hmf_integral_gtm(M, dndm, mass_density=False):
     m = M[np.logical_not(np.isnan(dndm))]
     dndm = dndm[np.logical_not(np.isnan(dndm))]
     dndlnm = m * dndm
+
+    if len(m) < 4:
+        raise NaNException("There are too few real numbers in dndm: len(dndm) = %s, #NaN's = %s" % (len(M), len(M) - len(dndm)))
 
     final_units = dndlnm.unit
     m_unit = m.unit
