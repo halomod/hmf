@@ -3,6 +3,7 @@ Created on 16/02/2015
 
 @author: Steven
 '''
+RUN_MCMC = False
 #===============================================================================
 # IMPORTS
 #===============================================================================
@@ -14,6 +15,11 @@ import sys
 sys.path.insert(0, LOCATION)
 from hmf import MassFunction
 from hmf import fit
+try:
+    import emcee
+    HAVE_EMCEE = True
+except ImportError:
+    HAVE_EMCEE = False
 
 def test_circular_minimize():
     h = MassFunction(sigma_8=0.8, mf_fit="ST")
@@ -25,3 +31,17 @@ def test_circular_minimize():
     res = f.fit(h)
     print "Diff: ", np.abs(res.x - 0.8)
     assert np.abs(res.x - 0.8) < 0.01
+
+
+if HAVE_EMCEE and RUN_MCMC:
+    def test_circular_emcee():
+        h = MassFunction(sigma_8=0.8, mf_fit="ST")
+        dndm = h.dndm.copy()
+        f = fit.MCMC(priors=[fit.Uniform("sigma_8", 0.6, 1.0)],
+                         data=dndm, quantity="dndm", sigma=dndm / 5,
+                         guess=[0.8], blobs=None,
+                         verbose=0, store_class=False, relax=False)
+        sampler = f.fit(h, nwalkers=16, nsamples=15, burnin=0,
+                        nthreads=0)
+        print "Diff: ", np.abs(np.mean(sampler.chain) - 0.8)
+        assert np.abs(np.mean(sampler.chain) - 0.8) < 0.01

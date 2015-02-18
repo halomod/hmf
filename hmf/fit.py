@@ -10,7 +10,6 @@ function data. It uses MCMC techniques to do so.
 # IMPORTS
 #===============================================================================
 import numpy as np
-import emcee
 from scipy.stats import norm
 from scipy.optimize import minimize
 from multiprocessing import cpu_count
@@ -19,6 +18,13 @@ import warnings
 import pickle
 from numbers import Number
 import copy
+import traceback
+
+try:
+    import emcee
+    HAVE_EMCEE = True
+except ImportError:
+    HAVE_EMCEE = False
 
 def model(parm, h, self):
     """
@@ -87,9 +93,12 @@ def model(parm, h, self):
         if self.relax:
             print "WARNING: PARAMETERS FAILED, RETURNING INF: ", zip(self.attrs, parm)
             print e
+            print traceback.format_exc()
             return -np.inf, self.blobs
         else:
+            print traceback.format_exc()
             raise e
+
 
 #     # Get r correct (with h)
 #     if h_before != h.h:
@@ -102,10 +111,13 @@ def model(parm, h, self):
     except Exception as e:
         if self.relax:
             print "WARNING: PARAMETERS FAILED, RETURNING INF: ", zip(self.attrs, parm)
-            print "EXCEPTION RAISED: ", e
+            print e
             return -np.inf, self.blobs
+            print traceback.format_exc()
         else:
+            print traceback.format_exc()
             raise e
+
 
     # The logprob of the model
     if self.cov:
@@ -130,6 +142,7 @@ def model(parm, h, self):
                 out.append(getattr(h, b.split(":")[0])[b.split(":")[1]])
         return ll, out
     else:
+
         return ll
 
 class Fit(object):
@@ -229,6 +242,12 @@ class Fit(object):
         return model(p, h, self)
 
 class MCMC(Fit):
+    def __init__(self, *args, **kwargs):
+        if not HAVE_EMCEE:
+            raise TypeError("You need emcee to use this class, aborting. ['pip install emcee']")
+
+        super(MCMC, self).__init__(*args, **kwargs)
+
     def fit(self, h, nwalkers=100, nsamples=100, burnin=0,
             nthreads=0, prefix=None, chunks=None,
             initial_pos=None):
@@ -349,9 +368,9 @@ class MCMC(Fit):
             # If storing the whole class, add the label to front of blobs
             if self.store_class:
                 try:
-                    blobs = ["HaloModel"] + self.blobs
+                    blobs = [h.__class__.__name__] + self.blobs
                 except TypeError:
-                    blobs = ["HaloModel"]
+                    blobs = [h.__class__.__name__]
 
             if chunks == 0 or chunks > nsamples:
                 chunks = nsamples
