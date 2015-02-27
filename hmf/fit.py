@@ -53,23 +53,17 @@ def model(parm, h, self):
     ll = 0
     p = copy.copy(parm)
     for prior in self.priors:
-        # A uniform prior doesn't change likelihood but returns -inf if outside bounds
-        if isinstance(prior, Uniform):
+        if type(prior.name) == list:
+            index = [self.attrs.index(name) for name in prior.name]
+        else:
             index = self.attrs.index(prior.name)
-            if parm[index] < prior.low or parm[index] > prior.high:
-                return -np.inf, self.blobs
-            # If it is a log distribution, un-log it for use.
-            if isinstance(prior, Log):
-                p[index] = 10 ** parm[index]
+        ll += prior.ll(parm[index])
+    if np.isinf(ll):
+        return ll, self.blobs
 
-        elif isinstance(prior, Normal):
-            index = self.attrs.index(prior.name)
-            ll += norm.logpdf(parm[index], loc=prior.mean, scale=prior.sd)
-
-        elif isinstance(prior, MultiNorm):
-            indices = [self.attrs.index(name) for name in prior.name]
-            ll += _lognormpdf(np.array(parm[indices]), np.array(prior.means),
-                              prior.cov)
+    # If it is a log distribution, un-log it for use.
+    if isinstance(prior, Log):
+        p[index] = 10 ** parm[index]
 
     # Store initial H0 value for use in renormalising
 #     h_before = h.h
@@ -539,6 +533,12 @@ class Uniform(object):
         self.low = low
         self.high = high
 
+    def ll(self, param):
+        if param < self.low or param > self.high:
+            return -np.inf
+        else:
+            return 0
+
 class Log(Uniform):
     pass
 
@@ -562,6 +562,9 @@ class Normal(object):
         self.mean = mean
         self.sd = sd
 
+    def ll(self, param):
+        return norm.logpdf(param, loc=self.mean, scale=self.sd)
+
 class MultiNorm(object):
     """
     A Multivariate Gaussian prior
@@ -577,10 +580,17 @@ class MultiNorm(object):
     cov : ndarray
         Covariance matrix of the prior distribution
     """
-    def __init__(self, params, means, cov):
+    def __init__(self, params, mean, cov):
         self.name = params
-        self.means = means
+        self.mean = mean
         self.cov = cov
+
+    def ll(self, params):
+        """
+        Here params should be a dict of key:values
+        """
+        params = np.array([params[k] for k in self.name])
+        return _lognormpdf(params, self.mean, self.cov)
 
 def _lognormpdf(x, mu, S):
     """ Log of Multinormal PDF at x, up to scale-factors."""
