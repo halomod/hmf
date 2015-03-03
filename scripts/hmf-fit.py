@@ -23,16 +23,16 @@ from argparse import RawDescriptionHelpFormatter
 from ConfigParser import SafeConfigParser as cfg
 cfg.optionxform = str
 import numpy as np
-from halomod import fit as mc
+from hmf import fit
 import json
 import time
-from halomod import HaloModel
 import errno
 from os.path import join
-import cosmolopy as cp
 from numbers import Number
 import pickle
 from emcee import autocorr
+from importlib import import_module
+
 __all__ = []
 __version__ = 0.1
 __date__ = '2014-05-14'
@@ -102,7 +102,7 @@ USAGE
                 if e.errno != errno.EEXIST:
                     raise
 
-        r, data, sd, cov = get_data(**options["Data"])
+        x, y, sigma = get_data(**options["Data"])
 
         # Get params that are part of a dict (eg. HOD)
         dict_p = {k:options[k] for k in options if k.endswith("Params")}
@@ -110,14 +110,14 @@ USAGE
 
         quantity = options["RunOptions"]["quantity"]
         blobs = json.loads(options["RunOptions"]["der_params"])
-
+        framework = options["RunOptions"]["framework"]
         if args.restart:
             initial, prev_samples = get_initial(args.prefix, int(options["MCMC"]["nwalkers"]))
         else:
             initial, prev_samples = None, 0
 
-        run(r, data, quantity, blobs, sd, cov, priors, keys, guess, options,
-            args.prefix, initial, prev_samples)
+        run(x, y, quantity, blobs, sigma, priors, keys, guess, options,
+            args.prefix, initial, prev_samples, framework)
 
         return 0
     except KeyboardInterrupt:
@@ -169,65 +169,70 @@ def get_data(**kwargs):
 Either a univariate standard deviation, or multivariate cov matrix must be provided.
 """)
 
-    return x, y, sd, cov
+    return x, y, sd or cov
 
 #===============================================================================
 # PARAMETER SETUP
 #===============================================================================
 def param_setup(**params):
-    from halomod._covardata import data
+    """
+    Takes a dictionary of input parameters, with keys defining the parameters
+    and the values defining various aspects of the priors, and converts them
+    to useable Prior() instances, along with keys and guesses.
+    
+    Note that here, *only* cosmological parameters are able to be set as 
+    multivariate normal priors (this is not true in general, but for the CLI 
+    it is much simpler). All other parameters may be set as Normal or Uniform
+    priors. 
 
+    Returns
+    -------
+    priors : list
+        A list of Prior() classes corresponding to each parameter specified. 
+        Names in these will be prefixed by "<dict>:" for parameters required
+        to pass to dictionaries.
+        
+    keys : list
+        A list of of parameter names (without prefixes)
+        
+    guess : list
+        A list containing an initial guess for each parameter.
+    """
     # Set-up returned lists of parameters
     priors = []
     guess = []
     keys = []
 
-    # Get covariance data for the cosmology
-    covdata = params["CosmoParams"].pop("covar_data")
+    # Get covariance data for the cosmology (ie. name of CMB mission if provided)
+    covdata = params["cosmo_paramsParams"].pop("covar_data", None)
+    if covdata:
+        try:
+            cosmo_cov = getattr(sys.modules["hmf.fit"], covdata)
+        except AttributeError:
+            raise AttributeError("%s is not a valid cosmology dataset" % covdata)
+        except Exception:
+            raise
 
-    # Get all parmeters to be set as a flat dictionary
-    allparams = {}
-    for pset, vset in params.iteritems():
-        for p, val in vset.iteritems():
-            allparams[p] = val
-
-    # The cosmological params are special, and other simple paramss
-    cosmoparams = params.pop("CosmoParams")
-    otherparams = params.pop("OtherParams")
-
-    # Deal specifically with cosmology priors, separating covariant from normal
-    cosmo_priors = {k:json.loads(v) for k, v in cosmoparams.iteritems()}
+    # Deal specifically with cosmology priors, separating types
+    cosmo_priors = {k:json.loads(v) for k, v in params["cosmo_paramsParams"].iteritems()}
+    # the following rely on covdata
     cov_vars = {k:v for k, v in cosmo_priors.iteritems() if v[0] == "cov"}
-    var_vars = {k:v for k, v in cosmo_priors.iteritems() if v[0] == "var"}
+    norm_vars = {k:v for k, v in cosmo_priors.iteritems() if (v[0] == "norm" and len(v) == 2)}
+    # remove these to be left with normal stuff
+    for k in cov_vars.keys() + norm_vars.keys():
+        del params["cosmo_paramsParams"][k]
 
-    # SIMPLE CASE (Cosmology params all flat/log priors)
-    if covdata not in data or len(cov_vars) + len(var_vars) == 0:
-        # Do simple parameters
-        otherparams.update(cosmoparams)
-        for param, val in otherparams.iteritems():
-            priors += set_prior(param, val)
+    if cov_vars:
+        priors += cosmo_cov.get_cov_prior(*cov_vars)
+    if norm_vars:
+        priors += cosmo_cov.get_normal_priors(*norm_vars)
 
-    # NON-UNIFORM CASES
-    else:
-        # # First do all params other than cosmo
-        for param, val in otherparams.iteritems():
-            priors += set_prior(param, val)
+    # All non-cosmology-covariance-dependent stuff that is top-level
+    otherparams = params.pop("OtherParams")
+    for param, val in otherparams.iteritems():
+        priors += set_prior(param, val)
 
-        # Now cosmo params
-        data = data[covdata]
-        all_params = ["omegab_h2", "omegac_h2", "n", "sigma_8", "H0"]
-
-        if cov_vars:
-            indices = [all_params.index(k) for k in cov_vars]
-            data['cov'] = data['cov'][indices, :][:, indices]
-            priors += [mc.MultiNorm([all_params[i] for i in indices], data['mean'][indices], data['cov'])]
-        if var_vars:
-            indices = [all_params.index(v) for v in var_vars]
-            data['cov'] = data['cov'][indices, :][:, indices]
-            data['mean'] = data['mean'][indices]
-            priors += [mc.Normal(all_params[i], data['mean'][i], np.sqrt(data['cov'][i, i])) for i in range(len(data['mean']))]
-
-    # Nested parameters
+    # All non-cosmology-covariance-dependent stuff that is nested
     for k, v in params.iteritems():
         for kk, vv in v.iteritems():
             priors += set_prior(k[:-6] + ":" + kk, vv)
@@ -242,15 +247,10 @@ def param_setup(**params):
 
     # Get the guesses
     guess = []
-    for k in keys:
+    for i, k in enumerate(keys):
         val = json.loads(allparams[k])
         if val[-1] is None:
-            if val[0] == "flat":
-                guess.append((val[1] + val[2]) / 2)
-            elif val[0] == "var":
-                guess.append(val[1])
-            elif val[0] == "cov":
-                guess.append(data['mean'][all_params.index(k)])
+            guess.append(priors[i].guess(k))
         else:
             guess.append(val[-1])
 
@@ -258,23 +258,27 @@ def param_setup(**params):
     print "KEY NAMES: ", keys
     print "INITIAL GUESSES: ", guess
 
-    print "PRIORS:"
-    for p in priors:
-        print p.__dict__
-
     return priors, keys, guess
 
 def set_prior(param, val):
     val = json.loads(val)
-    if val[0] == 'flat':
+    if val[0] == 'unif':
         return [mc.Uniform(param, val[1], val[2])]
-    elif val[0] == 'var':
+    elif val[0] == 'norm':
         return [mc.Normal(param, val[1], val[2])]
     elif val[0] == "log":
         return [mc.Log(param, val[1], val[2])]
 
-def run(r, data, quantity, blobs, sd, cov, priors, keys, guess, options, prefix,
-        initial, prev_samples):
+
+
+def import_class(cl):
+    d = cl.rfind(".")
+    classname = cl[d + 1:len(cl)]
+    m = __import__(cl[0:d], globals(), locals(), [classname])
+    return getattr(m, classname)
+
+def run(x, y, quantity, blobs, sigma, priors, keys, guess, options, prefix,
+        initial, prev_samples, framework):
 
     if prefix:
         if not prefix.endswith("."):
@@ -295,27 +299,22 @@ def run(r, data, quantity, blobs, sd, cov, priors, keys, guess, options, prefix,
     relax = bool(options["RunOptions"]["relax"])
     store_class = bool(options["RunOptions"]["store_class"])
 
+    F = import_class(framework)
+    instance = F(**kwargs)
 
-    h = HaloModel(**kwargs)
-
-    # The following is a little hacky, but will do for low-redshift data
-    # Need to get correct units of r, transformed with THIS h.
-    h.update(rmin=r.min() * h.h, rmax=r.max() * h.h, rnum=len(r))
-
-
-    h.corr_gal
+    # pre-get the quantity
+    getattr(instance, quantity)
 
     prefix = join(options["IO"]["outdir"], prefix)
 
-    start = time.time()
-    s = mc.fit_hod(data, priors, h, guess,
-                   nwalkers, nsamples, burnin, nthreads, blobs,
-                   prefix, chunks,
-                   int(options["IO"]["verbose"]),
-                   sd=sd, covar=cov, quantity=quantity, store_class=store_class,
-                   relax=relax, initial_pos=initial)
+    # start = time.time()
+    fitter = fit.MCMC(priors=priors, data=y, quantity=quantity, sigma=sigma,
+                 guess=guess, blobs=blobs, verbose=verbose,
+                 store_class=store_class, relax=relax)
 
-
+    s = fitter.fit(F, nwalkers=nwalkers, nsamples=nsamples, burnin=burnin,
+                 nthreads=nthreads, prefix=prefix, chunks=chunks,
+                 initial_pos=initial)
 
     # Grab acceptance fraction from initial run if possible
     new_accepted = np.mean(s.acceptance_fraction) * nsamples * nwalkers
@@ -383,8 +382,6 @@ def read_config(fname):
     res = {s:dict(config.items(s)) for s in config.sections()}
     if "outdir" not in res["IO"]:
         res["IO"]["outdir"] = ""
-    if "covar_data" not in res["CosmoParams"]:
-        res["CosmoParams"]["covar_data"] = ""
     return res
 
 if __name__ == "__main__":
