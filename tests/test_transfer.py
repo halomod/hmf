@@ -40,7 +40,7 @@ def test_halofit():
     assert 5 * t.power[-1] < t.nonlinear_power[-1]
 
 def test_data():
-    t = Transfer(base_cosmo=LambdaCDM(Om0=0.3, Ode0=0.7, H0=70.0), Ob0=0.05, sigma_8=0.8,
+    t = Transfer(base_cosmo=LambdaCDM(Om0=0.3, Ode0=0.7, H0=70.0, Ob0=0.05), sigma_8=0.8,
                   n=1, transfer_options={"transfer__k_per_logint":0, "transfer__kmax":100.0},
                   lnk_min=np.log(1e-11), lnk_max=np.log(1e11))
     tdata = np.genfromtxt(LOCATION + "/data/transfer_for_hmf_tests.dat")
