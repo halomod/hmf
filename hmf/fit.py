@@ -653,11 +653,13 @@ class CosmoCovData(object):
     def get_normal_priors(self, *p):
         std = self.get_std(*p)
         mean = self.get_mean(*p)
-        return [Normal(pp, m, s) for pp, m, s in zip(p, mean, std)]
+        return [Normal("cosmo_params:" + pp, m, s) if p not in ["sigma_8", "n"]
+                else Normal(pp, m, s) for pp, m, s in zip(p, mean, std)]
 
     def get_cov_prior(self, *p):
         cov = self.get_cov(*p)
         mean = self.get_mean(*p)
+        p = ["cosmo_params:" + pp if pp not in ["sigma_8", "n"] else pp for pp in p]
         return MultiNorm(p, mean, cov)
 
 class FlatCovData(CosmoCovData):
