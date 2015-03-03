@@ -596,3 +596,90 @@ def _lognormpdf(x, mu, S):
     """ Log of Multinormal PDF at x, up to scale-factors."""
     err = x - mu
     return -0.5 * np.linalg.solve(S, err).T.dot(err)
+
+#===============================================================================
+# COVARIANCE DATA FROM CMB MISSIONS
+#===============================================================================
+# # Some data from CMB missions.
+# # All cov and mean data is in order of ["omegab_h2", "omegac_h2", "n", "sigma_8", "H0"]
+class CosmoCovData(object):
+    def __init__(self, cov, mean, params):
+        self.cov = cov
+        self.mean = mean
+        self.params = params
+
+    def get_cov(self, *p):
+        """
+        Return covariance matrix of given parameters *p
+        """
+        if not all([pp not in self.params for pp in p]):
+            raise AttributeError("One or more parameters passed are not in the data")
+
+        indices = [self.params.index(k) for k in p]
+        return self.cov[indices, :][:, indices]
+
+    def get_mean(self, *p):
+        indices = [self.params.index(k) for k in p]
+        return self.mean[indices]
+
+    def get_std(self, *p):
+        cov = self.get_cov(*p)
+        return np.sqrt([(cov[i, i]) for i in range(cov.shape[0])])
+
+    def get_normal_priors(self, *p):
+        std = self.get_std(*p)
+        mean = self.get_mean(*p)
+        return [Normal(pp, m, s) for pp, m, s in zip(p, mean, std)]
+
+    def get_cov_prior(self, *p):
+        cov = self.get_cov(*p)
+        mean = self.get_mean(*p)
+        return MultiNorm(p, mean, cov)
+
+class FlatCovData(CosmoCovData):
+    def __init__(self, cov, mean):
+        params = ['Om0', 'Ob0', 'sigma_8', 'n', 'H0']
+        super(FlatCovData, self).__init__(cov, mean, params)
+
+
+WMAP3 = FlatCovData(cov=np.array([[ 1.294e-03, 1.298e-04, 1.322e-03, -1.369e-04, -1.153e-01],
+                                  [1.298e-04, 1.361e-05, 1.403e-04, -7.666e-06, -1.140e-02],
+                                  [1.322e-03, 1.403e-04, 2.558e-03, 2.967e-04, -9.972e-02],
+                                  [-1.369e-04, -7.666e-06, 2.967e-04, 2.833e-04, 2.289e-02],
+                                  [-1.153e-01, -1.140e-02, -9.972e-02, 2.289e-02, 1.114e+01 ]]),
+                    mean=np.array([ 2.409e-01, 4.182e-02, 7.605e-01, 9.577e-01, 7.321e+01 ]))
+
+WMAP5 = FlatCovData(cov=np.array([[ 9.514e-04, 9.305e-05, 8.462e-04, -1.687e-04, -8.107e-02],
+                                  [9.305e-05, 9.517e-06, 8.724e-05, -1.160e-05, -7.810e-03],
+                                  [8.462e-04, 8.724e-05, 1.339e-03, 1.032e-04, -6.075e-02],
+                                  [-1.687e-04, -1.160e-05, 1.032e-04, 2.182e-04, 2.118e-02],
+                                  [-8.107e-02, -7.810e-03, -6.075e-02, 2.118e-02, 7.421e+00 ]]),
+                    mean=np.array([ 2.597e-01, 4.424e-02, 7.980e-01, 9.634e-01, 7.180e+01 ]))
+
+WMAP7 = FlatCovData(cov=np.array([[ 8.862e-04, 8.399e-05, 7.000e-04, -2.060e-04, -7.494e-02],
+                                  [8.399e-05, 8.361e-06, 7.000e-05, -1.500e-05, -7.003e-03],
+                                  [7.000e-04, 7.000e-05, 1.019e-03, 4.194e-05, -4.987e-02],
+                                  [-2.060e-04, -1.500e-05, 4.194e-05, 2.103e-04, 2.300e-02],
+                                  [-7.494e-02, -7.003e-03, -4.987e-02, 2.300e-02, 6.770e+00 ]]),
+                    mean=np.array([ 2.675e-01, 4.504e-02, 8.017e-01, 9.634e-01, 7.091e+01 ]))
+
+WMAP9 = FlatCovData(cov=np.array([[ 6.854e-04, 6.232e-05, 4.187e-04, -2.180e-04, -5.713e-02],
+                                  [6.232e-05, 5.964e-06, 4.048e-05, -1.643e-05, -5.134e-03],
+                                  [4.187e-04, 4.048e-05, 5.644e-04, -1.037e-05, -2.945e-02],
+                                  [-2.180e-04, -1.643e-05, -1.037e-05, 1.766e-04, 2.131e-02],
+                                  [-5.713e-02, -5.134e-03, -2.945e-02, 2.131e-02, 5.003e+00]]),
+                     mean=np.array([ 2.801e-01, 4.632e-02, 8.212e-01, 9.723e-01, 6.998e+01 ]))
+
+Planck13 = FlatCovData(cov=np.array([[ 3.884e-04, 3.017e-05, -1.508e-04, -1.619e-04, -2.834e-02],
+                                     [3.017e-05, 2.459e-06, -9.760e-06, -1.236e-05, -2.172e-03],
+                                     [-1.508e-04, -9.760e-06, 7.210e-04, 1.172e-04, 1.203e-02],
+                                     [-1.619e-04, -1.236e-05, 1.172e-04, 8.918e-05, 1.196e-02],
+                                     [-2.834e-02, -2.172e-03, 1.203e-02, 1.196e-02, 2.093e+00 ]]),
+                       mean=np.array([ 3.138e-01, 4.861e-02, 8.339e-01, 9.617e-01, 6.741e+01 ]))
+
+Planck15 = FlatCovData(cov=np.array([[ 1.021e-04, 8.034e-06, -5.538e-05, -4.492e-05, -7.479e-03],
+                                     [8.034e-06, 6.646e-07, -3.924e-06, -3.542e-06, -5.803e-04],
+                                     [-5.538e-05, -3.924e-06, 3.308e-04, 4.343e-05, 4.250e-03],
+                                     [-4.492e-05, -3.542e-06, 4.343e-05, 2.940e-05, 3.291e-03],
+                                     [-7.479e-03, -5.803e-04, 4.250e-03, 3.291e-03, 5.531e-01 ]]),
+                       mean=np.array([ 3.114e-01, 4.888e-02, 8.460e-01, 9.669e-01, 6.758e+01 ]))
