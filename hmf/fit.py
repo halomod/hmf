@@ -512,7 +512,19 @@ class Minimize(Fit):
 #===============================================================================
 # Classes for different prior models
 #===============================================================================
-class Uniform(object):
+class Prior(object):
+    def ll(self, param):
+        """
+        Returns the log-likelihood of the given parameter given the Prior
+        """
+        pass
+    def guess(self, *p):
+        """
+        Returns an "initial guess" for the prior
+        """
+        pass
+
+class Uniform(Prior):
     """
     A Uniform prior.
     
@@ -539,10 +551,13 @@ class Uniform(object):
         else:
             return 0
 
+    def guess(self, *p):
+        return (self.low + self.high) / 2
+
 class Log(Uniform):
     pass
 
-class Normal(object):
+class Normal(Prior):
     """
     A Gaussian prior.
     
@@ -565,7 +580,10 @@ class Normal(object):
     def ll(self, param):
         return norm.logpdf(param, loc=self.mean, scale=self.sd)
 
-class MultiNorm(object):
+    def guess(self, *p):
+        return self.mean
+
+class MultiNorm(Prior):
     """
     A Multivariate Gaussian prior
     
@@ -591,6 +609,12 @@ class MultiNorm(object):
         """
         params = np.array([params[k] for k in self.name])
         return _lognormpdf(params, self.mean, self.cov)
+
+    def guess(self, *p):
+        """
+        p should be the parameter name
+        """
+        return self.mean[self.name.index(p[0])]
 
 def _lognormpdf(x, mu, S):
     """ Log of Multinormal PDF at x, up to scale-factors."""
