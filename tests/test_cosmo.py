@@ -25,11 +25,11 @@ def eq(actual, expected):
 
 def test_string_cosmo():
     c = Cosmology(base_cosmo="WMAP7")
-    assert c.cosmo.Ob0 == 0.05
+    assert c.cosmo.Ob0 > 0
 
 class TestUpdate():
     def __init__(self):
-        self.c = Cosmology(base_cosmo="Planck13", Ob0=0.05, cosmo_params={})
+        self.c = Cosmology(base_cosmo="Planck13", cosmo_params={})
 
     def test_base_cosmo(self):
         self.c.update(base_cosmo=WMAP7)
@@ -37,10 +37,6 @@ class TestUpdate():
         assert self.c.cosmo.Om0 == 0.272
         print self.c.mean_density0
         assert np.isclose(self.c.mean_density0.value, 75468972351.60081)
-
-    def test_Ob0(self):
-        self.c.update(Ob0=0.1)
-        assert self.c.cosmo.Ob0 == 0.1
 
     def test_cosmo_params(self):
         self.c.update(cosmo_params={"H0":0.6})
