@@ -228,15 +228,23 @@ def param_setup(**params):
     if norm_vars:
         priors += cosmo_cov.get_normal_priors(*norm_vars)
 
+    # sigma_8 and n are special cosmology parameters that don't nest
+    if "sigma_8" in params["cosmo_paramsParams"]:
+        params["OtherParams"]["sigma_8"] = params["cosmo_paramsParams"].pop("sigma_8")
+    if "n" in params["cosmo_paramsParams"]:
+        params["OtherParams"]["n"] = params["cosmo_paramsParams"].pop("n")
+
     # All non-cosmology-covariance-dependent stuff that is top-level
-    otherparams = params.pop("OtherParams")
+    otherparams = params["OtherParams"]
     for param, val in otherparams.iteritems():
         priors += set_prior(param, val)
 
+
     # All non-cosmology-covariance-dependent stuff that is nested
     for k, v in params.iteritems():
-        for kk, vv in v.iteritems():
-            priors += set_prior(k[:-6] + ":" + kk, vv)
+        if k != "OtherParams":
+            for kk, vv in v.iteritems():
+                priors += set_prior(k[:-6] + ":" + kk, vv)
 
     # Create list of all the names of parameters (pure name without :)
     for prior in priors:
@@ -278,7 +286,7 @@ def set_prior(param, val):
     elif val[0] == "log":
         x = fit.Log(param, val[1], val[2])
 
-    return x
+    return [x]
 
 def import_class(cl):
     d = cl.rfind(".")
@@ -305,6 +313,7 @@ def run(x, y, xval, quantity, blobs, sigma, priors, keys, guess, options, prefix
     burnin = json.loads(options["MCMC"]["burnin"])
     nthreads = int(options["RunOptions"]["nthreads"])
     chunks = int(options["IO"]["chunks"])
+    verbose = int(options["IO"]["verbose"])
     relax = bool(options["RunOptions"]["relax"])
     store_class = bool(options["RunOptions"]["store_class"])
 
@@ -312,7 +321,7 @@ def run(x, y, xval, quantity, blobs, sigma, priors, keys, guess, options, prefix
     instance = F(**kwargs)
 
     # Set up x-variable in Framework
-    assert np.allclose(np.diff(np.diff(np.log10(x))) == 0)
+    assert np.allclose(np.diff(np.diff(np.log10(x))), 0)
     if xval == "M":
         instance.update(Mmin=np.log10(x[0]), Mmax=np.log10(x[-1]), dlog10m=np.log10(x[1] / x[0]))
     elif xval == "k":
