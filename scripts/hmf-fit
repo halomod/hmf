@@ -109,6 +109,7 @@ USAGE
         priors, keys, guess = param_setup(**dict_p)
 
         quantity = options["RunOptions"]["quantity"]
+        xval = options["RunOptions"]["xval"]
         blobs = json.loads(options["RunOptions"]["der_params"])
         framework = options["RunOptions"]["framework"]
         if args.restart:
@@ -116,7 +117,7 @@ USAGE
         else:
             initial, prev_samples = None, 0
 
-        run(x, y, quantity, blobs, sigma, priors, keys, guess, options,
+        run(x, y, xval, quantity, blobs, sigma, priors, keys, guess, options,
             args.prefix, initial, prev_samples, framework)
 
         return 0
@@ -150,7 +151,7 @@ def get_data(**kwargs):
     float array or None:
         Covariance of y values, or None if not provided.
     """
-    data = np.genfromtxt(**kwargs['data_file'])
+    data = np.genfromtxt(kwargs['data_file'])
 
     x = data[:, 0]
     y = data[:, 1]
@@ -160,7 +161,7 @@ def get_data(**kwargs):
         sd = None
 
     try:
-        cov = np.genfromtxt(**kwargs["cov_file"])
+        cov = np.genfromtxt(kwargs["cov_file"])
     except:
         cov = None
 
@@ -245,7 +246,20 @@ def param_setup(**params):
             keys += prior.name
     keys = [k.split(":")[-1] for k in keys]
 
-    # Get the guesses
+    guess = get_guess(params, keys, priors)
+
+    print "KEY NAMES: ", keys
+    print "INITIAL GUESSES: ", guess
+
+    return priors, keys, guess
+def get_guess(params, keys, priors):
+    # Get all parmeters to be set as a flat dictionary
+    allparams = {}
+    for pset, vset in params.iteritems():
+        for p, val in vset.iteritems():
+            allparams[p] = val
+
+        # Get the guesses
     guess = []
     for i, k in enumerate(keys):
         val = json.loads(allparams[k])
@@ -253,23 +267,18 @@ def param_setup(**params):
             guess.append(priors[i].guess(k))
         else:
             guess.append(val[-1])
-
-
-    print "KEY NAMES: ", keys
-    print "INITIAL GUESSES: ", guess
-
-    return priors, keys, guess
+    return guess
 
 def set_prior(param, val):
     val = json.loads(val)
     if val[0] == 'unif':
-        return [mc.Uniform(param, val[1], val[2])]
+        x = fit.Uniform(param, val[1], val[2])
     elif val[0] == 'norm':
-        return [mc.Normal(param, val[1], val[2])]
+        x = fit.Normal(param, val[1], val[2])
     elif val[0] == "log":
-        return [mc.Log(param, val[1], val[2])]
+        x = fit.Log(param, val[1], val[2])
 
-
+    return x
 
 def import_class(cl):
     d = cl.rfind(".")
@@ -277,7 +286,7 @@ def import_class(cl):
     m = __import__(cl[0:d], globals(), locals(), [classname])
     return getattr(m, classname)
 
-def run(x, y, quantity, blobs, sigma, priors, keys, guess, options, prefix,
+def run(x, y, xval, quantity, blobs, sigma, priors, keys, guess, options, prefix,
         initial, prev_samples, framework):
 
     if prefix:
@@ -301,6 +310,13 @@ def run(x, y, quantity, blobs, sigma, priors, keys, guess, options, prefix,
 
     F = import_class(framework)
     instance = F(**kwargs)
+
+    # Set up x-variable in Framework
+    assert np.allclose(np.diff(np.diff(np.log10(x))) == 0)
+    if xval == "M":
+        instance.update(Mmin=np.log10(x[0]), Mmax=np.log10(x[-1]), dlog10m=np.log10(x[1] / x[0]))
+    elif xval == "k":
+        instance.update(lnk_min=np.log(x[0]), lnk_max=np.log(x[-1]), dlnk=np.log(x[1] / x[0]))
 
     # pre-get the quantity
     getattr(instance, quantity)
