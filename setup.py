@@ -39,7 +39,7 @@ setup(
     install_requires=["numpy>=1.6.2",
                       "scipy>=0.12.0",
                       "astropy>=1.0"],
-    scripts=["scripts/hmf"],
+    scripts=["scripts/hmf", "scripts/hmf-fit"],
     author="Steven Murray",
     author_email="steven.murray@uwa.edu.au",
     description="A halo mass function calculator",
