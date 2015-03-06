@@ -155,15 +155,19 @@ def get_data(**kwargs):
 
     x = data[:, 0]
     y = data[:, 1]
-    try:
-        sd = data[:, 2]
-    except IndexError:
-        sd = None
 
     try:
         cov = np.genfromtxt(kwargs["cov_file"])
     except:
         cov = None
+
+    if cov is None:
+        try:
+            sd = data[:, 2]
+        except IndexError:
+            sd = None
+
+
 
     if sd is None and cov is None:
         raise ValueError("""
@@ -323,21 +327,27 @@ def run(x, y, xval, quantity, blobs, sigma, priors, keys, guess, options, prefix
     # Set up x-variable in Framework
     assert np.allclose(np.diff(np.diff(np.log10(x))), 0)
     if xval == "M":
-        instance.update(Mmin=np.log10(x[0]), Mmax=np.log10(x[-1]), dlog10m=np.log10(x[1] / x[0]))
+        dlog10m = np.log10(x[1] / x[0])
+        instance.update(Mmin=np.log10(x[0]), Mmax=np.log10(x[-1]) + 0.2 * dlog10m, dlog10m=dlog10m)
     elif xval == "k":
-        instance.update(lnk_min=np.log(x[0]), lnk_max=np.log(x[-1]), dlnk=np.log(x[1] / x[0]))
+        dlnk = np.log(x[1] / x[0])
+        instance.update(lnk_min=np.log(x[0]), lnk_max=np.log(x[-1]) + 0.2 * dlnk, dlnk=dlnk)
 
     # pre-get the quantity
-    getattr(instance, quantity)
+    q = getattr(instance, quantity)
+
+    # # Apply the units of the quantity to the data
+    if hasattr(q, "unit"):
+        y *= q.unit
 
     prefix = join(options["IO"]["outdir"], prefix)
 
-    # start = time.time()
+    start = time.time()
     fitter = fit.MCMC(priors=priors, data=y, quantity=quantity, sigma=sigma,
                  guess=guess, blobs=blobs, verbose=verbose,
                  store_class=store_class, relax=relax)
 
-    s = fitter.fit(F, nwalkers=nwalkers, nsamples=nsamples, burnin=burnin,
+    s = fitter.fit(instance, nwalkers=nwalkers, nsamples=nsamples, burnin=burnin,
                  nthreads=nthreads, prefix=prefix, chunks=chunks,
                  initial_pos=initial)
 
