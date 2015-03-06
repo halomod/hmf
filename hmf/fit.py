@@ -19,6 +19,7 @@ import pickle
 from numbers import Number
 import copy
 import traceback
+import transfer_models as tm
 
 try:
     import emcee
@@ -65,9 +66,6 @@ def model(parm, h, self):
     if isinstance(prior, Log):
         p[index] = 10 ** parm[index]
 
-    # Store initial H0 value for use in renormalising
-#     h_before = h.h
-
     # Rebuild the hod dict from given vals
     # Any attr starting with <name>: is put into a dictionary.
     param_dict = {}
@@ -92,12 +90,6 @@ def model(parm, h, self):
         else:
             print traceback.format_exc()
             raise e
-
-
-#     # Get r correct (with h)
-#     if h_before != h.h:
-#         h.update(Mmin=h.Mmin * h.h / h_before,
-#                  Mmax=h.Mmax * h.h / h_before)
 
     # Get the quantity to compare (if exceptions are raised, treat properly)
     try:
@@ -295,10 +287,10 @@ class MCMC(Fit):
             burnin = 0
 
         # If using CAMB, nthreads MUST BE 1
-        if h.transfer_fit == "CAMB":
-            for pp in h.pycamb_dict:
-                if pp in self.attrs:
-                    nthreads = 1
+        if (h.transfer_fit == "CAMB" or h.transfer_fit == tm.CAMB):
+            if any(p.startswith("cosmo_params:") for p in self.attrs):
+                nthreads = 1
+
         elif not nthreads:
             # auto-calculate the number of threads to use if not set.
             nthreads = cpu_count()
@@ -379,7 +371,7 @@ class MCMC(Fit):
                         print "%. Time per sample: ", (time.time() - start) / ((i + 1) * nwalkers)
 
                     # Write out files
-                    self.write_iter(sampler, i, nwalkers, chunks, prefix, blobs, extend)
+                    self.write_iter(sampler, i, nwalkers, chunks, prefix, extend)
 
         return sampler
 
