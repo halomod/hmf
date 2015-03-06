@@ -1,30 +1,12 @@
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
-import sys
 import copy
 from scipy.special import gamma as Gam
-from . import cosmo
+import cosmo
+from _framework import Model
 _allfits = ["ST", "SMT", 'Jenkins', "Warren", "Reed03", "Reed07", "Peacock",
             "Angulo", "AnguloBound", "Tinker", "Watson_FoF", "Watson", "Crocce",
             "Courtin", "Bhattacharya", "Behroozi", "Tinker08", "Tinker10"]
-
-# TODO: check out units for boundaries (ie. whether they should be log or ln 1/sigma or M/h or M)
-def get_fit(name, **kwargs):
-    """
-    Returns the correct subclass of :class:`FittingFunction`.
-    
-    Parameters
-    ----------
-    name : str
-        The class name of the appropriate fit
-        
-    \*\*kwargs : 
-        Any parameters for the instantiated fit (including model parameters)
-    """
-    try:
-        return getattr(sys.modules[__name__], name)(**kwargs)
-    except AttributeError:
-        raise AttributeError(str(name) + "  is not a valid FittingFunction class")
 
 def _makedoc(pdocs, lname, sname, eq, ref):
     return \
@@ -44,7 +26,7 @@ def _makedoc(pdocs, lname, sname, eq, ref):
     """ % (lname, sname, eq, ref)
 
 
-class FittingFunction(object):
+class FittingFunction(Model):
     r"""
     Base-class for a halo mass function fit
     
@@ -88,15 +70,6 @@ class FittingFunction(object):
     def __init__(self, M, nu2, delta_c, sigma=None, n_eff=None, lnsigma=None, z=0,
                  delta_halo=200, cosmo=None, omegam_z=None,
                   **model_parameters):
-        # Check that all parameters passed are valid
-        for k in model_parameters:
-            if k not in self._defaults:
-                raise ValueError("%s is not a valid argument for the %s Fitting Function" % (k, self.__class__.__name__))
-
-        # Gather model parameters
-        self.params = copy.copy(self._defaults)
-        self.params.update(model_parameters)
-
         # Save instance variables
         self.M = M.value
         self.nu2 = nu2
@@ -120,6 +93,8 @@ class FittingFunction(object):
             self.omegam_z = cosmo.cosmo.Om(self.z)
         elif self.use_cosmo:
             self.omegam_z = omegam_z
+
+        super(FittingFunction, self).__init__(**model_parameters)
 
     def fsigma(self, cut_fit):
         r"""
