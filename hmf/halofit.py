@@ -17,7 +17,6 @@ def _get_spec(k, delta_k, sigma_8):
     of the power spectrum.
     """
     k = k.value
-    delta_k = delta_k
 
     # Initialize sigma spline
     if sigma_8 < 1.0 and sigma_8 > 0.6:

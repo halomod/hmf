@@ -284,7 +284,7 @@ class Transfer(Cosmology):
         """
         rknl, rneff, rncur = _get_spec(self.k, self.delta_k, self.sigma_8)
         mask = self.k.value > 0.005
-        plin = np.exp(self.delta_k[mask])
+        plin = self.delta_k[mask]
         k = self.k[mask]
         pnl = halofit(k.value, self.z, self.cosmo, rneff, rncur, rknl, plin, self.takahashi)
         nonlinear_delta_k = self.delta_k
