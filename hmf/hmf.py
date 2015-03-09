@@ -275,7 +275,7 @@ class MassFunction(Transfer):
             filter = self.filter(self.mean_density0, self.delta_c, self.k, self._power0,
                                  **self.filter_params)
         elif isinstance(self.filter, basestring):
-            filter = get_models(self.filter, "hmf.filters", rho_mean=self.mean_density0,
+            filter = get_model(self.filter, "hmf.filters", rho_mean=self.mean_density0,
                                 delta_c=self.delta_c, k=self.k, power=self._power0,
                                 **self.filter_params)
 

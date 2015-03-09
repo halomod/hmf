@@ -79,7 +79,7 @@ class GrowthFactor(Model):
         growth = self.d_plus(z) / self.d_plus(0.0)
         return growth
 
-    def growth_factor_fn(self, zmin=0.0):
+    def growth_factor_fn(self, zmin=0.0, inverse=False):
         """
         Calculate :math:`d(a) = D^+(a)/D^+(a=1)`, from Lukic et. al. 2007, eq. 7.
         
@@ -87,20 +87,23 @@ class GrowthFactor(Model):
         
         Parameters
         ----------
-        zmax : float, optional
-            The maximum redshift of the function. Default 1000.0
+        zmin : float, optional
+            The minimum redshift of the function. Default 0.0
             
-        dz : float, optional
-            The step-size of the integration. Default 0.01.
-            
+        inverse: bool, optional
+            Whether to return the inverse relationship [z(g)]. Default False.
             
         Returns
         -------
         callable
-            The normalised growth factor as a function of redshift.
+            The normalised growth factor as a function of redshift, or
+            redshift as a function of growth factor if ``inverse`` is True.
         """
         growth = self.d_plus(zmin, True) / self.d_plus(0.0)
-        s = spline(self._zvec[::-1], growth[::-1])
+        if not inverse:
+            s = spline(self._zvec[::-1], growth[::-1])
+        else:
+            s = spline(growth[::-1], self._zvec[::-1])
         return s
 
     def growth_rate(self, z):
