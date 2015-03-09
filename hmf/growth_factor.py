@@ -6,14 +6,15 @@ fitting functions
 '''
 import numpy as np
 from scipy import integrate as intg
-import copy
 from _framework import Model
+from scipy.interpolate import InterpolatedUnivariateSpline as spline
 
 class GrowthFactor(Model):
     r"""
     General class for a growth factor calculation
      
     """
+    _defaults = {"dlna":0.01, "amin":1e-8}
     def __init__(self, cosmo, **model_parameters):
         """
         cosmo : ``astropy.cosmology.FLRW()`` object or subclass
@@ -25,10 +26,9 @@ class GrowthFactor(Model):
 
         # Set simple parameters
         self.cosmo = cosmo
-
         super(GrowthFactor, self).__init__(**model_parameters)
 
-    def d_plus(self, z):
+    def d_plus(self, z, getvec=False):
         """
         Finds the factor :math:`D^+(a)`, from Lukic et. al. 2007, eq. 8.
         
@@ -48,23 +48,17 @@ class GrowthFactor(Model):
             The un-normalised growth factor.
         """
         a_upper = 1.0 / (1.0 + z)
-        lna = np.linspace(np.log(1e-8), np.log(a_upper), 1000)
-        z_vec = 1.0 / np.exp(lna) - 1.0
+        lna = np.arange(np.log(self.params["amin"]), np.log(a_upper) + self.params['dlna'] / 2, self.params['dlna'])
+        self._zvec = 1.0 / np.exp(lna) - 1.0
 
-        integrand = 1.0 / (np.exp(lna) * self.cosmo.efunc(z_vec)) ** 3
-        integral = intg.simps(np.exp(lna) * integrand, dx=lna[1] - lna[0])
-        dplus = 5.0 * self.cosmo.Om0 * self.cosmo.efunc(z) * integral / 2.0
+        integrand = 1.0 / (np.exp(lna) * self.cosmo.efunc(self._zvec)) ** 3
 
-#         if getvec:
-#             lna = np.linspace(lna[-1], 0.0, 1000)
-#             z_vec = 1.0 / np.exp(lna) - 1.0
-#             integrand = 1.0 / (np.exp(lna) * cosmo.efunc(z)) ** 3
-#             integral = intg.cumtrapz(np.exp(lna) * integrand, dx=lna[1] - lna[0], initial=0.0)
-#
-#             dplus += 5.0 * cosmo.Om0 * cosmo.efunc(z) * integral / 2.0
-#
-#         if getvec:
-#             dplus = np.vstack((z_vec, dplus))  # spline(z_vec[1:], dplus)
+        if not getvec:
+            integral = intg.simps(np.exp(lna) * integrand, dx=self.params['dlna'])
+            dplus = 5.0 * self.cosmo.Om0 * self.cosmo.efunc(z) * integral / 2.0
+        else:
+            integral = intg.cumtrapz(np.exp(lna) * integrand, dx=self.params['dlna'], initial=0.0)
+            dplus = 5.0 * self.cosmo.Om0 * self.cosmo.efunc(self._zvec) * integral / 2.0
 
         return dplus
 
@@ -82,13 +76,32 @@ class GrowthFactor(Model):
         float
             The normalised growth factor.
         """
-#         if not getvec:
         growth = self.d_plus(z) / self.d_plus(0.0)
-#         else:
-#             growth = d_plus(z, cosmo, getvec)
-#             growth[1, :] /= d_plus(0.0, cosmo)
-
         return growth
+
+    def growth_factor_fn(self, zmin=0.0):
+        """
+        Calculate :math:`d(a) = D^+(a)/D^+(a=1)`, from Lukic et. al. 2007, eq. 7.
+        
+        Returns a function G(z).
+        
+        Parameters
+        ----------
+        zmax : float, optional
+            The maximum redshift of the function. Default 1000.0
+            
+        dz : float, optional
+            The step-size of the integration. Default 0.01.
+            
+            
+        Returns
+        -------
+        callable
+            The normalised growth factor as a function of redshift.
+        """
+        growth = self.d_plus(zmin, True) / self.d_plus(0.0)
+        s = spline(self._zvec[::-1], growth[::-1])
+        return s
 
     def growth_rate(self, z):
         """
@@ -126,6 +139,6 @@ class GenMFGrowth(GrowthFactor):
             aofx = ((x ** 3 + 2) ** 0.5) * (g / x ** 1.5)
             return aofx / aofxn
         else:
-            dn = 1 + 3 / w + (3 * ((1 + w) ** 0.5) / w ** 1.5) * log((1 + w) ** 0.5 - w ** 0.5)
+            dn = 1 + 3 / w + (3 * ((1 + w) ** 0.5) / w ** 1.5) * np.log((1 + w) ** 0.5 - w ** 0.5)
             x = w * a
-            return (1 + 3 / x + (3 * ((1 + x) ** 0.5) / x ** 1.5) * log((1 + x) ** 0.5 - x ** 0.5)) / dn
+            return (1 + 3 / x + (3 * ((1 + x) ** 0.5) / x ** 1.5) * np.log((1 + x) ** 0.5 - x ** 0.5)) / dn
