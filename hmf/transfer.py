@@ -255,12 +255,12 @@ class Transfer(Cosmology):
         else:
             return 1.0
 
-    @cached_property("growth", "_power0")
+    @cached_property("growth_factor", "_power0")
     def power(self):
         """
         Normalised log power spectrum [units :math:`Mpc^3/h^3`]
         """
-        return self.growth ** 2 * self._power0
+        return self.growth_factor ** 2 * self._power0
 
     @cached_property("k", "power")
     def delta_k(self):
