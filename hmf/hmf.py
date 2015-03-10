@@ -333,12 +333,12 @@ class MassFunction(Transfer):
         """
         return 0.5 * self.filter_mod.dlnss_dlnm(self.radii)
 
-    @cached_property("_sigma_0", "growth")
+    @cached_property("_sigma_0", "growth_factor")
     def sigma(self):
         """
         The mass variance at `z`, ``len=len(M)``
         """
-        return self._sigma_0 * self.growth
+        return self._sigma_0 * self.growth_factor
 
     @cached_property("sigma", "delta_c")
     def nu(self):

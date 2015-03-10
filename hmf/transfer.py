@@ -229,8 +229,16 @@ class Transfer(Cosmology):
 #                                self._unnormalised_lnT,
 #                                self.lnk, self.mean_density0)[0]
 
-    @cached_property("z", "cosmo", "growth_model", "_growth_params")
-    def growth(self):
+    @cached_property("cosmo", "growth_model", "_growth_params")
+    def _growth(self):
+        if issubclass_(self.growth_model, GrowthFactor):
+            return self.growth_model(self.cosmo, **self._growth_params)
+        else:
+            return get_model(self.growth_model, "hmf.growth_factor", cosmo=self.cosmo,
+                             **self._growth_params)
+
+    @cached_property("z", "_growth")
+    def growth_factor(self):
         r"""
         The growth factor :math:`d(z)`
         
@@ -243,22 +251,16 @@ class Transfer(Cosmology):
         .. math:: D^+(z) = \frac{5\Omega_m}{2}\frac{H(z)}{H_0}\int_z^{\infty}{\frac{(1+z')dz'}{[H(z')/H_0]^3}}        
         """
         if self.z > 0:
-            if issubclass_(self.growth_model, GrowthFactor):
-                g = self.growth_model(self.cosmo, **self._growth_params)
-            elif isinstance(self.growth_model, basestring):
-                g = get_model(self.growth_model, "hmf.growth_factor", cosmo=self.cosmo,
-                              **self._growth_params)
-
-            return g.growth_factor(self.z)
+            return self._growth.growth_factor(self.z)
         else:
             return 1.0
 
-    @cached_property("growth", "_power0")
+    @cached_property("growth_factor", "_power0")
     def power(self):
         """
         Normalised log power spectrum [units :math:`Mpc^3/h^3`]
         """
-        return self.growth ** 2 * self._power0
+        return self.growth_factor ** 2 * self._power0
 
     @cached_property("k", "power")
     def delta_k(self):

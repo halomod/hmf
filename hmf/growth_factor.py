@@ -103,45 +103,80 @@ class GrowthFactor(Model):
         if not inverse:
             s = spline(self._zvec[::-1], growth[::-1])
         else:
-            s = spline(growth[::-1], self._zvec[::-1])
+            s = spline(growth, self._zvec)
         return s
 
     def growth_rate(self, z):
         """
         Growth rate, dln(d)/dln(a) from Hamilton 2000 eq. 4
+        
+        Parameters
+        ----------
+        z : float
+            The redshift
         """
-
         return (-1 - self.cosmo.Om(z) / 2 + self.Ode(z) +
-                5 * self.Om(z) / (2 * self.growth_factor(z)))
+                5 * self.cosmo.Om(z) / (2 * self.growth_factor(z)))
 
+
+    def growth_rate_fn(self, zmin):
+        """
+        Growth rate, dln(d)/dln(a) from Hamilton 2000 eq. 4
+        
+        Parameters
+        ----------
+        zmin : float, optional
+            The minimum redshift of the function. Default 0.0
+            
+        Returns
+        -------
+        callable
+            The normalised growth rate as a function of redshift.
+        """
+        gfn = self.growth_factor_fn(zmin)
+
+        return lambda z: (-1 - self.cosmo.Om(z) / 2 + self.cosmo.Ode(z) +
+                          5 * self.cosmo.Om(z) / (2 * gfn(z)))
 
 class GenMFGrowth(GrowthFactor):
     """
     Port of growth factor routines found in the genmf code.
     """
+    _defaults = {"dz":0.01, "zmax":1000.0}
+    def d_plus(self, z, getvec=False):
+        raise NotImplementedError()
+
+    def _general_case(self, w, x):
+        xn_vec = np.linspace(0, x, 1000)
+        func = (xn_vec / (xn_vec ** 3 + 2)) ** 1.5
+        g = intg.simps(func, dx=xn_vec[1] - xn_vec[0])
+        return ((x ** 3.0 + 2.0) ** 0.5) * (g / x ** 1.5)
+
     def growth_factor(self, z):
         a = 1 / (1 + z)
         w = 1 / self.cosmo.Om0 - 1.0
-        sum = self.cosmo.Om0 + self.cosmo.Ode0
-        if (sum > 1 or self.cosmo.Om0 < 0 or (sum != 1 and self.cosmo.Ode0 > 0)):
-            if np.abs(sum - 1.0) > 1.e-10:
+        s = self.cosmo.Om0 + self.cosmo.Ode0
+        if (s > 1 or self.cosmo.Om0 < 0 or (s != 1 and self.cosmo.Ode0 > 0)):
+            if np.abs(s - 1.0) > 1.e-10:
                 raise ValueError('Cannot cope with this cosmology!')
 
         if self.cosmo.Om0 == 1:
             return a
         elif self.cosmo.Ode0 > 0:
             xn = (2.0 * w) ** (1.0 / 3)
-            xn_vec = np.linspace(0, xn, 1000)
-            func2 = (xn_vec / (xn_vec ** 3 + 2)) ** 1.5
-            g = intg.simps(func2, dx=xn_vec[1 - xn_vec[0]])
-            aofxn = ((xn ** 3.0 + 2.0) ** 0.5) * (g / xn ** 1.5)
+            aofxn = self._general_case(w, xn)
             x = a * xn
-            x_vec = np.linspace(0, x, 1000)
-            func2 = (x_vec / (x_vec ** 3 + 2)) ** 1.5
-            g = intg.simps(func2, dx=x_vec[1 - x_vec[0]])
-            aofx = ((x ** 3 + 2) ** 0.5) * (g / x ** 1.5)
+            aofx = self._general_case(w, x)
             return aofx / aofxn
         else:
             dn = 1 + 3 / w + (3 * ((1 + w) ** 0.5) / w ** 1.5) * np.log((1 + w) ** 0.5 - w ** 0.5)
             x = w * a
             return (1 + 3 / x + (3 * ((1 + x) ** 0.5) / x ** 1.5) * np.log((1 + x) ** 0.5 - x ** 0.5)) / dn
+
+    def growth_factor_fn(self, zmin=0.0, inverse=False):
+        if not inverse:
+            return self.growth_factor
+        else:
+            self._zvec = np.arange(zmin, self.params['zmax'], self.params['dz'])
+            gf = self.growth_factor(self._zvec)
+            return spline(gf, self._zvec)
