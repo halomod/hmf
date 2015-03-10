@@ -103,7 +103,7 @@ class GrowthFactor(Model):
         if not inverse:
             s = spline(self._zvec[::-1], growth[::-1])
         else:
-            s = spline(growth[::-1], self._zvec[::-1])
+            s = spline(growth, self._zvec)
         return s
 
     def growth_rate(self, z):
