@@ -252,9 +252,9 @@ class BBKS(Transfer):
         """
         BBKS transfer function.
         """
-        Gamma = self.t.omegam * self.t.h
-        q = np.exp(lnk) / Gamma * np.exp(self.t.omegab + np.sqrt(2 * self.t.h) *
-                               self.t.omegab / self.t.omegam)
+        Gamma = self.cosmo.Om0 * self.cosmo.h
+        q = np.exp(lnk) / Gamma * np.exp(self.cosmo.Ob0 + np.sqrt(2 * self.cosmo.h) *
+                               self.cosmo.Ob0 / self.cosmo.Om0)
         return np.log((np.log(1.0 + 2.34 * q) / (2.34 * q) *
                 (1 + 3.89 * q + (16.1 * q) ** 2 + (5.47 * q) ** 3 +
                  (6.71 * q) ** 4) ** (-0.25)))
@@ -265,7 +265,7 @@ class BondEfs(Transfer):
         Bond and Efstathiou transfer function.
         """
 
-        omegah2 = 1.0 / (self.t.omegam * self.t.h ** 2)
+        omegah2 = 1.0 / (self.cosmo.Om0 * self.cosmo.h ** 2)
 
         a = 6.4 * omegah2
         b = 3.0 * omegah2
