@@ -19,7 +19,7 @@ import pickle
 from numbers import Number
 import copy
 import traceback
-import transfer_models as tm
+import hmf.transfer_models as tm
 
 try:
     import emcee
