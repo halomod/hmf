@@ -16,6 +16,7 @@ import errno
 from os.path import join
 import warnings
 from emcee import autocorr
+import pickle
 
 class CLIError(Exception):
     '''Generic exception to raise and log different fatal errors.'''
@@ -84,9 +85,10 @@ class CLIRunner(object):
         res = {s:dict(config.items(s)) for s in config.sections()}
         if "outdir" not in res["IO"]:
             res["IO"]["outdir"] = ""
+        if "covar_data" not in res["cosmo_paramsParams"]:
+            res["cosmo_paramsParams"]['covar_data'] = ''
 
         # Set simple parameters
-        self.outdir = res["IO"].pop("outdir", None)
         self.quantity = res["RunOptions"].pop("quantity")
         self.xval = res["RunOptions"].pop("xval")
         self.blobs = json.loads(res["RunOptions"].pop("der_params"))
@@ -99,6 +101,8 @@ class CLIRunner(object):
         self.nsamples = int(res["MCMC"].pop("nsamples"))
         self.burnin = json.loads(res["MCMC"].pop("burnin"))
 
+
+        self.outdir = res["IO"].pop("outdir", None)
         self.chunks = int(res["IO"].pop("chunks"))
         self.verbose = int(res["IO"].pop("verbose"))
 
@@ -106,6 +110,7 @@ class CLIRunner(object):
         self.cov_file = res["Data"].pop("cov_file", None)
 
         self.model = res.pop("Model")
+        self.model_pickle = self.model.pop("model_file", None)
         for k in self.model:
             try:
                 self.model[k] = json.loads(self.model[k])
@@ -139,21 +144,19 @@ class CLIRunner(object):
         y = data[:, 1]
 
         if self.cov_file:
-            cov = np.genfromtxt(self.cov_file)
+            sigma = np.genfromtxt(self.cov_file)
         else:
-            cov = None
+            sigma = None
 
-        if cov is None:
+        if sigma is None:
             try:
-                sd = data[:, 2]
+                sigma = data[:, 2]
             except IndexError:
                 raise ValueError("""
 Either a univariate standard deviation, or multivariate cov matrix must be provided.
         """)
-        else:
-            sd = None
 
-        return x, y, sd or cov
+        return x, y, sigma
 
     def param_setup(self, params):
         """
@@ -281,20 +284,24 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
             return None, 0
 
     def _setup_x(self, instance):
-        # Set up x-variable in Framework
-        assert np.allclose(np.diff(np.diff(np.log10(self.x))), 0)
         if self.xval == "M":
+            assert np.allclose(np.diff(np.diff(np.log10(self.x))), 0)
             dlog10m = np.log10(self.x[1] / self.x[0])
             instance.update(Mmin=np.log10(self.x[0]), Mmax=np.log10(self.x[-1]) + 0.2 * dlog10m, dlog10m=dlog10m)
         elif self.xval == "k":
+            assert np.allclose(np.diff(np.diff(np.log10(self.x))), 0)
             dlnk = np.log(self.x[1] / self.x[0])
             instance.update(lnk_min=np.log(self.x[0]), lnk_max=np.log(self.x[-1]) + 0.2 * dlnk, dlnk=dlnk)
 
         return instance
 
     def _setup_instance(self):
-        # Create the proper framework
-        instance = import_class(self.framework)(**self.model)
+        if self.model_pickle:
+            with open(self.model_pickle) as f:
+                instance = pickle.load(f)
+        else:
+            # Create the proper framework
+            instance = import_class(self.framework)(**self.model)
 
         # Set up x-variable in Framework
         instance = self._setup_x(instance)
@@ -314,6 +321,9 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
         """
         instance = self._setup_instance()
 
+        # # Write out a pickle file.
+        with open(self.full_prefix + "model.pickle", 'w') as f:
+            pickle.dump(instance, f)
 
         start = time.time()
         fitter = fit.MCMC(priors=self.priors, data=self.y, quantity=self.quantity,
