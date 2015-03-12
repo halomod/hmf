@@ -20,6 +20,7 @@ from numbers import Number
 import copy
 import traceback
 import hmf.transfer_models as tm
+from astropy.units import Quantity
 
 try:
     import emcee
@@ -51,6 +52,9 @@ def model(parm, h, self):
     ll : float
         The log likelihood of the model at the given position.      
     """
+    if self.verbose > 1:
+        print "Params: ", zip(self.attrs, parm)
+
     ll = 0
     p = copy.copy(parm)
     for prior in self.priors:
@@ -114,17 +118,19 @@ def model(parm, h, self):
     # Add the likelihood of the contraints
     for k, v in self.constraints.iteritems():
         ll += norm.logpdf(getattr(h, k), loc=v[0], scale=v[1])
+        if self.verbose > 2:
+            print k, getattr(h, k)
 
-    if self.verbose > 0:
+    if self.verbose:
         print "Likelihood: ", ll
     if self.verbose > 1 :
         print "Update Dictionary: ", param_dict
+    if self.verbose > 2:
+        print "Final Quantity: ", q
 
     # Get blobs to return as well.
-    if self.blobs is not None or self.store_class:
+    if self.blobs is not None:
         out = []
-        if self.store_class:
-            out.append(h)
         for b in self.blobs:
             if ":" not in b:
                 out.append(getattr(h, b))
@@ -166,9 +172,6 @@ class Fit(object):
     verbose : int, default 0
         How much to write to screen.
         
-    store_class : bool, default False
-        If True, return an ordered list of HaloModel objects. 
-        
     relax : bool, default False
         If relax is true, the call to get the quantity is wrapped in a try:except:.
         If an error occurs, the lognorm is set to -inf, rather than raising an exception.
@@ -176,7 +179,7 @@ class Fit(object):
         values can sometimes cause exceptions. 
     """
     def __init__(self, priors, data, quantity, constraints, sigma, guess=[], blobs=None,
-                 verbose=0, store_class=False, relax=False):
+                 verbose=0, relax=False):
         if len(priors) == 0:
             raise ValueError("priors must be at least length 1")
         else:
@@ -207,10 +210,9 @@ class Fit(object):
         self.sigma = sigma
         self.blobs = blobs
         self.verbose = verbose
-        self.store_class = store_class
         self.relax = relax
         self.constraints = constraints
-
+        print self.constraints
 
         # Make sure sigma has right rank
         if len(self.sigma.shape) == 2:
@@ -299,7 +301,7 @@ class MCMC(Fit):
             if any(p.startswith("cosmo_params:") for p in self.attrs):
                 nthreads = 1
 
-        elif not nthreads:
+        if not nthreads:
             # auto-calculate the number of threads to use if not set.
             nthreads = cpu_count()
 
@@ -360,12 +362,6 @@ class MCMC(Fit):
                     nsamples -= (sum(1 for line in f) - 1) / nwalkers
 
             # If storing the whole class, add the label to front of blobs
-            if self.store_class:
-                try:
-                    blobs = [h.__class__.__name__] + self.blobs
-                except TypeError:
-                    blobs = [h.__class__.__name__]
-
             if chunks == 0 or chunks > nsamples:
                 chunks = nsamples
 
@@ -422,7 +418,7 @@ class MCMC(Fit):
 
         if self.blobs:
             # All floats go together.
-            ind_float = [ii for ii, b in enumerate(sampler.blobs[0][0]) if isinstance(b, Number)]
+            ind_float = [ii for ii, b in enumerate(sampler.blobs[0][0]) if isinstance(b, Number) or isinstance(b, Quantity)]
             if not extend and ind_float:
                 with open(prefix + "derived_parameters", "w") as f:
                     f.write("# %s\n" % ("\t".join([self.blobs[ii] for ii in ind_float])))

@@ -94,7 +94,6 @@ class CLIRunner(object):
         self.blobs = json.loads(res["RunOptions"].pop("der_params"))
         self.framework = res["RunOptions"].pop("framework")
         self.relax = bool(res["RunOptions"].pop("relax"))
-        self.store_class = bool(res["RunOptions"].pop("store_class"))
         self.nthreads = int(res["RunOptions"].pop("nthreads"))
 
         self.nwalkers = int(res["MCMC"].pop("nwalkers"))
@@ -314,6 +313,14 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
         # Apply the units of the quantity to the data
         if hasattr(q, "unit"):
             self.y *= q.unit
+            self.sigma *= q.unit ** len(self.sigma.shape)
+
+        # Apply units of constraints
+        for k in self.constraints:
+            unit = getattr(getattr(instance, k), "unit", None)
+            if unit:
+                self.constraints[k][0] *= unit
+                self.constraints[k][1] *= unit
 
         return instance
 
@@ -331,8 +338,7 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
         fitter = fit.MCMC(priors=self.priors, data=self.y, quantity=self.quantity,
                           constraints=self.constraints, sigma=self.sigma,
                           guess=self.guess, blobs=self.blobs,
-                          verbose=self.verbose, store_class=self.store_class,
-                          relax=self.relax)
+                          verbose=self.verbose, relax=self.relax)
 
         s = fitter.fit(instance, nwalkers=self.nwalkers, nsamples=self.nsamples,
                        burnin=self.burnin, nthreads=self.nthreads,

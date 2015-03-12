@@ -4,10 +4,8 @@ Various models for computing the transfer function.
 Note that these are not transfer function "frameworks". The framework is found
 in transfer.py. 
 '''
-import sys
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
-import copy
 from _framework import Model
 try:
     import pycamb
@@ -29,30 +27,30 @@ class Transfer(Model):
 class CAMB(Transfer):
     """
     Scalar_initial_condition : int, {1,2,3,4,5}
-        (CAMB-only) Initial scalar perturbation mode (adiabatic=1, CDM iso=2, 
+        Initial scalar perturbation mode (adiabatic=1, CDM iso=2, 
         Baryon iso=3,neutrino density iso =4, neutrino velocity iso = 5) 
     
     lAccuracyBoost : float, optional, default ``1.0``
-        (CAMB-only) Larger to keep more terms in the hierarchy evolution
+        Larger to keep more terms in the hierarchy evolution
     
     AccuracyBoost : float, optional, default ``1.0``
-        (CAMB-only) Increase accuracy_boost to decrease time steps, use more k 
+        Increase accuracy_boost to decrease time steps, use more k 
         values,  etc.Decrease to speed up at cost of worse accuracy. 
         Suggest 0.8 to 3.
         
     w_perturb : bool, optional, default ``False``
-        (CAMB-only) 
+        
     
     transfer__k_per_logint : int, optional, default ``11``
-        (CAMB-only) Number of wavenumbers estimated per log interval by CAMB
+        Number of wavenumbers estimated per log interval by CAMB
         Default of 11 gets best performance for requisite accuracy of mass function.
         
     transfer__kmax : float, optional, default ``0.25``
-        (CAMB-only) Maximum value of the wavenumber.
+        Maximum value of the wavenumber.
         Default of 0.25 is high enough for requisite accuracy of mass function.
         
     ThreadNum : int, optional, default ``0``
-        (CAMB-only) Number of threads to use for calculation of transfer 
+        Number of threads to use for calculation of transfer 
         function by CAMB. Default 0 automatically determines the number.
     """
     _defaults = {"Scalar_initial_condition":1,
