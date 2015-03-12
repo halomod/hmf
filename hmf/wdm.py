@@ -16,13 +16,13 @@ class WDM(Model):
     '''
     Abstract base class for all WDM models
     '''
-    def __init__(self, mx, cosmo, **model_params):
+    def __init__(self, mx, cosmo, z, **model_params):
         '''
         Constructor
         '''
         self.mx = mx
         self.cosmo = cosmo
-        self.rho_mean = cosmo.Om0 * cosmo.critical_density0
+        self.rho_mean = cosmo.Om(z) * cosmo.critical_density(z)
         self.Oc0 = cosmo.Om0 - cosmo.Ob0
 
         super(WDM, self).__init__(**model_params)
