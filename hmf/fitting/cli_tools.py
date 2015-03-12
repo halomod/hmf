@@ -117,6 +117,8 @@ class CLIRunner(object):
             except:
                 pass
 
+        self.constraints = {k:json.loads(v) for k, v in res["Constraints"].iteritems()}
+
         param_dict = {k:res.pop(k) for k in res.keys() if k.endswith("Params")}
         return param_dict
 
@@ -327,7 +329,8 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
 
         start = time.time()
         fitter = fit.MCMC(priors=self.priors, data=self.y, quantity=self.quantity,
-                          sigma=self.sigma, guess=self.guess, blobs=self.blobs,
+                          constraints=self.constraints, sigma=self.sigma,
+                          guess=self.guess, blobs=self.blobs,
                           verbose=self.verbose, store_class=self.store_class,
                           relax=self.relax)
 

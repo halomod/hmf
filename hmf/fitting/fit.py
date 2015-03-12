@@ -111,6 +111,10 @@ def model(parm, h, self):
     else:
         ll += np.sum(norm.logpdf(self.data, loc=q, scale=self.sigma))
 
+    # Add the likelihood of the contraints
+    for k, v in self.constraints.iteritems():
+        ll += norm.logpdf(getattr(h, k), loc=v[0], scale=v[1])
+
     if self.verbose > 0:
         print "Likelihood: ", ll
     if self.verbose > 1 :
@@ -146,6 +150,12 @@ class Fit(object):
     quantity : str
         The quantity to be compared (eg. ``"dndm"``)
         
+    constraints : dict
+        A dictionary with keys being quantity names, and values being length 2
+        collections with element 0 the desired value of the quantity, and 
+        element 1 the uncertainty. This is used in addition to the data to 
+        calculate the likelihood
+        
     sigma : array_like
         If a vector, this is taken to be the standard deviation of the data. If
         a matrix, it is taken to be the covariance matrix of the data.
@@ -165,7 +175,7 @@ class Fit(object):
         This can be helpful if a flat prior is used on cosmology, for which extreme
         values can sometimes cause exceptions. 
     """
-    def __init__(self, priors, data, quantity, sigma, guess=[], blobs=None,
+    def __init__(self, priors, data, quantity, constraints, sigma, guess=[], blobs=None,
                  verbose=0, store_class=False, relax=False):
         if len(priors) == 0:
             raise ValueError("priors must be at least length 1")
@@ -199,10 +209,8 @@ class Fit(object):
         self.verbose = verbose
         self.store_class = store_class
         self.relax = relax
+        self.constraints = constraints
 
-        print "guess: ", self.guess
-        print "attrs: ", self.attrs
-        print "priors: ", self.priors
 
         # Make sure sigma has right rank
         if len(self.sigma.shape) == 2:
