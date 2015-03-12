@@ -103,7 +103,6 @@ class CLIRunner(object):
 
         self.outdir = res["IO"].pop("outdir", None)
         self.chunks = int(res["IO"].pop("chunks"))
-        self.verbose = int(res["IO"].pop("verbose"))
 
         self.data_file = res["Data"].pop("data_file")
         self.cov_file = res["Data"].pop("cov_file", None)
