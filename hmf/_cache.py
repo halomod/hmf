@@ -125,6 +125,17 @@ def cached_property(*parents):
         return property(_get_property, None, _del_property)
     return cache
 
+def obj_eq(ob1, ob2):
+    try:
+        if ob1 == ob2:
+            return True
+        else:
+            return False
+    except ValueError:
+        if  (ob1 == ob2).all():
+            return True
+        else:
+            return False
 
 def parameter(f):
     """
@@ -167,7 +178,8 @@ def parameter(f):
             old_val = None
             doset = True
 
-        if val != old_val or doset:
+
+        if not obj_eq(val, old_val) or doset:
             if isinstance(val, dict) and hasattr(self, prop):
                 getattr(self, prop).update(val)
             else:
