@@ -75,7 +75,7 @@ USAGE
         # Process arguments
         args = parser.parse_args()
 
-        a = cli.CLIRunner(args.conf, args.prefix, args.restart)
+        a = cli.CLIRunner(args.conf, args.prefix, args.restart, args.verbose)
         a.run()
 
         return 0

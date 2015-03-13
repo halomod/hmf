@@ -119,7 +119,7 @@ def model(parm, h, self):
     for k, v in self.constraints.iteritems():
         ll += norm.logpdf(getattr(h, k), loc=v[0], scale=v[1])
         if self.verbose > 2:
-            print k, getattr(h, k)
+            print "CONSTRAINT: ", k, getattr(h, k)
 
     if self.verbose:
         print "Likelihood: ", ll
@@ -212,7 +212,6 @@ class Fit(object):
         self.verbose = verbose
         self.relax = relax
         self.constraints = constraints
-        print self.constraints
 
         # Make sure sigma has right rank
         if len(self.sigma.shape) == 2:
