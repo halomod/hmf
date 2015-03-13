@@ -343,7 +343,15 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
                        burnin=self.burnin, nthreads=self.nthreads,
                        prefix=self.full_prefix, chunks=self.chunks,
                        initial_pos=self.initial)
+        total_time = time.time() - start
 
+        chain, acceptance, acorr = self._merge_results(s)
+        del s
+
+        with open(self.full_prefix + "log", 'w') as f:
+            self._write_log(f, chain, acceptance, acorr, total_time)
+
+    def _merge_results(self, s):
         # Grab acceptance fraction from initial run if possible
         new_accepted = np.mean(s.acceptance_fraction) * self.nsamples * self.nwalkers
 
@@ -359,27 +367,30 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
                 self.prev_samples = 0
         else:
             naccepted = 0
-        acceptance = (naccepted + new_accepted) / (self.prev_samples + self.nwalkers * self.nsamples)
 
-        # Ditch the sampler from memory
-        del s
+        acceptance = (naccepted + new_accepted) / (self.prev_samples + self.nwalkers * self.nsamples)
 
         # Read in total chain
         chain = np.genfromtxt(self.full_prefix + "chain").reshape((self.nwalkers, self.nsamples, -1))
         acorr = autocorr.integrated_time(np.mean(chain, axis=0), axis=0,
                                          window=50, fast=False)
         chain = chain.reshape((self.nwalkers * self.nsamples, -1))
-        # Write out the logfile
-        with open(self.full_prefix + "log", 'w') as f:
-            if isinstance(self.burnin, int):
-                f.write("Average time: %s\n" % ((time.time() - start) / (self.nwalkers * self.nsamples + self.nwalkers * self.burnin)))
-            else:
-                f.write("Average time (discounting burnin): %s\n" % ((time.time() - start) / (self.nwalkers * self.nsamples)))
-            f.write("Nsamples:  %s\n" % self.nsamples)
-            f.write("Nwalkers: %s\n" % self.nwalkers)
-            f.write("Mean values = %s\n" % np.mean(chain, axis=0))
-            f.write("Covariance Matrix: %s\n" % np.cov(chain.T))
-            f.write("Acceptance Fraction: %s\n" % acceptance)
-            f.write("Acorr: %s\n" % json.dumps(acorr.tolist()))
+
+        return chain, acceptance, acorr
+
+    def _write_log(self, f, chain, acceptance, acorr, total_time):
+        if isinstance(self.burnin, int):
+            f.write("Average time: %s\n" % (total_time / (self.nwalkers * self.nsamples + self.nwalkers * self.burnin)))
+        else:
+            f.write("Average time (discounting burnin): %s\n" % (total_time / (self.nwalkers * self.nsamples)))
+        f.write("Nsamples:  %s\n" % self.nsamples)
+        f.write("Nwalkers: %s\n" % self.nwalkers)
+        f.write("Burnin: %s\n" % self.burnin)
+        f.write("Parameters: %s\n" % self.keys)
+        f.write("Mean values = %s\n" % np.mean(chain, axis=0))
+        f.write("Std. Dev = %s\n" % np.std(chain, axis=0))
+        f.write("Covariance Matrix: %s\n" % np.cov(chain.T))
+        f.write("Acceptance Fraction: %s\n" % acceptance)
+        f.write("Acorr: %s\n" % json.dumps(acorr.tolist()))
 
 
