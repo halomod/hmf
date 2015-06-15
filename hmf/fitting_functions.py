@@ -300,7 +300,7 @@ class Watson(FittingFunction):
             alpha = self.params["alpha_0"]
             beta = self.params["beta_0"]
             gamma = self.params["gamma_0"]
-        elif self.z > self.params['z_hi']:
+        elif self.z >= self.params['z_hi']:
             A = self.params["A_hi"]
             alpha = self.params["alpha_hi"]
             beta = self.params["beta_hi"]

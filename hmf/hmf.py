@@ -377,7 +377,7 @@ class MassFunction(Transfer):
         """
         fsigma = self._fit.fsigma(self.cut_fit)
 
-        if np.sum(np.isnan(fsigma)) > 0.8 * len(fsigma):
+        if np.sum(np.logical_not(np.isnan(fsigma))) < 2:
             # the input mass range is almost completely outside the cut
             logger.warning("The specified mass-range was almost entirely \
                             outside of the limits from the fit. Ignored fit range...")
