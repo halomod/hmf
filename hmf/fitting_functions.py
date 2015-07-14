@@ -602,3 +602,23 @@ class Behroozi(Tinker10):
 
 class Tinker(Tinker08):
     pass
+
+class Ishiyama(Warren):
+    _eq = r"A\left[\left(\frac{e}{\sigma}\right)^b + 1\right]\exp(\frac{d}{\sigma^2})"
+    _ref = r"""Ishiyama, T., et al., 2015, arxiv:1412.2860"""
+    __doc__ = _makedoc(FittingFunction._pdocs, "Ishiyama", "Ishiyama", _eq, _ref)
+
+    _defaults = {"A":0.193, "b":1.550, "c":1, "d":1.186, "e":2.184}
+    def fsigma(self, cut_fit):
+        A = self.params["A"]
+        b = self.params["b"]
+        c = self.params['c']
+        d = self.params['d']
+        e = self.params['e']
+
+        vfv = A * ((e / self.sigma) ** b + c) * np.exp(-d / self.sigma ** 2)
+
+        if cut_fit:
+            vfv[np.logical_or(self.M < 10 ** 8, self.M > 10 ** 16)] = np.NaN
+
+        return vfv
