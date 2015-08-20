@@ -268,16 +268,16 @@ class MassFunction(Transfer):
                             ** self._fsig_params)
         return fit
 
-    @cached_property("mean_density0", "filter", "delta_c", "k", "_power0", "filter_params")
+    @cached_property("mean_density0", "filter", "delta_c", "k", "_unnormalised_power", "filter_params")
     def filter_mod(self):
 
         if issubclass_(self.filter, Filter):
-            filter = self.filter(self.mean_density0, self.delta_c, self.k, self._power0,
-                                 **self.filter_params)
+            filter = self.filter(self.mean_density0, self.delta_c, self.k,
+                                 self._unnormalised_power, **self.filter_params)
         elif isinstance(self.filter, basestring):
             filter = get_model(self.filter, "hmf.filters", rho_mean=self.mean_density0,
-                                delta_c=self.delta_c, k=self.k, power=self._power0,
-                                **self.filter_params)
+                                delta_c=self.delta_c, k=self.k,
+                                power=self._unnormalised_power, **self.filter_params)
 
         return filter
 
@@ -300,7 +300,11 @@ class MassFunction(Transfer):
         elif self.delta_wrt == 'crit':
             return self.delta_h / self.cosmo.Om(self.z)
 
-    @cached_property("M", "filter_mod")
+    @cached_property("radii", "filter_mod")
+    def _unn_sigma0(self):
+        return self.filter_mod.sigma(self.radii)
+
+    @cached_property("_normalisation", "_unn_sigma0")
     def _sigma_0(self):
         """
         The normalised mass variance at z=0 :math:`\sigma`
@@ -311,7 +315,7 @@ class MassFunction(Transfer):
         .. math:: \sigma^2(R) = \frac{1}{2\pi^2}\int_0^\infty{k^2P(k)W^2(kR)dk}
         
         """
-        return self.filter_mod.sigma(self.radii)
+        return self._normalisation * self._unn_sigma0
 
     @cached_property("M", "filter_mod")
     def radii(self):
@@ -320,7 +324,7 @@ class MassFunction(Transfer):
         """
         return self.filter_mod.mass_to_radius(self.M)
 
-    @cached_property("M", "filter_mod")
+    @cached_property("radii", "filter_mod")
     def _dlnsdlnm(self):
         """
         The value of :math:`\left|\frac{\d \ln \sigma}{\d \ln M}\right|`, ``len=len(M)``

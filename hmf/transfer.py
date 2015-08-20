@@ -205,13 +205,17 @@ class Transfer(Cosmology):
         """
         return self.k.value ** self.n * np.exp(self._unnormalised_lnT) ** 2 * u.Mpc ** 3 / self._hunit ** 3
 
-    @cached_property("mean_density0", "k", "_unnormalised_power", "sigma_8")
-    def _normalisation(self):
-        filter = TopHat(self.mean_density0, None, self.k, self._unnormalised_power)
-        sigma_8 = filter.sigma(8.0 * u.Mpc / self._hunit)[0]
 
+    @cached_property("mean_density0", "k", "_unnormalised_power")
+    def _unn_sig8(self):
+        # Always use a TopHat for sigma_8
+        filter = TopHat(self.mean_density0, None, self.k, self._unnormalised_power)
+        return filter.sigma(8.0 * u.Mpc / self._hunit)[0]
+
+    @cached_property("_unn_sig8", "sigma_8")
+    def _normalisation(self):
         # Calculate the normalization factor
-        return self.sigma_8 / sigma_8
+        return self.sigma_8 / self._unn_sig8
 
     @cached_property("_normalisation", "_unnormalised_power")
     def _power0(self):
