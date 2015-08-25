@@ -96,17 +96,23 @@ class CLIRunner(object):
         self.relax = bool(res["RunOptions"].pop("relax"))
         self.nthreads = int(res["RunOptions"].pop("nthreads"))
 
+        # Fit-options
+        self.fit_type = res['FitOptions'].pop("fit_type")
+
+        # MCMC-specific
         self.nwalkers = int(res["MCMC"].pop("nwalkers"))
         self.nsamples = int(res["MCMC"].pop("nsamples"))
         self.burnin = json.loads(res["MCMC"].pop("burnin"))
 
-
+        #IO-specific
         self.outdir = res["IO"].pop("outdir", None)
         self.chunks = int(res["IO"].pop("chunks"))
 
+        #Data-specific
         self.data_file = res["Data"].pop("data_file")
         self.cov_file = res["Data"].pop("cov_file", None)
 
+        # Model-specific
         self.model = res.pop("Model")
         self.model_pickle = self.model.pop("model_file", None)
         for k in self.model:
@@ -123,18 +129,18 @@ class CLIRunner(object):
     def get_data(self):
         """
         Import the data to be compared to (both data and var/covar)
-        
+
         Returns
         -------
         float array:
             array of x values.
-            
+
         float array:
             array of y values.
-            
+
         float array or None:
             Standard Deviation of y values or None if covariance is provided
-            
+
         float array or None:
             Covariance of y values, or None if not provided.
         """
@@ -163,22 +169,22 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
         Takes a dictionary of input parameters, with keys defining the parameters
         and the values defining various aspects of the priors, and converts them
         to useable Prior() instances, along with keys and guesses.
-        
-        Note that here, *only* cosmological parameters are able to be set as 
-        multivariate normal priors (this is not true in general, but for the CLI 
+
+        Note that here, *only* cosmological parameters are able to be set as
+        multivariate normal priors (this is not true in general, but for the CLI
         it is much simpler). All other parameters may be set as Normal or Uniform
-        priors. 
-    
+        priors.
+
         Returns
         -------
         priors : list
-            A list of Prior() classes corresponding to each parameter specified. 
+            A list of Prior() classes corresponding to each parameter specified.
             Names in these will be prefixed by "<dict>:" for parameters required
             to pass to dictionaries.
-            
+
         keys : list
             A list of of parameter names (without prefixes)
-            
+
         guess : list
             A list containing an initial guess for each parameter.
         """
@@ -323,6 +329,12 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
 
         return instance
 
+    def run_downhill(self):
+        """
+        Runs a simple downhill-gradient fit.
+        """
+        pass
+
     def run(self):
         """
         Runs the MCMC fit
@@ -392,5 +404,3 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
         f.write("Covariance Matrix: %s\n" % np.cov(chain.T))
         f.write("Acceptance Fraction: %s\n" % acceptance)
         f.write("Acorr: %s\n" % json.dumps(acorr.tolist()))
-
-

@@ -30,27 +30,27 @@ except ImportError:
 
 def model(parm, h, self):
     """
-    Calculate the log probability of a model `h` 
+    Calculate the log probability of a model `h`
     [instance of :class:`hmf._framework.Framework`] with parameters ``parm``.
-    
+
     At the moment, this is a little hacky, because the parameters have to
-    be the first argument (for both Minimize and MCMC), so we use a 
+    be the first argument (for both Minimize and MCMC), so we use a
     function and pass self last.
-    
+
     Parameters
     ----------
     parm : list of floats
         The position of the model. Takes arbitrary parameters.
-            
+
     h : instance of :class:`~_framework.Framework`
-        An instance of any subclass of :class:`~_framework.Framework` with the 
-        desired options set. Variables of the estimation are updated within the 
-        routine.  
-        
+        An instance of any subclass of :class:`~_framework.Framework` with the
+        desired options set. Variables of the estimation are updated within the
+        routine.
+
     Returns
     -------
     ll : float
-        The log likelihood of the model at the given position.      
+        The log likelihood of the model at the given position.
     """
     if self.verbose > 1:
         print "Params: ", zip(self.attrs, parm)
@@ -146,37 +146,37 @@ class Fit(object):
     Parameters
     ----------
     priors : list of prior classes
-        A list containing instances of :class:`.Prior` subclasses. These specify 
+        A list containing instances of :class:`.Prior` subclasses. These specify
         the prior information on each parameter.
-        
+
     data : array_like
-        The data to be compared to -- must be the same length as the intended 
+        The data to be compared to -- must be the same length as the intended
         quantity. Also must be free from NaN values or a ValueError will be raised.
-        
+
     quantity : str
         The quantity to be compared (eg. ``"dndm"``)
-        
+
     constraints : dict
         A dictionary with keys being quantity names, and values being length 2
-        collections with element 0 the desired value of the quantity, and 
-        element 1 the uncertainty. This is used in addition to the data to 
+        collections with element 0 the desired value of the quantity, and
+        element 1 the uncertainty. This is used in addition to the data to
         calculate the likelihood
-        
+
     sigma : array_like
         If a vector, this is taken to be the standard deviation of the data. If
         a matrix, it is taken to be the covariance matrix of the data.
-        
+
     blobs : list of str
         Names of quantities to be returned along with the chain. Must be a
-        
+
     verbose : int, default 0
         How much to write to screen.
-        
+
     relax : bool, default False
         If relax is true, the call to get the quantity is wrapped in a try:except:.
         If an error occurs, the lognorm is set to -inf, rather than raising an exception.
         This can be helpful if a flat prior is used on cosmology, for which extreme
-        values can sometimes cause exceptions. 
+        values can sometimes cause exceptions.
     """
     def __init__(self, priors, data, quantity, constraints, sigma, guess=[], blobs=None,
                  verbose=0, relax=False):
@@ -248,10 +248,10 @@ class MCMC(Fit):
             initial_pos=None):
         """
         Estimate the parameters in :attr:`.priors` using AIES MCMC.
-        
-        This routine uses the emcee package to run an MCMC procedure, fitting 
+
+        This routine uses the emcee package to run an MCMC procedure, fitting
         parameters passed in :attr:`.priors` to the given quantity.
-        
+
         Parameters
         ----------
         h : instance of :class:`~hmf._framework.Framework` subclass
@@ -260,23 +260,23 @@ class MCMC(Fit):
 
         nwalkers : int, optional
             Number of walkers to use for Affine-Invariant Ensemble Sampler
-            
+
         nsamples : int, optional
             Number of samples that *each walker* will perform.
-            
+
         burnin : int, optional
-            Number of samples from each walker that will be initially erased as 
-            burnin. Note, this performs *additional* iterations, rather than 
+            Number of samples from each walker that will be initially erased as
+            burnin. Note, this performs *additional* iterations, rather than
             consuming iterations from :attr:`.nsamples`.
-                    
+
         nthreads : int, optional
-            Number of threads to use in sampling. If nought, will automatically 
+            Number of threads to use in sampling. If nought, will automatically
             detect number of cores available.
-        
+
         prefix : str, optional
             The prefix for files to which to write results sequentially. If ``None``,
             will not write anything out.
-            
+
         chunks : int, optional
             Number of samples to run before appending results to file. Only
             applicable if :attr:`.filename` is provided.
@@ -369,9 +369,8 @@ class MCMC(Fit):
                                                       lnprob0=lnprob, rstate0=rstate,
                                                       blobs0=blobs0)):
                 if (i + 1) % chunks == 0 or i + 1 == nsamples:
-                    if self.verbose:
-                        print "Done ", 100 * float(i + 1) / nsamples ,
-                        print "%. Time per sample: ", (time.time() - start) / ((i + 1) * nwalkers)
+                    print "Done ", 100 * float(i + 1) / nsamples ,
+                    print "%. Time per sample: ", (time.time() - start) / ((i + 1) * nwalkers)
 
                     # Write out files
                     self.write_iter(sampler, i, nwalkers, chunks, prefix, extend)
@@ -461,36 +460,36 @@ class Minimize(Fit):
             **minimize_kwargs):
         """
         Run an optimization procedure to fit a model correlation function to data.
-        
+
         Parameters
         ----------
         h : instance of :class:`~hmf.framework.Framework` subclass
             This instance will be updated with the variables of the minimization.
             Other desired options should have been set upon instantiation.
-            
+
         method : str, default ``"Nelder-Mead"``
             The optimizing routine (see `scipy.optimize.minimize` for details).
-            
+
         disp : bool, default False
             Whether to display optimization information while running.
-            
+
         maxiter : int, default 30
             Maximum number of iterations
-            
+
         tol : float, default None
             Tolerance for termination
-            
-        \*\*kwargs : 
+
+        \*\*kwargs :
             Arguments passed directly to :func:`scipy.optimize.minimize`.
-            
+
         Returns
         -------
         res : instance of :class:`scipy.optimize.Result`
             Contains the results of the minimization. Important attributes are the
             solution vector :attr:`x`, the number of iterations :attr:`nit`, whether
-            the minimization was a success :attr:`success`, and the exit message 
+            the minimization was a success :attr:`success`, and the exit message
             :attr:`message`.
-             
+
         """
         res = minimize(self.negmod, self.guess, (h,), tol=tol,
                        method=method, options={"disp":disp, "maxiter":maxiter},
@@ -522,18 +521,18 @@ class Prior(object):
 class Uniform(Prior):
     """
     A Uniform prior.
-    
+
     Parameters
     ----------
     param : str
         The name of the parameter
-    
+
     low : float
         The lower bound of the parameter
-        
+
     high : float
         The upper bound of the parameter
-        
+
     """
     def __init__(self, param, low, high):
         self.name = param
@@ -555,15 +554,15 @@ class Log(Uniform):
 class Normal(Prior):
     """
     A Gaussian prior.
-    
+
     Parameters
     ----------
     param : str
         Name of the parameter
-        
+
     mean : float
         Mean of the prior distribution
-        
+
     sd : float
         The standard deviation of the prior distribution
     """
@@ -581,15 +580,15 @@ class Normal(Prior):
 class MultiNorm(Prior):
     """
     A Multivariate Gaussian prior
-    
+
     Parameters
     ----------
     params : list of str
         Names of the parameters (in order)
-        
+
     means : list of float
         Mean vector of the prior distribution
-        
+
     cov : ndarray
         Covariance matrix of the prior distribution
     """
