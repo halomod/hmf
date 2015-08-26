@@ -17,6 +17,13 @@ from os.path import join
 import warnings
 from emcee import autocorr
 import pickle
+from astropy.units import Quantity
+from numbers import Number
+
+def secondsToStr(t):
+    return "%d:%02d:%02d.%03d" % \
+        reduce(lambda ll,b : divmod(ll[0],b) + ll[1:],
+            [(t*1000,),1000,60,60])
 
 class CLIError(Exception):
     '''Generic exception to raise and log different fatal errors.'''
@@ -66,16 +73,12 @@ class CLIRunner(object):
         self.x, self.y, self.sigma = self.get_data()
 
         # Get params that are part of a dict (eg. HOD)
-
         self.priors, self.keys, self.guess = self.param_setup(param_dict)
 
-
-
         if restart:
-            self.initial, self.prev_samples = self.get_initial()
+            self.sampler = self._get_previous_sampler()
         else:
-            self.initial, self.prev_samples = None, 0
-
+            self.sampler = None
 
     def read_config(self, fname):
         config = cfg()
@@ -277,17 +280,33 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
 
         return [x]
 
-    def get_initial(self):
+    def _get_previous_sampler(self):
         """
-        Tries to find a chain in the current directory to use.
+        Tries to find a pickled sampler in the current directory to use.
         """
         try:
-            x = np.genfromtxt(self.prefix + "chain")
-            nsamples = x.shape[0]
-            return x[-self.nwalkers:, :], nsamples
+            with open(self.prefix+"sampler.pickle") as f:
+                h =  pickle.load(f)
+            #check that it lines up with current Parameters
+            if h.k != self.nwalkers:
+                warnings.warn("Imported previous chain had different number of walkers (%s) than specified (%s)"%(h.k,self.nwalkers))
+                return None
+            else:
+                ## WE DO THE FOLLOWING IN FIT.PY, BUT HAVE TO DO IT HERE TO update
+                ## THE PICKLED OBJECT, SINCE THE POOL CANNOT BE SAVED
+                if (h.args[0].transfer_fit == "CAMB" or h.args[0].transfer_fit == tm.CAMB):
+                    if any(p.startswith("cosmo_params:") for p in self.keys):
+                        nthreads = 1
+
+                if not nthreads:
+                    # auto-calculate the number of threads to use if not set.
+                    nthreads = cpu_count()
+
+                if nthreads != 1:
+                    h.pool = InterruptiblePool(nthreads)
+                return h
         except:
-            warnings.warn("Problem importing old file, starting afresh")
-            return None, 0
+            return None
 
     def _setup_x(self, instance):
         if self.xval == "M":
@@ -327,6 +346,10 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
                 self.constraints[k][0] *= unit
                 self.constraints[k][1] *= unit
 
+        # Write out a pickle file of the model
+        with open(self.full_prefix + "model.pickle", 'w') as f:
+            pickle.dump(instance, f)
+
         return instance
 
     def run_downhill(self):
@@ -339,68 +362,171 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
         """
         Runs the MCMC fit
         """
-        instance = self._setup_instance()
-
-        # # Write out a pickle file.
-        with open(self.full_prefix + "model.pickle", 'w') as f:
-            pickle.dump(instance, f)
-
-        start = time.time()
         fitter = fit.MCMC(priors=self.priors, data=self.y, quantity=self.quantity,
                           constraints=self.constraints, sigma=self.sigma,
                           guess=self.guess, blobs=self.blobs,
                           verbose=self.verbose, relax=self.relax)
 
-        s = fitter.fit(instance, nwalkers=self.nwalkers, nsamples=self.nsamples,
-                       burnin=self.burnin, nthreads=self.nthreads,
-                       prefix=self.full_prefix, chunks=self.chunks,
-                       initial_pos=self.initial)
+        if self.sampler is not None:
+            instance = None
+            prev_samples = self.sampler.iterations
+        else:
+            instance = self._setup_instance()
+            prev_samples = 0
+
+        self._write_log_pre()
+
+        start = time.time()
+        if self.chunks == 0:
+            self.chunks = self.nsamples-prev_samples
+        nchunks = (self.nsamples-prev_samples)/self.chunks
+        for i,s in enumerate(fitter.fit(self.sampler,instance, self.nwalkers,
+                                        self.nsamples-prev_samples,self.burnin,self.nthreads,
+                                        self.chunks)):
+            # Write out files
+            self.write_iter_pickle(s)
+            #self.write_iter(sampler, i, nwalkers, chunks, prefix, extend)
+
+            print "Done {0}%. Time per sample: {1}".format(100 * float(i + 1) / nchunks,(time.time() - start) / ((i + 1) * self.chunks*self.nwalkers))
+        # s = fitter.fit(instance, nwalkers=self.nwalkers, nsamples=self.nsamples,
+        #                burnin=self.burnin, nthreads=self.nthreads,
+        #                prefix=self.full_prefix, chunks=self.chunks,
+        #                initial_pos=self.initial)
         total_time = time.time() - start
 
-        chain, acceptance, acorr = self._merge_results(s)
-        del s
+        # chain, acceptance, acorr = self._merge_results(s)
+        # del s
 
-        with open(self.full_prefix + "log", 'w') as f:
-            self._write_log(f, chain, acceptance, acorr, total_time)
 
-    def _merge_results(self, s):
-        # Grab acceptance fraction from initial run if possible
-        new_accepted = np.mean(s.acceptance_fraction) * self.nsamples * self.nwalkers
+        self._write_log_post(s,total_time)
+        self._write_data(s)
+    # def _merge_results(self, s):
+    #     # Grab acceptance fraction from initial run if possible
+    #     new_accepted = np.mean(s.acceptance_fraction) * self.nsamples * self.nwalkers
+    #
+    #     if self.initial is not None:
+    #         try:
+    #             with open(self.full_prefix + "log", 'r') as f:
+    #                 for line in f:
+    #                     if line.startswith("Acceptance Fraction:"):
+    #                         af = float(line[20:])
+    #                         naccepted = af * self.prev_samples
+    #         except IOError:
+    #             naccepted = 0
+    #             self.prev_samples = 0
+    #     else:
+    #         naccepted = 0
+    #
+    #     acceptance = (naccepted + new_accepted) / (self.prev_samples + self.nwalkers * self.nsamples)
+    #
+    #     # Read in total chain
+    #     chain = np.genfromtxt(self.full_prefix + "chain").reshape((self.nwalkers, self.nsamples, -1))
+    #     acorr = autocorr.integrated_time(np.mean(chain, axis=0), axis=0,
+    #                                      window=50, fast=False)
+    #     chain = chain.reshape((self.nwalkers * self.nsamples, -1))
+    #
+    #     return chain, acceptance, acorr
 
-        if self.initial is not None:
-            try:
-                with open(self.full_prefix + "log", 'r') as f:
-                    for line in f:
-                        if line.startswith("Acceptance Fraction:"):
-                            af = float(line[20:])
-                            naccepted = af * self.prev_samples
-            except IOError:
-                naccepted = 0
-                self.prev_samples = 0
-        else:
-            naccepted = 0
+    def write_iter_pickle(self,sampler):
+        """
+        Write out a pickle version of the sampler every chunk.
+        """
+        # we have to get rid of the 'pool' attribute before pickling
+        del sampler.pool
 
-        acceptance = (naccepted + new_accepted) / (self.prev_samples + self.nwalkers * self.nsamples)
+        with open(self.full_prefix+"sampler.pickle",'w') as f:
+            pickle.dump(sampler,f)
 
-        # Read in total chain
-        chain = np.genfromtxt(self.full_prefix + "chain").reshape((self.nwalkers, self.nsamples, -1))
-        acorr = autocorr.integrated_time(np.mean(chain, axis=0), axis=0,
-                                         window=50, fast=False)
-        chain = chain.reshape((self.nwalkers * self.nsamples, -1))
+    #
+    # def write_iter(self, sampler, i, nwalkers, chunks, prefix, extend):
+    #     # The reshaping and transposing here is important to get the output correct
+    #     fc = np.transpose(sampler.chain[:, (i + 1 - chunks):i + 1, :], (1, 0, 2)).reshape((nwalkers * chunks, -1))
+    #     ll = sampler.lnprobability[:, (i + 1 - chunks):i + 1].T.flatten()
+    #
+    #     with open(prefix + "chain", "a") as f:
+    #         np.savetxt(f, fc)
+    #
+    #     with open(prefix + "likelihoods", "a") as f:
+    #         np.savetxt(f, ll)
+    #
+    #     if self.blobs:
+    #         # All floats go together.
+    #         ind_float = [ii for ii, b in enumerate(sampler.blobs[0][0]) if isinstance(b, Number) or isinstance(b, Quantity)]
+    #         if not extend and ind_float:
+    #             with open(prefix + "derived_parameters", "w") as f:
+    #                 f.write("# %s\n" % ("\t".join([self.blobs[ii] for ii in ind_float])))
+    #
+    #         if ind_float:
+    #             numblobs = np.array([[[b[ii] for ii in ind_float] for b in c]
+    #                                  for c in sampler.blobs[(i + 1 - chunks):i + 1]])
+    #
+    #             # Write out numblobs
+    #             sh = numblobs.shape
+    #             numblobs = numblobs.reshape(sh[0] * sh[1], sh[2])
+    #             with open(prefix + "derived_parameters", "a") as f:
+    #                 np.savetxt(f, numblobs)
+    #
+    #         # Everything else gets treated with pickle
+    #         pickledict = {}
+    #         # If file already exists, read in those blobs first
+    #         if extend:
+    #             with open(prefix + "blobs", "r") as f:
+    #                 pickledict = pickle.load(f)
+    #
+    #         # Append current blobs
+    #         if len(ind_float) != len(self.blobs):
+    #             ind_pickle = [ii for ii in range(len(self.blobs)) if ii not in ind_float]
+    #             for ii in ind_pickle:
+    #                 if not pickledict:
+    #                     pickledict[self.blobs[ii]] = []
+    #                 for c in sampler.blobs:
+    #                     pickledict[self.blobs[ii]].append([b[ii] for b in c])
+    #
+    #         # Write out pickle blobs
+    #         if pickledict:
+    #             with open(prefix + "blobs", 'w') as f:
+    #                 pickle.dump(pickledict, f)
 
-        return chain, acceptance, acorr
+    def _write_data(self,sampler):
+        """
+        Writes out chains and other data to longer-term readable files (ie ASCII)
+        """
+        with open(self.full_prefix+"chain",'w') as f:
+            np.savetxt(f,sampler.flatchain,header="\t".join(self.keys))
 
-    def _write_log(self, f, chain, acceptance, acorr, total_time):
-        if isinstance(self.burnin, int):
-            f.write("Average time: %s\n" % (total_time / (self.nwalkers * self.nsamples + self.nwalkers * self.burnin)))
-        else:
-            f.write("Average time (discounting burnin): %s\n" % (total_time / (self.nwalkers * self.nsamples)))
-        f.write("Nsamples:  %s\n" % self.nsamples)
-        f.write("Nwalkers: %s\n" % self.nwalkers)
-        f.write("Burnin: %s\n" % self.burnin)
-        f.write("Parameters: %s\n" % self.keys)
-        f.write("Mean values = %s\n" % np.mean(chain, axis=0))
-        f.write("Std. Dev = %s\n" % np.std(chain, axis=0))
-        f.write("Covariance Matrix: %s\n" % np.cov(chain.T))
-        f.write("Acceptance Fraction: %s\n" % acceptance)
-        f.write("Acorr: %s\n" % json.dumps(acorr.tolist()))
+        with open(self.full_prefix+"likelihoods",'w') as f:
+            np.savetxt(f,sampler.lnprobability.T)
+
+        # We can write out any blobs that are floats.
+        if self.blobs:
+            # All floats go together.
+            ind_float = [ii for ii, b in enumerate(sampler.blobs[0][0]) if isinstance(b, Number) or isinstance(b, Quantity)]
+            if ind_float:
+                numblobs = np.array([[[b[ii] for ii in ind_float] for b in c]
+                                     for c in sampler.blobs])
+
+                # Write out numblobs
+                sh = numblobs.shape
+                numblobs = numblobs.reshape(sh[0] * sh[1], sh[2])
+                with open(self.full_prefix + "derived_parameters", "w") as f:
+                    np.savetxt(f, numblobs,header="\t".join([self.blobs[ii] for ii in ind_float]))
+
+    def _write_log_pre(self):
+        with open(self.full_prefix + "log",'w') as f:
+            f.write("Nsamples:  %s\n" % self.nsamples)
+            f.write("Nwalkers: %s\n" % self.nwalkers)
+            f.write("Burnin: %s\n" % self.burnin)
+            f.write("Parameters: %s\n" % self.keys)
+
+    def _write_log_post(self, sampler, total_time):
+        with open(self.full_prefix + "log", 'a') as f:
+            f.write("Total Time: %s\n"%secondsToStr(total_time))
+            if isinstance(self.burnin, int):
+                f.write("Average time: %s\n" % (total_time / (self.nwalkers * self.nsamples + self.nwalkers * self.burnin)))
+            else:
+                f.write("Average time (discounting burnin): %s\n" % (total_time / (self.nwalkers * self.nsamples)))
+            f.write("Mean values = %s\n" % np.mean(sampler.chain, axis=0))
+            f.write("Std. Dev = %s\n" % np.std(sampler.chain, axis=0))
+            f.write("Covariance Matrix: %s\n" % np.cov(sampler.flatchain.T))
+            f.write("Acceptance Fraction: %s\n" % sampler.acceptance_fraction)
+            f.write("Acorr: %s\n" % json.dumps(sampler.acor.tolist()))

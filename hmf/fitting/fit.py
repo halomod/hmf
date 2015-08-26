@@ -16,11 +16,11 @@ from multiprocessing import cpu_count
 import time
 import warnings
 import pickle
-from numbers import Number
+
 import copy
 import traceback
 import hmf.transfer_models as tm
-from astropy.units import Quantity
+
 
 try:
     import emcee
@@ -243,9 +243,8 @@ class MCMC(Fit):
 
         super(MCMC, self).__init__(*args, **kwargs)
 
-    def fit(self, h, nwalkers=100, nsamples=100, burnin=0,
-            nthreads=0, prefix=None, chunks=None,
-            initial_pos=None):
+    def fit(self, sampler=None,h=None, nwalkers=100, nsamples=100, burnin=0,
+            nthreads=0, chunks=None):
         """
         Estimate the parameters in :attr:`.priors` using AIES MCMC.
 
@@ -254,12 +253,17 @@ class MCMC(Fit):
 
         Parameters
         ----------
-        h : instance of :class:`~hmf._framework.Framework` subclass
+        sampler : instance of :class:`emcee.EnsembleSampler`
+            A sampler instance, which may already include samples from a previous
+            run.
+
+        h : instance of :class:`~hmf._framework.Framework` subclass, optional
             This instance will be updated with the variables of the minimization.
             Other desired options should have been set upon instantiation.
+            Needed if `sampler` not present.
 
-        nwalkers : int, optional
-            Number of walkers to use for Affine-Invariant Ensemble Sampler
+        nwalkers : int
+            Number of walkers to use for Affine-Invariant Ensemble Sampler.
 
         nsamples : int, optional
             Number of samples that *each walker* will perform.
@@ -273,27 +277,18 @@ class MCMC(Fit):
             Number of threads to use in sampling. If nought, will automatically
             detect number of cores available.
 
-        prefix : str, optional
-            The prefix for files to which to write results sequentially. If ``None``,
-            will not write anything out.
-
         chunks : int, optional
             Number of samples to run before appending results to file. Only
             applicable if :attr:`.filename` is provided.
 
-        initial_pos : array_like shape=``(nparams,nwalkers)``, optional
-            Starting positions of the parameters (for each walker). If ``None``,
-            these will be calculated in a small ball around the guess for each.
-            This is useful for re-starting the calculation from a saved position.
 
-        Returns
-        -------
+        Yields
+        ------
         sampler : :class:`emcee.EnsembleSampler` object
             The full sampling object, with chain, blobs, acceptance fraction etc.
         """
-        # Ensure no burn-in if restarting from old run
-        if initial_pos is not None:
-            burnin = 0
+        if sampler is None and h is None:
+            raise ValueError("Either sampler or h must be given")
 
         # If using CAMB, nthreads MUST BE 1
         if (h.transfer_fit == "CAMB" or h.transfer_fit == tm.CAMB):
@@ -307,74 +302,58 @@ class MCMC(Fit):
         # This just makes sure that the caching works
         getattr(h, self.quantity)
 
-        # Setup the Ensemble Sampler
-        sampler = emcee.EnsembleSampler(nwalkers, self.ndim, model,
-                                        args=[h, self], threads=nthreads)
+        initial_pos=None
+        if sampler is not None:
+            if sampler.iterations>0:
+                initial_pos = sampler.chain[:,-1,:]
+        else:
+            # Note, sampler CANNOT be an attribute of self, since self is passed to emcee.
+            sampler = emcee.EnsembleSampler(nwalkers, self.ndim, model,
+                                            args=[h, self], threads=nthreads)
 
-        # Get initial positions if required
+        # Get initial positions
         if initial_pos is None:
             initial_pos = self.get_initial_pos(nwalkers)
-            extend = False
-        else:
-            extend = True
 
         # Run a burn-in
+        # If there are some samples already in the sampler, only run the difference.
         if burnin:
-            if type(burnin) == int:
-                initial_pos, lnprob, rstate = sampler.run_mcmc(initial_pos, burnin)
-                sampler.reset()
-
-            else:
-                sampler.run_mcmc(initial_pos, burnin[0])
-                print burnin[1] * np.max(sampler.acor), sampler.iterations
-                while burnin[1] * np.max(sampler.acor) > sampler.iterations or burnin[1]*np.max(sampler.acor)<0:
-                    initial_pos, lnprob, rstate, blobs0 = sampler.run_mcmc(None, burnin[0]/2)
-                    print burnin[1] * np.max(sampler.acor), sampler.iterations
-                    if sampler.iterations > burnin[2]:
-                        warnings.warn("Burnin FAILED... continuing (acor=%s)" % (np.max(sampler.acor)))
-
-                if self.verbose > 0:
-                    burnin = sampler.iterations
-                    print "Used %s samples for burnin" % sampler.iterations
-                sampler.reset()
+            initial_pos, lnprob,rstate,blobs0 = self._run_burnin(burnin,initial_pos)
         else:
             lnprob = None
             rstate = None
             blobs0 = None
-    #     else: TODO
-    #         try:
-    #             lnprob = np.genfromtxt(prefix+"likelihoods")[-nwalkers:,:]
-    #             rstate = None
-    #             blobs0
-    #
+
         # Run the actual run
-        if prefix is None:
-            sampler.run_mcmc(initial_pos, nsamples)
-        else:
-            header = "# " + "\t".join(self.attrs) + "\n"
+        if chunks == 0 or chunks > nsamples:
+            chunks = nsamples
 
-            if not extend:
-                with open(prefix + "chain", "w") as f:
-                    f.write(header)
-            else:
-                with open(prefix + "chain", 'r') as f:
-                    nsamples -= (sum(1 for line in f) - 1) / nwalkers
+        start = time.time()
+        for i, result in enumerate(sampler.sample(initial_pos, iterations=nsamples,
+                                                  lnprob0=lnprob, rstate0=rstate,
+                                                  blobs0=blobs0)):
+            if (i + 1) % chunks == 0 or i + 1 == nsamples:
+                yield sampler
 
-            # If storing the whole class, add the label to front of blobs
-            if chunks == 0 or chunks > nsamples:
-                chunks = nsamples
+        self.__sampler = sampler
 
-            start = time.time()
-            for i, result in enumerate(sampler.sample(initial_pos, iterations=nsamples,
-                                                      lnprob0=lnprob, rstate0=rstate,
-                                                      blobs0=blobs0)):
-                if (i + 1) % chunks == 0 or i + 1 == nsamples:
-                    print "Done ", 100 * float(i + 1) / nsamples ,
-                    print "%. Time per sample: ", (time.time() - start) / ((i + 1) * nwalkers)
+    def get_and_del_sampler(self):
+        """
+        Returns the sampler object if it exists (ie. fit has been called) and deletes it.
 
-                    # Write out files
-                    self.write_iter(sampler, i, nwalkers, chunks, prefix, extend)
+        This must be used to get the sampler if no chunks are being used. That is
 
+        ```
+        F = MCMC(...)
+        F.fit()
+        sampler = F.get_and_del_sampler()
+        ```
+
+        After being assigned, it is deleted since it cannot exist in the class
+        when `.fit()` is called.
+        """
+        sampler = self.__sampler
+        del self.__sampler
         return sampler
 
     def get_initial_pos(self, nwalkers):
@@ -403,54 +382,30 @@ class MCMC(Fit):
 
         return stacked_val
 
-    def write_iter(self, sampler, i, nwalkers, chunks, prefix, extend):
-        # The reshaping and transposing here is important to get the output correct
-        fc = np.transpose(sampler.chain[:, (i + 1 - chunks):i + 1, :], (1, 0, 2)).reshape((nwalkers * chunks, -1))
-        ll = sampler.lnprobability[:, (i + 1 - chunks):i + 1].T.flatten()
+    def _run_burnin(self,burnin,initial_pos):
+        if type(burnin) == int:
+            if burnin - self.sampler.iterations >0:
+                initial_pos, lnprob, rstate,blobs0 = self.sampler.run_mcmc(initial_pos, burnin-self.sampler.iterations)
+                self.sampler.reset()
+        else:
+            if burnin[0]-self.sampler.iterations > 0:
+                initial_pos, lnprob, rstate,blobs0 = self.sampler.run_mcmc(initial_pos, burnin[0]-self.sampler.iterations)
+            else:
+                return initial_pos,None,None,None
 
-        with open(prefix + "chain", "a") as f:
-            np.savetxt(f, fc)
+            it_needed = burnin[1]*np.max(self.sampler.acor)
+            while it_needed > self.sampler.iterations or it_needed<0: # if negative, probably ran fewer samples than lag.
+                initial_pos, lnprob, rstate, blobs0 = self.sampler.run_mcmc(initial_pos, burnin[0]/2)
+                it_needed = burnin[1]*np.max(self.sampler.acor)
+                if self.sampler.iterations > burnin[2]:
+                    warnings.warn("Burnin FAILED... continuing (acor=%s)" % (it_needed))
 
-        with open(prefix + "likelihoods", "a") as f:
-            np.savetxt(f, ll)
+            if self.verbose > 0:
+                burnin = self.sampler.iterations
+                print "Used %s samples for burnin" % self.sampler.iterations
+            self.sampler.reset()
+        return initial_pos, lnprob,rstate,blobs0
 
-        if self.blobs:
-            # All floats go together.
-            ind_float = [ii for ii, b in enumerate(sampler.blobs[0][0]) if isinstance(b, Number) or isinstance(b, Quantity)]
-            if not extend and ind_float:
-                with open(prefix + "derived_parameters", "w") as f:
-                    f.write("# %s\n" % ("\t".join([self.blobs[ii] for ii in ind_float])))
-
-            if ind_float:
-                numblobs = np.array([[[b[ii] for ii in ind_float] for b in c]
-                                     for c in sampler.blobs[(i + 1 - chunks):i + 1]])
-
-                # Write out numblobs
-                sh = numblobs.shape
-                numblobs = numblobs.reshape(sh[0] * sh[1], sh[2])
-                with open(prefix + "derived_parameters", "a") as f:
-                    np.savetxt(f, numblobs)
-
-            # Everything else gets treated with pickle
-            pickledict = {}
-            # If file already exists, read in those blobs first
-            if extend:
-                with open(prefix + "blobs", "r") as f:
-                    pickledict = pickle.load(f)
-
-            # Append current blobs
-            if len(ind_float) != len(self.blobs):
-                ind_pickle = [ii for ii in range(len(self.blobs)) if ii not in ind_float]
-                for ii in ind_pickle:
-                    if not pickledict:
-                        pickledict[self.blobs[ii]] = []
-                    for c in sampler.blobs:
-                        pickledict[self.blobs[ii]].append([b[ii] for b in c])
-
-            # Write out pickle blobs
-            if pickledict:
-                with open(prefix + "blobs", 'w') as f:
-                    pickle.dump(pickledict, f)
 
 #===========================================================
 # Minimize Fitting Routine
