@@ -267,7 +267,7 @@ class MCMC(Fit):
         burnin : int, optional
             Number of samples from each walker that will be initially erased as
             burnin. Note, this performs *additional* iterations, rather than
-            consuming iterations from :attr:`.nsamples`.
+            consuming iterations from `nsamples`.
 
         nthreads : int, optional
             Number of threads to use in sampling. If nought, will automatically
@@ -327,8 +327,8 @@ class MCMC(Fit):
             else:
                 sampler.run_mcmc(initial_pos, burnin[0])
                 print burnin[1] * np.max(sampler.acor), sampler.iterations
-                while burnin[1] * np.max(sampler.acor) > sampler.iterations:
-                    initial_pos, lnprob, rstate, blobs0 = sampler.run_mcmc(None, 5)
+                while burnin[1] * np.max(sampler.acor) > sampler.iterations or burnin[1]*np.max(sampler.acor)<0:
+                    initial_pos, lnprob, rstate, blobs0 = sampler.run_mcmc(None, burnin[0]/2)
                     print burnin[1] * np.max(sampler.acor), sampler.iterations
                     if sampler.iterations > burnin[2]:
                         warnings.warn("Burnin FAILED... continuing (acor=%s)" % (np.max(sampler.acor)))
