@@ -424,9 +424,6 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
         """
         Write out a pickle version of the sampler every chunk.
         """
-        # we have to get rid of the 'pool' attribute before pickling
-        del sampler.pool
-
         with open(self.full_prefix+"sampler.pickle",'w') as f:
             pickle.dump(sampler,f)
 

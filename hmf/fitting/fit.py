@@ -23,8 +23,23 @@ import hmf.transfer_models as tm
 
 
 try:
-    import emcee
+    from emcee import EnsembleSampler as es
     HAVE_EMCEE = True
+
+    # The following redefines the EnsembleSampler so that the pool object is not
+    # pickled along with it (it can't be).
+    def should_pickle(k):
+        return k!="pool"
+        # try:
+        #     pickle.dumps(v)
+        #     return True
+        # except NotImplementedError:
+        #     return False
+
+    class EnsembleSampler(es):
+        def __getstate__(self):
+            return dict((k, v) for (k, v) in self.__dict__.iteritems() if should_pickle(k))
+
 except ImportError:
     HAVE_EMCEE = False
 
@@ -253,7 +268,7 @@ class MCMC(Fit):
 
         Parameters
         ----------
-        sampler : instance of :class:`emcee.EnsembleSampler`
+        sampler : instance of :class:`EnsembleSampler`
             A sampler instance, which may already include samples from a previous
             run.
 
@@ -284,7 +299,7 @@ class MCMC(Fit):
 
         Yields
         ------
-        sampler : :class:`emcee.EnsembleSampler` object
+        sampler : :class:`EnsembleSampler` object
             The full sampling object, with chain, blobs, acceptance fraction etc.
         """
         if sampler is None and h is None:
@@ -308,7 +323,7 @@ class MCMC(Fit):
                 initial_pos = sampler.chain[:,-1,:]
         else:
             # Note, sampler CANNOT be an attribute of self, since self is passed to emcee.
-            sampler = emcee.EnsembleSampler(nwalkers, self.ndim, model,
+            sampler = EnsembleSampler(nwalkers, self.ndim, model,
                                             args=[h, self], threads=nthreads)
 
         # Get initial positions
