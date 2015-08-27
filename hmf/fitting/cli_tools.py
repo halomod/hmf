@@ -17,6 +17,14 @@ from os.path import join
 import warnings
 from emcee import autocorr
 import pickle
+from astropy.units import Quantity
+from numbers import Number
+import copy
+
+def secondsToStr(t):
+    return "%d:%02d:%02d.%03d" % \
+        reduce(lambda ll,b : divmod(ll[0],b) + ll[1:],
+            [(t*1000,),1000,60,60])
 
 class CLIError(Exception):
     '''Generic exception to raise and log different fatal errors.'''
@@ -66,16 +74,12 @@ class CLIRunner(object):
         self.x, self.y, self.sigma = self.get_data()
 
         # Get params that are part of a dict (eg. HOD)
-
         self.priors, self.keys, self.guess = self.param_setup(param_dict)
 
-
-
         if restart:
-            self.initial, self.prev_samples = self.get_initial()
+            self.sampler = self._get_previous_sampler()
         else:
-            self.initial, self.prev_samples = None, 0
-
+            self.sampler = None
 
     def read_config(self, fname):
         config = cfg()
@@ -88,13 +92,19 @@ class CLIRunner(object):
         if "covar_data" not in res["cosmo_paramsParams"]:
             res["cosmo_paramsParams"]['covar_data'] = ''
 
-        # Set simple parameters
+        # Run Options
         self.quantity = res["RunOptions"].pop("quantity")
         self.xval = res["RunOptions"].pop("xval")
-        self.blobs = json.loads(res["RunOptions"].pop("der_params"))
         self.framework = res["RunOptions"].pop("framework")
         self.relax = bool(res["RunOptions"].pop("relax"))
         self.nthreads = int(res["RunOptions"].pop("nthreads"))
+
+        # Derived params and quantities
+        dparams = json.loads(res["RunOptions"].pop("der_params"))
+        dquants = json.loads(res["RunOptions"].pop("der_quants"))
+
+        self.n_dparams = len(dparams)
+        self.blobs = dparams + dquants
 
         # Fit-options
         self.fit_type = res['FitOptions'].pop("fit_type")
@@ -103,6 +113,10 @@ class CLIRunner(object):
         self.nwalkers = int(res["MCMC"].pop("nwalkers"))
         self.nsamples = int(res["MCMC"].pop("nsamples"))
         self.burnin = json.loads(res["MCMC"].pop("burnin"))
+
+        # Downhill-specific
+        self.downhill_kwargs = {k:json.loads(v) for k,v in res['Downhill'].iteritems()}
+        del res["Downhill"]
 
         #IO-specific
         self.outdir = res["IO"].pop("outdir", None)
@@ -196,31 +210,37 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
         covdata = params["cosmo_paramsParams"].pop("covar_data", None)
         if covdata:
             try:
-                cosmo_cov = getattr(sys.modules["hmf.fit"], covdata)
+                cosmo_cov = getattr(sys.modules["hmf.fitting.fit"], covdata)
             except AttributeError:
                 raise AttributeError("%s is not a valid cosmology dataset" % covdata)
             except Exception:
                 raise
 
         # Deal specifically with cosmology priors, separating types
+        original_cpars = copy.copy(params['cosmo_paramsParams'])
         cosmo_priors = {k:json.loads(v) for k, v in params["cosmo_paramsParams"].iteritems()}
         # the following rely on covdata
         cov_vars = {k:v for k, v in cosmo_priors.iteritems() if v[0] == "cov"}
         norm_vars = {k:v for k, v in cosmo_priors.iteritems() if (v[0] == "norm" and len(v) == 2)}
+
         # remove these to be left with normal stuff
         for k in cov_vars.keys() + norm_vars.keys():
             del params["cosmo_paramsParams"][k]
-
-        if cov_vars:
-            priors += cosmo_cov.get_cov_prior(*cov_vars)
-        if norm_vars:
-            priors += cosmo_cov.get_normal_priors(*norm_vars)
 
         # sigma_8 and n are special cosmology parameters that don't nest
         if "sigma_8" in params["cosmo_paramsParams"]:
             params["OtherParams"]["sigma_8"] = params["cosmo_paramsParams"].pop("sigma_8")
         if "n" in params["cosmo_paramsParams"]:
             params["OtherParams"]["n"] = params["cosmo_paramsParams"].pop("n")
+
+        ### Now we should have all actual cosmo_params labelled as such in the
+        ### `params` dict, with sigma_8 and n in OtherParams as necessary.
+
+        if cov_vars:
+            priors += [cosmo_cov.get_cov_prior(*cov_vars)]
+        if norm_vars:
+            priors += cosmo_cov.get_normal_priors(*norm_vars)
+
 
         # All non-cosmology-covariance-dependent stuff that is top-level
         otherparams = params["OtherParams"]
@@ -242,6 +262,8 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
                 keys += prior.name
         keys = [k.split(":")[-1] for k in keys]
 
+        # for guessing, we need all keys back in params
+        params['cosmo_paramsParams'] = original_cpars
         guess = self.get_guess(params, keys, priors)
 
         print "KEY NAMES: ", keys
@@ -277,17 +299,33 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
 
         return [x]
 
-    def get_initial(self):
+    def _get_previous_sampler(self):
         """
-        Tries to find a chain in the current directory to use.
+        Tries to find a pickled sampler in the current directory to use.
         """
         try:
-            x = np.genfromtxt(self.prefix + "chain")
-            nsamples = x.shape[0]
-            return x[-self.nwalkers:, :], nsamples
+            with open(self.prefix+"sampler.pickle") as f:
+                h =  pickle.load(f)
+            #check that it lines up with current Parameters
+            if h.k != self.nwalkers:
+                warnings.warn("Imported previous chain had different number of walkers (%s) than specified (%s)"%(h.k,self.nwalkers))
+                return None
+            else:
+                ## WE DO THE FOLLOWING IN FIT.PY, BUT HAVE TO DO IT HERE TO update
+                ## THE PICKLED OBJECT, SINCE THE POOL CANNOT BE SAVED
+                if (h.args[0].transfer_fit == "CAMB" or h.args[0].transfer_fit == tm.CAMB):
+                    if any(p.startswith("cosmo_params:") for p in self.keys):
+                        nthreads = 1
+
+                if not nthreads:
+                    # auto-calculate the number of threads to use if not set.
+                    nthreads = cpu_count()
+
+                if nthreads != 1:
+                    h.pool = InterruptiblePool(nthreads)
+                return h
         except:
-            warnings.warn("Problem importing old file, starting afresh")
-            return None, 0
+            return None
 
     def _setup_x(self, instance):
         if self.xval == "M":
@@ -327,80 +365,132 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
                 self.constraints[k][0] *= unit
                 self.constraints[k][1] *= unit
 
-        return instance
-
-    def run_downhill(self):
-        """
-        Runs a simple downhill-gradient fit.
-        """
-        pass
-
-    def run(self):
-        """
-        Runs the MCMC fit
-        """
-        instance = self._setup_instance()
-
-        # # Write out a pickle file.
+        # Write out a pickle file of the model
         with open(self.full_prefix + "model.pickle", 'w') as f:
             pickle.dump(instance, f)
 
-        start = time.time()
+        return instance
+
+    def run(self):
+        if self.fit_type=="opt":
+            self.run_downhill()
+        else:
+            self.run_mcmc()
+
+    def run_downhill(self, instance=None):
+        """
+        Runs a simple downhill-gradient fit.
+        """
+        fitter = fit.Minimize(priors=self.priors, data=self.y, quantity=self.quantity,
+                              constraints=self.constraints, sigma=self.sigma,
+                              guess=self.guess, blobs=self.blobs,
+                              verbose=self.verbose, relax=self.relax)
+
+        if instance is None:
+            instance = self._setup_instance()
+
+        result = fitter.fit(instance,**self.downhill_kwargs)
+        print "Optimization Result: ", result
+
+        self._write_opt_log(result)
+        return result
+
+    def run_mcmc(self):
+        """
+        Runs the MCMC fit
+        """
+        if self.sampler is not None:
+            instance = None
+            prev_samples = self.sampler.iterations
+        else:
+            instance = self._setup_instance()
+            if self.fit_type=="both":
+                optres = self.run_downhill(instance)
+                if optres.success:
+                    self.guess = list(optres.x)
+            prev_samples = 0
+
+        self._write_log_pre()
+
         fitter = fit.MCMC(priors=self.priors, data=self.y, quantity=self.quantity,
                           constraints=self.constraints, sigma=self.sigma,
                           guess=self.guess, blobs=self.blobs,
                           verbose=self.verbose, relax=self.relax)
 
-        s = fitter.fit(instance, nwalkers=self.nwalkers, nsamples=self.nsamples,
-                       burnin=self.burnin, nthreads=self.nthreads,
-                       prefix=self.full_prefix, chunks=self.chunks,
-                       initial_pos=self.initial)
+        start = time.time()
+        if self.chunks == 0:
+            self.chunks = self.nsamples-prev_samples
+        nchunks = (self.nsamples-prev_samples)/self.chunks
+        for i,s in enumerate(fitter.fit(self.sampler,instance, self.nwalkers,
+                                        self.nsamples-prev_samples,self.burnin,self.nthreads,
+                                        self.chunks)):
+            # Write out files
+            self.write_iter_pickle(s)
+            print "Done {0}%. Time per sample: {1}".format(100 * float(i + 1) / nchunks,(time.time() - start) / ((i + 1) * self.chunks*self.nwalkers))
+
         total_time = time.time() - start
 
-        chain, acceptance, acorr = self._merge_results(s)
-        del s
+        self._write_log_post(s,total_time)
+        self._write_data(s)
 
-        with open(self.full_prefix + "log", 'w') as f:
-            self._write_log(f, chain, acceptance, acorr, total_time)
+    def write_iter_pickle(self,sampler):
+        """
+        Write out a pickle version of the sampler every chunk.
+        """
+        with open(self.full_prefix+"sampler.pickle",'w') as f:
+            pickle.dump(sampler,f)
 
-    def _merge_results(self, s):
-        # Grab acceptance fraction from initial run if possible
-        new_accepted = np.mean(s.acceptance_fraction) * self.nsamples * self.nwalkers
+    def _write_opt_log(self,result):
+        with open(self.full_prefix+"opt.log",'w') as f:
+            for k,r in zip(self.keys,result.x):
+                f.write("%s: %s\n"%(k,r))
+            f.write(str(result))
+            # if hasattr(result,"hess_inv"):
+            #     f.write("Covariance Matrix:\n")
+            #     f.write(str(result.hess_inv))
+            # f.write("Success: %s\n"%result.success)
+            # f.write("Iterations Required: %s\n"%result.nit)
+            # f.write("Func. Evaluations: %s\n"%result.nfev)
+            # f.write("Message: %s\n"%result.message)
 
-        if self.initial is not None:
-            try:
-                with open(self.full_prefix + "log", 'r') as f:
-                    for line in f:
-                        if line.startswith("Acceptance Fraction:"):
-                            af = float(line[20:])
-                            naccepted = af * self.prev_samples
-            except IOError:
-                naccepted = 0
-                self.prev_samples = 0
-        else:
-            naccepted = 0
+    def _write_data(self,sampler):
+        """
+        Writes out chains and other data to longer-term readable files (ie ASCII)
+        """
+        with open(self.full_prefix+"chain",'w') as f:
+            np.savetxt(f,sampler.flatchain,header="\t".join(self.keys))
 
-        acceptance = (naccepted + new_accepted) / (self.prev_samples + self.nwalkers * self.nsamples)
+        with open(self.full_prefix+"likelihoods",'w') as f:
+            np.savetxt(f,sampler.lnprobability.T)
 
-        # Read in total chain
-        chain = np.genfromtxt(self.full_prefix + "chain").reshape((self.nwalkers, self.nsamples, -1))
-        acorr = autocorr.integrated_time(np.mean(chain, axis=0), axis=0,
-                                         window=50, fast=False)
-        chain = chain.reshape((self.nwalkers * self.nsamples, -1))
+        # We can write out any blobs that are parameters
+        if self.blobs:
+            if self.n_dparams:
+                numblobs = np.array([[[b[ii] for ii in range(self.n_dparams)] for b in c]
+                                     for c in sampler.blobs])
 
-        return chain, acceptance, acorr
+                # Write out numblobs
+                sh = numblobs.shape
+                numblobs = numblobs.reshape(sh[0] * sh[1], sh[2])
+                with open(self.full_prefix + "derived_parameters", "w") as f:
+                    np.savetxt(f, numblobs,header="\t".join([self.blobs[ii] for ii in range(self.n_dparams)]))
 
-    def _write_log(self, f, chain, acceptance, acorr, total_time):
-        if isinstance(self.burnin, int):
-            f.write("Average time: %s\n" % (total_time / (self.nwalkers * self.nsamples + self.nwalkers * self.burnin)))
-        else:
-            f.write("Average time (discounting burnin): %s\n" % (total_time / (self.nwalkers * self.nsamples)))
-        f.write("Nsamples:  %s\n" % self.nsamples)
-        f.write("Nwalkers: %s\n" % self.nwalkers)
-        f.write("Burnin: %s\n" % self.burnin)
-        f.write("Parameters: %s\n" % self.keys)
-        f.write("Mean values = %s\n" % np.mean(chain, axis=0))
-        f.write("Std. Dev = %s\n" % np.std(chain, axis=0))
-        f.write("Covariance Matrix: %s\n" % np.cov(chain.T))
-        f.write("Acceptance Fraction: %s\n" % acceptance)
-        f.write("Acorr: %s\n" % json.dumps(acorr.tolist()))
+    def _write_log_pre(self):
+        with open(self.full_prefix + "log",'w') as f:
+            f.write("Nsamples:  %s\n" % self.nsamples)
+            f.write("Nwalkers: %s\n" % self.nwalkers)
+            f.write("Burnin: %s\n" % self.burnin)
+            f.write("Parameters: %s\n" % self.keys)
+
+    def _write_log_post(self, sampler, total_time):
+        with open(self.full_prefix + "log", 'a') as f:
+            f.write("Total Time: %s\n"%secondsToStr(total_time))
+            if isinstance(self.burnin, int):
+                f.write("Average time: %s\n" % (total_time / (self.nwalkers * self.nsamples + self.nwalkers * self.burnin)))
+            else:
+                f.write("Average time (discounting burnin): %s\n" % (total_time / (self.nwalkers * self.nsamples)))
+            f.write("Mean values = %s\n" % np.mean(sampler.chain, axis=0))
+            f.write("Std. Dev = %s\n" % np.std(sampler.chain, axis=0))
+            f.write("Covariance Matrix: %s\n" % np.cov(sampler.flatchain.T))
+            f.write("Acceptance Fraction: %s\n" % sampler.acceptance_fraction)
+            f.write("Acorr: %s\n" % json.dumps(sampler.acor.tolist()))
