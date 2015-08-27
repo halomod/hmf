@@ -573,7 +573,7 @@ class MultiNorm(Prior):
         """
         Here params should be a dict of key:values
         """
-        params = np.array([params[k] for k in self.name])
+        #params = np.array([params[k] for k in self.name])
         return _lognormpdf(params, self.mean, self.cov)
 
     def guess(self, *p):
@@ -602,14 +602,14 @@ class CosmoCovData(object):
         """
         Return covariance matrix of given parameters *p
         """
-        if not all([pp not in self.params for pp in p]):
+        if not all([str(pp) in self.params for pp in p]):
             raise AttributeError("One or more parameters passed are not in the data")
 
-        indices = [self.params.index(k) for k in p]
+        indices = [self.params.index(str(k)) for k in p]
         return self.cov[indices, :][:, indices]
 
     def get_mean(self, *p):
-        indices = [self.params.index(k) for k in p]
+        indices = [self.params.index(str(k)) for k in p]
         return self.mean[indices]
 
     def get_std(self, *p):

@@ -19,6 +19,7 @@ from emcee import autocorr
 import pickle
 from astropy.units import Quantity
 from numbers import Number
+import copy
 
 def secondsToStr(t):
     return "%d:%02d:%02d.%03d" % \
@@ -212,24 +213,30 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
                 raise
 
         # Deal specifically with cosmology priors, separating types
+        original_cpars = copy.copy(params['cosmo_paramsParams'])
         cosmo_priors = {k:json.loads(v) for k, v in params["cosmo_paramsParams"].iteritems()}
         # the following rely on covdata
         cov_vars = {k:v for k, v in cosmo_priors.iteritems() if v[0] == "cov"}
         norm_vars = {k:v for k, v in cosmo_priors.iteritems() if (v[0] == "norm" and len(v) == 2)}
+
         # remove these to be left with normal stuff
         for k in cov_vars.keys() + norm_vars.keys():
             del params["cosmo_paramsParams"][k]
-
-        if cov_vars:
-            priors += cosmo_cov.get_cov_prior(*cov_vars)
-        if norm_vars:
-            priors += cosmo_cov.get_normal_priors(*norm_vars)
 
         # sigma_8 and n are special cosmology parameters that don't nest
         if "sigma_8" in params["cosmo_paramsParams"]:
             params["OtherParams"]["sigma_8"] = params["cosmo_paramsParams"].pop("sigma_8")
         if "n" in params["cosmo_paramsParams"]:
             params["OtherParams"]["n"] = params["cosmo_paramsParams"].pop("n")
+
+        ### Now we should have all actual cosmo_params labelled as such in the
+        ### `params` dict, with sigma_8 and n in OtherParams as necessary.
+
+        if cov_vars:
+            priors += [cosmo_cov.get_cov_prior(*cov_vars)]
+        if norm_vars:
+            priors += cosmo_cov.get_normal_priors(*norm_vars)
+
 
         # All non-cosmology-covariance-dependent stuff that is top-level
         otherparams = params["OtherParams"]
@@ -251,6 +258,8 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
                 keys += prior.name
         keys = [k.split(":")[-1] for k in keys]
 
+        # for guessing, we need all keys back in params
+        params['cosmo_paramsParams'] = original_cpars
         guess = self.get_guess(params, keys, priors)
 
         print "KEY NAMES: ", keys
@@ -429,12 +438,12 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
 
     def _write_opt_log(self,result):
         with open(self.full_prefix+"opt.log",'w') as f:
-            for k,r in zip(self.keys,result):
-                f.write("%s: %s"%(k,r))
-            f.write("Success: %s"%result.success)
-            f.write("Iterations Required: %s"%result.nit)
-            f.write("Func. Evaluations: %s"%result.nfev)
-            f.write("Message: %s"%result.message)
+            for k,r in zip(self.keys,result.x):
+                f.write("%s: %s\n"%(k,r))
+            f.write("Success: %s\n"%result.success)
+            f.write("Iterations Required: %s\n"%result.nit)
+            f.write("Func. Evaluations: %s\n"%result.nfev)
+            f.write("Message: %s\n"%result.message)
 
     def _write_data(self,sampler):
         """
