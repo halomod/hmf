@@ -79,7 +79,7 @@ def model(parm, h, self):
             index = self.attrs.index(prior.name)
         ll += prior.ll(parm[index])
     if np.isinf(ll):
-        return ll, self.blobs
+        return ret_arg(ll, self.blobs)
 
     # If it is a log distribution, un-log it for use.
     if isinstance(prior, Log):
@@ -105,7 +105,7 @@ def model(parm, h, self):
             print "WARNING: PARAMETERS FAILED, RETURNING INF: ", zip(self.attrs, parm)
             print e
             print traceback.format_exc()
-            return -np.inf, self.blobs
+            return ret_arg(ll, self.blobs)
         else:
             print traceback.format_exc()
             raise e
@@ -117,7 +117,7 @@ def model(parm, h, self):
         if self.relax:
             print "WARNING: PARAMETERS FAILED, RETURNING INF: ", zip(self.attrs, parm)
             print e
-            return -np.inf, self.blobs
+            return ret_arg(ll, self.blobs)
             print traceback.format_exc()
         else:
             print traceback.format_exc()
@@ -153,9 +153,13 @@ def model(parm, h, self):
                 out.append(getattr(h, b.split(":")[0])[b.split(":")[1]])
         return ll, out
     else:
-
         return ll
 
+def ret_arg(ll,blobs):
+    if blobs is None:
+        return ll
+    else:
+        return ll, blobs
 class Fit(object):
     """
     Parameters
@@ -431,8 +435,7 @@ class Minimize(Fit):
         self.original_blobs = self.blobs + [] #add [] to copy it
         self.blobs = None
 
-    def fit(self, h, method="Nelder-Mead", disp=False, maxiter=50, tol=None,
-            **minimize_kwargs):
+    def fit(self, h, disp=False, maxiter=50,tol=None,**minimize_kwargs):
         """
         Run an optimization procedure to fit a model to data.
 
@@ -466,9 +469,20 @@ class Minimize(Fit):
             :attr:`message`.
 
         """
+        # try to set some bounds
+        bounds = []
+        for p in self.priors:
+            if type(p.name) is list:
+                bounds += p.bounds()
+            else:
+                bounds.append(p.bounds())
+
         res = minimize(self.negmod, self.guess, (h,), tol=tol,
-                       method=method, options={"disp":disp, "maxiter":maxiter},
+                       options={"disp":disp, "maxiter":maxiter},bounds=bounds,
                        **minimize_kwargs)
+        if hasattr(res,"hess_inv"):
+            self.cov_matrix = res.hess_inv
+
         return res
 
     def negmod(self, *args):
@@ -520,6 +534,9 @@ class Uniform(Prior):
     def guess(self, *p):
         return (self.low + self.high) / 2
 
+    def bounds(self):
+        return (self.low,self.high)
+
 class Log(Uniform):
     pass
 
@@ -548,6 +565,9 @@ class Normal(Prior):
 
     def guess(self, *p):
         return self.mean
+
+    def bounds(self):
+        return (self.mean-5*self.sd,self.mean+5*self.sd)
 
 class MultiNorm(Prior):
     """
@@ -581,6 +601,9 @@ class MultiNorm(Prior):
         p should be the parameter name
         """
         return self.mean[self.name.index(p[0])]
+
+    def bounds(self):
+        return [(m+5*sd,m-5*sd) for m,sd in zip(self.mean,np.sqrt(np.diag(self.cov)))]
 
 def _lognormpdf(x, mu, S):
     """ Log of Multinormal PDF at x, up to scale-factors."""

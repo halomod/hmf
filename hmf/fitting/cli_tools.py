@@ -115,7 +115,7 @@ class CLIRunner(object):
         self.burnin = json.loads(res["MCMC"].pop("burnin"))
 
         # Downhill-specific
-        self.downhill_kwargs = {k:json.loads(v) for k,v in res['Downhill'].iteritems}
+        self.downhill_kwargs = {k:json.loads(v) for k,v in res['Downhill'].iteritems()}
         del res["Downhill"]
 
         #IO-specific
@@ -444,10 +444,14 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
         with open(self.full_prefix+"opt.log",'w') as f:
             for k,r in zip(self.keys,result.x):
                 f.write("%s: %s\n"%(k,r))
-            f.write("Success: %s\n"%result.success)
-            f.write("Iterations Required: %s\n"%result.nit)
-            f.write("Func. Evaluations: %s\n"%result.nfev)
-            f.write("Message: %s\n"%result.message)
+            f.write(str(result))
+            # if hasattr(result,"hess_inv"):
+            #     f.write("Covariance Matrix:\n")
+            #     f.write(str(result.hess_inv))
+            # f.write("Success: %s\n"%result.success)
+            # f.write("Iterations Required: %s\n"%result.nit)
+            # f.write("Func. Evaluations: %s\n"%result.nfev)
+            # f.write("Message: %s\n"%result.message)
 
     def _write_data(self,sampler):
         """
