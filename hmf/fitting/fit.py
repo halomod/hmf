@@ -411,10 +411,15 @@ class MCMC(Fit):
 # Minimize Fitting Routine
 #===========================================================
 class Minimize(Fit):
-    def fit(self, h, method="Nelder-Mead", disp=False, maxiter=30, tol=None,
+    def __init__(self,*args,**kwargs):
+        super(Minimize,self).__init__(*args,**kwargs)
+        self.original_blobs = self.blobs + [] #add [] to copy it
+        self.blobs = None
+
+    def fit(self, h, method="Nelder-Mead", disp=False, maxiter=50, tol=None,
             **minimize_kwargs):
         """
-        Run an optimization procedure to fit a model correlation function to data.
+        Run an optimization procedure to fit a model to data.
 
         Parameters
         ----------
@@ -452,11 +457,8 @@ class Minimize(Fit):
         return res
 
     def negmod(self, *args):
-        return -self.model(*args)
-
-
-
-
+        ll = self.model(*args)
+        return -ll
 
 #===============================================================================
 # Classes for different prior models
