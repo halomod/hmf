@@ -30,30 +30,30 @@ class WDM(Model):
     def transfer(self, lnk):
         """
         Transfer function for WDM models
-                
+
         Parameters
         ----------
         lnk : array
             The wavenumbers *k/h* corresponding to  ``power_cdm``.
-            
+
         m_x : float
             The mass of the single-species WDM particle in *keV*
-            
+
         power_cdm : array
             The normalised power spectrum of CDM.
-                  
+
         h : float
             Hubble parameter
-            
+
         omegac : float
-            The dark matter density as a ratio of critical density at the current 
+            The dark matter density as a ratio of critical density at the current
             epoch.
-        
+
         Returns
         -------
         power_wdm : array
             The normalised WDM power spectrum at ``lnk``.
-            
+
         """
         pass
 
@@ -61,9 +61,9 @@ class WDM(Model):
 
 class Viel05(WDM):
     """
-    Transfer function from Viel 2005 (which is exactly the same as Bode et al. 
+    Transfer function from Viel 2005 (which is exactly the same as Bode et al.
     2001).
-    
+
     Formula from Bode et. al. 2001 eq. A9
     """
 
@@ -89,6 +89,8 @@ class Viel05(WDM):
     def m_hm(self):
         return (4.0 / 3.0) * np.pi * self.rho_mean * (self.lam_hm / 2) ** 3
 
+class Bode01(Viel05):
+    pass
 
 class WDMRecalibrateMF(Model):
     def __init__(self, M, dndm0, wdm, **model_parameters):
