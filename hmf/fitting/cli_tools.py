@@ -114,6 +114,10 @@ class CLIRunner(object):
         self.nsamples = int(res["MCMC"].pop("nsamples"))
         self.burnin = json.loads(res["MCMC"].pop("burnin"))
 
+        # Downhill-specific
+        self.downhill_kwargs = {k:json.loads(v) for k,v in res['Downhill'].iteritems}
+        del res["Downhill"]
+
         #IO-specific
         self.outdir = res["IO"].pop("outdir", None)
         self.chunks = int(res["IO"].pop("chunks"))
@@ -385,7 +389,7 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
         if instance is None:
             instance = self._setup_instance()
 
-        result = fitter.fit(instance)
+        result = fitter.fit(instance,**self.downhill_kwargs)
         print "Optimization Result: ", result
 
         self._write_opt_log(result)
