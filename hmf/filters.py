@@ -3,7 +3,7 @@ Created on 28/11/2014
 
 @author: Steven
 
-A module containing various smoothing filter models, including the popular 
+A module containing various smoothing filter models, including the popular
 top-hat in real space.
 '''
 import numpy as np
@@ -29,34 +29,34 @@ class Filter(Model):
     def k_space(self, kr):
         """
         Fourier-transform of the filter.
-        
+
         Parameters
         ----------
         kr : float or array of floats
             The scales at which to return the filter function
-            
+
         Returns
         -------
-        w : float or array of floats 
-            The filter in fourier space, ``len(kr)`` 
+        w : float or array of floats
+            The filter in fourier space, ``len(kr)``
         """
         pass
 
     def mass_to_radius(self, m):
         """
         Calculate radius of a region of space from its mass.
-        
+
         Parameters
         ----------
         m : float or array of floats
             Masses
-            
+
         Returns
         ------
         r : float or array of floats
             The corresponding radii to m
-        
-        .. note :: The units of ``m`` don't matter as long as they are consistent with 
+
+        .. note :: The units of ``m`` don't matter as long as they are consistent with
                 ``rho_mean``.
         """
         pass
@@ -64,7 +64,7 @@ class Filter(Model):
     def radius_to_mass(self, r):
         """
         Calculates mass of a region of space from its radius
-    
+
         Parameters
         ----------
         r : float or array of floats
@@ -74,7 +74,7 @@ class Filter(Model):
         ------
         m : float or array of floats
             The corresponding masses to r
-    
+
         Notes
         -----
         The units of ``r`` don't matter as long as they are consistent with
@@ -85,9 +85,9 @@ class Filter(Model):
     def dw_dlnkr(self, kr):
         """
         The derivative of the filter with log kr.
-        
-        In terms of dw^2/dm, which is a commonly used quantity, this has the 
-        relationship :math:`w\frac{dw}{d\ln r} = \frac{2}{r}\frac{dw^2}{dm}\frac{dm}{dr}`. 
+
+        In terms of dw^2/dm, which is a commonly used quantity, this has the
+        relationship :math:`w\frac{dw}{d\ln r} = \frac{2}{r}\frac{dw^2}{dm}\frac{dm}{dr}`.
         """
         pass
 
@@ -108,7 +108,7 @@ class Filter(Model):
     def dlnr_dlnm(self, r):
         """
         The derivative of log scale with log mass.
-        
+
         For the usual :math:`m\propto r^3` mass assignment, this is just 1/3.
         """
         return 1. / 3.
@@ -116,7 +116,7 @@ class Filter(Model):
     def dlnss_dlnm(self, r):
         """
         The logarithmic slope of mass variance with mass, used directly for n(m).
-        
+
         Note this is :math:`\frac{d\ln \sigma^2}{d\ln m} = 2\frac{d\ln \sigma}{d\ln m}`
         """
         return self.dlnss_dlnr(r) * self.dlnr_dlnm(r)
@@ -124,14 +124,14 @@ class Filter(Model):
     def sigma(self, r, order=0):
         """
         Calculate the mass variance, :math:`\sigma(m)`.
-        
+
         .. note :: This is not :math:`\sigma^2(m)`!
-        
+
         Parameters
         ----------
         r : float or array_like
             The radii of the spheres at which to calculate the mass variance.
-            
+
         Returns
         -------
         sigma : array_like ( ``len=len(m)`` )
@@ -207,7 +207,7 @@ class SharpK(Filter):
 
     def real_space(self, m, r):
         # TODO: write this
-        pass
+        raise NotImplementedError()
 
     def dw_dlnkr(self, kr):
         out = np.zeros_like(kr)
@@ -255,7 +255,7 @@ class SharpKEllipsoid(SharpK):
         Peak of the distribution of x, where x is the sum of the eigenvalues
         of the inertia tensor (?) of an ellipsoidal peak, divided by the second
         spectral moment.
-        
+
         Equation A6. in Schneider et al. 2013
         """
         top = 3 * (1 - g ** 2) + (1.1 - 0.9 * g ** 4) * np.exp(-g * (1 - g ** 2) * (g * v / 2) ** 2)

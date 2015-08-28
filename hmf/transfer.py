@@ -1,7 +1,7 @@
 """
-This module contains a single class, `Transfer`, which provides methods to 
-calculate the transfer function, matter power spectrum and several other 
-related quantities. 
+This module contains a single class, `Transfer`, which provides methods to
+calculate the transfer function, matter power spectrum and several other
+related quantities.
 """
 import numpy as np
 from cosmo import Cosmology
@@ -25,58 +25,58 @@ except ImportError:
 class Transfer(Cosmology):
     '''
     Neatly deals with different transfer functions.
-    
+
     The purpose of this class is to calculate transfer functions, power spectra
     and several tightly associated quantities using many of the available fits
-    from the literature. 
-        
+    from the literature.
+
     Importantly, it contains the means to calculate the transfer function using the
     popular CAMB code, the Eisenstein-Hu fit (1998), the BBKS fit or the Bond and
     Efstathiou fit (1984). Furthermore, it can calculate non-linear corrections
     using the halofit model (with updated parameters from Takahashi2012).
-    
+
     The primary feature of this class is to wrap all the methods into a unified
-    interface. On top of this, the class implements optimized updates of 
+    interface. On top of this, the class implements optimized updates of
     parameters which is useful in, for example, MCMC code which covers a
     large parameter-space. Calling the `nonlinear_power` does not re-evaluate
-    the entire transfer function, rather it just calculates the corrections, 
+    the entire transfer function, rather it just calculates the corrections,
     improving performance.
-    
-    To update parameters optimally, use the update() method. 
-    All output quantities are calculated only when needed (but stored after 
+
+    To update parameters optimally, use the update() method.
+    All output quantities are calculated only when needed (but stored after
     first calculation for quick access).
-    
-    
+
+
     Parameters
     ----------
     lnk_min : float
-        Defines min log wavenumber, *k* [units :math:`h Mpc^{-1}`]. 
-        
+        Defines min log wavenumber, *k* [units :math:`h Mpc^{-1}`].
+
     lnk_max : float
         Defines max log wavenumber, *k* [units :math:`h Mpc^{-1}`].
-     
+
     dlnk : float
         Defines log interval between wavenumbers
-        
+
     z : float, optional, default ``0.0``
         The redshift of the analysis.
-                   
+
     wdm_mass : float, optional, default ``None``
         The warm dark matter particle size in *keV*, or ``None`` for CDM.
-                                                                          
-    transfer_fit : str, { ``"CAMB"``, ``"EH"``, ``"bbks"``, ``"bond_efs"``} 
+
+    transfer_fit : str, { ``"CAMB"``, ``"EH"``, ``"bbks"``, ``"bond_efs"``}
         Defines which transfer function fit to use. If not defined from the
         listed options, it will be treated as a filename to be read in. In this
-        case the file must contain a transfer function in CAMB output format. 
-                       
+        case the file must contain a transfer function in CAMB output format.
+
     takahashi : bool, default ``True``
         Whether to use updated HALOFIT coefficients from Takahashi+12
-        
+
     wdm_model : WDM subclass or string
         The WDM transfer function model to use
-        
+
     kwargs : keywords
-        The ``**kwargs`` take any cosmological parameters desired, which are 
+        The ``**kwargs`` take any cosmological parameters desired, which are
         input to the `hmf.cosmo.Cosmology` class.
     '''
 
@@ -189,7 +189,7 @@ class Transfer(Cosmology):
     def _unnormalised_lnT(self):
         """
         The un-normalised transfer function
-        
+
         This wraps the individual transfer_fit methods to provide unified access.
         """
         if issubclass_(self.transfer_fit, tm.Transfer):
@@ -245,14 +245,14 @@ class Transfer(Cosmology):
     def growth_factor(self):
         r"""
         The growth factor :math:`d(z)`
-        
+
         This is calculated (see Lukic 2007) as
-        
+
         .. math:: d(z) = \frac{D^+(z)}{D^+(z=0)}
-                
+
         where
-        
-        .. math:: D^+(z) = \frac{5\Omega_m}{2}\frac{H(z)}{H_0}\int_z^{\infty}{\frac{(1+z')dz'}{[H(z')/H_0]^3}}        
+
+        .. math:: D^+(z) = \frac{5\Omega_m}{2}\frac{H(z)}{H_0}\int_z^{\infty}{\frac{(1+z')dz'}{[H(z')/H_0]^3}}
         """
         if self.z > 0:
             return self._growth.growth_factor(self.z)
@@ -277,9 +277,8 @@ class Transfer(Cosmology):
     def nonlinear_power(self):
         """
         Non-linear log power [units :math:`Mpc^3/h^3`]
-        
-        Non-linear corrections come from HALOFIT (Smith2003) with updated
-        parameters from Takahashi2012. 
+
+        Non-linear corrections come from HALOFIT.
         """
         return self.k ** -3 * self.nonlinear_delta_k * (2 * np.pi ** 2)
 
@@ -296,7 +295,3 @@ class Transfer(Cosmology):
         nonlinear_delta_k = self.delta_k
         nonlinear_delta_k[mask] = pnl
         return nonlinear_delta_k
-
-
-
-
