@@ -83,7 +83,7 @@ class Framework(Cache):
         for k, v in kwargs.items():
             if hasattr(self, k):
                 setattr(self, k, v)
-            del kwargs[k]
+                del kwargs[k]
 
         if kwargs:
             raise ValueError("Invalid arguments: %s" % kwargs)
