@@ -24,7 +24,6 @@ def test_updates():
     t = Transfer()
     t2 = Transfer()
     for k, v in {"z":0.1,
-                "wdm_mass":10.0,
                 "transfer_options":{"lAccuracyBoost":1.5,
                                     "AccuracyBoost":1.5},
                 "sigma_8":0.82,
