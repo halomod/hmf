@@ -27,38 +27,38 @@ from _framework import get_model
 class MassFunction(Transfer):
     """
     An object containing all relevant quantities for the mass function.
-    
-    The purpose of this class is to calculate many quantities associated with 
-    the dark matter halo mass function (HMF). The class is initialized to form a 
+
+    The purpose of this class is to calculate many quantities associated with
+    the dark matter halo mass function (HMF). The class is initialized to form a
     cosmology and takes in various options as to how to calculate all
-    further quantities. 
-    
-    All required outputs are provided as ``@property`` attributes for ease of 
+    further quantities.
+
+    All required outputs are provided as ``@property`` attributes for ease of
     access.
-    
+
     Contains an update() method which can be passed arguments to update, in the
-    most optimal manner. All output quantities are calculated only when needed 
+    most optimal manner. All output quantities are calculated only when needed
     (but stored after first calculation for quick access).
-    
-    Quantities related to the transfer function can be accessed through the 
+
+    Quantities related to the transfer function can be accessed through the
     ``transfer`` property of this object.
-    
+
     Parameters
-    ----------   
+    ----------
     Mmin : float
-        Minimum mass at which to perform analysis [units :math:`\log_{10}M_\odot h^{-1}`]. 
-                    
+        Minimum mass at which to perform analysis [units :math:`\log_{10}M_\odot h^{-1}`].
+
     Mmax : float
         Maximum mass at which to perform analysis [units :math:`\log_{10}M_\odot h^{-1}`].
-        
+
     dlog10m : float
         log10 interval between mass bins
-        
+
     mf_fit : str or callable, optional, default ``"SMT"``
         A string indicating which fitting function to use for :math:`f(\sigma)`
-                       
+
         Available options:
-                                           
+
         1. ``'PS'``: Press-Schechter form from 1974
         #. ``'ST'``: Sheth-Mo-Tormen empirical fit 2001 (deprecated!)
         #. ``'SMT'``: Sheth-Mo-Tormen empirical fit from 2001
@@ -78,41 +78,41 @@ class MassFunction(Transfer):
 
         Alternatively, one may define a callable function, with the signature
         ``func(self)``, where ``self`` is a :class:`MassFunction` object (and
-        has access to all its attributes). This may be passed here. 
-        
+        has access to all its attributes). This may be passed here.
+
     delta_wrt : str, {``"mean"``, ``"crit"``}
         Defines what the overdensity of a halo is with respect to, mean density
         of the universe, or critical density.
-                       
+
     delta_h : float, optional, default ``200.0``
         The overdensity for the halo definition, with respect to ``delta_wrt``
-                       
+
     user_fit : str, optional, default ``""``
         A string defining a mathematical function in terms of `x`, used as
         the fitting function, where `x` is taken as :math:`\( \sigma \)`. Will only
         be applicable if ``mf_fit == "user_model"``.
-                                       
+
     cut_fit : bool, optional, default ``True``
         Whether to forcibly cut :math:`f(\sigma)` at bounds in literature.
         If false, will use whole range of `M`.
-           
+
     delta_c : float, default ``1.686``
         The critical overdensity for collapse, :math:`\delta_c`
-        
+
     kwargs : keywords
         These keyword arguments are sent to the `hmf.transfer.Transfer` class.
-        
+
         Included are all the cosmological parameters (see the docs for details).
-        
+
     """
 
 
     def __init__(self, Mmin=10, Mmax=15, dlog10m=0.01, mf_fit=Tinker08, delta_h=200.0,
-                 delta_wrt='mean', cut_fit=True, z2=None, nz=None, _fsig_params=None,
+                 delta_wrt='mean', cut_fit=True, z2=None, nz=None, fsig_params=None,
                  delta_c=1.686, filter=TopHat, filter_params=None,
                  **transfer_kwargs):
         """
-        Initializes some parameters      
+        Initializes some parameters
         """
         # # Call super init MUST BE DONE FIRST.
         super(MassFunction, self).__init__(**transfer_kwargs)
@@ -128,7 +128,7 @@ class MassFunction(Transfer):
         self.z2 = z2
         self.nz = nz
         self.delta_c = delta_c
-        self._fsig_params = _fsig_params or {}
+        self.fsig_params = fsig_params or {}
         self.filter = filter
         self.filter_params = filter_params or {}
 
@@ -238,9 +238,9 @@ class MassFunction(Transfer):
         return val
 
     @parameter
-    def _fsig_params(self, val):
+    def fsig_params(self, val):
         if not isinstance(val, dict):
-            raise ValueError("_fsig_params must be a dictionary")
+            raise ValueError("fsig_params must be a dictionary")
         return val
 
     #--------------------------------  PROPERTIES ------------------------------
@@ -251,7 +251,7 @@ class MassFunction(Transfer):
         """
         return self.mean_density0 * (1 + self.z) ** 3
 
-    @cached_property("mf_fit", "sigma", "z", "delta_halo", "nu", "M", "_fsig_params",
+    @cached_property("mf_fit", "sigma", "z", "delta_halo", "nu", "M", "fsig_params",
                      "cosmo", "delta_c")
     def _fit(self):
         """The actual fitting function class (as opposed to string identifier)"""
@@ -259,13 +259,13 @@ class MassFunction(Transfer):
             fit = self.mf_fit(M=self.M, nu2=self.nu, z=self.z,
                               delta_halo=self.delta_halo, omegam_z=self.cosmo.Om(self.z),
                               delta_c=self.delta_c, sigma=self.sigma, n_eff=self.n_eff,
-                              ** self._fsig_params)
+                              ** self.fsig_params)
         elif isinstance(self.mf_fit, basestring):
             fit = get_model(self.mf_fit, "hmf.fitting_functions",
                             M=self.M, nu2=self.nu, z=self.z,
                             delta_halo=self.delta_halo, omegam_z=self.cosmo.Om(self.z),
                             delta_c=self.delta_c, sigma=self.sigma, n_eff=self.n_eff,
-                            ** self._fsig_params)
+                            ** self.fsig_params)
         return fit
 
     @cached_property("mean_density0", "filter", "delta_c", "k", "_unnormalised_power", "filter_params")
@@ -308,12 +308,12 @@ class MassFunction(Transfer):
     def _sigma_0(self):
         """
         The normalised mass variance at z=0 :math:`\sigma`
-        
+
         Notes
         -----
-        
+
         .. math:: \sigma^2(R) = \frac{1}{2\pi^2}\int_0^\infty{k^2P(k)W^2(kR)dk}
-        
+
         """
         return self._normalisation * self._unn_sigma0
 
@@ -328,12 +328,12 @@ class MassFunction(Transfer):
     def _dlnsdlnm(self):
         """
         The value of :math:`\left|\frac{\d \ln \sigma}{\d \ln M}\right|`, ``len=len(M)``
-        
+
         Notes
         -----
-        
+
         .. math:: frac{d\ln\sigma}{d\ln M} = \frac{3}{2\sigma^2\pi^2R^4}\int_0^\infty \frac{dW^2(kR)}{dM}\frac{P(k)}{k^2}dk
-        
+
         """
         return 0.5 * self.filter_mod.dlnss_dlnm(self.radii)
 
@@ -362,14 +362,14 @@ class MassFunction(Transfer):
     def n_eff(self):
         """
         Effective spectral index at scale of halo radius, ``len=len(M)``
-        
+
         Notes
         -----
-        This function, and any derived quantities, can show small non-physical 
+        This function, and any derived quantities, can show small non-physical
         'wiggles' at the 0.1% level, if too coarse a grid in ln(k) is used. If
         applications are sensitive at this level, please use a very fine k-space
         grid.
-        
+
         Uses eq. 42 in Lukic et. al 2007.
         """
         return -3.0 * (2.0 * self._dlnsdlnm + 1.0)
@@ -445,16 +445,16 @@ class MassFunction(Transfer):
     def _gtm(self, dndm, mass_density=False):
         """
         Calculate number or mass density above mass thresholds in ``self.M``
-        
+
         This function is here, separate from the properties, due to its need
-        of being passed ``dndm` in the case of the Behroozi fit only, in which 
+        of being passed ``dndm` in the case of the Behroozi fit only, in which
         case an infinite recursion would occur otherwise.
 
         Parameters
         ----------
         dndm : array_like, ``len(self.M)``
             Should usually just be exactly ``self.dndm``, except in Behroozi fit.
-            
+
         mass_density : bool, ``False``
             Whether to get the mass density, or number density.
         """
@@ -493,12 +493,12 @@ class MassFunction(Transfer):
     def ngtm(self):
         """
         The cumulative mass function above `M`, ``len=len(M)`` [units :math:`h^3 Mpc^{-3}`]
-        
+
         In the case that `M` does not extend to sufficiently high masses, this
-        routine will auto-generate ``dndm`` for an extended mass range. If 
+        routine will auto-generate ``dndm`` for an extended mass range. If
         ``cut_fit`` is True, and this extension is invalid, then a power-law fit
-        is applied to extrapolate to sufficient mass. 
-        
+        is applied to extrapolate to sufficient mass.
+
         In the case of the Behroozi fit, it is impossible to auto-extend the mass
         range except by the power-law fit, thus one should be careful to supply
         appropriate mass ranges in this case.
@@ -509,12 +509,12 @@ class MassFunction(Transfer):
     def rho_gtm(self):
         """
         Mass density in haloes `>M`, ``len=len(M)`` [units :math:`M_\odot h^2 Mpc^{-3}`]
-        
+
         In the case that `M` does not extend to sufficiently high masses, this
-        routine will auto-generate ``dndm`` for an extended mass range. If 
+        routine will auto-generate ``dndm`` for an extended mass range. If
         ``cut_fit`` is True, and this extension is invalid, then a power-law fit
-        is applied to extrapolate to sufficient mass. 
-        
+        is applied to extrapolate to sufficient mass.
+
         In the case of the Behroozi fit, it is impossible to auto-extend the mass
         range except by the power-law fit, thus one should be careful to supply
         appropriate mass ranges in this case.
@@ -526,19 +526,19 @@ class MassFunction(Transfer):
     def rho_ltm(self):
         """
         Mass density in haloes `<M`, ``len=len(M)`` [units :math:`M_\odot h^2 Mpc^{-3}`]
-        
-        .. note :: As of v1.6.2, this assumes that the entire mass density of 
+
+        .. note :: As of v1.6.2, this assumes that the entire mass density of
                    halos is encoded by the ``mean_density`` parameter (ie. all
                    mass is found in halos). This is not explicitly true of all
                    fitting functions (eg. Warren), in which case the definition
-                   of this property is somewhat inconsistent, but will still 
+                   of this property is somewhat inconsistent, but will still
                    work.
-                    
+
         In the case that `M` does not extend to sufficiently high masses, this
-        routine will auto-generate ``dndm`` for an extended mass range. If 
+        routine will auto-generate ``dndm`` for an extended mass range. If
         ``cut_fit`` is True, and this extension is invalid, then a power-law fit
-        is applied to extrapolate to sufficient mass. 
-        
+        is applied to extrapolate to sufficient mass.
+
         In the case of the Behroozi fit, it is impossible to auto-extend the mass
         range except by the power-law fit, thus one should be careful to supply
         appropriate mass ranges in this case.
@@ -548,7 +548,7 @@ class MassFunction(Transfer):
 
     @cached_property("ngtm")
     def how_big(self):
-        """ 
+        """
         Size of simulation volume in which to expect one halo of mass M, ``len=len(M)`` [units :math:`Mpch^{-1}`]
         """
 

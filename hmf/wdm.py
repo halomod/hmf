@@ -11,18 +11,22 @@ from hmf import MassFunction
 from _cache import parameter, cached_property
 from numpy import issubclass_
 from _framework import Model, get_model
-
+from cosmo import h_unit
+import astropy.units as u
+#===============================================================================
+# Model Components
+#===============================================================================
 class WDM(Model):
     '''
     Abstract base class for all WDM models
     '''
-    def __init__(self, mx, cosmo, z, **model_params):
+    def __init__(self, mx, cosmo,z, **model_params):
         '''
         Constructor
         '''
         self.mx = mx
         self.cosmo = cosmo
-        self.rho_mean = cosmo.Om(z) * cosmo.critical_density(z)
+        self.rho_mean = (1+z)**3 * h_unit ** 2 * (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2).to(u.MsolMass / u.Mpc ** 3) * 1e6
         self.Oc0 = cosmo.Om0 - cosmo.Ob0
 
         super(WDM, self).__init__(**model_params)
@@ -30,30 +34,30 @@ class WDM(Model):
     def transfer(self, lnk):
         """
         Transfer function for WDM models
-                
+
         Parameters
         ----------
         lnk : array
             The wavenumbers *k/h* corresponding to  ``power_cdm``.
-            
+
         m_x : float
             The mass of the single-species WDM particle in *keV*
-            
+
         power_cdm : array
             The normalised power spectrum of CDM.
-                  
+
         h : float
             Hubble parameter
-            
+
         omegac : float
-            The dark matter density as a ratio of critical density at the current 
+            The dark matter density as a ratio of critical density at the current
             epoch.
-        
+
         Returns
         -------
         power_wdm : array
             The normalised WDM power spectrum at ``lnk``.
-            
+
         """
         pass
 
@@ -61,9 +65,9 @@ class WDM(Model):
 
 class Viel05(WDM):
     """
-    Transfer function from Viel 2005 (which is exactly the same as Bode et al. 
+    Transfer function from Viel 2005 (which is exactly the same as Bode et al.
     2001).
-    
+
     Formula from Bode et. al. 2001 eq. A9
     """
 
@@ -71,11 +75,11 @@ class Viel05(WDM):
                  "g_x":1.5}
 
     def transfer(self, k):
-        return (1 + (self.lam_eff_fs * k.value) ** (2 * self.params["mu"])) ** (-5.0 / self.params["mu"])
+        return (1 + (self.lam_eff_fs * k) ** (2 * self.params["mu"])) ** (-5.0 / self.params["mu"])
 
     @property
     def lam_eff_fs(self):
-        return 0.049 * self.mx ** -1.11 * (self.Oc0 / 0.25) ** 0.11 * (self.cosmo.h / 0.7) ** 1.22 * (1.5 / self.params['g_x']) ** 0.29
+        return 0.049 * self.mx ** -1.11 * (self.Oc0 / 0.25) ** 0.11 * (self.cosmo.h / 0.7) ** 1.22 * (1.5 / self.params['g_x']) ** 0.29 * u.Mpc/h_unit
 
     @property
     def m_fs(self):
@@ -89,8 +93,15 @@ class Viel05(WDM):
     def m_hm(self):
         return (4.0 / 3.0) * np.pi * self.rho_mean * (self.lam_hm / 2) ** 3
 
+class Bode01(Viel05):
+    pass
+
+
 
 class WDMRecalibrateMF(Model):
+    """
+    A model that merely transforms the mass function for WDM.
+    """
     def __init__(self, M, dndm0, wdm, **model_parameters):
         self.M = M
         self.dndm0 = dndm0
@@ -118,6 +129,11 @@ class Lovell14(WDMRecalibrateMF):
     def dndm_alter(self):
         return self.dndm0 * (1 + self.params["gamma"] * self.wdm.m_hm / self.M) ** (-self.params["beta"])
 
+
+
+#===============================================================================
+# Frameworks
+#===============================================================================
 class TransferWDM(Transfer):
     def __init__(self, wdm_mass=3.0, wdm_transfer=Viel05, wdm_params={},
                  **transfer_kwargs):
@@ -159,18 +175,18 @@ class TransferWDM(Transfer):
     @cached_property("cosmo", "wdm_mass", "wdm_transfer", "wdm_params")
     def _wdm(self):
         if issubclass_(self.wdm_transfer, WDM):
-            return self.wdm_transfer(self.wdm_mass, self.cosmo,
-                                     ** self.wdm_params)
+            return self.wdm_transfer(self.wdm_mass, self.cosmo,self.z,
+                                     **self.wdm_params)
         elif isinstance(self.wdm_transfer, basestring):
             return get_wdm(self.wdm_transfer, mx=self.wdm_mass, cosmo=self.cosmo,
-                           **self.wdm_params)
+                           z=self.z,**self.wdm_params)
 
     @cached_property("_wdm")
-    def _power0(self):
+    def _unnormalised_power(self):
         """
         Normalised log power at :math:`z=0`
         """
-        powercdm = super(TransferWDM, self)._power0
+        powercdm = super(TransferWDM, self)._unnormalised_power
         return self._wdm.transfer(self.k) ** 2 * powercdm
 
 class MassFunctionWDM(MassFunction, TransferWDM):
