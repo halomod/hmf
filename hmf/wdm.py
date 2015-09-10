@@ -26,7 +26,7 @@ class WDM(Model):
         '''
         self.mx = mx
         self.cosmo = cosmo
-        self.rho_mean = h_unit ** 2 * (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2).to(u.MsolMass / u.Mpc ** 3) * 1e6
+        self.rho_mean = (1+z)**3 * h_unit ** 2 * (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2).to(u.MsolMass / u.Mpc ** 3) * 1e6
         self.Oc0 = cosmo.Om0 - cosmo.Ob0
 
         super(WDM, self).__init__(**model_params)
