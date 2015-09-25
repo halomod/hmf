@@ -105,7 +105,7 @@ def model(parm, h, self):
             print "WARNING: PARAMETERS FAILED, RETURNING INF: ", zip(self.attrs, parm)
             print e
             print traceback.format_exc()
-            return ret_arg(ll, self.blobs)
+            return ret_arg(-np.inf, self.blobs)
         else:
             print traceback.format_exc()
             raise e
@@ -117,7 +117,7 @@ def model(parm, h, self):
         if self.relax:
             print "WARNING: PARAMETERS FAILED, RETURNING INF: ", zip(self.attrs, parm)
             print e
-            return ret_arg(ll, self.blobs)
+            return ret_arg(-np.inf, self.blobs)
             print traceback.format_exc()
         else:
             print traceback.format_exc()
@@ -478,7 +478,7 @@ class Minimize(Fit):
                 bounds.append(p.bounds())
 
         res = minimize(self.negmod, self.guess, (h,), tol=tol,
-                       options={"disp":disp, "maxiter":maxiter},bounds=bounds,
+                       options={"disp":disp, "maxiter":maxiter},
                        **minimize_kwargs)
         if hasattr(res,"hess_inv"):
             self.cov_matrix = res.hess_inv
@@ -487,7 +487,10 @@ class Minimize(Fit):
 
     def negmod(self, *args):
         ll = self.model(*args)
-        return -ll
+        if np.isinf(ll):
+            return 1e30
+        else:
+            return -ll
 
 #===============================================================================
 # Classes for different prior models
