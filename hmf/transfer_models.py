@@ -2,7 +2,7 @@
 Various models for computing the transfer function.
 
 Note that these are not transfer function "frameworks". The framework is found
-in transfer.py. 
+in transfer.py.
 '''
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
@@ -27,30 +27,30 @@ class Transfer(Model):
 class CAMB(Transfer):
     """
     Scalar_initial_condition : int, {1,2,3,4,5}
-        Initial scalar perturbation mode (adiabatic=1, CDM iso=2, 
-        Baryon iso=3,neutrino density iso =4, neutrino velocity iso = 5) 
-    
+        Initial scalar perturbation mode (adiabatic=1, CDM iso=2,
+        Baryon iso=3,neutrino density iso =4, neutrino velocity iso = 5)
+
     lAccuracyBoost : float, optional, default ``1.0``
         Larger to keep more terms in the hierarchy evolution
-    
+
     AccuracyBoost : float, optional, default ``1.0``
-        Increase accuracy_boost to decrease time steps, use more k 
-        values,  etc.Decrease to speed up at cost of worse accuracy. 
+        Increase accuracy_boost to decrease time steps, use more k
+        values,  etc.Decrease to speed up at cost of worse accuracy.
         Suggest 0.8 to 3.
-        
+
     w_perturb : bool, optional, default ``False``
-        
-    
+
+
     transfer__k_per_logint : int, optional, default ``11``
         Number of wavenumbers estimated per log interval by CAMB
         Default of 11 gets best performance for requisite accuracy of mass function.
-        
+
     transfer__kmax : float, optional, default ``0.25``
         Maximum value of the wavenumber.
         Default of 0.25 is high enough for requisite accuracy of mass function.
-        
+
     ThreadNum : int, optional, default ``0``
-        Number of threads to use for calculation of transfer 
+        Number of threads to use for calculation of transfer
         function by CAMB. Default 0 automatically determines the number.
     """
     _defaults = {"Scalar_initial_condition":1,
@@ -65,15 +65,15 @@ class CAMB(Transfer):
     def _check_low_k(self, lnk, lnT, lnkmin):
         """
         Check convergence of transfer function at low k.
-        
+
         Unfortunately, some versions of CAMB produce a transfer which has a
         turn-up at low k, which we cut out here.
-        
+
         Parameters
         ----------
         lnk : array_like
             Value of log(k)
-            
+
         lnT : array_like
             Value of log(transfer)
         """
@@ -92,7 +92,7 @@ class CAMB(Transfer):
     def lnt(self, lnk):
         """
         Generate transfer function with CAMB
-        
+
         .. note :: This should not be called by the user!
         """
 
@@ -126,7 +126,7 @@ class FromFile(CAMB):
     def lnt(self, lnk):
         """
         Import the transfer function from file.
-        
+
         The format should be the same as CAMB output, or a simple 2-column file.
         """
         try:
@@ -147,14 +147,14 @@ class EH_BAO(Transfer):
     def lnt(self, lnk):
         """
         Eisenstein & Hu (1998) fitting function with BAO wiggles
-        
+
         From EH1998, Eqs. 26,28-31. Code adapted from CHOMP.
 
         Parameters
         ----------
-        lnk: float array 
+        lnk: float array
             Wave number at which to compute power spectrum.
-        
+
         Returns
         -------
         float array:
@@ -217,14 +217,14 @@ class EH_NoBAO(Transfer):
     def lnt(self, lnk):
         """
         Eisenstein & Hu (1998) fitting function without BAO wiggles
-        
+
         From EH 1998 Eqs. 26,28-31. Code adapted from CHOMP project.
 
         Parameters
         ----------
-        lnk: float array 
+        lnk: float array
             Wave number at which to compute power spectrum.
-        
+
         Returns
         -------
         float array:
@@ -235,15 +235,15 @@ class EH_NoBAO(Transfer):
         Omh2 = self.cosmo.Om0 * self.cosmo.h ** 2
         Omb2 = self.cosmo.Ob0 * self.cosmo.h ** 2
         omega_ratio = self.cosmo.Ob0 / self.cosmo.Om0
-        s = 44.5 * np.log(9.83 / Omh2) / np.sqrt(1 + 10.0 * (Omb2) ** (3 / 4))
+        s = 44.5 * np.log(9.83 / Omh2) / np.sqrt(1 + 10.0 * (Omb2) ** (3. / 4.))
         alpha = (1 - 0.328 * np.log(431.0 * Omh2) * omega_ratio +
                  0.38 * np.log(22.3 * Omh2) * omega_ratio ** 2)
         Gamma_eff = self.cosmo.Om0 * self.cosmo.h * (
-            alpha + (1 - alpha) / (1 + 0.43 * k * s) ** 4)
+            alpha + (1 - alpha) / (1 + (0.43 * k * s) ** 4))
         q = k * theta / Gamma_eff
         L0 = np.log(2 * np.e + 1.8 * q)
         C0 = 14.2 + 731.0 / (1 + 62.5 * q)
-        return L0 / (L0 + C0 * q * q)
+        return np.log(L0 / (L0 + C0 * q * q))
 
 class BBKS(Transfer):
     def lnt(self, lnk):
