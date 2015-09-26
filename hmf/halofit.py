@@ -1,9 +1,9 @@
 """
 HALOFIT code ported to python.
 
-This code was heavily influenced by the HaloFit class from the 
-`chomp` python package by Christopher Morrison, Ryan Scranton 
-and Michael Schneider (https://code.google.com/p/chomp/). It has 
+This code was heavily influenced by the HaloFit class from the
+`chomp` python package by Christopher Morrison, Ryan Scranton
+and Michael Schneider (https://code.google.com/p/chomp/). It has
 been modified to improve its integration with this package.
 """
 import numpy as np
@@ -85,7 +85,7 @@ def _get_spec(k, delta_k, sigma_8):
 def halofit(k, z, cosmo, neff, rncur, rknl, plin, takahashi=True):
     """
     Halofit routine to calculate pnl and plin.
-    
+
     Basically copies the CAMB routine
     """
 
@@ -136,9 +136,14 @@ def halofit(k, z, cosmo, neff, rncur, rknl, plin, takahashi=True):
         f2b = omegamz ** -0.0585
         f3b = omegamz ** 0.0743
         frac = omegavz / (1 - omegamz)
-        f1 = frac * f1b + (1 - frac) * f1a
-        f2 = frac * f2b + (1 - frac) * f2a
-        f3 = frac * f3b + (1 - frac) * f3a
+        if takahashi:
+            f1 = f1b
+            f2 = f2b
+            f3 = f3b
+        else:
+            f1 = frac * f1b + (1 - frac) * f1a
+            f2 = frac * f2b + (1 - frac) * f2a
+            f3 = frac * f3b + (1 - frac) * f3a
     else:
         f1 = f2 = f3 = 1.0
 
