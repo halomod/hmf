@@ -292,6 +292,6 @@ class Transfer(Cosmology):
         plin = self.delta_k[mask]
         k = self.k[mask]
         pnl = halofit(k.value, self.z, self.cosmo, rneff, rncur, rknl, plin, self.takahashi)
-        nonlinear_delta_k = self.delta_k
+        nonlinear_delta_k = self.delta_k.copy()
         nonlinear_delta_k[mask] = pnl
         return nonlinear_delta_k
