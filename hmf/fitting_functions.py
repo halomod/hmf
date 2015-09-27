@@ -142,6 +142,14 @@ class SMT(FittingFunction):
 
         return vfv
 
+    def norm(self):
+        if self.params["A"] is not None:
+            return self.params['A']
+        else:
+            p = self.params['p']
+            q = self.params['q']
+            return 1./(1 + 2**-p * Gam(0.5 - p)/Gam(0.5))
+
 class ST(SMT):
     pass
 
@@ -607,6 +615,12 @@ class Pillepich(Warren):
     _ref = r"""Pillepich, A., et al., 2010, arxiv:0811.4176"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Pillepich", "Pillepich", _eq, _ref)
     _defaults = {"A":0.6853,"b":1.868,"c":0.3324,"d":1.2266}
+
+class Manera(SMT):
+    _ref = r"""Manera, M., et al., 2010, arxiv:0906.1314"""
+    __doc__ = _makedoc(FittingFunction._pdocs, "SMT", "SMT", _eq, _ref)
+    # These are for z=0, new ML method, l_linnk = 0.2
+    _defaults = {"A":None,"a":0.709,"p":0.248}
 
 class Ishiyama(Warren):
     _eq = r"A\left[\left(\frac{e}{\sigma}\right)^b + 1\right]\exp(\frac{d}{\sigma^2})"
