@@ -17,9 +17,9 @@ def _makedoc(pdocs, lname, sname, eq, ref):
     Notes
     -----
     The %s [1]_ form is:
-    
+
     .. math:: f_{\rm %s}(\sigma) = %s
-    
+
     References
     ----------
     .. [1] %s
@@ -29,39 +29,39 @@ def _makedoc(pdocs, lname, sname, eq, ref):
 class FittingFunction(Model):
     r"""
     Base-class for a halo mass function fit
-    
-    This class should not be called directly, rather use a subclass which is 
-    specific to a certain fitting formula. 
+
+    This class should not be called directly, rather use a subclass which is
+    specific to a certain fitting formula.
     """
     _pdocs = \
     """
-    
+
     Parameters
     ----------
     M   : array
         A vector of halo masses [units M_sun/h]
-        
+
     nu2  : array
         A vector of peak-heights, :math:`\delta_c^2/\sigma^2` corresponding to ``M``
-        
+
     z   : float, optional
-        The redshift. 
-        
+        The redshift.
+
     delta_halo : float, optional
         The overdensity of the halo w.r.t. the mean density of the universe.
-        
+
     cosmo : :class:`cosmo.Cosmology` instance, optional
         A cosmology. Default is the default provided by the :class:`cosmo.Cosmology`
         class. Not required if ``omegam_z`` is passed.
-         
+
     omegam_z : float, optional
         A value for the mean matter density at the given redshift ``z``. If not
-        provided, will be calculated using the value of ``cosmo``. 
-        
+        provided, will be calculated using the value of ``cosmo``.
+
     \*\*model_parameters : unpacked-dictionary
         These parameters are model-specific. For any model, list the available
         parameters (and their defaults) using ``<model>._defaults``
-        
+
     """
     __doc__ += _pdocs
     _defaults = {}
@@ -99,14 +99,14 @@ class FittingFunction(Model):
     def fsigma(self, cut_fit):
         r"""
         Calculate :math:`f(\sigma)\equiv\nu f(\nu)`.
-        
+
         Parameters
         ----------
         cut_fit : bool
             Whether to cut the fit at bounds corresponding to the fitted range
             (in mass or corresponding unit, not redshift). If so, values outside
-            this range will be set to ``NaN``. 
-        
+            this range will be set to ``NaN``.
+
         Returns
         -------
         vfv : array_like, ``len=len(self.M)``
@@ -141,6 +141,14 @@ class SMT(FittingFunction):
                  * (1 + (1.0 / (a * self.nu2)) ** p)
 
         return vfv
+
+    def norm(self):
+        if self.params["A"] is not None:
+            return self.params['A']
+        else:
+            p = self.params['p']
+            q = self.params['q']
+            return 1./(1 + 2**-p * Gam(0.5 - p)/Gam(0.5))
 
 class ST(SMT):
     pass
@@ -367,9 +375,9 @@ class Bhattacharya(SMT):
 
         Bhattacharya, S., et al., May 2011. ApJ 732 (2), 122.
         http://labs.adsabs.harvard.edu/ui/abs/2011ApJ...732..122B
-                
+
         .. note:: valid for :math:`10^{11.8}M_\odot < M <10^{15.5}M_\odot`
-       
+
         Returns
         -------
         vfv : array_like, len=len(pert.M)
@@ -602,6 +610,17 @@ class Behroozi(Tinker10):
 
 class Tinker(Tinker08):
     pass
+
+class Pillepich(Warren):
+    _ref = r"""Pillepich, A., et al., 2010, arxiv:0811.4176"""
+    __doc__ = _makedoc(FittingFunction._pdocs, "Pillepich", "Pillepich", Warren._eq, _ref)
+    _defaults = {"A":0.6853,"b":1.868,"c":0.3324,"d":1.2266}
+
+class Manera(SMT):
+    _ref = r"""Manera, M., et al., 2010, arxiv:0906.1314"""
+    __doc__ = _makedoc(FittingFunction._pdocs, "SMT", "SMT", SMT._eq, _ref)
+    # These are for z=0, new ML method, l_linnk = 0.2
+    _defaults = {"A":None,"a":0.709,"p":0.289}
 
 class Ishiyama(Warren):
     _eq = r"A\left[\left(\frac{e}{\sigma}\right)^b + 1\right]\exp(\frac{d}{\sigma^2})"
