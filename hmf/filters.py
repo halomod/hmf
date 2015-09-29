@@ -23,7 +23,18 @@ class Filter(Model):
 
         super(Filter, self).__init__(**model_parameters)
 
-    def real_space(self, m, r):
+    def real_space(self, R, r):
+        """
+        Filter definition in real space.
+
+        Parameters
+        ----------
+        R : float
+            The smoothing scale
+
+        r : array_like
+            The radial co-ordinate
+        """
         pass
 
     def k_space(self, kr):
@@ -164,12 +175,10 @@ class TopHat(Filter):
     Real-space top-hat window function.
     """
 
-    def real_space(self, m, r):
-        # TODO: not sure if this is right?
-        r_m = self.mass_to_radius(m)
-        if r < r_m:
+    def real_space(self, R, r):
+        if r < R:
             return 1.0
-        elif r == r_m:
+        elif r == R:
             return 0.5
         else:
             return 0.0
@@ -193,11 +202,31 @@ class TopHat(Filter):
         out[kr > 1e-3] = (9 * y * np.cos(y * u.rad) + 3 * (y ** 2 - 3) * np.sin(y * u.rad)) / y ** 3
         return out
 
+class Gaussian(Filter):
+    """
+    Gaussian window function.
+    """
+
+    def real_space(self, R, r):
+        return np.exp(-r**2/2/R**2)/(2*np.pi)**1.5/R**3
+
+    def k_space(self, kr):
+        return np.exp(-kr**2/2.0)
+
+    def mass_to_radius(self, m):
+        return (m/self.rho_mean)**(1./3.)/np.sqrt(2*np.pi)
+
+    def radius_to_mass(self, r):
+        return (2*np.pi)**1.5 * r**3 * self.rho_mean
+
+    def dw_dlnkr(self, kr):
+        return -kr * self.k_space(kr)
+
 class SharpK(Filter):
     """
     Fourier-space top-hat window function
     """
-    _defaults = {"c":2.7}
+    _defaults = {"c":2.5}
 
     def k_space(self, kr):
         w = np.ones(len(kr))
