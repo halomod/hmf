@@ -17,6 +17,20 @@ _allfits = ["CAMB", "FromFile", "EH_BAO", "EH_NoBAO", "BBKS", "BondEfs"]
 
 
 class Transfer(Model):
+    """
+    Base class for transfer models.
+
+    The only necessary function to specify is ``lnt``, which returns the log
+    transfer given ``lnk``.
+
+    Parameters
+    ----------
+    cosmo : :class:`astropy.cosmology.FLRW` instance
+        The cosmology used in the calculation
+
+    \*\*model_parameters :
+        Any model-specific parameters.
+    """
     def __init__(self, cosmo, **model_parameters):
         self.cosmo = cosmo
         super(Transfer, self).__init__(**model_parameters)
@@ -246,29 +260,38 @@ class EH_NoBAO(Transfer):
         return np.log(L0 / (L0 + C0 * q * q))
 
 class BBKS(Transfer):
+    _defaults = {"a":2.34,"b":3.89,"c":16.1,"d":5.47,"e":6.71}
     def lnt(self, lnk):
         """
         BBKS transfer function.
         """
+        a = self.params['a']
+        b = self.params['b']
+        c = self.params['c']
+        d = self.params['d']
+        e = self.params['e']
+
         Gamma = self.cosmo.Om0 * self.cosmo.h
         q = np.exp(lnk) / Gamma * np.exp(self.cosmo.Ob0 + np.sqrt(2 * self.cosmo.h) *
                                self.cosmo.Ob0 / self.cosmo.Om0)
-        return np.log((np.log(1.0 + 2.34 * q) / (2.34 * q) *
-                (1 + 3.89 * q + (16.1 * q) ** 2 + (5.47 * q) ** 3 +
-                 (6.71 * q) ** 4) ** (-0.25)))
+        return np.log((np.log(1.0 + a * q) / (a * q) *
+                (1 + b * q + (c * q) ** 2 + (d * q) ** 3 +
+                 (e * q) ** 4) ** (-0.25)))
 
 class BondEfs(Transfer):
+    _defaults = {"a":37.1,"b":21.1,"c":10.8,"nu":1.12}
+
     def lnt(self, lnk):
         """
         Bond and Efstathiou transfer function.
         """
 
-        omegah2 = 1.0 / (self.cosmo.Om0 * self.cosmo.h ** 2)
+        scale = (0.3*0.75**2) / (self.cosmo.Om0 * self.cosmo.h ** 2)
 
-        a = 6.4 * omegah2
-        b = 3.0 * omegah2
-        c = 1.7 * omegah2
-        nu = 1.13
+        a = self.params['a'] * scale
+        b = self.params['b'] * scale
+        c = self.params['c'] * scale
+        nu = self.params['nu']
         k = np.exp(lnk)
         return np.log((1 + (a * k + (b * k) ** 1.5 + (c * k) ** 2) ** nu) ** (-1 / nu))
 

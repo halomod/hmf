@@ -83,7 +83,7 @@ class Transfer(Cosmology):
     def __init__(self, sigma_8=0.8, n=1.0, z=0.0, lnk_min=np.log(1e-8),
                  lnk_max=np.log(2e4), dlnk=0.05, transfer_fit=tm.CAMB,
                  transfer_options=None, takahashi=True, growth_model=GrowthFactor,
-                 _growth_params=None, **kwargs):
+                 growth_params=None, **kwargs):
         # Note the parameters that have empty dicts as defaults must be specified
         # as None, or the defaults themselves are updated!
 
@@ -94,7 +94,7 @@ class Transfer(Cosmology):
         self.n = n
         self.sigma_8 = sigma_8
         self.growth_model = growth_model
-        self._growth_params = _growth_params or {}
+        self.growth_params = growth_params or {}
         self.lnk_min = lnk_min
         self.lnk_max = lnk_max
         self.dlnk = dlnk
@@ -115,7 +115,7 @@ class Transfer(Cosmology):
         return val
 
     @parameter
-    def _growth_params(self, val):
+    def growth_params(self, val):
         return val
 
     @parameter
@@ -224,24 +224,22 @@ class Transfer(Cosmology):
         """
         return self._normalisation ** 2 * self._unnormalised_power
 
-#     @cached_property("sigma_8", "_unnormalised_lnT", "lnk", "mean_density0")
-#     def _lnT(self):
-#         """
-#         Normalised CDM log transfer function
-#         """
-#         return tools.normalize(self.sigma_8,
-#                                self._unnormalised_lnT,
-#                                self.lnk, self.mean_density0)[0]
+    @cached_property("sigma_8", "_unnormalised_lnT", "lnk", "mean_density0")
+    def _transfer(self):
+        """
+        Normalised CDM log transfer function
+        """
+        return self._normalisation * np.exp(self._unnormalised_lnT)
 
-    @cached_property("cosmo", "growth_model", "_growth_params")
-    def _growth(self):
+    @cached_property("cosmo", "growth_model", "growth_params")
+    def growth(self):
         if issubclass_(self.growth_model, GrowthFactor):
-            return self.growth_model(self.cosmo, **self._growth_params)
+            return self.growth_model(self.cosmo, **self.growth_params)
         else:
             return get_model(self.growth_model, "hmf.growth_factor", cosmo=self.cosmo,
                              **self._growth_params)
 
-    @cached_property("z", "_growth")
+    @cached_property("z", "growth")
     def growth_factor(self):
         r"""
         The growth factor :math:`d(z)`
@@ -255,7 +253,7 @@ class Transfer(Cosmology):
         .. math:: D^+(z) = \frac{5\Omega_m}{2}\frac{H(z)}{H_0}\int_z^{\infty}{\frac{(1+z')dz'}{[H(z')/H_0]^3}}
         """
         if self.z > 0:
-            return self._growth.growth_factor(self.z)
+            return self.growth.growth_factor(self.z)
         else:
             return 1.0
 

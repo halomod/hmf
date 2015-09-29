@@ -23,6 +23,9 @@ logger = logging.getLogger('hmf')
 from filters import TopHat, Filter
 import astropy.units as u
 from _framework import get_model
+from scipy.optimize import minimize
+from scipy.interpolate import InterpolatedUnivariateSpline as spline
+import warnings
 
 class MassFunction(Transfer):
     """
@@ -350,6 +353,32 @@ class MassFunction(Transfer):
         The parameter :math:`\nu = \left(\frac{\delta_c}{\sigma}\right)^2`, ``len=len(M)``
         """
         return (self.delta_c / self.sigma) ** 2
+
+    @cached_property("nu")
+    def mass_nonlinear(self):
+        """
+        The nonlinear mass, nu(M_\star) = 1.
+        """
+        if self.nu.min() >1 or self.nu.max()<1:
+            warnings.warn("Nonlinear mass outside mass range")
+            if self.nu.min() > 1:
+                startr = np.log(self.radii.min().value)
+            else:
+                startr = np.log(self.radii.max().value)
+
+            model = lambda lnr : (self.filter_mod.sigma(np.exp(lnr)*self.radii.unit)*self._normalisation*self.growth_factor - self.delta_c)**2
+
+            res = minimize(model,[startr,])
+
+            if res.success:
+                r = np.exp(res.x[0]) * self.radii.unit
+                return self.filter_mod.radius_to_mass(r)
+            else:
+                warnings.warn("Minimization failed :(")
+                return 0
+        else:
+            nu = spline(self.nu,self.M,k=5)
+            return nu(1)*self.M.unit
 
     @cached_property("sigma")
     def lnsigma(self):
