@@ -15,9 +15,7 @@ from _framework import Model
 
 class Filter(Model):
 
-    def __init__(self, rho_mean, delta_c, k, power, **model_parameters):
-        self.rho_mean = rho_mean
-        self.delta_c = delta_c
+    def __init__(self,  k, power, **model_parameters):
         self.k = k
         self.power = power
 
@@ -53,7 +51,7 @@ class Filter(Model):
         """
         pass
 
-    def mass_to_radius(self, m):
+    def mass_to_radius(self, m,rho_mean):
         """
         Calculate radius of a region of space from its mass.
 
@@ -72,7 +70,7 @@ class Filter(Model):
         """
         pass
 
-    def radius_to_mass(self, r):
+    def radius_to_mass(self, r,rho_mean):
         """
         Calculates mass of a region of space from its radius
 
@@ -103,18 +101,29 @@ class Filter(Model):
         pass
 
     def dlnss_dlnr(self, r):
+        if hasattr(self.k,"value"):
+            k = self.k.value
+        else:
+            k = self.k
+
+        if hasattr(r,"value"):
+            r = r.value
+
         dlnk = np.log(self.k[1] / self.k[0])
-        out = np.zeros(len(r))
+        #out = np.zeros(len(r))
         s = self.sigma(r)
-        k = self.k
+
         rest = self.power * k ** 3
-        for i, rr in enumerate(r):
-            y = rr * k
-            w = self.k_space(y)
-            dw = self.dw_dlnkr(y)
-            integ = w * dw * rest
-            out[i] = intg.simps(integ, dx=dlnk) / (np.pi ** 2 * s[i] ** 2)
-        return out
+        w = self.k_space(np.outer(r,k))
+        dw = self.dw_dlnkr(np.outer(r,k))
+        integ = w*dw*rest
+        # for i, rr in enumerate(r):
+        #     y = rr * k
+        #     w = self.k_space(y)
+        #     dw = self.dw_dlnkr(y)
+        #     integ = w * dw * rest
+        return intg.simps(integ, dx=dlnk,axis=-1) / (np.pi ** 2 * s ** 2)
+        # return out
 
     def dlnr_dlnm(self, r):
         """
@@ -148,27 +157,29 @@ class Filter(Model):
         sigma : array_like ( ``len=len(m)`` )
             The square root of the mass variance at ``m``
         """
-        # If we input a scalar as M, then just make it a one-element list.
-        try:
-            len(r)
-        except TypeError:
-            r = [r]
-#         if not isinstance(r, collections.Iterable):
-#             r = [r]
+        if hasattr(self.k,"unit"):
+            k = self.k.value
+        else:
+            k = self.k
+
+        if hasattr(r,"unit"):
+            r = r.value
 
         dlnk = np.log(self.k[1] / self.k[0])
-        # Calculate the integrand of the function. Note that the power spectrum and k values must be
-        # 'un-logged' before use, and we multiply by k because our steps are in logk.
-        sigma = np.zeros(len(r))
+        #sigma = np.zeros(len(r))
+
+        # we multiply by k because our steps are in logk.
         rest = self.power * self.k ** (3 + order * 2)
-        k = self.k
-        for i, rr in enumerate(r):
-            integ = rest * self.k_space(rr * k) ** 2
-            sigma[i] = (0.5 / np.pi ** 2) * intg.simps(integ, dx=dlnk)
+        integ = rest*self.k_space(np.outer(r,k))**2
+        sigma = (0.5/np.pi**2) * intg.simps(integ,dx=dlnk,axis=-1)
+        # return np.
+        # for i, rr in enumerate(r):
+        #     integ = rest * self.k_space(rr * k) ** 2
+        #     sigma[i] = (0.5 / np.pi ** 2) * intg.simps(integ, dx=dlnk)
         return np.sqrt(sigma)
 
-    def nu(self, r):
-        return (self.delta_c / self.sigma(r)) ** 2
+    def nu(self, r,delta_c):
+        return (delta_c / self.sigma(r)) ** 2
 
 class TopHat(Filter):
     """
@@ -176,31 +187,20 @@ class TopHat(Filter):
     """
 
     def real_space(self, R, r):
-        if r < R:
-            return 1.0
-        elif r == R:
-            return 0.5
-        else:
-            return 0.0
+        a = np.where(r<R,1,0)
+        return np.where(r==R,0.5,a)
 
-    def k_space(self, kr):
-        w = np.ones(len(kr))
-        K = kr[kr > 1.4e-6]
-        # Truncate the filter at small kr for numerical reasons
-        w[kr > 1.4e-6] = (3 / K ** 3) * (np.sin(K * u.rad) - K * np.cos(K * u.rad))
-        return w
+    def k_space(self,kr):
+        return np.where(kr>1.4e-6,(3 / kr ** 3) * (np.sin(kr*u.rad ) - kr * np.cos(kr*u.rad )),1)
 
-    def mass_to_radius(self, m):
-        return (3.*m / (4.*np.pi * self.rho_mean)) ** (1. / 3.)
+    def mass_to_radius(self, m,rho_mean):
+        return (3.*m / (4.*np.pi * rho_mean)) ** (1. / 3.)
 
-    def radius_to_mass(self, r):
-        return 4 * np.pi * r ** 3 * self.rho_mean / 3
+    def radius_to_mass(self, r,rho_mean):
+        return 4 * np.pi * r ** 3 * rho_mean / 3
 
     def dw_dlnkr(self, kr):
-        out = np.zeros_like(kr)
-        y = kr[kr > 1e-3]
-        out[kr > 1e-3] = (9 * y * np.cos(y * u.rad) + 3 * (y ** 2 - 3) * np.sin(y * u.rad)) / y ** 3
-        return out
+        return np.where(kr>1e-3,(9 * kr * np.cos(kr*u.rad ) + 3 * (kr ** 2 - 3) * np.sin(kr*u.rad)) / kr ** 3,0)
 
 class Gaussian(Filter):
     """
@@ -213,11 +213,11 @@ class Gaussian(Filter):
     def k_space(self, kr):
         return np.exp(-kr**2/2.0)
 
-    def mass_to_radius(self, m):
-        return (m/self.rho_mean)**(1./3.)/np.sqrt(2*np.pi)
+    def mass_to_radius(self, m,rho_mean):
+        return (m/rho_mean)**(1./3.)/np.sqrt(2*np.pi)
 
-    def radius_to_mass(self, r):
-        return (2*np.pi)**1.5 * r**3 * self.rho_mean
+    def radius_to_mass(self, r,rho_mean):
+        return (2*np.pi)**1.5 * r**3 * rho_mean
 
     def dw_dlnkr(self, kr):
         return -kr * self.k_space(kr)
@@ -229,30 +229,25 @@ class SharpK(Filter):
     _defaults = {"c":2.5}
 
     def k_space(self, kr):
-        w = np.ones(len(kr))
-        w[kr > 1] = 0.0
-        w[kr == 1] = 0.5
-        return w
+        a = np.where(kr>1,0,1)
+        return np.where(kr==1,0.5,a)
 
-    def real_space(self, m, r):
-        # TODO: write this
-        raise NotImplementedError()
+    def real_space(self, R, r):
+        return (np.sin(r/R * u.rad) - (r/R)*np.cos(r/R*u.rad))/(2*np.pi**2 * r**3)
 
     def dw_dlnkr(self, kr):
-        out = np.zeros_like(kr)
-        out[kr == 1] = 1.0
-        return out
+        return np.where(kr==1,1.0,0.0)
 
     def dlnss_dlnr(self, r):
         sigma = self.sigma(r)
         power = spline(self.k, self.power)(1 / r) * self.power.unit
         return -power / (2 * np.pi ** 2 * sigma ** 2 * r ** 3)
 
-    def mass_to_radius(self, m):
-        return (1. / self.params['c']) * (3.*m / (4.*np.pi * self.rho_mean)) ** (1. / 3.)
+    def mass_to_radius(self, m,rho_mean):
+        return (1. / self.params['c']) * (3.*m / (4.*np.pi * rho_mean)) ** (1. / 3.)
 
-    def radius_to_mass(self, r):
-        return 4 * np.pi * (self.params['c'] * r) ** 3 * self.rho_mean / 3
+    def radius_to_mass(self, r,rho_mean):
+        return 4 * np.pi * (self.params['c'] * r) ** 3 * rho_mean / 3
 
     def sigma(self, r, order=0):
         # If we input a scalar as M, then just make it a one-element list.

@@ -275,18 +275,16 @@ class MassFunction(Transfer):
     def filter_mod(self):
 
         if issubclass_(self.filter, Filter):
-            filter = self.filter(self.mean_density0, self.delta_c, self.k,
-                                 self._unnormalised_power, **self.filter_params)
+            filter = self.filter(self.k,self._unnormalised_power, **self.filter_params)
         elif isinstance(self.filter, basestring):
-            filter = get_model(self.filter, "hmf.filters", rho_mean=self.mean_density0,
-                                delta_c=self.delta_c, k=self.k,
+            filter = get_model(self.filter, "hmf.filters", k=self.k,
                                 power=self._unnormalised_power, **self.filter_params)
 
         return filter
 
     @cached_property("Mmin", "Mmax", "dlog10m")
     def M(self):
-        return (10 ** np.arange(self.Mmin, self.Mmax, self.dlog10m)) * u.MsolMass / self._hunit
+        return (10 ** np.arange(self.Mmin, self.Mmax, self.dlog10m)) * u.m_unit
 
 
 #     @cached_property("M", "lnk", "mean_density0")
@@ -325,7 +323,7 @@ class MassFunction(Transfer):
         """
         The radii corresponding to the masses `M`
         """
-        return self.filter_mod.mass_to_radius(self.M)
+        return self.filter_mod.mass_to_radius(self.M,self.mean_density)
 
     @cached_property("radii", "filter_mod")
     def _dlnsdlnm(self):
