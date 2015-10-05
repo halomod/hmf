@@ -13,7 +13,7 @@ def rms(a):
     return np.sqrt(np.mean(np.square(a)))
 
 def check_close(t, t2, fit):
-    t.update(transfer_fit=fit)
+    t.update(transfer_model=fit)
     assert np.mean(np.abs((t.power - t2.power) / t.power)) < 1
 
 def check_update(t, t2, k, v):
@@ -24,7 +24,7 @@ def test_updates():
     t = Transfer()
     t2 = Transfer()
     for k, v in {"z":0.1,
-                "transfer_options":{"lAccuracyBoost":1.5,
+                "transfer_params":{"lAccuracyBoost":1.5,
                                     "AccuracyBoost":1.5},
                 "sigma_8":0.82,
                 "n":0.95,
@@ -32,15 +32,15 @@ def test_updates():
         yield check_update, t, t2, k, v
 
 def test_halofit():
-    t = Transfer(lnk_min=-20, lnk_max=20, dlnk=0.05, transfer_fit="EH")
+    t = Transfer(lnk_min=-20, lnk_max=20, dlnk=0.05, transfer_model="EH")
     print EH_BAO._defaults
-    print "in test_transfer, params are: ", t.transfer_options
+    print "in test_transfer, params are: ", t.transfer_params
     assert abs(t.power[0] - t.nonlinear_power[0]) < 1e-5 * t.power.unit
     assert 5 * t.power[-1] < t.nonlinear_power[-1]
 
 def test_data():
-    t = Transfer(base_cosmo=LambdaCDM(Om0=0.3, Ode0=0.7, H0=70.0, Ob0=0.05), sigma_8=0.8,
-                  n=1, transfer_options={"transfer__k_per_logint":0, "transfer__kmax":100.0},
+    t = Transfer(cosmo_model=LambdaCDM(Om0=0.3, Ode0=0.7, H0=70.0, Ob0=0.05), sigma_8=0.8,
+                  n=1, transfer_params={"transfer__k_per_logint":0, "transfer__kmax":100.0},
                   lnk_min=np.log(1e-11), lnk_max=np.log(1e11))
     tdata = np.genfromtxt(LOCATION + "/data/transfer_for_hmf_tests.dat")
     pdata = np.genfromtxt(LOCATION + "/data/power_for_hmf_tests.dat")

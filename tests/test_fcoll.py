@@ -18,7 +18,7 @@ class TestFcoll(object):
 
     def check_fcoll(self, pert, fit):
         if fit == "PS":
-            anl = fcoll_PS(np.sqrt(pert.nu))
+            anl = fcoll_PS(np.sqrt(pert.nu.value))
             num = pert.rho_gtm / pert.mean_density0
 
         elif fit == "Peacock":
@@ -36,7 +36,7 @@ class TestFcoll(object):
         fits = ['PS', 'Peacock']
 
         for fit in fits:
-            pert.update(mf_fit=fit)
+            pert.update(hmf_model=fit)
             yield self.check_fcoll, pert, fit
 
 
@@ -64,14 +64,14 @@ class TestCumulants(object):
         assert np.max(err) < TestCumulants.tol
 
     def test_ranges_not_cut(self):
-        hmf = MassFunction(mf_fit="Peacock", cut_fit=False, dlog10m=0.01)
+        hmf = MassFunction(hmf_model="Peacock", cut_fit=False, dlog10m=0.01)
         TestCumulants.tol = 0.05
         for minm in [9, 10, 11]:  # below, equal and greater than peacock cut
             for maxm in [14, 15, 16, 18, 19]:  # below,equal,greater than peacock cut and integration limit
                 yield self.check, hmf, minm, maxm
 
     def test_ranges_cut(self):
-        hmf = MassFunction(mf_fit="Peacock", cut_fit=True, dlog10m=0.01)
+        hmf = MassFunction(hmf_model="Peacock", cut_fit=True, dlog10m=0.01)
         TestCumulants.tol = 0.4
         for minm in [9, 10, 11]:  # below, equal and greater than peacock cut
             for maxm in [14, 15, 16, 18, 19]:  # below,equal,greater than peacock cut and integration limit
@@ -85,7 +85,7 @@ class TestCumulants(object):
 
 
     def test_mgtm(self):
-        hmf = MassFunction(mf_fit="Tinker", cut_fit=False)
+        hmf = MassFunction(hmf_model="Tinker", cut_fit=False)
         for maxm in [14, 15, 16, 18, 19]:  # below,equal,greater than integration limits
             yield self.check_mgtm, hmf, maxm
 
@@ -95,6 +95,6 @@ class TestCumulants(object):
         assert np.abs(hmf.rho_ltm[-1] / hmf.mean_density0 - 1) < 0.2
 
     def test_mltm(self):
-        hmf = MassFunction(mf_fit="PS", cut_fit=False)
+        hmf = MassFunction(hmf_model="PS", cut_fit=False)
         for maxm in [14, 15, 16, 18, 19]:  # below,equal,greater than integration limits
             yield self.check_mltm, hmf, maxm

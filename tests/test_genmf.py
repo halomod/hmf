@@ -85,9 +85,9 @@ class TestGenMF(object):
     def __init__(self):
         self.hmf = MassFunction(Mmin=7, Mmax=15.001, dlog10m=0.01,
                                 sigma_8=0.8, n=1,
-                                base_cosmo=LambdaCDM(Ob0=0.05, Om0=0.3, Ode0=0.7, H0=70.0),
-                                lnk_min=-11, lnk_max=11, dlnk=0.01, transfer_options={"fname":LOCATION + "/data/transfer_for_hmf_tests.dat"},
-                                mf_fit='ST', z=0.0, transfer_fit="FromFile", growth_model="GenMFGrowth")
+                                cosmo_model=LambdaCDM(Ob0=0.05, Om0=0.3, Ode0=0.7, H0=70.0),
+                                lnk_min=-11, lnk_max=11, dlnk=0.01, transfer_params={"fname":LOCATION + "/data/transfer_for_hmf_tests.dat"},
+                                hmf_model='ST', z=0.0, transfer_model="FromFile", growth_model="GenMFGrowth")
 
     def check_col(self, pert, fit, redshift, col):
         """ Able to check all columns"""
@@ -120,7 +120,6 @@ class TestGenMF(object):
         for redshift in [0.0, 2.0]:  # , 10, 20]:
             self.hmf.update(z=redshift)
             for fit in ["ST", "PS", "Reed03", "Warren", "Jenkins", "Reed07"]:
-                self.hmf.update(mf_fit=fit)
+                self.hmf.update(hmf_model=fit)
                 for col in ['dndlog10m', 'ngtm', 'fsigma']:
                     yield self.check_col, self.hmf, fit, redshift, col
-
