@@ -64,7 +64,7 @@ class Transfer(Cosmology):
     wdm_mass : float, optional, default ``None``
         The warm dark matter particle size in *keV*, or ``None`` for CDM.
 
-    transfer_fit : str, { ``"CAMB"``, ``"EH"``, ``"bbks"``, ``"bond_efs"``}
+    transfer_model : str, { ``"CAMB"``, ``"EH"``, ``"bbks"``, ``"bond_efs"``}
         Defines which transfer function fit to use. If not defined from the
         listed options, it will be treated as a filename to be read in. In this
         case the file must contain a transfer function in CAMB output format.
@@ -80,9 +80,9 @@ class Transfer(Cosmology):
         input to the `hmf.cosmo.Cosmology` class.
     '''
 
-    def __init__(self, sigma_8=0.8, n=1.0, z=0.0, lnk_min=np.log(1e-8),
-                 lnk_max=np.log(2e4), dlnk=0.05, transfer_fit=tm.CAMB,
-                 transfer_options=None, takahashi=True, growth_model=GrowthFactor,
+    def __init__(self, sigma_8=0.8344, n=0.9624, z=0.0, lnk_min=-8.0,
+                 lnk_max=8.0, dlnk=0.05, transfer_model=tm.CAMB,
+                 transfer_params=None, takahashi=True, growth_model=GrowthFactor,
                  growth_params=None, **kwargs):
         # Note the parameters that have empty dicts as defaults must be specified
         # as None, or the defaults themselves are updated!
@@ -99,8 +99,8 @@ class Transfer(Cosmology):
         self.lnk_max = lnk_max
         self.dlnk = dlnk
         self.z = z
-        self.transfer_fit = transfer_fit
-        self.transfer_options = transfer_options or {}
+        self.transfer_model = transfer_model
+        self.transfer_params = transfer_params or {}
         self.takahashi = takahashi
 
 
@@ -119,7 +119,7 @@ class Transfer(Cosmology):
         return val
 
     @parameter
-    def transfer_options(self, val):
+    def transfer_params(self, val):
 #         for v in val:
 #             if v not in ['Scalar_initial_condition', 'scalar_amp', 'lAccuracyBoost',
 #                          'AccuracyBoost', 'w_perturb', 'transfer__k_per_logint',
@@ -170,11 +170,11 @@ class Transfer(Cosmology):
 
 
     @parameter
-    def transfer_fit(self, val):
+    def transfer_model(self, val):
         if not HAVE_PYCAMB and (val == "CAMB" or val == tm.CAMB):
             raise ValueError("You cannot use the CAMB transfer since pycamb isn't installed")
         if not (issubclass_(val, tm.Transfer) or isinstance(val, basestring)):
-            raise ValueError("transfer_fit must be string or Transfer subclass")
+            raise ValueError("transfer_model must be string or Transfer subclass")
         return val
 
 
@@ -185,18 +185,18 @@ class Transfer(Cosmology):
     def k(self):
         return np.exp(np.arange(self.lnk_min, self.lnk_max, self.dlnk)) * self._hunit / u.Mpc
 
-    @cached_property("k", "cosmo", "transfer_options", "transfer_fit")
+    @cached_property("k", "cosmo", "transfer_params", "transfer_model")
     def _unnormalised_lnT(self):
         """
         The un-normalised transfer function
 
-        This wraps the individual transfer_fit methods to provide unified access.
+        This wraps the individual transfer_model methods to provide unified access.
         """
-        if issubclass_(self.transfer_fit, tm.Transfer):
-            return self.transfer_fit(self.cosmo, **self.transfer_options).lnt(np.log(self.k.value))
-        elif isinstance(self.transfer_fit, basestring):
-            return get_model(self.transfer_fit, "hmf.transfer_models", cosmo=self.cosmo,
-                             **self.transfer_options).lnt(np.log(self.k.value))
+        if issubclass_(self.transfer_model, tm.Transfer):
+            return self.transfer_model(self.cosmo, **self.transfer_params).lnt(np.log(self.k.value))
+        elif isinstance(self.transfer_model, basestring):
+            return get_model(self.transfer_model, "hmf.transfer_models", cosmo=self.cosmo,
+                             **self.transfer_params).lnt(np.log(self.k.value))
 
     @cached_property("n", "k", "_unnormalised_lnT")
     def _unnormalised_power(self):
@@ -237,7 +237,7 @@ class Transfer(Cosmology):
             return self.growth_model(self.cosmo, **self.growth_params)
         else:
             return get_model(self.growth_model, "hmf.growth_factor", cosmo=self.cosmo,
-                             **self._growth_params)
+                             **self.growth_params)
 
     @cached_property("z", "growth")
     def growth_factor(self):

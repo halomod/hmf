@@ -57,7 +57,7 @@ class MassFunction(Transfer):
     dlog10m : float
         log10 interval between mass bins
 
-    mf_fit : str or callable, optional, default ``"SMT"``
+    hmf_model : str or callable, optional, default ``"SMT"``
         A string indicating which fitting function to use for :math:`f(\sigma)`
 
         Available options:
@@ -79,21 +79,12 @@ class MassFunction(Transfer):
         #. ``'Bhattacharya'``: Bhattacharya empirical fit 2011
         #. ``'Behroozi'``: Behroozi extension to Tinker for high-z 2013
 
-        Alternatively, one may define a callable function, with the signature
-        ``func(self)``, where ``self`` is a :class:`MassFunction` object (and
-        has access to all its attributes). This may be passed here.
-
     delta_wrt : str, {``"mean"``, ``"crit"``}
         Defines what the overdensity of a halo is with respect to, mean density
         of the universe, or critical density.
 
     delta_h : float, optional, default ``200.0``
         The overdensity for the halo definition, with respect to ``delta_wrt``
-
-    user_fit : str, optional, default ``""``
-        A string defining a mathematical function in terms of `x`, used as
-        the fitting function, where `x` is taken as :math:`\( \sigma \)`. Will only
-        be applicable if ``mf_fit == "user_model"``.
 
     cut_fit : bool, optional, default ``True``
         Whether to forcibly cut :math:`f(\sigma)` at bounds in literature.
@@ -110,9 +101,9 @@ class MassFunction(Transfer):
     """
 
 
-    def __init__(self, Mmin=10, Mmax=15, dlog10m=0.01, mf_fit=Tinker08, delta_h=200.0,
-                 delta_wrt='mean', cut_fit=True, z2=None, nz=None, fsig_params=None,
-                 delta_c=1.686, filter=TopHat, filter_params=None,
+    def __init__(self, Mmin=10, Mmax=15, dlog10m=0.01, hmf_model=Tinker08, hmf_params=None,
+                 delta_h=200.0,delta_wrt='mean', cut_fit=True, z2=None, nz=None,
+                 delta_c=1.686, filter_model=TopHat, filter_params=None,
                  **transfer_kwargs):
         """
         Initializes some parameters
@@ -121,7 +112,7 @@ class MassFunction(Transfer):
         super(MassFunction, self).__init__(**transfer_kwargs)
 
         # Set all given parameters.
-        self.mf_fit = mf_fit
+        self.hmf_model = hmf_model
         self.Mmin = Mmin
         self.Mmax = Mmax
         self.dlog10m = dlog10m
@@ -131,8 +122,8 @@ class MassFunction(Transfer):
         self.z2 = z2
         self.nz = nz
         self.delta_c = delta_c
-        self.fsig_params = fsig_params or {}
-        self.filter = filter
+        self.hmf_params = hmf_params or {}
+        self.filter_model = filter_model
         self.filter_params = filter_params or {}
 
     #===========================================================================
@@ -173,9 +164,9 @@ class MassFunction(Transfer):
         return val
 
     @parameter
-    def mf_fit(self, val):
+    def hmf_model(self, val):
         if not issubclass_(val, FittingFunction) and not isinstance(val, basestring):
-            raise ValueError("mf_fit must be a FittingFunction or string, got %s" % type(val))
+            raise ValueError("hmf_model must be a FittingFunction or string, got %s" % type(val))
         return val
 
     @parameter
@@ -241,9 +232,9 @@ class MassFunction(Transfer):
         return val
 
     @parameter
-    def fsig_params(self, val):
+    def hmf_params(self, val):
         if not isinstance(val, dict):
-            raise ValueError("fsig_params must be a dictionary")
+            raise ValueError("hmf_params must be a dictionary")
         return val
 
     #--------------------------------  PROPERTIES ------------------------------
@@ -254,30 +245,30 @@ class MassFunction(Transfer):
         """
         return self.mean_density0 * (1 + self.z) ** 3
 
-    @cached_property("mf_fit", "sigma", "z", "delta_halo", "nu", "M", "fsig_params",
+    @cached_property("hmf_model", "sigma", "z", "delta_halo", "nu", "M", "hmf_params",
                      "cosmo", "delta_c")
     def _fit(self):
         """The actual fitting function class (as opposed to string identifier)"""
-        if issubclass_(self.mf_fit, FittingFunction):
-            fit = self.mf_fit(M=self.M, nu2=self.nu, z=self.z,
+        if issubclass_(self.hmf_model, FittingFunction):
+            fit = self.hmf_model(M=self.M, nu2=self.nu, z=self.z,
                               delta_halo=self.delta_halo, omegam_z=self.cosmo.Om(self.z),
-                              delta_c=self.delta_c, sigma=self.sigma, n_eff=self.n_eff,
-                              ** self.fsig_params)
-        elif isinstance(self.mf_fit, basestring):
-            fit = get_model(self.mf_fit, "hmf.fitting_functions",
+                              delta_c=self.delta_c, sigma=self.sigma.value, n_eff=self.n_eff,
+                              ** self.hmf_params)
+        elif isinstance(self.hmf_model, basestring):
+            fit = get_model(self.hmf_model, "hmf.fitting_functions",
                             M=self.M, nu2=self.nu, z=self.z,
                             delta_halo=self.delta_halo, omegam_z=self.cosmo.Om(self.z),
-                            delta_c=self.delta_c, sigma=self.sigma, n_eff=self.n_eff,
-                            ** self.fsig_params)
+                            delta_c=self.delta_c, sigma=self.sigma.value, n_eff=self.n_eff,
+                            ** self.hmf_params)
         return fit
 
-    @cached_property("mean_density0", "filter", "delta_c", "k", "_unnormalised_power", "filter_params")
+    @cached_property("mean_density0", "filter_model", "delta_c", "k", "_unnormalised_power", "filter_params")
     def filter_mod(self):
 
-        if issubclass_(self.filter, Filter):
-            filter = self.filter(self.k,self._unnormalised_power, **self.filter_params)
-        elif isinstance(self.filter, basestring):
-            filter = get_model(self.filter, "hmf.filters", k=self.k,
+        if issubclass_(self.filter_model, Filter):
+            filter = self.filter_model(self.k,self._unnormalised_power, **self.filter_params)
+        elif isinstance(self.filter_model, basestring):
+            filter = get_model(self.filter_model, "hmf.filters", k=self.k,
                                 power=self._unnormalised_power, **self.filter_params)
 
         return filter
@@ -404,7 +395,7 @@ class MassFunction(Transfer):
     @cached_property("_fit", "cut_fit", "sigma", "z", "delta_halo", "nu", "M")
     def fsigma(self):
         """
-        The multiplicity function, :math:`f(\sigma)`, for `mf_fit`. ``len=len(M)``
+        The multiplicity function, :math:`f(\sigma)`, for `hmf_model`. ``len=len(M)``
         """
         fsigma = self._fit.fsigma(self.cut_fit)
 
@@ -440,9 +431,9 @@ class MassFunction(Transfer):
 #             for i, zz in enumerate(zcentres):
 #                 self.update(z=zz)
 #                 dndm[i] = self.fsigma * self.mean_dens * np.abs(self._dlnsdlnm) / self.M ** 2
-#                 if isinstance(self.mf_fit, "Behroozi"):
+#                 if isinstance(self.hmf_model, "Behroozi"):
 #                     ngtm_tinker = self._gtm(dndm[i])
-#                     dndm[i] = self.mf_fit._modify_dndm(self.M, dndm[i], self.z, ngtm_tinker)
+#                     dndm[i] = self.hmf_model._modify_dndm(self.M, dndm[i], self.z, ngtm_tinker)
 #
 #                 vol[i + 1] = cp.distance.comoving_volume(z=zedges[i + 1],
 #                                                 **self.cosmolopy_dict)
