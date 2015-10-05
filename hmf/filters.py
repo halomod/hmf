@@ -11,9 +11,9 @@ from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import scipy.integrate as intg
 import collections
 import astropy.units as u
-from _framework import Model
+from _framework import Component
 
-class Filter(Model):
+class Filter(Component):
 
     def __init__(self,  k, power, **model_parameters):
         self.k = k
