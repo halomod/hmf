@@ -13,10 +13,9 @@ may be used as inputs.
 from _cache import parameter, cached_property
 from astropy.cosmology import Planck13, FLRW, WMAP5, WMAP7, WMAP9
 # from types import MethodType
-import astropy.units as u
+import units as u
 from _framework import Framework
 import sys
-h_unit = u.def_unit("h")
 
 class Cosmology(Framework):
     """
@@ -41,7 +40,7 @@ class Cosmology(Framework):
     base_cosmo : instance of `astropy.cosmology.FLRW`, optional
         The basis for the cosmology -- see astropy documentation. Can be a custom
         subclass. Defaults to Planck13.
-        
+
     cosmo_params : dict, optional
         Parameters for the cosmology that deviate from the base cosmology passed.
         This is useful for repeated updates of a single parameter (leaving others
@@ -66,7 +65,7 @@ class Cosmology(Framework):
         self.cosmo_params = cosmo_params or {}
 
         # An additional unchangeable parameter for the h unit
-        self._hunit = h_unit
+        self._hunit = u.h_unit
 
 
     #===========================================================================
@@ -98,7 +97,7 @@ class Cosmology(Framework):
     @cached_property("cosmo")
     def mean_density0(self):
         # fixme: why the *1e6??
-        return h_unit ** 2 * (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2).to(u.MsolMass / u.Mpc ** 3) * 1e6
+        return u.h_unit**2 * (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2).to(u.rho_unit/u.h_unit**2) * 1e6
 
 
 def get_cosmo(name):

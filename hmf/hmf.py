@@ -21,7 +21,7 @@ from fitting_functions import FittingFunction
 from numpy import issubclass_
 logger = logging.getLogger('hmf')
 from filters import TopHat, Filter
-import astropy.units as u
+import units as u
 from _framework import get_model
 from scipy.optimize import minimize
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
