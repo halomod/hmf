@@ -3,7 +3,7 @@ from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import copy
 from scipy.special import gamma as Gam
 import cosmo
-from _framework import Model
+from _framework import Component
 _allfits = ["ST", "SMT", 'Jenkins', "Warren", "Reed03", "Reed07", "Peacock",
             "Angulo", "AnguloBound", "Tinker", "Watson_FoF", "Watson", "Crocce",
             "Courtin", "Bhattacharya", "Behroozi", "Tinker08", "Tinker10"]
@@ -26,7 +26,7 @@ def _makedoc(pdocs, lname, sname, eq, ref):
     """ % (lname, sname, eq, ref)
 
 
-class FittingFunction(Model):
+class FittingFunction(Component):
     r"""
     Base-class for a halo mass function fit
 

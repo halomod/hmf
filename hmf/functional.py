@@ -28,7 +28,7 @@ def get_best_param_order(kls, q="dndm", **kwargs):
         final_num.insert(i, num)
     return final_list
 
-def get_hmf(required_attrs, get_label=True, kls=MassFunction,
+def get_hmf(required_attrs, get_label=True, framework=MassFunction,
             fast_kwargs={"transfer_fit":"BBKS",
                          "lnk_min":-4,
                          "lnk_max":2,
@@ -50,7 +50,7 @@ def get_hmf(required_attrs, get_label=True, kls=MassFunction,
             else:
                 kwargs[k] = v[0]
 
-    x = kls(**kwargs)
+    x = framework(**kwargs)
     if not lists:
         if get_label:
             yield [[getattr(x, a) for a in required_attrs], x, ""]
@@ -67,7 +67,7 @@ def get_hmf(required_attrs, get_label=True, kls=MassFunction,
                     yield [getattr(x, a) for a in required_attrs], x
     elif len(lists) > 1:
         # should be really fast.
-        order = get_best_param_order(kls, required_attrs,
+        order = get_best_param_order(framework, required_attrs,
                                      **fast_kwargs)
 
         ordered_kwargs = collections.OrderedDict([])
