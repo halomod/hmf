@@ -209,7 +209,7 @@ class Transfer(Cosmology):
     @cached_property("mean_density0", "k", "_unnormalised_power")
     def _unn_sig8(self):
         # Always use a TopHat for sigma_8
-        filter = TopHat(self.mean_density0, None, self.k, self._unnormalised_power)
+        filter = TopHat(self.k, self._unnormalised_power)
         return filter.sigma(8.0 * u.Mpc / self._hunit)[0]
 
     @cached_property("_unn_sig8", "sigma_8")
