@@ -432,7 +432,6 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
                                         self.chunks)):
             # Write out files
             self.write_iter_pickle(s)
-            print nchunks, self.chunks,self.nwalkers, i,self.nsamples,prev_samples
             print "Done {0}%. Time per sample: {1}".format(100 * float(i + 1) / nchunks,(time.time() - start) / ((i + 1) * self.chunks*self.nwalkers))
 
         total_time = time.time() - start
