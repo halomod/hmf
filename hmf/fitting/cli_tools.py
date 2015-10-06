@@ -19,6 +19,7 @@ from emcee import autocorr
 import pickle
 from numbers import Number
 import copy
+import collections
 
 def secondsToStr(t):
     return "%d:%02d:%02d.%03d" % \
@@ -271,20 +272,38 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
         return priors, keys, guess
 
     def get_guess(self, params, keys, priors):
-        # Get all parmeters to be set as a flat dictionary
+        # Get all parameters to be set as a flat dictionary
         allparams = {}
         for pset, vset in params.iteritems():
             for p, val in vset.iteritems():
                 allparams[p] = val
 
-            # Get the guesses
+        # Get the guesses
         guess = []
-        for i, k in enumerate(keys):
-            val = json.loads(allparams[k])
-            if val[-1] is None:
-                guess.append(priors[i].guess(k))
+        for i,p in enumerate(priors):
+            if isinstance(p.name,list):
+                # get raw input
+                for j,k in enumerate(p.name):
+                    val = json.loads(allparams[k.split(":")[-1]])
+                    if val[-1] is None or len(val) == 1:
+                        guess.append(p.guess(k))
+                    else:
+                        guess.append(val[-1])
             else:
-                guess.append(val[-1])
+
+                val = json.loads(allparams[p.name.split(":")[-1]])
+                if val[-1] is None or len(val) == 1:
+                    guess.append(p.guess())
+                else:
+                    guess.append(val[-1])
+
+        # else:
+        # for i, k in enumerate(keys):
+        #     val = json.loads(allparams[k])
+        #     if val[-1] is None or len(val) == 1:
+        #         guess.append(priors[i].guess(k))
+        #     else:
+        #         guess.append(val[-1])
         return guess
 
     def set_prior(self, param, val):
@@ -407,12 +426,13 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
         start = time.time()
         if self.chunks == 0:
             self.chunks = self.nsamples-prev_samples
-        nchunks = (self.nsamples-prev_samples)/self.chunks
+        nchunks = np.ceil((self.nsamples-prev_samples)/float(self.chunks))
         for i,s in enumerate(fitter.fit(self.sampler,instance, self.nwalkers,
                                         self.nsamples-prev_samples,self.burnin,self.nthreads,
                                         self.chunks)):
             # Write out files
             self.write_iter_pickle(s)
+            print nchunks, self.chunks,self.nwalkers, i,self.nsamples,prev_samples
             print "Done {0}%. Time per sample: {1}".format(100 * float(i + 1) / nchunks,(time.time() - start) / ((i + 1) * self.chunks*self.nwalkers))
 
         total_time = time.time() - start
