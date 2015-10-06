@@ -251,13 +251,13 @@ class MassFunction(Transfer):
         if issubclass_(self.hmf_model, FittingFunction):
             fit = self.hmf_model(M=self.M, nu2=self.nu, z=self.z,
                               delta_halo=self.delta_halo, omegam_z=self.cosmo.Om(self.z),
-                              delta_c=self.delta_c, sigma=self.sigma.value, n_eff=self.n_eff,
+                              delta_c=self.delta_c, sigma=self.sigma, n_eff=self.n_eff,
                               ** self.hmf_params)
         elif isinstance(self.hmf_model, basestring):
             fit = get_model(self.hmf_model, "hmf.fitting_functions",
                             M=self.M, nu2=self.nu, z=self.z,
                             delta_halo=self.delta_halo, omegam_z=self.cosmo.Om(self.z),
-                            delta_c=self.delta_c, sigma=self.sigma.value, n_eff=self.n_eff,
+                            delta_c=self.delta_c, sigma=self.sigma, n_eff=self.n_eff,
                             ** self.hmf_params)
         return fit
 
