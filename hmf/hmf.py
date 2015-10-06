@@ -21,7 +21,6 @@ from fitting_functions import FittingFunction
 from numpy import issubclass_
 logger = logging.getLogger('hmf')
 from filters import TopHat, Filter
-import units as u
 from _framework import get_model
 from scipy.optimize import minimize
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
@@ -284,7 +283,7 @@ class MassFunction(Transfer):
 
     @cached_property("Mmin", "Mmax", "dlog10m")
     def M(self):
-        return (10 ** np.arange(self.Mmin, self.Mmax, self.dlog10m)) * u.m_unit
+        return (10 ** np.arange(self.Mmin, self.Mmax, self.dlog10m))
 
 
 #     @cached_property("M", "lnk", "mean_density0")
@@ -360,23 +359,23 @@ class MassFunction(Transfer):
         if self.nu.min() >1 or self.nu.max()<1:
             warnings.warn("Nonlinear mass outside mass range")
             if self.nu.min() > 1:
-                startr = np.log(self.radii.min().value)
+                startr = np.log(self.radii.min())
             else:
-                startr = np.log(self.radii.max().value)
+                startr = np.log(self.radii.max())
 
-            model = lambda lnr : (self.filter_mod.sigma(np.exp(lnr)*self.radii.unit)*self._normalisation*self.growth_factor - self.delta_c)**2
+            model = lambda lnr : (self.filter_mod.sigma(np.exp(lnr)*self.radii)*self._normalisation*self.growth_factor - self.delta_c)**2
 
             res = minimize(model,[startr,])
 
             if res.success:
-                r = np.exp(res.x[0]) * self.radii.unit
+                r = np.exp(res.x[0])
                 return self.filter_mod.radius_to_mass(r)
             else:
                 warnings.warn("Minimization failed :(")
                 return 0
         else:
             nu = spline(self.nu,self.M,k=5)
-            return nu(1)*self.M.unit
+            return nu(1)
 
     @cached_property("sigma")
     def lnsigma(self):
@@ -491,18 +490,16 @@ class MassFunction(Transfer):
         # If the highest mass is very low, we try calculating it to higher masses
         # The dlog10m is NOT CHANGED, so the input needs to be finely spaced.
         # If the top value of dndm is NaN, don't try calculating higher masses.
-        if m[-1].value < 10 ** 16.5 and not np.isnan(dndm[-1]):
+        if m[-1] < 10 ** 16.5 and not np.isnan(dndm[-1]):
             # Behroozi function won't work here.
             if isinstance(self._fit, Behroozi):
                 pass
             else:
                 new_mf = copy.deepcopy(self)
-                new_mf.update(Mmin=np.log10(self.M[-1].value) + self.dlog10m, Mmax=18)
-                dndm = np.concatenate((dndm.value, new_mf.dndm.value))
-                dndm *= new_mf.dndm.unit
+                new_mf.update(Mmin=np.log10(self.M[-1]) + self.dlog10m, Mmax=18)
+                dndm = np.concatenate((dndm, new_mf.dndm))
 
-                m = np.concatenate((m.value, new_mf.M.value))
-                m *= new_mf.M.unit
+                m = np.concatenate((m, new_mf.M))
 
         ngtm = hmf_integral_gtm(m, dndm, mass_density)
 
@@ -510,8 +507,8 @@ class MassFunction(Transfer):
         if len(ngtm) < len(m):  # Will happen if some dndlnm are NaN
             ngtm_temp = np.zeros(len(dndm))
             ngtm_temp[:] = np.nan
-            ngtm_temp[np.logical_not(np.isnan(dndm))] = ngtm.value
-            ngtm = ngtm_temp * ngtm.unit
+            ngtm_temp[np.logical_not(np.isnan(dndm))] = ngtm
+            ngtm = ngtm_temp
 
         # Since ngtm may have been extended, we cut it back
         return ngtm[:size]

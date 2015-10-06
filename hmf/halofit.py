@@ -16,8 +16,6 @@ def _get_spec(k, delta_k, sigma_8):
     Calculate nonlinear wavenumber, effective spectral index and curvature
     of the power spectrum.
     """
-    k = k.value
-
     # Initialize sigma spline
     if sigma_8 < 1.0 and sigma_8 > 0.6:
         lnr = np.linspace(np.log(0.1), np.log(10.0), 500)

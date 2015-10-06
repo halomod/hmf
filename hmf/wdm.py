@@ -26,7 +26,7 @@ class WDM(Model):
         '''
         self.mx = mx
         self.cosmo = cosmo
-        self.rho_mean = (1+z)**3 * h_unit ** 2 * (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2).to(u.MsolMass / u.Mpc ** 3) * 1e6
+        self.rho_mean = (1+z)**3 * (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2).to(u.MsolMass / u.Mpc ** 3).value * 1e6
         self.Oc0 = cosmo.Om0 - cosmo.Ob0
 
         super(WDM, self).__init__(**model_params)
@@ -79,7 +79,7 @@ class Viel05(WDM):
 
     @property
     def lam_eff_fs(self):
-        return 0.049 * self.mx ** -1.11 * (self.Oc0 / 0.25) ** 0.11 * (self.cosmo.h / 0.7) ** 1.22 * (1.5 / self.params['g_x']) ** 0.29 * u.Mpc/h_unit
+        return 0.049 * self.mx ** -1.11 * (self.Oc0 / 0.25) ** 0.11 * (self.cosmo.h / 0.7) ** 1.22 * (1.5 / self.params['g_x']) ** 0.29
 
     @property
     def m_fs(self):

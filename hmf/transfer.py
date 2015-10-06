@@ -8,8 +8,6 @@ from cosmo import Cosmology
 from _cache import cached_property, parameter
 from halofit import _get_spec, halofit
 from numpy import issubclass_
-import astropy.units as u
-# from tools import h_unit
 from growth_factor import GrowthFactor
 import transfer_models as tm
 import tools
@@ -183,7 +181,7 @@ class Transfer(Cosmology):
     #===========================================================================
     @cached_property("lnk_min", "lnk_max", "dlnk")
     def k(self):
-        return np.exp(np.arange(self.lnk_min, self.lnk_max, self.dlnk)) * self._hunit / u.Mpc
+        return np.exp(np.arange(self.lnk_min, self.lnk_max, self.dlnk))
 
     @cached_property("k", "cosmo", "transfer_options", "transfer_fit")
     def _unnormalised_lnT(self):
@@ -193,24 +191,24 @@ class Transfer(Cosmology):
         This wraps the individual transfer_fit methods to provide unified access.
         """
         if issubclass_(self.transfer_fit, tm.Transfer):
-            return self.transfer_fit(self.cosmo, **self.transfer_options).lnt(np.log(self.k.value))
+            return self.transfer_fit(self.cosmo, **self.transfer_options).lnt(np.log(self.k))
         elif isinstance(self.transfer_fit, basestring):
             return get_model(self.transfer_fit, "hmf.transfer_models", cosmo=self.cosmo,
-                             **self.transfer_options).lnt(np.log(self.k.value))
+                             **self.transfer_options).lnt(np.log(self.k))
 
     @cached_property("n", "k", "_unnormalised_lnT")
     def _unnormalised_power(self):
         """
         Un-normalised CDM power at :math:`z=0` [units :math:`Mpc^3/h^3`]
         """
-        return self.k.value ** self.n * np.exp(self._unnormalised_lnT) ** 2 * u.Mpc ** 3 / self._hunit ** 3
+        return self.k ** self.n * np.exp(self._unnormalised_lnT) ** 2
 
 
     @cached_property("mean_density0", "k", "_unnormalised_power")
     def _unn_sig8(self):
         # Always use a TopHat for sigma_8
         filter = TopHat(self.k, self._unnormalised_power)
-        return filter.sigma(8.0 * u.Mpc / self._hunit)[0]
+        return filter.sigma(8.0)[0]
 
     @cached_property("_unn_sig8", "sigma_8")
     def _normalisation(self):
@@ -286,10 +284,10 @@ class Transfer(Cosmology):
         Dimensionless nonlinear power spectrum, :math:`\Delta_k = \frac{k^3 P_{\rm nl}(k)}{2\pi^2}`
         """
         rknl, rneff, rncur = _get_spec(self.k, self.delta_k, self.sigma_8)
-        mask = self.k.value > 0.005
+        mask = self.k > 0.005
         plin = self.delta_k[mask]
         k = self.k[mask]
-        pnl = halofit(k.value, self.z, self.cosmo, rneff, rncur, rknl, plin, self.takahashi)
+        pnl = halofit(k, self.z, self.cosmo, rneff, rncur, rknl, plin, self.takahashi)
         nonlinear_delta_k = self.delta_k.copy()
         nonlinear_delta_k[mask] = pnl
         return nonlinear_delta_k

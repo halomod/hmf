@@ -17,7 +17,6 @@ from os.path import join
 import warnings
 from emcee import autocorr
 import pickle
-from astropy.units import Quantity
 from numbers import Number
 import copy
 
@@ -352,18 +351,6 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
 
         # pre-get the quantity
         q = getattr(instance, self.quantity)
-
-        # Apply the units of the quantity to the data
-        if hasattr(q, "unit"):
-            self.y *= q.unit
-            self.sigma *= q.unit ** len(self.sigma.shape)
-
-        # Apply units of constraints
-        for k in self.constraints:
-            unit = getattr(getattr(instance, k), "unit", None)
-            if unit:
-                self.constraints[k][0] *= unit
-                self.constraints[k][1] *= unit
 
         # Write out a pickle file of the model
         with open(self.full_prefix + "model.pickle", 'w') as f:

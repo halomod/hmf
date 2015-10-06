@@ -10,7 +10,6 @@ import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import scipy.integrate as intg
 import collections
-import astropy.units as u
 from _framework import Model
 
 class Filter(Model):
@@ -101,21 +100,13 @@ class Filter(Model):
         pass
 
     def dlnss_dlnr(self, r):
-        if hasattr(self.k,"value"):
-            k = self.k.value
-        else:
-            k = self.k
-
-        if hasattr(r,"value"):
-            r = r.value
-
         dlnk = np.log(self.k[1] / self.k[0])
         #out = np.zeros(len(r))
         s = self.sigma(r)
 
-        rest = self.power * k ** 3
-        w = self.k_space(np.outer(r,k))
-        dw = self.dw_dlnkr(np.outer(r,k))
+        rest = self.power * self.k ** 3
+        w = self.k_space(np.outer(r,self.k))
+        dw = self.dw_dlnkr(np.outer(r,self.k))
         integ = w*dw*rest
         # for i, rr in enumerate(r):
         #     y = rr * k
@@ -157,20 +148,12 @@ class Filter(Model):
         sigma : array_like ( ``len=len(m)`` )
             The square root of the mass variance at ``m``
         """
-        if hasattr(self.k,"unit"):
-            k = self.k.value
-        else:
-            k = self.k
-
-        if hasattr(r,"unit"):
-            r = r.value
-
         dlnk = np.log(self.k[1] / self.k[0])
         #sigma = np.zeros(len(r))
 
         # we multiply by k because our steps are in logk.
         rest = self.power * self.k ** (3 + order * 2)
-        integ = rest*self.k_space(np.outer(r,k))**2
+        integ = rest*self.k_space(np.outer(r,self.k))**2
         sigma = (0.5/np.pi**2) * intg.simps(integ,dx=dlnk,axis=-1)
         # return np.
         # for i, rr in enumerate(r):
@@ -191,7 +174,7 @@ class TopHat(Filter):
         return np.where(r==R,0.5,a)
 
     def k_space(self,kr):
-        return np.where(kr>1.4e-6,(3 / kr ** 3) * (np.sin(kr*u.rad ) - kr * np.cos(kr*u.rad )),1)
+        return np.where(kr>1.4e-6,(3 / kr ** 3) * (np.sin(kr) - kr * np.cos(kr)),1)
 
     def mass_to_radius(self, m,rho_mean):
         return (3.*m / (4.*np.pi * rho_mean)) ** (1. / 3.)
@@ -200,7 +183,7 @@ class TopHat(Filter):
         return 4 * np.pi * r ** 3 * rho_mean / 3
 
     def dw_dlnkr(self, kr):
-        return np.where(kr>1e-3,(9 * kr * np.cos(kr*u.rad ) + 3 * (kr ** 2 - 3) * np.sin(kr*u.rad)) / kr ** 3,0)
+        return np.where(kr>1e-3,(9 * kr * np.cos(kr) + 3 * (kr ** 2 - 3) * np.sin(kr)) / kr ** 3,0)
 
 class Gaussian(Filter):
     """
@@ -233,14 +216,14 @@ class SharpK(Filter):
         return np.where(kr==1,0.5,a)
 
     def real_space(self, R, r):
-        return (np.sin(r/R * u.rad) - (r/R)*np.cos(r/R*u.rad))/(2*np.pi**2 * r**3)
+        return (np.sin(r/R ) - (r/R)*np.cos(r/R))/(2*np.pi**2 * r**3)
 
     def dw_dlnkr(self, kr):
         return np.where(kr==1,1.0,0.0)
 
     def dlnss_dlnr(self, r):
         sigma = self.sigma(r)
-        power = spline(self.k, self.power)(1 / r) * self.power.unit
+        power = spline(self.k, self.power)(1 / r)
         return -power / (2 * np.pi ** 2 * sigma ** 2 * r ** 3)
 
     def mass_to_radius(self, m,rho_mean):
@@ -259,7 +242,7 @@ class SharpK(Filter):
         sigma = np.zeros(len(r))
         power = spline(self.k, self.power)
         for i, rr in enumerate(r):
-            k = np.logspace(np.log(self.k[0].value), np.log(1.0 / rr.value), len(self.k), base=np.e)
+            k = np.logspace(np.log(self.k[0]), np.log(1.0 / rr), len(self.k), base=np.e)
             p = power(k)
             dlnk = np.log(k[1] / k[0])
             integ = p * k ** (3 + 2 * order)

@@ -13,10 +13,9 @@ may be used as inputs.
 from _cache import parameter, cached_property
 from astropy.cosmology import Planck13, FLRW, WMAP5, WMAP7, WMAP9
 # from types import MethodType
-import units as u
 from _framework import Framework
 import sys
-
+from astropy.units import MsolMass, Mpc
 class Cosmology(Framework):
     """
     Basic Cosmology object.
@@ -64,10 +63,6 @@ class Cosmology(Framework):
         self.base_cosmo = base_cosmo
         self.cosmo_params = cosmo_params or {}
 
-        # An additional unchangeable parameter for the h unit
-        self._hunit = u.h_unit
-
-
     #===========================================================================
     # Parameters
     #===========================================================================
@@ -96,8 +91,11 @@ class Cosmology(Framework):
 
     @cached_property("cosmo")
     def mean_density0(self):
+        """
+        Mean density of universe at z=0, units [Msun h^2 / Mpc**3]
+        """
         # fixme: why the *1e6??
-        return u.h_unit**2 * (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2).to(u.rho_unit/u.h_unit**2) * 1e6
+        return (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2).to(MsolMass/Mpc**3).value * 1e6
 
 
 def get_cosmo(name):

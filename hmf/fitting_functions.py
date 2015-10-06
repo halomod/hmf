@@ -71,7 +71,7 @@ class FittingFunction(Model):
                  delta_halo=200, cosmo=None, omegam_z=None,
                   **model_parameters):
         # Save instance variables
-        self.M = M.value
+        self.M = M
         self.nu2 = nu2
         self.nu = np.sqrt(nu2)
         self.z = z
@@ -600,12 +600,12 @@ class Tinker10(FittingFunction):
 class Behroozi(Tinker10):
     def _modify_dndm(self, m, dndm, z, ngtm_tinker):
         a = 1 / (1 + z)
-        theta = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (m.value / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)))
-        ngtm_behroozi = 10 ** (theta + np.log10(ngtm_tinker.value))
+        theta = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (m / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)))
+        ngtm_behroozi = 10 ** (theta + np.log10(ngtm_tinker))
         dthetadM = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * \
-            (0.5 / (1 + np.exp(6.5 * a))) * (m.value / 10 ** 11.5) ** \
+            (0.5 / (1 + np.exp(6.5 * a))) * (m / 10 ** 11.5) ** \
             (0.5 / (1 + np.exp(6.5 * a)) - 1) / (10 ** 11.5)
-        return (dndm.value * 10 ** theta - ngtm_behroozi * np.log(10) * dthetadM) * dndm.unit
+        return (dndm * 10 ** theta - ngtm_behroozi * np.log(10) * dthetadM)
 
 
 class Tinker(Tinker08):
