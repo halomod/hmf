@@ -102,7 +102,7 @@ def model(parm, h, self):
         h.update(**param_dict)
     except ValueError as e:
         if self.relax:
-            print "WARNING: PARAMETERS FAILED, RETURNING INF: ", zip(self.attrs, parm)
+            print "WARNING: PARAMETERS FAILED ON UPDATE, RETURNING INF: ", zip(self.attrs, parm)
             print e
             print traceback.format_exc()
             return ret_arg(-np.inf, self.blobs)
@@ -115,10 +115,10 @@ def model(parm, h, self):
         q = getattr(h, self.quantity)
     except Exception as e:
         if self.relax:
-            print "WARNING: PARAMETERS FAILED, RETURNING INF: ", zip(self.attrs, parm)
+            print "WARNING: PARAMETERS FAILED WHEN CALCULATING QUANTITY, RETURNING INF: ", zip(self.attrs, parm)
             print e
-            return ret_arg(-np.inf, self.blobs)
             print traceback.format_exc()
+            return ret_arg(-np.inf, self.blobs)
         else:
             print traceback.format_exc()
             raise e
@@ -310,7 +310,7 @@ class MCMC(Fit):
             raise ValueError("Either sampler or h must be given")
 
         # If using CAMB, nthreads MUST BE 1
-        if (h.transfer_fit == "CAMB" or h.transfer_fit == tm.CAMB):
+        if (h.transfer_model == "CAMB" or h.transfer_model == tm.CAMB):
             if any(p.startswith("cosmo_params:") for p in self.attrs):
                 nthreads = 1
 
