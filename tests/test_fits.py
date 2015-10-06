@@ -11,7 +11,7 @@ from hmf import MassFunction
 from hmf import fitting_functions as ff
 import copy
 def check_close(hmf, close_hmf, fit, redshift):
-    hmf.update(z=redshift, mf_fit=fit)
+    hmf.update(z=redshift, hmf_model=fit)
     close_hmf.update(z=redshift)
     print hmf.fsigma / close_hmf.fsigma
     diff = hmf.fsigma - close_hmf.fsigma
@@ -21,7 +21,7 @@ def check_close(hmf, close_hmf, fit, redshift):
 def test_all_fits():
     hmf = MassFunction(Mmin=10, Mmax=15, dlog10m=0.1,
                        lnk_min=-16, lnk_max=10, dlnk=0.01,
-                       mf_fit='ST', z=0.0, sigma_8=0.8, n=1,
+                       hmf_model='ST', z=0.0, sigma_8=0.8, n=1,
                        cosmo_params={"Om0":0.3, "H0":70.0, "Ob0":0.05})
 
     hmf.fsigma

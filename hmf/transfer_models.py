@@ -6,7 +6,7 @@ in transfer.py.
 '''
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
-from _framework import Model
+from _framework import Component
 try:
     import pycamb
 except ImportError:
@@ -16,7 +16,7 @@ except ImportError:
 _allfits = ["CAMB", "FromFile", "EH_BAO", "EH_NoBAO", "BBKS", "BondEfs"]
 
 
-class Transfer(Model):
+class Transfer(Component):
     """
     Base class for transfer models.
 

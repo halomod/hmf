@@ -6,10 +6,10 @@ fitting functions
 '''
 import numpy as np
 from scipy import integrate as intg
-from _framework import Model
+from _framework import Component
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 
-class GrowthFactor(Model):
+class GrowthFactor(Component):
     r"""
     General class for a growth factor calculation
      
@@ -19,8 +19,8 @@ class GrowthFactor(Model):
         """
         cosmo : ``astropy.cosmology.FLRW()`` object or subclass
             Cosmological model
-            
-        model_parameters : 
+
+        model_parameters :
             Other parameters of the specific model
         """
 
@@ -31,17 +31,17 @@ class GrowthFactor(Model):
     def d_plus(self, z, getvec=False):
         """
         Finds the factor :math:`D^+(a)`, from Lukic et. al. 2007, eq. 8.
-        
+
         Uses simpson's rule to integrate, with 1000 steps.
-        
+
         Parameters
         ----------
         z : float
             The redshift
-            
+
         cosmo : ``astropy.cosmology.FLRW()`` object or subclass
             Cosmological model
-        
+
         Returns
         -------
         dplus : float
@@ -65,12 +65,12 @@ class GrowthFactor(Model):
     def growth_factor(self, z):
         """
         Calculate :math:`d(a) = D^+(a)/D^+(a=1)`, from Lukic et. al. 2007, eq. 7.
-        
+
         Parameters
         ----------
         z : float
             The redshift
-            
+
         Returns
         -------
         float
@@ -82,17 +82,17 @@ class GrowthFactor(Model):
     def growth_factor_fn(self, zmin=0.0, inverse=False):
         """
         Calculate :math:`d(a) = D^+(a)/D^+(a=1)`, from Lukic et. al. 2007, eq. 7.
-        
+
         Returns a function G(z).
-        
+
         Parameters
         ----------
         zmin : float, optional
             The minimum redshift of the function. Default 0.0
-            
+
         inverse: bool, optional
             Whether to return the inverse relationship [z(g)]. Default False.
-            
+
         Returns
         -------
         callable
@@ -109,7 +109,7 @@ class GrowthFactor(Model):
     def growth_rate(self, z):
         """
         Growth rate, dln(d)/dln(a) from Hamilton 2000 eq. 4
-        
+
         Parameters
         ----------
         z : float
@@ -122,12 +122,12 @@ class GrowthFactor(Model):
     def growth_rate_fn(self, zmin):
         """
         Growth rate, dln(d)/dln(a) from Hamilton 2000 eq. 4
-        
+
         Parameters
         ----------
         zmin : float, optional
             The minimum redshift of the function. Default 0.0
-            
+
         Returns
         -------
         callable

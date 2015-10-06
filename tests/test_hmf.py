@@ -8,8 +8,8 @@ from hmf import MassFunction
 
 # @raises(ValueError)
 # def test_wrong_fit():
-#     hmf = MassFunction(mf_fit=7)
-#     assert hmf.mf_fit == 7
+#     hmf = MassFunction(hmf_model=7)
+#     assert hmf.hmf_model == 7
 #
 # @raises(ValueError)
 # def test_wrong_dh():
@@ -29,8 +29,3 @@ def test_delta_halo_mean():
 def test_delta_halo_crit():
     hmf = MassFunction(delta_h=180, delta_wrt="crit", cosmo_params={"Om0":0.3})
     assert abs(hmf.delta_halo - 600.0) < 1e-3
-
-
-
-
-

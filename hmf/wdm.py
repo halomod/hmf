@@ -10,13 +10,13 @@ from transfer import Transfer
 from hmf import MassFunction
 from _cache import parameter, cached_property
 from numpy import issubclass_
-from _framework import Model, get_model
+from _framework import Component, get_model
 from cosmo import h_unit
 import astropy.units as u
 #===============================================================================
 # Model Components
 #===============================================================================
-class WDM(Model):
+class WDM(Component):
     '''
     Abstract base class for all WDM models
     '''

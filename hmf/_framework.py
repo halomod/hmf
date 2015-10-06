@@ -4,14 +4,18 @@ Classes defining the overall structure of the hmf framework.
 import copy
 import sys
 from _cache import Cache
-class Model(object):
-    """
-    Class representing a component model.
 
-    All component models in the framework should be subclassed from this. The
-    features of this class are that it contains a class variable called _defaults
-    which contains the defaults for the parameters of the specific model which
-    subclasses this. These are checked and updated with passed parameters by
+class Component(object):
+    """
+    Base class representing a component model.
+
+    All components should be subclassed from this. Components are generally parts
+    of the calculation which can take different models, example the HMF fitting
+    functions, bias models, growth functions, etc.
+
+    The feature of this class is that it contains a class variable called
+    ``_defaults`` containing the defaults for the parameters of any specific model.
+    These are checked and updated with passed parameters by
     the __init__ method.
     """
 
@@ -70,8 +74,11 @@ class Framework(Cache):
     or ``@_cache.cached_property`` for derived quantities.
 
     Other methods are permissable, but may complicate matters if a derived
-    quantity uses the non-cached_property method. Reserve these for utility
+    quantity uses the non-``cached_property`` method. Reserve these for utility
     methods.
+
+    Importantly, any parameter that may be passed to the constructor, *must* be
+    defined as a ``parameter`` within the class so it may be set properly.
     """
     def __init__(self):
         super(Framework, self).__init__()

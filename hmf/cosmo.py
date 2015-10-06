@@ -36,7 +36,7 @@ class Cosmology(Framework):
 
     Parameters
     ----------
-    base_cosmo : instance of `astropy.cosmology.FLRW`, optional
+    cosmo_model : instance of `astropy.cosmology.FLRW`, optional
         The basis for the cosmology -- see astropy documentation. Can be a custom
         subclass. Defaults to Planck13.
 
@@ -44,7 +44,7 @@ class Cosmology(Framework):
         Parameters for the cosmology that deviate from the base cosmology passed.
         This is useful for repeated updates of a single parameter (leaving others
         the same). Default is the empty dict. The parameters passed must match
-        the allowed parameters of `base_cosmo`. For the basic class this is
+        the allowed parameters of `cosmo_model`. For the basic class this is
 
         :w: The dark-energy equation of state
         :Tcmb0: Temperature of the CMB at z=0
@@ -55,26 +55,26 @@ class Cosmology(Framework):
         :Om0: The normalised matter density at z=0
 
     """
-    def __init__(self, base_cosmo=Planck13, cosmo_params=None):
+    def __init__(self, cosmo_model=Planck13, cosmo_params=None):
         # Call Cosmology init
         super(Cosmology, self).__init__()
 
         # Set all given parameters
-        self.base_cosmo = base_cosmo
+        self.cosmo_model = cosmo_model
         self.cosmo_params = cosmo_params or {}
 
     #===========================================================================
     # Parameters
     #===========================================================================
     @parameter
-    def base_cosmo(self, val):
+    def cosmo_model(self, val):
         """:class:`~astropy.cosmology.FLRW` instance"""
         if isinstance(val, basestring):
             cosmo = get_cosmo(val)
             return cosmo
 
         if not isinstance(val, FLRW):
-                raise ValueError("base_cosmo must be an instance of astropy.cosmology.FLRW")
+                raise ValueError("cosmo_model must be an instance of astropy.cosmology.FLRW")
         else:
             return val
 
@@ -85,9 +85,9 @@ class Cosmology(Framework):
     #===========================================================================
     # DERIVED PROPERTIES AND FUNCTIONS
     #===========================================================================
-    @cached_property("cosmo_params", "base_cosmo")
+    @cached_property("cosmo_params", "cosmo_model")
     def cosmo(self):
-        return self.base_cosmo.clone(**self.cosmo_params)
+        return self.cosmo_model.clone(**self.cosmo_params)
 
     @cached_property("cosmo")
     def mean_density0(self):

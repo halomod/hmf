@@ -24,15 +24,15 @@ def eq(actual, expected):
 #         assert bit in c.pycamb_dict
 
 def test_string_cosmo():
-    c = Cosmology(base_cosmo="WMAP7")
+    c = Cosmology(cosmo_model="WMAP7")
     assert c.cosmo.Ob0 > 0
 
 class TestUpdate():
     def __init__(self):
-        self.c = Cosmology(base_cosmo="Planck13", cosmo_params={})
+        self.c = Cosmology(cosmo_model="Planck13", cosmo_params={})
 
-    def test_base_cosmo(self):
-        self.c.update(base_cosmo=WMAP7)
+    def test_cosmo_model(self):
+        self.c.update(cosmo_model=WMAP7)
 
         assert self.c.cosmo.Om0 == 0.272
         print self.c.mean_density0
