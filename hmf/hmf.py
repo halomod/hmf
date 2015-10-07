@@ -354,7 +354,7 @@ class MassFunction(Transfer):
             else:
                 startr = np.log(self.radii.max())
 
-            model = lambda lnr : (self.filter_mod.sigma(np.exp(lnr)*self.radii)*self._normalisation*self.growth_factor - self.delta_c)**2
+            model = lambda lnr : (self.filter_mod.sigma(np.exp(lnr))*self._normalisation*self.growth_factor - self.delta_c)**2
 
             res = minimize(model,[startr,])
 
