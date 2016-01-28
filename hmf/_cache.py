@@ -1,9 +1,9 @@
 """
-This module defines two decorators, based on the code from 
+This module defines two decorators, based on the code from
 http://forrst.com/posts/Yet_another_caching_property_decorator_for_Pytho-PBy
 
 They are both designed to cache class properties, but have the added
-functionality of being automatically updated when a parent property is 
+functionality of being automatically updated when a parent property is
 updated.
 """
 from functools import update_wrapper
@@ -17,25 +17,25 @@ class Cache(object):
 def cached_property(*parents):
     """
     A robust property caching decorator.
-    
+
     This decorator only works when used with the entire system here....
-    
+
     Usage::
        class CachedClass(Cache):
-       
-           
+
+
            @cached_property("parent_parameter")
            def amethod(self):
               ...calculations...
               return final_value
-          
+
            @cached_property("amethod")
            def a_child_method(self): #method dependent on amethod
               final_value = 3*self.amethod
               return final_value
-          
+
     This code will calculate ``amethod`` on the first call, but return the cached
-    value on all subsequent calls. If any parent parameter is modified, the 
+    value on all subsequent calls. If any parent parameter is modified, the
     calculation will be re-performed.
     """
     recalc = "_Cache__recalc"
@@ -140,12 +140,12 @@ def obj_eq(ob1, ob2):
 def parameter(f):
     """
     A simple cached property which acts more like an input value.
-    
-    This cached property is intended to be used on values that are passed in 
+
+    This cached property is intended to be used on values that are passed in
     ``__init__``, and can possibly be reset later. It provides the opportunity
     for complex setters, and also the ability to update dependent properties
-    whenever the value is modified. 
-    
+    whenever the value is modified.
+
     Usage::
        @set_property("amethod")
        def parameter(self,val):
@@ -153,11 +153,11 @@ def parameter(f):
               return val
            else:
               raise ValueError("parameter must be an integer")
-              
+
        @cached_property()
        def amethod(self):
           return 3*self.parameter
-          
+
     Note that the definition of the setter merely returns the value to be set,
     it doesn't set it to any particular instance attribute. The decorator
     automatically sets ``self.__parameter = val`` and defines the get method
@@ -181,7 +181,10 @@ def parameter(f):
 
         if not obj_eq(val, old_val) or doset:
             if isinstance(val, dict) and hasattr(self, prop):
-                getattr(self, prop).update(val)
+                if val:
+                    getattr(self, prop).update(val)
+                else:
+                    setattr(self, prop, val)
             else:
                 setattr(self, prop, val)
 
