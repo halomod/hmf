@@ -605,7 +605,10 @@ class Behroozi(Tinker10):
         dthetadM = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * \
             (0.5 / (1 + np.exp(6.5 * a))) * (m / 10 ** 11.5) ** \
             (0.5 / (1 + np.exp(6.5 * a)) - 1) / (10 ** 11.5)
-        return (dndm * 10 ** theta - ngtm_behroozi * np.log(10) * dthetadM)
+        # if ngtm_tinker is very small (ie. 0), dthetadM will be nan.
+        res =  dndm * 10 ** theta - ngtm_behroozi * np.log(10) * dthetadM
+        res[np.isnan(res)] = 0
+        return res
 
 
 class Tinker(Tinker08):
