@@ -78,7 +78,7 @@ class Transfer(Cosmology):
         input to the `hmf.cosmo.Cosmology` class.
     '''
 
-    def __init__(self, sigma_8=0.8, n=1.0, z=0.0, lnk_min=np.log(1e-8),
+    def __init__(self, sigma_8=0.8344, n=0.9624, z=0.0, lnk_min=np.log(1e-8),
                  lnk_max=np.log(2e4), dlnk=0.05, transfer_model=tm.CAMB,
                  transfer_params=None, takahashi=True, growth_model=GrowthFactor,
                  growth_params=None, **kwargs):
