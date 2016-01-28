@@ -274,7 +274,7 @@ class MassFunction(Transfer):
 
     @cached_property("Mmin", "Mmax", "dlog10m")
     def M(self):
-        return (10 ** np.arange(self.Mmin, self.Mmax, self.dlog10m))
+        return 10 ** np.arange(self.Mmin, self.Mmax, self.dlog10m)
 
 
 #     @cached_property("M", "lnk", "mean_density0")
@@ -308,12 +308,12 @@ class MassFunction(Transfer):
         """
         return self._normalisation * self._unn_sigma0
 
-    @cached_property("M", "filter_mod")
+    @cached_property("M", "filter_mod","mean_density0")
     def radii(self):
         """
         The radii corresponding to the masses `M`
         """
-        return self.filter_mod.mass_to_radius(self.M,self.mean_density)
+        return self.filter_mod.mass_to_radius(self.M,self.mean_density0)
 
     @cached_property("radii", "filter_mod")
     def _dlnsdlnm(self):
@@ -481,24 +481,23 @@ class MassFunction(Transfer):
         # If the highest mass is very low, we try calculating it to higher masses
         # The dlog10m is NOT CHANGED, so the input needs to be finely spaced.
         # If the top value of dndm is NaN, don't try calculating higher masses.
-        if m[-1] < 10 ** 16.5 and not np.isnan(dndm[-1]):
+        if m[-1] < 10 ** 16.5 and not np.isnan(dndm[-1]) and not dndm[-1]==0:
             # Behroozi function won't work here.
-            if isinstance(self._fit, Behroozi):
-                pass
-            else:
+            if not isinstance(self._fit, Behroozi):
                 new_mf = copy.deepcopy(self)
                 new_mf.update(Mmin=np.log10(self.M[-1]) + self.dlog10m, Mmax=18)
                 dndm = np.concatenate((dndm, new_mf.dndm))
 
                 m = np.concatenate((m, new_mf.M))
 
-        ngtm = hmf_integral_gtm(m, dndm, mass_density)
+        ngtm = hmf_integral_gtm(m[dndm>0], dndm[dndm>0], mass_density)
 
         # We need to set ngtm back in the original length vector with nans where they were originally
         if len(ngtm) < len(m):  # Will happen if some dndlnm are NaN
-            ngtm_temp = np.zeros(len(dndm))
+            ngtm_temp = np.empty(len(dndm))
             ngtm_temp[:] = np.nan
-            ngtm_temp[np.logical_not(np.isnan(dndm))] = ngtm
+            #TODO: the following doesn't quite make sense, since dndm[dndm>0] is different length than ngtm_temp
+            ngtm_temp[np.logical_not(np.isnan(dndm[dndm>0]))] = ngtm
             ngtm = ngtm_temp
 
         # Since ngtm may have been extended, we cut it back
