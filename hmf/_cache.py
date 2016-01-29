@@ -38,6 +38,7 @@ def cached_property(*parents):
     value on all subsequent calls. If any parent parameter is modified, the
     calculation will be re-performed.
     """
+
     recalc = "_Cache__recalc"
     recalc_prpa = "_Cache__recalc_prop_par"
     recalc_papr = "_Cache__recalc_par_prop"
@@ -163,6 +164,7 @@ def parameter(f):
     automatically sets ``self.__parameter = val`` and defines the get method
     accordingly
     """
+
     name = f.__name__
     prop_ext = '__%s' % name
     recalc = "_Cache__recalc"
@@ -199,4 +201,4 @@ def parameter(f):
         return getattr(self, prop)
 
 
-    return property(_get_property, _set_property, None)
+    return property(_get_property, _set_property, None,f.__doc__)
