@@ -26,7 +26,7 @@ compiling CAMB while installing pycamb. It cannot be done more automatically
 at this point due to licensing. Alternatively, if one does not know the 
 location of the camb downloads, go to camb.info and follow the instructions.
 Download the source directory to your pycamb folder, and untar it there.
-Then use ``python setup.py install" and it should work.
+Then use ``python setup.py install`` and it should work.
 
 .. note :: At present, versions of CAMB post March 2013 are not working with 
 		`pycamb`. Please use earlier versions until further notice.
@@ -52,9 +52,10 @@ Cosmological parameters may be passed to the initialiser, ``MassFunction()``
 
 To change the parameters (cosmological or otherwise), one should use the 
 `update()` method, if a MassFunction() object already exists. For example
- >>> hmf = MassFunction()
- >>> hmf.update(omegab = 0.05,z=10) #update baryon density and redshift
- >>> cumulative_mass_func = hmf.ngtm
+
+>>> hmf = MassFunction()
+>>> hmf.update(omegab = 0.05,z=10) #update baryon density and redshift
+>>> cumulative_mass_func = hmf.ngtm
 
 Please check the more in-depth user-guide for more details, or even the API
 documentation.
@@ -65,6 +66,7 @@ Contents
 .. toctree::
    :maxdepth: 2
 
+   tutorials
    license
    api
    changelog
