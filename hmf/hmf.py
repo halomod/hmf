@@ -5,8 +5,6 @@ The module contains a single class, `MassFunction`, which wraps almost all the
 functionality of :mod:`hmf` in an easy-to-use way.
 '''
 
-version = '2.0.0'
-
 ###############################################################################
 # Some Imports
 ###############################################################################

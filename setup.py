@@ -1,31 +1,30 @@
-from setuptools import setup, find_packages
+from setuptools import setup
 
 import os
 import sys
+import re
 
-# class Mock(object):
-#     def __init__(self, *args, **kwargs):
-#         pass
-#
-#     def __call__(self, *args, **kwargs):
-#         return Mock()
-#
-#     @classmethod
-#     def __getattr__(cls, name):
-#         if name in ('__file__', '__path__'):
-#             return '/dev/null'
-#         elif name[0] == name[0].upper():
-#             mockType = type(name, (), {})
-#             mockType.__module__ = __name__
-#             return mockType
-#         else:
-#             return Mock()
+def read(*names, **kwargs):
+    with io.open(
+        os.path.join(os.path.dirname(__file__), *names),
+        encoding=kwargs.get("encoding", "utf8")
+    ) as fp:
+        return fp.read()
 
 
-from hmf.hmf import version
+def find_version(*file_paths):
+    version_file = read(*file_paths)
+    version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]",
+                              version_file, re.M)
+    if version_match:
+        return version_match.group(1)
+    raise RuntimeError("Unable to find version string.")
 
-def read(fname):
-    return open(os.path.join(os.path.dirname(__file__), fname)).read()
+if sys.argv[-1] == "publish":
+    os.system("python setup.py sdist upload")
+    os.system("python setup.py bdist_wheel upload")
+    sys.exit()
+
 
 if sys.argv[-1] == "publish":
     os.system("python setup.py sdist upload")
@@ -34,7 +33,7 @@ if sys.argv[-1] == "publish":
 
 setup(
     name="hmf",
-    version=version,
+    version=find_version("hmf", "__init__.py"),
     packages=['hmf', 'hmf.fitting'],
     install_requires=["numpy>=1.6.2",
                       "scipy>=0.12.0",
