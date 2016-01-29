@@ -3,13 +3,7 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-hmf
-===
-`hmf` is a python application that provides a flexible and simple way to calculate the 
-Halo Mass Function for any input cosmology, redshift, dark matter model, virial
-overdensity or several other variables. Addition of further variables should be simple. 
-
-It is also the backend to `HMFcalc <http://hmf.icrar.org>`_, the online HMF calculator.
+.. include:: ../README.rst
 
 Installation
 ------------
@@ -62,22 +56,18 @@ To change the parameters (cosmological or otherwise), one should use the
  >>> hmf.update(omegab = 0.05,z=10) #update baryon density and redshift
  >>> cumulative_mass_func = hmf.ngtm
 
-.. note :: Older versions of `hmf` used the class called `Perturbations()` 
-		rather than `MassFunction()`.
-		
 Please check the more in-depth user-guide for more details, or even the API
 documentation.
 
-User Guide
-----------
-Look here for more details concerning the usage in general.
- 
-API Documentation
------------------
+
+Contents
+--------
 .. toctree::
    :maxdepth: 2
-   
+
+   license
    api
+   changelog
 
 Indices and tables
 ==================
