@@ -2,43 +2,44 @@
 Module dealing with cosmological models.
 
 The main class is `Cosmology`, which is a framework wrapping the astropy
-cosmology classes and adding some structural support for this package.
+cosmology classes, while converting it to a :class:`hmf._framework.Framework`
+for use in this package.
 
-Also provided in the namespace are the pre-defined cosmologies from astropy,
-WMAP5, WMAP7, WMAP9 and Planck13, which may be used as arguments to the
+Also provided in the namespace are the pre-defined cosmologies from `astropy`:
+`WMAP5`, `WMAP7`, `WMAP9`, `Planck13` and `Planck15`, which may be used as arguments to the
 Cosmology framework. All custom subclasses of :class:`astropy.cosmology.FLRW`
 may be used as inputs.
 """
 
-from _cache import parameter, cached_property
-from astropy.cosmology import Planck13, FLRW, WMAP5, WMAP7, WMAP9
-# from types import MethodType
-from _framework import Framework
+import _cache
+from astropy.cosmology import Planck13, FLRW, WMAP5, WMAP7, WMAP9, Planck15
+import _framework
 import sys
-from astropy.units import MsolMass, Mpc
-class Cosmology(Framework):
+import astropy.units as u
+
+class Cosmology(_framework.Framework):
     """
     Basic Cosmology object.
 
-    This class provides a cosmology, basically wrapping cosmology objects from
-    the astropy package. The full functionality of the astropy cosmology objects
-    are available in the :attr:`cosmo` attribute.
+    This class thinly wraps cosmology objects from the astropy package. The full
+    functionality of the astropy cosmology objects are available in the
+    :attr:`cosmo` attribute. What the class adds to the existing astropy
+    implementation is the specification of the cosmological parameters
+    as `parameter` inputs to an over-arching Framework.
 
-    This class patches in the baryon density as a parameter (to be included in a
-    later version of astropy, therefore deprecated here), and also some structural
-    support for the rest of the :module:`hmf` package. In particular, while any
-    instance of a subclass of :class:`astropy.cosmology.FLRW` may be passed as
-    the base cosmology, the specific parameters can be updated individually by
-    passing them through the `cosmo_params` dictionary (both in the constructor
-    and the :method:`update` method. This dictionary is kept in memory and so
-    adding a different parameter on a later update will *update* the dictionary,
-    rather than replacing it.
+    In particular, while any instance of a subclass of :class:`astropy.cosmology.FLRW`
+    may be passed as the base cosmology, the specific parameters can be updated
+    individually by passing them through the `cosmo_params` dictionary
+    (both in the constructor and the :meth:`update` method.
+
+    This dictionary is kept in memory and so adding a different parameter on a later
+    update will *update* the dictionary, rather than replacing it.
 
     Parameters
     ----------
-    cosmo_model : instance of `astropy.cosmology.FLRW`, optional
+    cosmo_model : instance of `astropy.cosmology.FLRW` subclass, optional
         The basis for the cosmology -- see astropy documentation. Can be a custom
-        subclass. Defaults to Planck13.
+        subclass. Defaults to Planck15.
 
     cosmo_params : dict, optional
         Parameters for the cosmology that deviate from the base cosmology passed.
@@ -46,17 +47,15 @@ class Cosmology(Framework):
         the same). Default is the empty dict. The parameters passed must match
         the allowed parameters of `cosmo_model`. For the basic class this is
 
-        :w: The dark-energy equation of state
         :Tcmb0: Temperature of the CMB at z=0
         :Neff: Number of massless neutrino species
+        :m_nu: Mass of neutrino species (list)
         :H0: The hubble constant at z=0
-        :On0: The normalised density of neutrinos at z = 0
-        :Ode0: The normalised density of dark energy at z=0
         :Om0: The normalised matter density at z=0
 
     """
-    def __init__(self, cosmo_model=Planck13, cosmo_params=None):
-        # Call Cosmology init
+    def __init__(self, cosmo_model=Planck15, cosmo_params=None):
+        # Call Framework init
         super(Cosmology, self).__init__()
 
         # Set all given parameters
@@ -66,9 +65,14 @@ class Cosmology(Framework):
     #===========================================================================
     # Parameters
     #===========================================================================
-    @parameter
+    @_cache.parameter
     def cosmo_model(self, val):
-        """:class:`~astropy.cosmology.FLRW` instance"""
+        """
+        **Parameter:** The input cosmology model.
+
+        Do *not* use this for calculations, as the custom parameters have not been
+        applied to it. Intrinsically, this is a :class:`~astropy.cosmology.FLRW`
+        instance."""
         if isinstance(val, basestring):
             cosmo = get_cosmo(val)
             return cosmo
@@ -78,29 +82,34 @@ class Cosmology(Framework):
         else:
             return val
 
-    @parameter
+    @_cache.parameter
     def cosmo_params(self, val):
+        """**Parameter:** Dictionary of cosmological parameters to supplement the base model."""
         return val
 
     #===========================================================================
     # DERIVED PROPERTIES AND FUNCTIONS
     #===========================================================================
-    @cached_property("cosmo_params", "cosmo_model")
+    @_cache.cached_property("cosmo_params", "cosmo_model")
     def cosmo(self):
+        """
+        Cosmographic object (:class:`astropy.cosmology.FLRW` object), with custom
+        cosmology from :attr:`~.cosmo_params` applied.
+        """
         return self.cosmo_model.clone(**self.cosmo_params)
 
-    @cached_property("cosmo")
+    @_cache.cached_property("cosmo")
     def mean_density0(self):
         """
-        Mean density of universe at z=0, units [Msun h^2 / Mpc**3]
+        Mean density of universe at z=0, [Msun h^2 / Mpc**3]
         """
         # fixme: why the *1e6??
-        return (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2).to(MsolMass/Mpc**3).value * 1e6
+        return (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2).to(u.MsolMass/u.Mpc**3).value * 1e6
 
 
 def get_cosmo(name):
     """
-    Returns a cosmology.
+    Returns a FLRW cosmology given a string (must be one defined in this module).
 
     Parameters
     ----------

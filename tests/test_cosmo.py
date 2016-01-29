@@ -29,14 +29,14 @@ def test_string_cosmo():
 
 class TestUpdate():
     def __init__(self):
-        self.c = Cosmology(cosmo_model="Planck13", cosmo_params={})
+        self.c = Cosmology(cosmo_model="Planck13")
 
     def test_cosmo_model(self):
         self.c.update(cosmo_model=WMAP7)
 
         assert self.c.cosmo.Om0 == 0.272
         print self.c.mean_density0
-        assert np.isclose(self.c.mean_density0.value, 75468972351.60081)
+        assert np.isclose(self.c.mean_density0, 75468972351.60081)
 
     def test_cosmo_params(self):
         self.c.update(cosmo_params={"H0":0.6})
