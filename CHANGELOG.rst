@@ -1,5 +1,5 @@
-ChangeLog
-=========
+Releases
+========
 
 Development Version
 ~~~~~~~~~~~~~~~~~~~
@@ -33,6 +33,7 @@ Enhancements
 - Added normalise() to Transfer class.
 - Updated fit.py extensively, and provided new example config files
 - Send arbitrary kwargs to downhill solver
+- New internal _utils module provides inheritable docstrings
 
 Bugfixes
 ++++++++
@@ -41,6 +42,7 @@ Bugfixes
 - simple bug when updating sigma_8 fixed.
 - Made the EnsembleSampler object pickleable by setting __getstate__
 - Major bug fix for EH transfer function without BAO wiggles
+- @parameter properties now return docstrings
 
 ----------------------
 
@@ -166,9 +168,8 @@ May 08, 2014
 
 Features
 ++++++++
-- Introduced _cache module:
-  - Extracts all caching logic to a separate module which defines
-    decorators -- much simpler coding!
+- Introduced _cache module: Extracts all caching logic to a
+  separate module which defines decorators -- much simpler coding!
 
 ----------------------
 
@@ -185,6 +186,7 @@ Enhancements
 ++++++++++++
 - Added Behroozi alias to fits
 - Changed kmax and k_per_logint back to have transfer__ prefix.
+
 Bugfixes
 ++++++++
 - Fixed a bug on updating delta_c

@@ -11,7 +11,7 @@ _allfits = ["ST", "SMT", 'Jenkins', "Warren", "Reed03", "Reed07", "Peacock",
 def _makedoc(pdocs, lname, sname, eq, ref):
     return \
     r"""
-    Class representing a %s mass function fit
+    %s mass function fit
     """ % lname + pdocs + \
     r"""
     Notes
