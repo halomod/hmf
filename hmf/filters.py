@@ -9,6 +9,7 @@ import scipy.integrate as intg
 import collections
 import _framework
 import _utils
+import warnings
 
 class Filter(_framework.Component):
     r"""
@@ -180,12 +181,12 @@ class Filter(_framework.Component):
         .. math:: \frac{d\ln \sigma^2}{d\ln R} = \frac{1}{\pi^2\sigma^2} \int_0^\infty W(kR) \frac{dW(kR)}{d\ln(kR)} P(k)k^2 dk
         """
         dlnk = np.log(self.k[1] / self.k[0])
-        #out = np.zeros(len(r))
         s = self.sigma(r)
+        rk = np.outer(r,self.k)
 
         rest = self.power * self.k ** 3
-        w = self.k_space(np.outer(r,self.k))
-        dw = self.dw_dlnkr(np.outer(r,self.k))
+        w = self.k_space(rk)
+        dw = self.dw_dlnkr(rk)
         integ = w*dw*rest
         return intg.simps(integ, dx=dlnk,axis=-1) / (np.pi ** 2 * s ** 2)
 
@@ -215,7 +216,7 @@ class Filter(_framework.Component):
         """
         return self.dlnss_dlnr(r) * self.dlnr_dlnm(r)
 
-    def sigma(self, r, order=0):
+    def sigma(self, r, order=0, rk=None):
         r"""
         Calculate the nth-moment of the smoothed density field, :math:`\sigma_n(r)`.
 
@@ -241,11 +242,14 @@ class Filter(_framework.Component):
 
         .. math:: \sigma^2_n(R) = \frac{1}{2\pi^2} \int_0^\infty dk\ k^{2(1+n)} P(k) W^2(kR)
         """
+        if rk is None:
+            rk = np.outer(r,self.k)
+
         dlnk = np.log(self.k[1] / self.k[0])
 
         # we multiply by k because our steps are in logk.
         rest = self.power * self.k ** (3 + order * 2)
-        integ = rest*self.k_space(np.outer(r,self.k))**2
+        integ = rest*self.k_space(rk)**2
         sigma = (0.5/np.pi**2) * intg.simps(integ,dx=dlnk,axis=-1)
         return np.sqrt(sigma)
 
@@ -350,7 +354,7 @@ class Gaussian(Filter):
         return (2*np.pi)**1.5 * r**3 * rho_mean
 
     def dw_dlnkr(self, kr):
-        return -kr * self.k_space(kr)
+        return -kr**2 * self.k_space(kr)
 
 @_utils.inherit_docstrings
 class SharpK(Filter):
@@ -374,7 +378,7 @@ class SharpK(Filter):
 
     where *H* is the Heaviside step-function. The mass-assignment is
 
-    .. math:: m(R) = \frac{4\pi}{3}]cR]^3\bar{\rho},
+    .. math:: m(R) = \frac{4\pi}{3}[cR]^3\bar{\rho},
 
     where *c* is a free parameter, typically c~2.5. The derivative of the window function is
 
@@ -409,16 +413,18 @@ class SharpK(Filter):
         return 4 * np.pi * (self.params['c'] * r) ** 3 * rho_mean / 3
 
     def sigma(self, r, order=0):
-        # If we input a scalar as M, then just make it a one-element list.
         if not isinstance(r, collections.Iterable):
-            r = [r]
+            r = np.atleast_1d(r)
+
+        if self.k.max() < 1/r.min():
+            warnings.warn("Warning: Maximum r*k less than 1!")
 
         # # Need to re-define this because the integral needs to go exactly kr=1
         # # or else the function 'jitters'
         sigma = np.zeros(len(r))
         power = _spline(self.k, self.power)
         for i, rr in enumerate(r):
-            k = np.logspace(np.log(self.k[0]), np.log(1.0 / rr), len(self.k), base=np.e)
+            k = np.logspace(np.log(self.k[0]), min(self.k.max(),np.log(1.0 / rr)), len(self.k)-i, base=np.e)
             p = power(k)
             dlnk = np.log(k[1] / k[0])
             integ = p * k ** (3 + 2 * order)
