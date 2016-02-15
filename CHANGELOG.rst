@@ -25,6 +25,7 @@ Features
 
 Enhancements
 ++++++++++++
+- Renamed some parameters/quantities for more consistency (esp. M --> m)
 - No longer dependent on cosmolopy, but rather uses Astropy (v1.0+)
 - `mean_dens` now `mean_density0`, as per Astropy
 - Added exception to catch when dndm has many NaN values in it.
