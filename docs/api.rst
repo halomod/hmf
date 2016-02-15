@@ -17,6 +17,7 @@ API Summary
    hmf.tools
    hmf.wdm
    hmf.integrate_hmf
+   hmf.functional
    
 
    
