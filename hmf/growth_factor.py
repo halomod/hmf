@@ -1,46 +1,59 @@
 '''
-Module for calculating the growth factor (in various ways)
+Module defining the growth factor `Component`.
 
-The main class, which is a numerical calculator, is extensible to provide simpler
-fitting functions
+The primary class, :class:`GrowthFactor`, executes a full
+numerical calculation in standard flat LambdaCDM. Simplifications
+which may be more efficient, or extensions to alternate cosmologies,
+may be implemented.
 '''
+
 import numpy as np
 from scipy import integrate as intg
-from _framework import Component
-from scipy.interpolate import InterpolatedUnivariateSpline as spline
+from _framework import Component as Cmpt
+from scipy.interpolate import InterpolatedUnivariateSpline as _spline
+from _utils import inherit_docstrings as _inherit
 
-class GrowthFactor(Component):
+
+class GrowthFactor(Cmpt):
     r"""
-    General class for a growth factor calculation
-     
+    General class for a growth factor calculation.
+
+    Each of the methods in this class is defined using a numerical
+    integral, following [1]_.
+
+    Parameters
+    ----------
+    cosmo : ``astropy.cosmology.FLRW`` instance
+        Cosmological model.
+
+    model_parameters : unpacked-dict
+        Other parameters of the specific model. See the
+        class attribute `_defaults` for available parameters.
+
+    References
+    ----------
+    .. [1] Lukic et. al., ApJ, 2007, http://adsabs.harvard.edu/abs/2007ApJ...671.1160L
     """
     _defaults = {"dlna":0.01, "amin":1e-8}
+
     def __init__(self, cosmo, **model_parameters):
-        """
-        cosmo : ``astropy.cosmology.FLRW()`` object or subclass
-            Cosmological model
-
-        model_parameters :
-            Other parameters of the specific model
-        """
-
-        # Set simple parameters
         self.cosmo = cosmo
         super(GrowthFactor, self).__init__(**model_parameters)
 
-    def d_plus(self, z, getvec=False):
+    def _d_plus(self, z, getvec=False):
         """
         Finds the factor :math:`D^+(a)`, from Lukic et. al. 2007, eq. 8.
-
-        Uses simpson's rule to integrate, with 1000 steps.
 
         Parameters
         ----------
         z : float
             The redshift
 
-        cosmo : ``astropy.cosmology.FLRW()`` object or subclass
-            Cosmological model
+        getvec : bool, optional
+            Whether to treat `z` as a maximum redshift and return a whole vector
+            of values up to `z`. In this case, the minimum scale factor and the
+            step size are defined in :attr:`_defaults` and can be over-ridden
+            at instantiation.
 
         Returns
         -------
@@ -76,7 +89,7 @@ class GrowthFactor(Component):
         float
             The normalised growth factor.
         """
-        growth = self.d_plus(z) / self.d_plus(0.0)
+        growth = self._d_plus(z)/self._d_plus(0.0)
         return growth
 
     def growth_factor_fn(self, zmin=0.0, inverse=False):
@@ -99,11 +112,11 @@ class GrowthFactor(Component):
             The normalised growth factor as a function of redshift, or
             redshift as a function of growth factor if ``inverse`` is True.
         """
-        growth = self.d_plus(zmin, True) / self.d_plus(0.0)
+        growth = self._d_plus(zmin, True)/self._d_plus(0.0)
         if not inverse:
-            s = spline(self._zvec[::-1], growth[::-1])
+            s = _spline(self._zvec[::-1], growth[::-1])
         else:
-            s = spline(growth, self._zvec)
+            s = _spline(growth, self._zvec)
         return s
 
     def growth_rate(self, z):
@@ -115,13 +128,13 @@ class GrowthFactor(Component):
         z : float
             The redshift
         """
-        return (-1 - self.cosmo.Om(z) / 2 + self.Ode(z) +
+        return (-1 - self.cosmo.Om(z) / 2 + self.cosmo.Ode(z) +
                 5 * self.cosmo.Om(z) / (2 * self.growth_factor(z)))
 
 
-    def growth_rate_fn(self, zmin):
+    def growth_rate_fn(self, zmin=0):
         """
-        Growth rate, dln(d)/dln(a) from Hamilton 2000 eq. 4
+        Growth rate, dln(d)/dln(a) from Hamilton 2000 eq. 4, as callable.
 
         Parameters
         ----------
@@ -138,12 +151,27 @@ class GrowthFactor(Component):
         return lambda z: (-1 - self.cosmo.Om(z) / 2 + self.cosmo.Ode(z) +
                           5 * self.cosmo.Om(z) / (2 * gfn(z)))
 
+@_inherit
 class GenMFGrowth(GrowthFactor):
     """
-    Port of growth factor routines found in the genmf code.
+    Port of growth factor routines found in the ``genmf`` code.
+
+    Parameters
+    ----------
+    cosmo : ``astropy.cosmology.FLRW`` instance
+        Cosmological model.
+
+    model_parameters : unpacked-dict
+        Other parameters of the specific model. See the
+        class attribute `_defaults` for available parameters.
     """
     _defaults = {"dz":0.01, "zmax":1000.0}
-    def d_plus(self, z, getvec=False):
+
+    def _d_plus(self, z, getvec=False):
+        """
+        This is not implemented in this class. It is not
+        required to calculate :meth:`growth_factor`.
+        """
         raise NotImplementedError()
 
     def _general_case(self, w, x):
@@ -153,6 +181,22 @@ class GenMFGrowth(GrowthFactor):
         return ((x ** 3.0 + 2.0) ** 0.5) * (g / x ** 1.5)
 
     def growth_factor(self, z):
+        """
+        The growth factor, :math:`d(a) = D^+(a)/D^+(a=1)`.
+
+        This uses an approximation only valid in closed or
+        flat cosmologies, ported from ``genmf``.
+
+        Parameters
+        ----------
+        z : array_like
+            Redshift.
+
+        Returns
+        -------
+        gf : array_like
+            The growth factor at `z`.
+        """
         a = 1 / (1 + z)
         w = 1 / self.cosmo.Om0 - 1.0
         s = self.cosmo.Om0 + self.cosmo.Ode0
@@ -174,9 +218,27 @@ class GenMFGrowth(GrowthFactor):
             return (1 + 3 / x + (3 * ((1 + x) ** 0.5) / x ** 1.5) * np.log((1 + x) ** 0.5 - x ** 0.5)) / dn
 
     def growth_factor_fn(self, zmin=0.0, inverse=False):
+        """
+        Return the growth factor as a callable function.
+
+        Parameters
+        ----------
+        zmin : float, optional
+            The minimum redshift of the function. Default 0.0
+
+        inverse: bool, optional
+            Whether to return the inverse relationship [z(g)]. Default False.
+
+        Returns
+        -------
+        callable
+            The normalised growth factor as a function of redshift, or
+            redshift as a function of growth factor if ``inverse`` is True.
+
+        """
         if not inverse:
             return self.growth_factor
         else:
             self._zvec = np.arange(zmin, self.params['zmax'], self.params['dz'])
             gf = self.growth_factor(self._zvec)
-            return spline(gf, self._zvec)
+            return _spline(gf, self._zvec)

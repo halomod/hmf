@@ -6,7 +6,7 @@ listed here, please advise via GitHub.
 """
 
 import numpy as np
-from scipy.interpolate import InterpolatedUnivariateSpline as spline
+from scipy.interpolate import InterpolatedUnivariateSpline as _spline
 import scipy.special as sp
 import cosmo as csm
 import _framework
@@ -555,10 +555,10 @@ class Tinker08(FittingFunction):
             b_array = np.array([self.params["b_%s" % d] for d in self.delta_virs])
             c_array = np.array([self.params["c_%s" % d] for d in self.delta_virs])
 
-            A_func = spline(self.delta_virs, A_array)
-            a_func = spline(self.delta_virs, a_array)
-            b_func = spline(self.delta_virs, b_array)
-            c_func = spline(self.delta_virs, c_array)
+            A_func = _spline(self.delta_virs, A_array)
+            a_func = _spline(self.delta_virs, a_array)
+            b_func = _spline(self.delta_virs, b_array)
+            c_func = _spline(self.delta_virs, c_array)
 
             A_0 = A_func(self.delta_halo)
             a_0 = a_func(self.delta_halo)
@@ -637,10 +637,10 @@ class Tinker10(FittingFunction):
             phi_array = np.array([self.params["phi_%s" % d] for d in self.delta_virs])
             eta_array = np.array([self.params["eta_%s" % d] for d in self.delta_virs])
 
-            beta_func = spline(self.delta_virs, beta_array)
-            gamma_func = spline(self.delta_virs, gamma_array)
-            phi_func = spline(self.delta_virs, phi_array)
-            eta_func = spline(self.delta_virs, eta_array)
+            beta_func = _spline(self.delta_virs, beta_array)
+            gamma_func = _spline(self.delta_virs, gamma_array)
+            phi_func = _spline(self.delta_virs, phi_array)
+            eta_func = _spline(self.delta_virs, eta_array)
 
             beta_0 = beta_func(self.delta_halo)
             gamma_0 = gamma_func(self.delta_halo)
