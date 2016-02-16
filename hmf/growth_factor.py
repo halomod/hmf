@@ -175,9 +175,12 @@ class GenMFGrowth(GrowthFactor):
         raise NotImplementedError()
 
     def _general_case(self, w, x):
-        xn_vec = np.linspace(0, x, 1000)
-        func = (xn_vec / (xn_vec ** 3 + 2)) ** 1.5
-        g = intg.simps(func, dx=xn_vec[1] - xn_vec[0])
+        x = np.atleast_1d(x)
+        xn_vec = np.linspace(0, x.max(), 1000)
+
+        func = _spline(xn_vec,(xn_vec / (xn_vec ** 3 + 2)) ** 1.5)
+
+        g = np.array([func.integral(0,y) for y in x])
         return ((x ** 3.0 + 2.0) ** 0.5) * (g / x ** 1.5)
 
     def growth_factor(self, z):
@@ -199,7 +202,7 @@ class GenMFGrowth(GrowthFactor):
         """
         a = 1 / (1 + z)
         w = 1 / self.cosmo.Om0 - 1.0
-        s = self.cosmo.Om0 + self.cosmo.Ode0
+        s = 1 - self.cosmo.Ok0
         if (s > 1 or self.cosmo.Om0 < 0 or (s != 1 and self.cosmo.Ode0 > 0)):
             if np.abs(s - 1.0) > 1.e-10:
                 raise ValueError('Cannot cope with this cosmology!')
@@ -241,4 +244,4 @@ class GenMFGrowth(GrowthFactor):
         else:
             self._zvec = np.arange(zmin, self.params['zmax'], self.params['dz'])
             gf = self.growth_factor(self._zvec)
-            return _spline(gf, self._zvec)
+            return _spline(gf[::-1], self._zvec[::-1])
