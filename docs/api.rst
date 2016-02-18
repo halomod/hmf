@@ -18,6 +18,7 @@ API Summary
    hmf.wdm
    hmf.integrate_hmf
    hmf.functional
+   hmf.sample
    
 
    
