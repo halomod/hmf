@@ -35,7 +35,7 @@ def test_halofit():
     t = Transfer(lnk_min=-20, lnk_max=20, dlnk=0.05, transfer_model="EH")
     print EH_BAO._defaults
     print "in test_transfer, params are: ", t.transfer_params
-    assert abs(t.power[0] - t.nonlinear_power[0]) < 1e-5 * t.power.unit
+    assert np.isclose(t.power[0],t.nonlinear_power[0])
     assert 5 * t.power[-1] < t.nonlinear_power[-1]
 
 def test_data():
@@ -45,6 +45,6 @@ def test_data():
     tdata = np.genfromtxt(LOCATION + "/data/transfer_for_hmf_tests.dat")
     pdata = np.genfromtxt(LOCATION + "/data/power_for_hmf_tests.dat")
     assert rms(t._unnormalised_lnT - np.log(tdata[:, 1])) < 0.05  # Does better than 0.001 on my system...
-    diff = t.power.value - pdata[:, 1]
+    diff = t.power - pdata[:, 1]
     print t._unnormalised_lnT[400], t._unnormalised_power[400], t._power0[400]
-    assert rms(t.power.value - pdata[:, 1]) < 0.001
+    assert rms(t.power - pdata[:, 1]) < 0.001

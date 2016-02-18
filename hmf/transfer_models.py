@@ -16,7 +16,7 @@ except ImportError:
 _allfits = ["CAMB", "FromFile", "EH_BAO", "EH_NoBAO", "BBKS", "BondEfs"]
 
 
-class Transfer(Component):
+class TransferComponent(Component):
     """
     Base class for transfer models.
 
@@ -31,41 +31,67 @@ class Transfer(Component):
     \*\*model_parameters :
         Any model-specific parameters.
     """
+    _defaults = {}
     def __init__(self, cosmo, **model_parameters):
         self.cosmo = cosmo
-        super(Transfer, self).__init__(**model_parameters)
+        super(TransferComponent, self).__init__(**model_parameters)
 
     def lnt(self, lnk):
+        """
+        Natural log of the transfer function
+
+        Parameters
+        ----------
+        lnk : array_like
+            Wavenumbers [Mpc/h]
+
+        Returns
+        -------
+        lnt : array_like
+            The log of the transfer function at lnk.
+        """
         pass
 
-class CAMB(Transfer):
+class CAMB(TransferComponent):
     """
-    Scalar_initial_condition : int, {1,2,3,4,5}
-        Initial scalar perturbation mode (adiabatic=1, CDM iso=2,
-        Baryon iso=3,neutrino density iso =4, neutrino velocity iso = 5)
+    Transfer function computed by CAMB.
 
-    lAccuracyBoost : float, optional, default ``1.0``
-        Larger to keep more terms in the hierarchy evolution
+    Parameters
+    ----------
+    cosmo : :class:`astropy.cosmology.FLRW` instance
+        The cosmology used in the calculation
 
-    AccuracyBoost : float, optional, default ``1.0``
-        Increase accuracy_boost to decrease time steps, use more k
-        values,  etc.Decrease to speed up at cost of worse accuracy.
-        Suggest 0.8 to 3.
+    \*\*model_parameters : unpack-dict
+        Scalar_initial_condition : int, {1,2,3,4,5}
+            Initial scalar perturbation mode (adiabatic=1, CDM iso=2,
+            Baryon iso=3,neutrino density iso =4, neutrino velocity iso = 5)
 
-    w_perturb : bool, optional, default ``False``
+        lAccuracyBoost : float
+            Larger to keep more terms in the hierarchy evolution
 
+        AccuracyBoost : float
+            Increase accuracy_boost to decrease time steps, use more k
+            values,  etc.Decrease to speed up at cost of worse accuracy.
+            Suggest 0.8 to 3.
 
-    transfer__k_per_logint : int, optional, default ``11``
-        Number of wavenumbers estimated per log interval by CAMB
-        Default of 11 gets best performance for requisite accuracy of mass function.
+        w_perturb : bool
+            Whether to perturb the dark energy equation of state.
 
-    transfer__kmax : float, optional, default ``0.25``
-        Maximum value of the wavenumber.
-        Default of 0.25 is high enough for requisite accuracy of mass function.
+        transfer__k_per_logint : int
+            Number of wavenumbers estimated per log interval by CAMB
+            Default of 11 gets best performance for requisite accuracy of mass function.
 
-    ThreadNum : int, optional, default ``0``
-        Number of threads to use for calculation of transfer
-        function by CAMB. Default 0 automatically determines the number.
+        transfer__kmax : float
+            Maximum value of the wavenumber.
+            Default of 0.25 is high enough for requisite accuracy of mass function.
+
+        ThreadNum : int
+            Number of threads to use for calculation of transfer
+            function by CAMB. Default 0 automatically determines the number.
+
+        scalar_amp : float
+            Amplitude of the power spectrum. It is not recommended to modify
+            this parameter, as the amplitude is typically set by sigma_8.
     """
     _defaults = {"Scalar_initial_condition":1,
                  "lAccuracyBoost":1,
@@ -105,9 +131,17 @@ class CAMB(Transfer):
 
     def lnt(self, lnk):
         """
-        Generate transfer function with CAMB
+        Natural log of the transfer function
 
-        .. note :: This should not be called by the user!
+        Parameters
+        ----------
+        lnk : array_like
+            Wavenumbers [Mpc/h]
+
+        Returns
+        -------
+        lnt : array_like
+            The log of the transfer function at lnk.
         """
 
         pycamb_dict = {"w_lam":self.cosmo.w(0),
@@ -135,13 +169,36 @@ class CAMB(Transfer):
         return spline(lnkout, lnT, k=1)(lnk)
 
 class FromFile(CAMB):
+    """
+    Import a transfer function from file.
+
+    .. note:: The file should be in the same format as output from CAMB,
+              or else in two-column ASCII format (k,T).
+
+    Parameters
+    ----------
+    cosmo : :class:`astropy.cosmology.FLRW` instance
+        The cosmology used in the calculation
+
+    \*\*model_parameters : unpack-dict
+        fname : str
+            Location of the file to import.
+    """
     _defaults = {"fname":""}
 
     def lnt(self, lnk):
         """
-        Import the transfer function from file.
+        Natural log of the transfer function
 
-        The format should be the same as CAMB output, or a simple 2-column file.
+        Parameters
+        ----------
+        lnk : array_like
+            Wavenumbers [Mpc/h]
+
+        Returns
+        -------
+        lnt : array_like
+            The log of the transfer function at lnk.
         """
         try:
             T = np.log(np.genfromtxt(self.params["fname"])[:, [0, 6]].T)
@@ -156,24 +213,33 @@ class FromFile(CAMB):
         return spline(lnkout, lnT, k=1)(lnk)
 
 
-class EH_BAO(Transfer):
+class EH_BAO(TransferComponent):
+    """
+    Eisenstein & Hu (1998) fitting function with BAO wiggles
+
+    From EH1998, Eqs. 26,28-31. Code adapted from CHOMP.
+
+    Parameters
+    ----------
+    cosmo : :class:`astropy.cosmology.FLRW` instance
+        The cosmology used in the calculation
+    """
 
     def lnt(self, lnk):
         """
-        Eisenstein & Hu (1998) fitting function with BAO wiggles
-
-        From EH1998, Eqs. 26,28-31. Code adapted from CHOMP.
+        Natural log of the transfer function
 
         Parameters
         ----------
-        lnk: float array
-            Wave number at which to compute power spectrum.
+        lnk : array_like
+            Wavenumbers [Mpc/h]
 
         Returns
         -------
-        float array:
-            Transfer function ln(T(k)).
+        lnt : array_like
+            The log of the transfer function at lnk.
         """
+
         k = np.exp(lnk)
         theta = self.cosmo.Tcmb0.value / 2.7
         Oc0 = self.cosmo.Om0 - self.cosmo.Ob0
@@ -226,23 +292,30 @@ class EH_BAO(Transfer):
         Tb = np.sinc(k * stilde / np.pi) * (Tb1 + Tb2)
         return np.log(ObO * Tb + (Oc0 / O) * Tc)
 
-class EH_NoBAO(Transfer):
+class EH_NoBAO(TransferComponent):
+    """
+    Eisenstein & Hu (1998) fitting function without BAO wiggles
 
+    From EH 1998 Eqs. 26,28-31. Code adapted from CHOMP project.
+
+    Parameters
+    ----------
+    cosmo : :class:`astropy.cosmology.FLRW` instance
+        The cosmology used in the calculation
+    """
     def lnt(self, lnk):
         """
-        Eisenstein & Hu (1998) fitting function without BAO wiggles
-
-        From EH 1998 Eqs. 26,28-31. Code adapted from CHOMP project.
+        Natural log of the transfer function
 
         Parameters
         ----------
-        lnk: float array
-            Wave number at which to compute power spectrum.
+        lnk : array_like
+            Wavenumbers [Mpc/h]
 
         Returns
         -------
-        float array:
-            Transfer function ln(T(k)).
+        lnt : array_like
+            The log of the transfer function at lnk.
         """
         k = np.exp(lnk)
         theta = self.cosmo.Tcmb0.value / 2.7  # Temperature of CMB_2.7
@@ -259,11 +332,29 @@ class EH_NoBAO(Transfer):
         C0 = 14.2 + 731.0 / (1 + 62.5 * q)
         return np.log(L0 / (L0 + C0 * q * q))
 
-class BBKS(Transfer):
+class BBKS(TransferComponent):
+    """
+    BBKS (1984) transfer function.
+
+    Parameters
+    ----------
+    cosmo : :class:`astropy.cosmology.FLRW` instance
+        The cosmology used in the calculation
+    """
     _defaults = {"a":2.34,"b":3.89,"c":16.1,"d":5.47,"e":6.71}
     def lnt(self, lnk):
         """
-        BBKS transfer function.
+        Natural log of the transfer function
+
+        Parameters
+        ----------
+        lnk : array_like
+            Wavenumbers [Mpc/h]
+
+        Returns
+        -------
+        lnt : array_like
+            The log of the transfer function at lnk.
         """
         a = self.params['a']
         b = self.params['b']
@@ -278,12 +369,30 @@ class BBKS(Transfer):
                 (1 + b * q + (c * q) ** 2 + (d * q) ** 3 +
                  (e * q) ** 4) ** (-0.25)))
 
-class BondEfs(Transfer):
+class BondEfs(TransferComponent):
+    """
+    Transfer function of Bond and Efstathiou
+
+    Parameters
+    ----------
+    cosmo : :class:`astropy.cosmology.FLRW` instance
+        The cosmology used in the calculation
+    """
     _defaults = {"a":37.1,"b":21.1,"c":10.8,"nu":1.12}
 
     def lnt(self, lnk):
         """
-        Bond and Efstathiou transfer function.
+        Natural log of the transfer function
+
+        Parameters
+        ----------
+        lnk : array_like
+            Wavenumbers [Mpc/h]
+
+        Returns
+        -------
+        lnt : array_like
+            The log of the transfer function at lnk.
         """
 
         scale = (0.3*0.75**2) / (self.cosmo.Om0 * self.cosmo.h ** 2)

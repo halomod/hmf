@@ -24,54 +24,53 @@ class Transfer(cosmo.Cosmology):
     '''
     Neatly deals with different transfer functions.
 
-    The purpose of this class is to calculate transfer functions, power spectra
-    and several tightly associated quantities using many of the available fits
-    from the literature.
+    The purpose of this :class:`hmf._frameworks.Framework` is to calculate
+    transfer functions, power spectra and several tightly associated
+    quantities given a basic model for the transfer function.
 
-    Importantly, it contains the means to calculate the transfer function using the
-    popular CAMB code, the Eisenstein-Hu fit (1998), the BBKS fit or the Bond and
-    Efstathiou fit (1984). Furthermore, it can calculate non-linear corrections
-    using the halofit model (with updated parameters from Takahashi2012).
+    Included are non-linear corrections using the halofit model
+    (with updated parameters from Takahashi2012).
 
-    The primary feature of this class is to wrap all the methods into a unified
-    interface. On top of this, the class implements optimized updates of
-    parameters which is useful in, for example, MCMC code which covers a
-    large parameter-space. Calling the `nonlinear_power` does not re-evaluate
-    the entire transfer function, rather it just calculates the corrections,
-    improving performance.
-
-    To update parameters optimally, use the update() method.
-    All output quantities are calculated only when needed (but stored after
-    first calculation for quick access).
-
+    As in all frameworks, to update parameters optimally, use the
+    update() method. All output quantities are calculated only when needed
+    (but stored after first calculation for quick access).
 
     Parameters
     ----------
-    lnk_min : float
+    sigma_8 : float, optional
+        RMS linear density fluctations in spheres of radius 8 Mpc/h
+
+    n : float, optional
+        Spectral index of fluctations
+
+    z : float, optional
+        Redshift.
+
+    lnk_min : float, optional
         Defines min log wavenumber, *k* [units :math:`h Mpc^{-1}`].
 
-    lnk_max : float
+    lnk_max : float, optional
         Defines max log wavenumber, *k* [units :math:`h Mpc^{-1}`].
 
     dlnk : float
         Defines log interval between wavenumbers
 
-    z : float, optional, default ``0.0``
-        The redshift of the analysis.
+    transfer_model : str or :class:`hmf.transfer_models.TransferComponent` subclass, optional
+        Defines which transfer function model to use. Built-in available models
+        are found in the :mod:`hmf.transfer_models` module. Default is CAMB if installed,
+        otherwise EH.
 
-    wdm_mass : float, optional, default ``None``
-        The warm dark matter particle size in *keV*, or ``None`` for CDM.
+    transfer_params : dict
+        Relevant parameters of the `transfer_model`.
 
-    transfer_model : str, { ``"CAMB"``, ``"EH"``, ``"bbks"``, ``"bond_efs"``}
-        Defines which transfer function fit to use. If not defined from the
-        listed options, it will be treated as a filename to be read in. In this
-        case the file must contain a transfer function in CAMB output format.
-
-    takahashi : bool, default ``True``
+    takahashi : bool, optional
         Whether to use updated HALOFIT coefficients from Takahashi+12
 
-    wdm_model : WDM subclass or string
-        The WDM transfer function model to use
+    growth_model : str or `hmf.growth_factor.GrowthFactor` subclass, optional
+        The model to use to calculate the growth function/growth rate.
+
+    growth_params : dict
+        Relevant parameters of the `growth_model`.
 
     kwargs : keywords
         The ``**kwargs`` take any cosmological parameters desired, which are
@@ -108,7 +107,7 @@ class Transfer(cosmo.Cosmology):
 
     @parameter
     def growth_model(self, val):
-        if not np.issubclass_(val, GrowthFactor) and not isinstance(val, basestring):
+        if not np.issubclass_(val, gf.GrowthFactor) and not isinstance(val, basestring):
             raise ValueError("growth_model must be a GrowthFactor or string, got %s" % type(val))
         return val
 
@@ -181,14 +180,13 @@ class Transfer(cosmo.Cosmology):
     #===========================================================================
     @cached_property("lnk_min", "lnk_max", "dlnk")
     def k(self):
+        "Wavenumbers, [h/Mpc]"
         return np.exp(np.arange(self.lnk_min, self.lnk_max, self.dlnk))
 
     @cached_property("k", "cosmo", "transfer_params", "transfer_model")
     def _unnormalised_lnT(self):
         """
-        The un-normalised transfer function
-
-        This wraps the individual transfer_model methods to provide unified access.
+        The un-normalised transfer function.
         """
         if np.issubclass_(self.transfer_model, tm.Transfer):
             return self.transfer_model(self.cosmo, **self.transfer_params).lnt(np.log(self.k))
@@ -231,7 +229,8 @@ class Transfer(cosmo.Cosmology):
 
     @cached_property("cosmo", "growth_model", "growth_params")
     def growth(self):
-        if np.issubclass_(self.growth_model, GrowthFactor):
+        "The growth model class"
+        if np.issubclass_(self.growth_model, gf.GrowthFactor):
             return self.growth_model(self.cosmo, **self.growth_params)
         else:
             return get_model(self.growth_model, "hmf.growth_factor", cosmo=self.cosmo,
@@ -240,15 +239,7 @@ class Transfer(cosmo.Cosmology):
     @cached_property("z", "growth")
     def growth_factor(self):
         r"""
-        The growth factor :math:`d(z)`
-
-        This is calculated (see Lukic 2007) as
-
-        .. math:: d(z) = \frac{D^+(z)}{D^+(z=0)}
-
-        where
-
-        .. math:: D^+(z) = \frac{5\Omega_m}{2}\frac{H(z)}{H_0}\int_z^{\infty}{\frac{(1+z')dz'}{[H(z')/H_0]^3}}
+        The growth factor
         """
         if self.z > 0:
             return self.growth.growth_factor(self.z)
