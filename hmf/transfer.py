@@ -1,18 +1,18 @@
 """
+Module providing a framework for transfer functions.
+
 This module contains a single class, `Transfer`, which provides methods to
 calculate the transfer function, matter power spectrum and several other
 related quantities.
 """
 import numpy as np
-from cosmo import Cosmology
+import cosmo
 from _cache import cached_property, parameter
-from halofit import _get_spec, halofit
-from numpy import issubclass_
-from growth_factor import GrowthFactor
+from halofit import halofit as _hfit
+import growth_factor as gf
 import transfer_models as tm
-import tools
 from _framework import get_model
-from filters import TopHat
+import filters
 
 try:
     import pycamb
@@ -20,7 +20,7 @@ try:
 except ImportError:
     HAVE_PYCAMB = False
 
-class Transfer(Cosmology):
+class Transfer(cosmo.Cosmology):
     '''
     Neatly deals with different transfer functions.
 
@@ -79,8 +79,8 @@ class Transfer(Cosmology):
     '''
 
     def __init__(self, sigma_8=0.8344, n=0.9624, z=0.0, lnk_min=np.log(1e-8),
-                 lnk_max=np.log(2e4), dlnk=0.05, transfer_model=tm.CAMB,
-                 transfer_params=None, takahashi=True, growth_model=GrowthFactor,
+                 lnk_max=np.log(2e4), dlnk=0.05, transfer_model=tm.CAMB if HAVE_PYCAMB else tm.EH,
+                 transfer_params=None, takahashi=True, growth_model=gf.GrowthFactor,
                  growth_params=None, **kwargs):
         # Note the parameters that have empty dicts as defaults must be specified
         # as None, or the defaults themselves are updated!
@@ -108,7 +108,7 @@ class Transfer(Cosmology):
 
     @parameter
     def growth_model(self, val):
-        if not issubclass_(val, GrowthFactor) and not isinstance(val, basestring):
+        if not np.issubclass_(val, GrowthFactor) and not isinstance(val, basestring):
             raise ValueError("growth_model must be a GrowthFactor or string, got %s" % type(val))
         return val
 
@@ -171,7 +171,7 @@ class Transfer(Cosmology):
     def transfer_model(self, val):
         if not HAVE_PYCAMB and (val == "CAMB" or val == tm.CAMB):
             raise ValueError("You cannot use the CAMB transfer since pycamb isn't installed")
-        if not (issubclass_(val, tm.Transfer) or isinstance(val, basestring)):
+        if not (np.issubclass_(val, tm.Transfer) or isinstance(val, basestring)):
             raise ValueError("transfer_model must be string or Transfer subclass")
         return val
 
@@ -190,7 +190,7 @@ class Transfer(Cosmology):
 
         This wraps the individual transfer_model methods to provide unified access.
         """
-        if issubclass_(self.transfer_model, tm.Transfer):
+        if np.issubclass_(self.transfer_model, tm.Transfer):
             return self.transfer_model(self.cosmo, **self.transfer_params).lnt(np.log(self.k))
         elif isinstance(self.transfer_model, basestring):
             return get_model(self.transfer_model, "hmf.transfer_models", cosmo=self.cosmo,
@@ -207,7 +207,7 @@ class Transfer(Cosmology):
     @cached_property("mean_density0", "k", "_unnormalised_power")
     def _unn_sig8(self):
         # Always use a TopHat for sigma_8
-        filter = TopHat(self.k, self._unnormalised_power)
+        filter = filters.TopHat(self.k, self._unnormalised_power)
         return filter.sigma(8.0)[0]
 
     @cached_property("_unn_sig8", "sigma_8")
@@ -231,7 +231,7 @@ class Transfer(Cosmology):
 
     @cached_property("cosmo", "growth_model", "growth_params")
     def growth(self):
-        if issubclass_(self.growth_model, GrowthFactor):
+        if np.issubclass_(self.growth_model, GrowthFactor):
             return self.growth_model(self.cosmo, **self.growth_params)
         else:
             return get_model(self.growth_model, "hmf.growth_factor", cosmo=self.cosmo,
@@ -290,4 +290,4 @@ class Transfer(Cosmology):
         # pnl = halofit(k, self.z, self.cosmo, rneff, rncur, rknl, plin, self.takahashi)
         # nonlinear_delta_k = self.delta_k.copy()
         # nonlinear_delta_k[mask] = pnl
-        return halofit(self.k,self.delta_k,self.sigma_8,self.z,self.cosmo)#nonlinear_delta_k
+        return _hfit(self.k,self.delta_k,self.sigma_8,self.z,self.cosmo)
