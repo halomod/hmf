@@ -16,7 +16,7 @@ def test_circular():
     s = spline(np.log10(h.m),np.log10(h.dndm))
 
     print hist, 10**s(centres)
-    assert np.allclose(hist,s(centres),rtol=0.05)
+    assert np.allclose(hist,10**s(centres),rtol=0.05)
 
 
 def test_mmax_big():
@@ -24,5 +24,7 @@ def test_mmax_big():
     #due to hard limit of integration in integrate_hmf.
     np.random.seed(12345)
     m,h = sample_mf(1e5,11,transfer_model="EH",Mmax=18)
-    assert_raises ValueError: dndm_from_sample(m,1e5/h.ngtm[0])
+    #centres,hist = dndm_from_sample(m,1e5/h.ngtm[0])
+    #print centres,hist
+    assert_raises(ValueError,dndm_from_sample,m,1e5/h.ngtm[0])
 
