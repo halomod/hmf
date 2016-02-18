@@ -278,7 +278,7 @@ class MassFunction(Transfer):
     def M(self):
         "Masses (alias of m, deprecated)"
         return self.m
-    
+
 #     @cached_property("m", "lnk", "mean_density0")
 #     def kr_warning(self):
 #         return tools.check_kr(self.m[0], self.m[-1], self.mean_density0,
