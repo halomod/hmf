@@ -82,6 +82,9 @@ For a more involved introduction to `hmf`, check out the `tutorials <tutorials.h
 which are currently under construction, or the `API docs <api.html>`_.
 
 
+.. include:: ../CONTRIBUTORS.rst
+
+
 Contents
 --------
 .. toctree::
