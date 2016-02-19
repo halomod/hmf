@@ -15,6 +15,9 @@ come in v2.1.0, which may again be backward incompatible. Though this is not ide
 backwards-incompatible changes will be restricted to increase in the major version number),
 this has been driven by time constraints.
 
+Known issues with this version, to be addressed by the next, are that both scripts (hmf and hmf-fit)
+are buggy and untested. Don't use these until the next version unless you're crazy.
+
 Features
 ++++++++
 - New methods on all frameworks to list all parameters, defaults and current values.
