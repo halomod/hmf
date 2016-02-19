@@ -153,4 +153,4 @@ class Framework(Cache):
             docs += "\n    ".join(objdoc) +"\n\n"
             while "\n\n\n" in docs:
                 docs.replace("\n\n\n","\n\n")
-        return docs[:-1]
+        print docs[:-1]
