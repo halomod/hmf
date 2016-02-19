@@ -14,9 +14,9 @@ deploy:
   password:
     secure: lAM0ScaCdOTbixtJf908INAKIpVCIPLSu4ZpqSxdp0zzMsTJJoTLo00wlmzzjeQDsxqgpiUIvjnwlpdur7Q+IPmwFa9hkg4VX4Mqe0keoDaoUQaUzpypZqYF0w4egVgc62NnXCGg3B/JuqUFuyM692uvmjvokGmadXLevXvPaxM=
 
-
 # Setup anaconda
 before_install:
+  - sudo apt-get install gfortran
   - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
       wget https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh;
     else
@@ -46,6 +46,3 @@ script:
 after_success:
   - ls -a
   - coveralls
-
-
-

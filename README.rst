@@ -10,7 +10,8 @@ hmf
         :target: https://pypi.python.org/pypi/hmf/
 .. image:: https://pypip.in/v/hmf/badge.png
         :target: https://pypi.python.org/pypi/hmf/
-        
+.. image:: [![Coverage Status](https://coveralls.io/repos/github/steven-murray/hmf/badge.svg?branch=master)](https://coveralls.io/github/steven-murray/hmf?branch=master)
+
 `hmf` is a python application that provides a flexible and simple way to calculate the 
 Halo Mass Function for any input cosmology, redshift, dark matter model, virial
 overdensity or several other variables. Addition of further variables should be simple. 
