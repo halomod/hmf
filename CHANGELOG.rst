@@ -9,8 +9,11 @@ Older Versions
 
 v2.0.0
 ------
-v2.0.0 is a major release with several backward-incompatible changes. There are several major features still to come in
-v2.1.0.
+v2.0.0 is a (long overdue) major release with several backward-incompatible changes.
+There are several major features still to
+come in v2.1.0, which may again be backward incompatible. Though this is not ideal (ideally
+backwards-incompatible changes will be restricted to increase in the major version number),
+this has been driven by time constraints.
 
 Features
 ++++++++

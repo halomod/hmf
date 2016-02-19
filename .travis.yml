@@ -1,28 +1,51 @@
-notifications: 
-  email: 
-    recipients: 
-    - steven.murray@uwa.edu.au
-script: nosetests
-install: 
-- git clone https://github.com/steven-murray/pycamb.git
-- cd pycamb
-- python setup.py install --get=http://camb.info/CAMB_Mar13.tar.gz
-- cd ..
-- sudo rm -rf pycamb
-- sudo apt-get install python-numpy python-scipy
-- pip install emcee
-- pip install astropy
-deploy: 
+language: python
+python:
+  - 2.7
+notifications:
+  email:
+    recipients:
+    - steven.murray@curtin.edu.au
+
+deploy:
   user: stevenjeanette
-  on: 
+  on:
     tags: true
   provider: pypi
   password:
     secure: lAM0ScaCdOTbixtJf908INAKIpVCIPLSu4ZpqSxdp0zzMsTJJoTLo00wlmzzjeQDsxqgpiUIvjnwlpdur7Q+IPmwFa9hkg4VX4Mqe0keoDaoUQaUzpypZqYF0w4egVgc62NnXCGg3B/JuqUFuyM692uvmjvokGmadXLevXvPaxM=
-virtualenv: 
-  system_site_packages: true
-language: python
-before_install: 
-- sudo apt-get install gfortran
-python: 
-- "2.7"
+
+
+# Setup anaconda
+before_install:
+  - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
+      wget https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh;
+    else
+      wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+    fi
+  - bash miniconda.sh -b -p $HOME/miniconda
+  - export PATH="$HOME/miniconda/bin:$PATH"
+  - hash -r
+  - conda config --set always_yes yes --set changeps1 no
+  - conda update -q conda
+  # Useful for debugging any issues with conda
+  - conda info -a
+
+install:
+  - conda install python=$TRAVIS_PYTHON_VERSION numpy scipy mpmath nose astropy
+  - pip install python-coveralls
+  - pip install emcee
+  - CAMBURL=http://camb.info/CAMB_Mar13.tar.gz pip install git+git://github.com/steven-murray/pycamb.git
+  - pip install cached_property
+  - pip install coveralls
+
+script:
+  - nosetests --with-coverage --cover-package=hmf
+
+
+# Calculate coverage
+after_success:
+  - ls -a
+  - coveralls
+
+
+
