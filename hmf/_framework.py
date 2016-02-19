@@ -22,9 +22,6 @@ class Component(object):
     _defaults = {}
 
     def __init__(self, **model_params):
-        '''
-        Constructor
-        '''
         # Check that all parameters passed are valid
         for k in model_params:
             if k not in self._defaults:

@@ -88,6 +88,22 @@ class Transfer(cosmo.Cosmology):
         return val
 
     @parameter
+    def transfer_model(self, val):
+        """
+        Defines which transfer function model to use.
+
+        Built-in available models are found in the :mod:`hmf.transfer_models` module.
+        Default is CAMB if installed, otherwise EH.
+
+        :type: str or :class:`hmf.transfer_models.TransferComponent` subclass, optional
+        """
+        if not HAVE_PYCAMB and (val == "CAMB" or val == tm.CAMB):
+            raise ValueError("You cannot use the CAMB transfer since pycamb isn't installed")
+        if not (np.issubclass_(val, tm.TransferComponent) or isinstance(val, basestring)):
+            raise ValueError("transfer_model must be string or Transfer subclass")
+        return val
+
+    @parameter
     def transfer_params(self, val):
         """
         Relevant parameters of the `transfer_model`.
@@ -175,21 +191,7 @@ class Transfer(cosmo.Cosmology):
 
         return val
 
-    @parameter
-    def transfer_model(self, val):
-        """
-        Defines which transfer function model to use.
 
-        Built-in available models are found in the :mod:`hmf.transfer_models` module.
-        Default is CAMB if installed, otherwise EH.
-
-        :type: str or :class:`hmf.transfer_models.TransferComponent` subclass, optional
-        """
-        if not HAVE_PYCAMB and (val == "CAMB" or val == tm.CAMB):
-            raise ValueError("You cannot use the CAMB transfer since pycamb isn't installed")
-        if not (np.issubclass_(val, tm.TransferComponent) or isinstance(val, basestring)):
-            raise ValueError("transfer_model must be string or Transfer subclass")
-        return val
 
 
     #===========================================================================
@@ -200,16 +202,23 @@ class Transfer(cosmo.Cosmology):
         "Wavenumbers, [h/Mpc]"
         return np.exp(np.arange(self.lnk_min, self.lnk_max, self.dlnk))
 
-    @cached_property("k", "cosmo", "transfer_params", "transfer_model")
+    @cached_property("transfer_model","transfer_params")
+    def transfer(self):
+        """
+        The instantiated transfer model
+        """
+        if np.issubclass_(self.transfer_model, tm.TransferComponent):
+            return self.transfer_model(self.cosmo, **self.transfer_params)
+        elif isinstance(self.transfer_model, basestring):
+            return get_model(self.transfer_model, "hmf.transfer_models", cosmo=self.cosmo,
+                             **self.transfer_params)
+
+    @cached_property("k", "transfer")
     def _unnormalised_lnT(self):
         """
         The un-normalised transfer function.
         """
-        if np.issubclass_(self.transfer_model, tm.TransferComponent):
-            return self.transfer_model(self.cosmo, **self.transfer_params).lnt(np.log(self.k))
-        elif isinstance(self.transfer_model, basestring):
-            return get_model(self.transfer_model, "hmf.transfer_models", cosmo=self.cosmo,
-                             **self.transfer_params).lnt(np.log(self.k))
+        return self.transfer.lnt(np.log(self.k))
 
     @cached_property("n", "k", "_unnormalised_lnT")
     def _unnormalised_power(self):
@@ -246,12 +255,12 @@ class Transfer(cosmo.Cosmology):
 
     @cached_property("cosmo", "growth_model", "growth_params")
     def growth(self):
-        "The growth model class"
+        "The instantiated growth model"
         if np.issubclass_(self.growth_model, gf.GrowthFactor):
             return self.growth_model(self.cosmo, **self.growth_params)
         else:
             return get_model(self.growth_model, "hmf.growth_factor", cosmo=self.cosmo,
-                             **self._growth_params)
+                             **self.growth_params)
 
     @cached_property("z", "growth")
     def growth_factor(self):

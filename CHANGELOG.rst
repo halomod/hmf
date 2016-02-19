@@ -14,6 +14,7 @@ v2.1.0.
 
 Features
 ++++++++
+- New methods on all frameworks to list all parameters, defaults and current values.
 - New general structure for Frameworks and Components makes for simpler delineation and extensibility
 - New growth_factor module which adds extensibility to the growth factor calculation
 - New transfer_models module which separates the transfer models from the general framework
@@ -25,6 +26,10 @@ Features
 
 Enhancements
 ++++++++++++
+- Removed nz and z2 from MassFunction. They will return in a later version but better.
+- Improved structure for FittingFunction Component, with `cutmask` property defining valid mass range. NOTE: the default
+  MassFunction is no longer to mask values outside the valid range. In fact, the parameter ``cut_fit`` no longer exists.
+  One can achieve the effect by accessing a relevant array as dndm[MassFunction.hmf.cutmask]
 - Renamed some parameters/quantities for more consistency (esp. M --> m)
 - No longer dependent on cosmolopy, but rather uses Astropy (v1.0+)
 - `mean_dens` now `mean_density0`, as per Astropy
@@ -38,6 +43,7 @@ Enhancements
 
 Bugfixes
 ++++++++
+- fixed problem with _gtm method returning nans.
 - fixed simple bugs in BBKS and BondEfs transfer models.
 - fixes in _cache module
 - simple bug when updating sigma_8 fixed.
@@ -113,7 +119,7 @@ Enhancements
 - **IMPORTANT**: mltm now called rho_ltm, and mgtm called rho_gtm
 - **IMPORTANT**: Definition of rho_ltm now assumes all mass is in halos.
 - Behroozi-specific modifications moved to Behroozi class
-- New property _fit which is the actual class for mf_fit
+- New property hmf which is the actual class for mf_fit
 
 Bugfixes
 ++++++++

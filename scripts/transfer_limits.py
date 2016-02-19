@@ -8,17 +8,17 @@ calculations -- ie. bounds in density space are constant with omegab_h2 etc,
 not omegab.
 """
 
-from hmf import Transfer
+from hmf import _Tr
 import numpy as np
 import matplotlib.pyplot as plt
 
 def get_t(param, parm_name, other, **kwargs):
     if parm_name == "omegab_h2":
-        t = Transfer(omegab_h2=param, omegac_h2=other, **kwargs)
+        t = _Tr(omegab_h2=param, omegac_h2=other, **kwargs)
     elif parm_name == "omegac_h2":
-        t = Transfer(omegab_h2=other, omegac_h2=param, **kwargs)
+        t = _Tr(omegab_h2=other, omegac_h2=param, **kwargs)
     elif parm_name == "both":
-        t = Transfer(omegab_h2=other * param, omegac_h2=(1 - other) * param, **kwargs)
+        t = _Tr(omegab_h2=other*param, omegac_h2=(1 - other)*param, **kwargs)
 
     return t
 

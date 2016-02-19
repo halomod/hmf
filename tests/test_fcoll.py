@@ -18,7 +18,7 @@ class TestFcoll(object):
 
     def check_fcoll(self, pert, fit):
         if fit == "PS":
-            anl = fcoll_PS(np.sqrt(pert.nu.value))
+            anl = fcoll_PS(np.sqrt(pert.nu))
             num = pert.rho_gtm / pert.mean_density0
 
         elif fit == "Peacock":
@@ -32,7 +32,7 @@ class TestFcoll(object):
 
     def test_fcolls(self):
         # Note: if Mmax>15, starts going wrong because of numerics at high M
-        pert = MassFunction(Mmin=10, Mmax=15, dlog10m=0.01, cut_fit=False)
+        pert = MassFunction(Mmin=10, Mmax=15, dlog10m=0.01)
         fits = ['PS', 'Peacock']
 
         for fit in fits:
@@ -58,20 +58,20 @@ class TestCumulants(object):
         hmf.update(Mmin=minm, Mmax=maxm)
         anl = fcoll_Peacock(np.sqrt(hmf.nu))
         num = hmf.rho_gtm / hmf.mean_density0
-        err = np.abs((num - anl) / anl)[np.logical_and(hmf.M.value > 10 ** 10, hmf.M.value < 10 ** 15)]
+        err = np.abs((num - anl) / anl)[np.logical_and(hmf.m > 10 ** 10, hmf.m < 10 ** 15)]
         err = err[np.logical_not(np.isnan(err))]
         print np.max(err)
         assert np.max(err) < TestCumulants.tol
 
     def test_ranges_not_cut(self):
-        hmf = MassFunction(hmf_model="Peacock", cut_fit=False, dlog10m=0.01)
+        hmf = MassFunction(hmf_model="Peacock",  dlog10m=0.01)
         TestCumulants.tol = 0.05
         for minm in [9, 10, 11]:  # below, equal and greater than peacock cut
             for maxm in [14, 15, 16, 18, 19]:  # below,equal,greater than peacock cut and integration limit
                 yield self.check, hmf, minm, maxm
 
     def test_ranges_cut(self):
-        hmf = MassFunction(hmf_model="Peacock", cut_fit=True, dlog10m=0.01)
+        hmf = MassFunction(hmf_model="Peacock",  dlog10m=0.01)
         TestCumulants.tol = 0.4
         for minm in [9, 10, 11]:  # below, equal and greater than peacock cut
             for maxm in [14, 15, 16, 18, 19]:  # below,equal,greater than peacock cut and integration limit
@@ -79,13 +79,13 @@ class TestCumulants(object):
 
     def check_mgtm(self, hmf, maxm):
         hmf.update(Mmin=0, Mmax=maxm, dlog10m=0.01)
-        print "rhogtm: ", hmf.rho_gtm.unit
-        print "rhomean:", hmf.mean_density0.unit
+        print "rhogtm: ", hmf.rho_gtm
+        print "rhomean:", hmf.mean_density0
         assert np.abs(hmf.rho_gtm[0] / hmf.mean_density0 - 1) < 0.1  # THIS IS PRETTY BIG!
 
 
     def test_mgtm(self):
-        hmf = MassFunction(hmf_model="Tinker", cut_fit=False)
+        hmf = MassFunction(hmf_model="Tinker08")
         for maxm in [14, 15, 16, 18, 19]:  # below,equal,greater than integration limits
             yield self.check_mgtm, hmf, maxm
 
@@ -95,6 +95,6 @@ class TestCumulants(object):
         assert np.abs(hmf.rho_ltm[-1] / hmf.mean_density0 - 1) < 0.2
 
     def test_mltm(self):
-        hmf = MassFunction(hmf_model="PS", cut_fit=False)
+        hmf = MassFunction(hmf_model="PS")
         for maxm in [14, 15, 16, 18, 19]:  # below,equal,greater than integration limits
             yield self.check_mltm, hmf, maxm
