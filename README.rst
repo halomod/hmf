@@ -8,6 +8,8 @@ hmf
 		:target: https://travis-ci.org/steven-murray/hmf
 .. image:: https://badge.fury.io/py/hmf.svg
     :target: https://badge.fury.io/py/hmf
+.. image:: https://img.shields.io/pypi/dw/hmf.svg
+    :target: https://pypi.python.org/pypi/hmf
 .. image:: https://coveralls.io/repos/github/steven-murray/hmf/badge.svg?branch=master
         :target: https://coveralls.io/github/steven-murray/hmf?branch=master
 

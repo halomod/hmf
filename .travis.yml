@@ -34,6 +34,7 @@ install:
   - conda install python=$TRAVIS_PYTHON_VERSION numpy scipy mpmath nose astropy
   - pip install python-coveralls
   - pip install emcee
+  - pip install mrpy
   - CAMBURL=http://camb.info/CAMB_Mar13.tar.gz pip install git+git://github.com/steven-murray/pycamb.git
   - pip install cached_property
   - pip install coveralls
