@@ -1,9 +1,10 @@
 '''
-Created on 02/12/2014
+Module containing Warm Dark Matter models.
 
-@author: Steven
-
-Module containing WDM models
+This module contains both WDM Components (basic WDM models and also recalibrators for the
+HMF) and Frameworks (Transfer and MassFunction). The latter inject WDM modelling into
+the standard CDM Frameworks, and provide an example of how one would go about this for
+other alternative cosmologies.
 '''
 import numpy as np
 from transfer import Transfer
@@ -11,8 +12,8 @@ from hmf import MassFunction
 from _cache import parameter, cached_property
 from numpy import issubclass_
 from _framework import Component, get_model
-from cosmo import h_unit
 import astropy.units as u
+
 #===============================================================================
 # Model Components
 #===============================================================================
@@ -98,7 +99,7 @@ class Bode01(Viel05):
 
 
 
-class WDMRecalibrateMF(Model):
+class WDMRecalibrateMF(Component):
     """
     A model that merely transforms the mass function for WDM.
     """
