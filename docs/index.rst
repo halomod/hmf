@@ -38,7 +38,7 @@ You will only need `emcee` if you are going to be using the fitting capabilities
 of `hmf`. The final, optional, library is pycamb, which can not be installed 
 using pip currently. 
 
-Please see the readme at http://github.com/steven-murray/pycamb.git for up-to-date 
+Please follow the guidelines on its `readme page <https://github.com/steven-murray/pycamb.git>`_.
 installation instructions.
 
 .. note :: At present, versions of CAMB post March 2013 are not working with 
