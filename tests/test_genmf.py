@@ -46,11 +46,12 @@ To be more explicit, the power spectrum in all cases is produced with the follow
 #===============================================================================
 import numpy as np
 from hmf import MassFunction
-# from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import inspect
 import os
-
-LOCATION = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+from astropy.cosmology import LambdaCDM
+LOCATION = "/".join(os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))).split("/")[:-1])
+import sys
+sys.path.insert(0, LOCATION)
 #=======================================================================
 # Some general functions used in tests
 #=======================================================================
@@ -83,16 +84,15 @@ def max_diff(vec1, vec2, tol):
 #===============================================================================
 class TestGenMF(object):
     def __init__(self):
-        self.hmf = MassFunction(Mmin=7, Mmax=15.001, dlog10m=0.01, omegab=0.05, omegac=0.25,
-                            omegav=0.7, sigma_8=0.8, n=1, H0=70.0,
-                            lnk_min=-11, lnk_max=11, dlnk=0.01, transfer_options={"fname":LOCATION + "/data/transfer_for_hmf_tests.dat"},
-                            mf_fit='ST', z=0.0, transfer_fit="FromFile")
+        self.hmf = MassFunction(Mmin=7, Mmax=15.001, dlog10m=0.01,
+                                sigma_8=0.8, n=1,
+                                cosmo_model=LambdaCDM(Ob0=0.05, Om0=0.3, Ode0=0.7, H0=70.0,Tcmb0=0),
+                                lnk_min=-11, lnk_max=11, dlnk=0.01, transfer_params={"fname":LOCATION + "/tests/data/transfer_for_hmf_tests.dat"},
+                                hmf_model='ST', z=0.0, transfer_model="FromFile", growth_model="GenMFGrowth")
 
     def check_col(self, pert, fit, redshift, col):
-        """ Able to check all columns only dependent on base cosmology (not fit) """
-
-
-        data = np.genfromtxt(LOCATION + "/data/" + fit + '_' + str(int(redshift)))[::-1][400:1201]
+        """ Able to check all columns"""
+        data = np.genfromtxt(LOCATION + "/tests/data/" + fit + '_' + str(int(redshift)))[::-1][400:1201]
 
         # We have to do funky stuff to the data if its been cut by genmf
         if col is "sigma":
@@ -108,7 +108,7 @@ class TestGenMF(object):
         elif col is "ngtm":
             # # The reason this is only good to 5% is GENMF's problem -- it uses
             # # poor integration.
-            assert rms_diff(pert.ngtm, 10 ** data[:, 2], 0.046)
+            assert rms_diff(pert.ngtm, 10 ** data[:, 2], 0.047)
 
     def test_sigmas(self):
         # # Test z=0,2. Higher redshifts are poor in genmf.
@@ -121,7 +121,6 @@ class TestGenMF(object):
         for redshift in [0.0, 2.0]:  # , 10, 20]:
             self.hmf.update(z=redshift)
             for fit in ["ST", "PS", "Reed03", "Warren", "Jenkins", "Reed07"]:
-                self.hmf.update(mf_fit=fit)
+                self.hmf.update(hmf_model=fit)
                 for col in ['dndlog10m', 'ngtm', 'fsigma']:
                     yield self.check_col, self.hmf, fit, redshift, col
-

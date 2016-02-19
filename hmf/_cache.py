@@ -1,9 +1,9 @@
 """
-This module defines two decorators, based on the code from 
+This module defines two decorators, based on the code from
 http://forrst.com/posts/Yet_another_caching_property_decorator_for_Pytho-PBy
 
 They are both designed to cache class properties, but have the added
-functionality of being automatically updated when a parent property is 
+functionality of being automatically updated when a parent property is
 updated.
 """
 from functools import update_wrapper
@@ -17,27 +17,28 @@ class Cache(object):
 def cached_property(*parents):
     """
     A robust property caching decorator.
-    
+
     This decorator only works when used with the entire system here....
-    
+
     Usage::
        class CachedClass(Cache):
-       
-           
+
+
            @cached_property("parent_parameter")
            def amethod(self):
               ...calculations...
               return final_value
-          
+
            @cached_property("amethod")
            def a_child_method(self): #method dependent on amethod
               final_value = 3*self.amethod
               return final_value
-          
+
     This code will calculate ``amethod`` on the first call, but return the cached
-    value on all subsequent calls. If any parent parameter is modified, the 
+    value on all subsequent calls. If any parent parameter is modified, the
     calculation will be re-performed.
     """
+
     recalc = "_Cache__recalc"
     recalc_prpa = "_Cache__recalc_prop_par"
     recalc_papr = "_Cache__recalc_par_prop"
@@ -68,8 +69,8 @@ def cached_property(*parents):
             is_sub = False
             not_in_papr = any(p not in getattr(self, recalc_papr) for p in parents)
             if not_in_papr and name in getattr(self, recalc):
+                all_pars = []
                 if any(p in getattr(self, recalc_prpa) for p in parents):
-                    all_pars = []
                     for p in parents:
                         all_pars += list(getattr(self, recalc_prpa).get(p, []))
                 if any(p not in getattr(self, recalc_prpa)[name] for p in all_pars):
@@ -125,16 +126,28 @@ def cached_property(*parents):
         return property(_get_property, None, _del_property)
     return cache
 
+def obj_eq(ob1, ob2):
+    try:
+        if ob1 == ob2:
+            return True
+        else:
+            return False
+    except ValueError:
+        if  (ob1 == ob2).all():
+            return True
+        else:
+            return False
+
 
 def parameter(f):
     """
     A simple cached property which acts more like an input value.
-    
-    This cached property is intended to be used on values that are passed in 
+
+    This cached property is intended to be used on values that are passed in
     ``__init__``, and can possibly be reset later. It provides the opportunity
     for complex setters, and also the ability to update dependent properties
-    whenever the value is modified. 
-    
+    whenever the value is modified.
+
     Usage::
        @set_property("amethod")
        def parameter(self,val):
@@ -142,16 +155,17 @@ def parameter(f):
               return val
            else:
               raise ValueError("parameter must be an integer")
-              
+
        @cached_property()
        def amethod(self):
           return 3*self.parameter
-          
+
     Note that the definition of the setter merely returns the value to be set,
     it doesn't set it to any particular instance attribute. The decorator
     automatically sets ``self.__parameter = val`` and defines the get method
     accordingly
     """
+
     name = f.__name__
     prop_ext = '__%s' % name
     recalc = "_Cache__recalc"
@@ -167,9 +181,13 @@ def parameter(f):
             old_val = None
             doset = True
 
-        if val != old_val or doset:
+
+        if not obj_eq(val, old_val) or doset:
             if isinstance(val, dict) and hasattr(self, prop):
-                getattr(self, prop).update(val)
+                if val:
+                    getattr(self, prop).update(val)
+                else:
+                    setattr(self, prop, val)
             else:
                 setattr(self, prop, val)
 
@@ -183,5 +201,35 @@ def parameter(f):
         prop = ("_" + self.__class__.__name__ + prop_ext).replace("___", "__")
         return getattr(self, prop)
 
+    # Here we set the documentation
+    doc = (f.__doc__ or "").strip()
+    if doc.startswith("\n"):
+        doc = doc[1:]
 
-    return property(_get_property, _set_property, None)
+    return  property(_get_property, _set_property, None,"**Parameter**: "+doc)#
+
+    # Register the function
+    #outfunc.decorator = parameter
+    #return outfunc
+
+# def makeRegisteringDecorator(foreignDecorator):
+#     """
+#         Returns a copy of foreignDecorator, which is identical in every
+#         way(*), except also appends a .decorator property to the callable it
+#         spits out.
+#     """
+#     def newDecorator(func):
+#         # Call to newDecorator(method)
+#         # Exactly like old decorator, but output keeps track of what decorated it
+#         R = foreignDecorator(func) # apply foreignDecorator, like call to foreignDecorator(method) would have done
+#         R.decorator = newDecorator # keep track of decorator
+#         #R.original = func         # might as well keep track of everything!
+#         return R
+#
+#     newDecorator.__name__ = foreignDecorator.__name__
+#     newDecorator.__doc__ = foreignDecorator.__doc__
+#     # (*)We can be somewhat "hygienic", but newDecorator still isn't signature-preserving, i.e. you will not be able to get a runtime list of parameters. For that, you need hackish libraries...but in this case, the only argument is func, so it's not a big issue
+#
+#     return newDecorator
+#
+# parameter = makeRegisteringDecorator(parameter)

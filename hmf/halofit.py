@@ -1,17 +1,44 @@
-import numpy as np
-from scipy.integrate import simps
-import copy
-from scipy.interpolate import InterpolatedUnivariateSpline as spline
-import cosmolopy as cp
+"""
+Implements the HALOFIT (Smith+2003, Takahashi+2012) method.
 
-def _get_spec(lnk, delta_k, sigma_8):
+This code was heavily influenced by the `HaloFit` class from the
+`chomp` python package by Christopher Morrison, Ryan Scranton
+and Michael Schneider (https://code.google.com/p/chomp/). It has
+been modified to improve its integration with this package.
+"""
+import numpy as np
+from scipy.integrate import simps as _simps
+import copy
+from scipy.interpolate import InterpolatedUnivariateSpline as _spline
+from cosmo import Cosmology as csm
+
+def _get_spec(k, delta_k, sigma_8):
     """
     Calculate nonlinear wavenumber, effective spectral index and curvature
     of the power spectrum.
-    """
-    k = np.exp(lnk)
-    delta_k = np.exp(delta_k)
 
+    Parameters
+    ----------
+    k : array_like
+        Wavenumbers
+
+    delta_k : array_like
+        Dimensionless power spectrum at `k`
+
+    sigma_8 : scalar
+        RMS linear density fluctuations in spheres of radius 8 Mpc/h at z=0.
+
+    Returns
+    -------
+    rknl : float
+        Non-linear wavenumber
+
+    rneff : float
+        Effective spectral index
+
+    rncur : float
+        Curvature of the spectrum
+    """
     # Initialize sigma spline
     if sigma_8 < 1.0 and sigma_8 > 0.6:
         lnr = np.linspace(np.log(0.1), np.log(10.0), 500)
@@ -20,13 +47,13 @@ def _get_spec(lnk, delta_k, sigma_8):
         for i, r in enumerate(lnr):
             R = np.exp(r)
             integrand = delta_k * np.exp(-(k * R) ** 2)
-            sigma2 = simps(integrand, np.log(k))
+            sigma2 = _simps(integrand, np.log(k))
             lnsig[i] = np.log(sigma2)
 
     else:  # # weird sigma_8 means we need a different range of r to go through 0.
         for r in [0.00001, 0.0001, 0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]:
             integrand = delta_k * np.exp(-(k * r) ** 2)
-            sigma2 = simps(integrand, np.log(k))
+            sigma2 = _simps(integrand, np.log(k))
             lnsig1 = np.log(sigma2)
 
             if lnsig1 < 0:
@@ -44,13 +71,13 @@ def _get_spec(lnk, delta_k, sigma_8):
         for i, r in enumerate(lnr):
             R = np.exp(r)
             integrand = delta_k * np.exp(-(k * R) ** 2)
-            sigma2 = simps(integrand, np.log(k))
+            sigma2 = _simps(integrand, np.log(k))
             lnsig[i] = np.log(sigma2)
 
-    r_of_sig = spline(lnsig[::-1], lnr[::-1], k=5)
+    r_of_sig = _spline(lnsig[::-1], lnr[::-1], k=5)
     rknl = 1.0 / np.exp(r_of_sig(0.0))
 
-    sig_of_r = spline(lnr, lnsig, k=5)
+    sig_of_r = _spline(lnr, lnsig, k=5)
     try:
         dev1, dev2 = sig_of_r.derivatives(np.log(1.0 / rknl))[1:3]
     except Exception as e:
@@ -61,14 +88,14 @@ def _get_spec(lnk, delta_k, sigma_8):
         for i, r in enumerate(lnr):
             R = np.exp(r)
             integrand = delta_k * np.exp(-(k * R) ** 2)
-            sigma2 = simps(integrand, np.log(k))
+            sigma2 = _simps(integrand, np.log(k))
             lnsig[i] = np.log(sigma2)
         lnr = lnr[np.logical_not(np.isinf(lnsig))]
         lnsig = lnsig[np.logical_not(np.isinf(lnsig))]
         if len(lnr) < 2:
             raise Exception("Lots of things went wrong in halofit")
 
-        sig_of_r = spline(lnr, lnsig, k=5)
+        sig_of_r = _spline(lnr, lnsig, k=5)
         dev1, dev2 = sig_of_r.derivatives(np.log(1.0 / rknl))[1:3]
 
     rneff = -dev1 - 3.0
@@ -76,19 +103,57 @@ def _get_spec(lnk, delta_k, sigma_8):
 
     return rknl, rneff, rncur
 
-def halofit(k, z, omegam, omegav, w, omegan, neff, rncur, rknl, plin, takahashi=True):
+def halofit(k, delta_k,sigma_8, z, cosmo = None, takahashi=True):
     """
-    Halofit routine to calculate pnl and plin.
-    
-    Basically copies the CAMB routine
+    Implementation of HALOFIT (Smith+2003).
+
+    Parameters
+    ----------
+    k : array_like
+        Wavenumbers [h/Mpc].
+
+    delta_k : array_like
+        Dimensionless power (linear) at `k`.
+
+    sigma_8 : float
+        RMS linear density fluctuations in spheres of radius 8 Mpc/h at z=0.
+
+    z : float
+        Redshift
+
+    cosmo : :class:`hmf.cosmo.Cosmology` instance, optional
+        An instance of either the `Cosmology` class provided in the `hmf` package, or
+        any subclass of `FLRW` from `astropy`. Defualt is the default cosmology from
+        the :mod:`hmf.cosmo` module.
+
+    takahashi : bool, optional
+        Whether to use updated parameters from Takahashi+2012. Otherwise use
+        original from Smith+2003.
+
+    Returns
+    -------
+    nonlinear_delta_k : array_like
+        Dimensionless power at `k`, with nonlinear corrections applied.
     """
+    if cosmo is None:
+        cosmo = csm()
+
+    # Get physical parameters
+    rknl, neff, rncur = _get_spec(k, delta_k, sigma_8)
+
+    # Only apply the model to higher wavenumbers
+    mask = k > 0.005
+    plin = delta_k[mask]
+    k = k[mask]
+
 
     # Define the cosmology at redshift
-    omegamz = cp.density.omega_M_z(z, omega_M_0=omegam, omega_lambda_0=omegav, omega_k_0=1 - omegav - omegam, w=w)
-    omegavz = omegav / cp.distance.e_z(z, omega_M_0=omegam, omega_lambda_0=omegav, omega_k_0=1 - omegav - omegam, w=w) ** 2
+    omegamz = cosmo.Om(z)
+    omegavz = cosmo.Ode(z)
 
-    w = w
-    fnu = omegan / omegam
+    w = cosmo.w(z)
+    fnu = cosmo.Onu0 / cosmo.Om0
+
 
     if takahashi:
         a = 10 ** (1.5222 + 2.8553 * neff + 2.3706 * neff ** 2 +
@@ -128,19 +193,28 @@ def halofit(k, z, omegam, omegav, w, omegan, neff, rncur, rknl, plin, takahashi=
         f2b = omegamz ** -0.0585
         f3b = omegamz ** 0.0743
         frac = omegavz / (1 - omegamz)
-        f1 = frac * f1b + (1 - frac) * f1a
-        f2 = frac * f2b + (1 - frac) * f2a
-        f3 = frac * f3b + (1 - frac) * f3a
+        if takahashi:
+            f1 = f1b
+            f2 = f2b
+            f3 = f3b
+        else:
+            f1 = frac * f1b + (1 - frac) * f1a
+            f2 = frac * f2b + (1 - frac) * f2a
+            f3 = frac * f3b + (1 - frac) * f3a
     else:
         f1 = f2 = f3 = 1.0
 
     y = k / rknl
 
     ph = a * y ** (f1 * 3) / (1 + b * y ** f2 + (f3 * c * y) ** (3 - gam))
-    ph = ph / (1 + xmu / y + xnu * y ** -2) * (1 + fnu * (0.977 - 18.015 * (omegam - 0.3)))
+    ph = ph / (1 + xmu / y + xnu * y ** -2) * (1 + fnu * (0.977 - 18.015 * (cosmo.Om0 - 0.3)))
 
     plinaa = plin * (1 + fnu * 47.48 * k ** 2 / (1 + 1.5 * k ** 2))
     pq = plin * (1 + plinaa) ** beta / (1 + plinaa * alpha) * np.exp(-y / 4.0 - y ** 2 / 8.0)
     pnl = pq + ph
 
-    return pnl
+    # We have to copy so the original data is not overwritten, giving unexpected results.
+    nonlinear_delta_k = delta_k.copy()
+    nonlinear_delta_k[mask] = pnl
+
+    return nonlinear_delta_k

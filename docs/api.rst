@@ -1,19 +1,25 @@
 
-API
-===
+API Summary
+===========
 
-We here list the modules within the `hmf` package, and the objects in each.
+.. autosummary::
+   :toctree: _autosummary
+   :template: modules.rst
 
-
-.. toctree::
-   :maxdepth: 2
-   
-   api_docs/hmf
-   api_docs/transfer
-   api_docs/cosmo
-   api_docs/fitting_functions
-   api_docs/tools
-
+   hmf.cosmo
+   hmf.transfer_models
+   hmf.transfer
+   hmf.halofit
+   hmf.growth_factor
+   hmf.filters
+   hmf.fitting_functions
+   hmf.hmf
+   hmf.tools
+   hmf.wdm
+   hmf.integrate_hmf
+   hmf.functional
+   hmf.sample
+   hmf._framework
    
 
    

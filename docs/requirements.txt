@@ -1,3 +1,4 @@
-cosmolopy
-hmf
 numpydoc
+nbsphinx
+ipykernel
+pandoc

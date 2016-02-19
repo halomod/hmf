@@ -1,0 +1,114 @@
+#!/Users/Steven/anaconda/bin/python2.7
+# encoding: utf-8
+'''
+hmf-fit -- fit a MassFunction model to data
+
+hmf-fit is a script for fitting arbitrary MassFunction quantities (actually, 
+any quantity which is a part of a ``hmf._framework.Framework``) to given
+data. For instance, it makes performing an MCMC fit to the cumulative halo mass 
+function a simple procedure. A config file is necessary to run the application. 
+'''
+
+import sys
+import os
+import traceback
+
+from argparse import ArgumentParser
+from argparse import RawDescriptionHelpFormatter
+from ConfigParser import SafeConfigParser as cfg
+cfg.optionxform = str
+import time
+import errno
+from os.path import join
+from numbers import Number
+import pickle
+from emcee import autocorr
+from importlib import import_module
+from hmf.fitting import cli_tools as cli
+
+__all__ = []
+__version__ = 0.5
+__date__ = '2014-05-14'
+__updated__ = '2015-03-11'
+
+DEBUG = 0
+TESTRUN = 0
+PROFILE = 0
+
+def main(argv=None):
+    '''Command line options.'''
+
+    if argv is None:
+        argv = sys.argv
+    else:
+        sys.argv.extend(argv)
+
+    program_name = os.path.basename(sys.argv[0])
+    program_version = "v%s" % __version__
+    program_build_date = str(__updated__)
+    program_version_message = '%%(prog)s %s (%s)' % (program_version, program_build_date)
+    program_shortdesc = __import__('__main__').__doc__.split("\n")[1]
+    program_license = '''%s
+
+  Created by Steven Murray on %s.
+  Copyright 2013 organization_name. All rights reserved.
+
+  Licensed under the Apache License 2.0
+  http://www.apache.org/licenses/LICENSE-2.0
+
+  Distributed on an "AS IS" basis without warranties
+  or conditions of any kind, either express or implied.
+
+USAGE
+''' % (program_shortdesc, str(__date__))
+
+    try:
+        # Setup argument parser
+        parser = ArgumentParser(description=program_license, formatter_class=RawDescriptionHelpFormatter)
+        parser.add_argument("-v", "--verbose", dest="verbose", action="count", help="set verbosity level [default: %(default)s]")
+        parser.add_argument('-V', '--version', action='version', version=program_version_message)
+
+        parser.add_argument("conf", help="config file")
+        parser.add_argument("-p", "--prefix", default="", help="an optional prefix for the output files.")
+        parser.add_argument("-r", "--restart", default=False, action="store_true", help="restart (continue) from file")
+
+        # Process arguments
+        args = parser.parse_args()
+
+        a = cli.CLIRunner(args.conf, args.prefix, args.restart, args.verbose)
+        a.run()
+
+        return 0
+    except KeyboardInterrupt:
+        ### handle keyboard interrupt ###
+        return 0
+    except Exception, e:
+        if DEBUG or TESTRUN:
+            raise e
+        traceback.print_exc()
+        indent = len(program_name) * " "
+        sys.stderr.write(program_name + ": " + repr(e) + "\n")
+        sys.stderr.write(indent + "  for help use --help\n")
+        return 2
+
+
+if __name__ == "__main__":
+    if DEBUG:
+        sys.argv.append("-v")
+    if TESTRUN:
+        import doctest
+        doctest.testmod()
+    if PROFILE:
+        import cProfile
+        import pstats
+        profile_filename = 'run_profile.txt'
+        cProfile.run('main()', profile_filename)
+        statsfile = open("profile_stats.txt", "wb")
+        p = pstats.Stats(profile_filename, stream=statsfile)
+        stats = p.strip_dirs().sort_stats('cumulative')
+        stats.print_stats()
+        statsfile.close()
+        sys.exit(0)
+    sys.exit(main())
+
+
