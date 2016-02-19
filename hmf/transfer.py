@@ -22,17 +22,14 @@ except ImportError:
 
 class Transfer(cosmo.Cosmology):
     '''
-    Neatly deals with different transfer functions.
+    A transfer function framework.
 
     The purpose of this :class:`hmf._frameworks.Framework` is to calculate
     transfer functions, power spectra and several tightly associated
     quantities given a basic model for the transfer function.
 
-    Included are non-linear corrections using the halofit model
-    (with updated parameters from Takahashi2012).
-
     As in all frameworks, to update parameters optimally, use the
-    update() method. All output quantities are calculated only when needed
+    :meth:`update` method. All output quantities are calculated only when needed
     (but stored after first calculation for quick access).
 
     Parameters
@@ -46,14 +43,11 @@ class Transfer(cosmo.Cosmology):
     z : float, optional
         Redshift.
 
-    lnk_min : float, optional
-        Defines min log wavenumber, *k* [units :math:`h Mpc^{-1}`].
-
-    lnk_max : float, optional
-        Defines max log wavenumber, *k* [units :math:`h Mpc^{-1}`].
+    lnk_min, lnk_max : float, optional
+        min,max (natural) log wavenumber, *k* [h/Mpc].
 
     dlnk : float
-        Defines log interval between wavenumbers
+        Step-size of log wavenumbers
 
     transfer_model : str or :class:`hmf.transfer_models.TransferComponent` subclass, optional
         Defines which transfer function model to use. Built-in available models
@@ -74,7 +68,7 @@ class Transfer(cosmo.Cosmology):
 
     kwargs : keywords
         The ``**kwargs`` take any cosmological parameters desired, which are
-        input to the `hmf.cosmo.Cosmology` class.
+        input to the :class:`hmf.cosmo.Cosmology` super-class.
     '''
 
     def __init__(self, sigma_8=0.8344, n=0.9624, z=0.0, lnk_min=np.log(1e-8),
@@ -117,11 +111,6 @@ class Transfer(cosmo.Cosmology):
 
     @parameter
     def transfer_params(self, val):
-#         for v in val:
-#             if v not in ['Scalar_initial_condition', 'scalar_amp', 'lAccuracyBoost',
-#                          'AccuracyBoost', 'w_perturb', 'transfer__k_per_logint',
-#                          'transfer__kmax', 'ThreadNum']:
-#                 raise ValueError("%s not a valid camb option" % v)
         return val
 
     @parameter
