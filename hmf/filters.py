@@ -34,7 +34,7 @@ class Filter(_framework.Component):
     power : array_like
         The power spectrum at `k`.
 
-    kwargs :
+    \*\*model_parameters : unpacked-dict
         As for any :class:`hmf._framework.Component` subclass, any particular
         parameters of the model may be passed to the constructor. Allowed
         parameters are found in the :attr:`~._defaults` attribute.

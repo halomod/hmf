@@ -26,9 +26,14 @@ class GrowthFactor(Cmpt):
     cosmo : ``astropy.cosmology.FLRW`` instance
         Cosmological model.
 
-    model_parameters : unpacked-dict
-        Other parameters of the specific model. See the
-        class attribute `_defaults` for available parameters.
+    \*\*model_parameters : unpack-dict
+        Parameters specific to this model. In this case, available
+        parameters are as follows.To see their default values, check
+        the :attr:`_defaults` class attribute.
+
+        :dlna: Step-size in log-space for scale-factor integration
+        :amin: Minimum scale-factor (i.e.e maximum redshift) to integrate to.
+               Only used for :meth:`growth_factor_fn`.
 
     References
     ----------
@@ -161,9 +166,13 @@ class GenMFGrowth(GrowthFactor):
     cosmo : ``astropy.cosmology.FLRW`` instance
         Cosmological model.
 
-    model_parameters : unpacked-dict
-        Other parameters of the specific model. See the
-        class attribute `_defaults` for available parameters.
+    \*\*model_parameters : unpack-dict
+        Parameters specific to this model. In this case, available
+        parameters are as follows.To see their default values, check
+        the :attr:`_defaults` class attribute.
+
+        :dz: Step-size for redshift integration
+        :zmax: Maximum redshift to integrate to. Only used for :meth:`growth_factor_fn`.
     """
     _defaults = {"dz":0.01, "zmax":1000.0}
 

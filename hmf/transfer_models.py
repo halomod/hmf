@@ -2,7 +2,7 @@
 Various models for computing the transfer function.
 
 Note that these are not transfer function "frameworks". The framework is found
-in transfer.py.
+in :mod:`hmf.transfer`.
 '''
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
@@ -62,36 +62,25 @@ class CAMB(TransferComponent):
         The cosmology used in the calculation
 
     \*\*model_parameters : unpack-dict
-        Scalar_initial_condition : int, {1,2,3,4,5}
-            Initial scalar perturbation mode (adiabatic=1, CDM iso=2,
-            Baryon iso=3,neutrino density iso =4, neutrino velocity iso = 5)
+        Parameters specific to this model. In this case, available
+        parameters are the following. To see their default values,
+        check the :attr:`_defaults` class attribute.
 
-        lAccuracyBoost : float
-            Larger to keep more terms in the hierarchy evolution
-
-        AccuracyBoost : float
-            Increase accuracy_boost to decrease time steps, use more k
-            values,  etc.Decrease to speed up at cost of worse accuracy.
-            Suggest 0.8 to 3.
-
-        w_perturb : bool
-            Whether to perturb the dark energy equation of state.
-
-        transfer__k_per_logint : int
-            Number of wavenumbers estimated per log interval by CAMB
-            Default of 11 gets best performance for requisite accuracy of mass function.
-
-        transfer__kmax : float
-            Maximum value of the wavenumber.
-            Default of 0.25 is high enough for requisite accuracy of mass function.
-
-        ThreadNum : int
-            Number of threads to use for calculation of transfer
-            function by CAMB. Default 0 automatically determines the number.
-
-        scalar_amp : float
-            Amplitude of the power spectrum. It is not recommended to modify
-            this parameter, as the amplitude is typically set by sigma_8.
+        :Scalar_initial_condition: Initial scalar perturbation mode (adiabatic=1, CDM iso=2,
+                                   Baryon iso=3,neutrino density iso =4, neutrino velocity iso = 5)
+        :lAccuracyBoost: Larger to keep more terms in the hierarchy evolution
+        :AccuracyBoost: Increase accuracy_boost to decrease time steps, use more k
+                        values,  etc.Decrease to speed up at cost of worse accuracy.
+                        Suggest 0.8 to 3.
+        :w_perturb: Whether to perturb the dark energy equation of state.
+        :transfer__k_per_logint: Number of wavenumbers estimated per log interval by CAMB
+                                 Default of 11 gets best performance for requisite accuracy of mass function.
+        :transfer__kmax: Maximum value of the wavenumber.
+                         Default of 0.25 is high enough for requisite accuracy of mass function.
+        :ThreadNum: Number of threads to use for calculation of transfer
+                    function by CAMB. Default 0 automatically determines the number.
+        :scalar_amp: Amplitude of the power spectrum. It is not recommended to modify
+                     this parameter, as the amplitude is typically set by sigma_8.
     """
     _defaults = {"Scalar_initial_condition":1,
                  "lAccuracyBoost":1,
@@ -181,7 +170,11 @@ class FromFile(CAMB):
         The cosmology used in the calculation
 
     \*\*model_parameters : unpack-dict
-        fname : str
+        Parameters specific to this model. In this case, available
+        parameters are the following. To see their default values,
+        check the :attr:`_defaults` class attribute.
+
+        :fname: str
             Location of the file to import.
     """
     _defaults = {"fname":""}
@@ -223,6 +216,10 @@ class EH_BAO(TransferComponent):
     ----------
     cosmo : :class:`astropy.cosmology.FLRW` instance
         The cosmology used in the calculation
+
+    \*\*model_parameters : unpack-dict
+        Parameters specific to this model. In this case, there
+        are no model parameters.
     """
 
     def lnt(self, lnk):
@@ -302,6 +299,10 @@ class EH_NoBAO(TransferComponent):
     ----------
     cosmo : :class:`astropy.cosmology.FLRW` instance
         The cosmology used in the calculation
+
+    \*\*model_parameters : unpack-dict
+        Parameters specific to this model. In this case, there are
+        no model parameters.
     """
     def lnt(self, lnk):
         """
@@ -333,13 +334,31 @@ class EH_NoBAO(TransferComponent):
         return np.log(L0 / (L0 + C0 * q * q))
 
 class BBKS(TransferComponent):
-    """
-    BBKS (1984) transfer function.
+    r"""
+    BBKS (1986) transfer function.
 
     Parameters
     ----------
     cosmo : :class:`astropy.cosmology.FLRW` instance
         The cosmology used in the calculation
+
+    \*\*model_parameters : unpack-dict
+        Parameters specific to this model. In this case, available
+        parameters are the following: **a, b, c, d, e**.
+        To see their default values, check the :attr:`_defaults`
+        class attribute.
+
+    Notes
+    -----
+    The fit is given as
+
+    .. math:: T(k) = \frac{\ln(1+aq)}{aq}\left(1 + bq + (cq)^2 + (dq)^3 + (eq)^4\right)^{-1/4},
+
+    where
+
+    .. math:: q = \frac{k}{\Gamma} \exp\left(\Omega_{b,0} + \frac{\sqrt{2h}\Omega_{b,0}}{\Omega_{m,0}}\right)
+
+    and :math:`\Gamma = \Omega_{m,0} h`.
     """
     _defaults = {"a":2.34,"b":3.89,"c":16.1,"d":5.47,"e":6.71}
     def lnt(self, lnk):
@@ -370,13 +389,29 @@ class BBKS(TransferComponent):
                  (e * q) ** 4) ** (-0.25)))
 
 class BondEfs(TransferComponent):
-    """
+    r"""
     Transfer function of Bond and Efstathiou
 
     Parameters
     ----------
     cosmo : :class:`astropy.cosmology.FLRW` instance
         The cosmology used in the calculation
+
+    \*\*model_parameters : unpack-dict
+        Parameters specific to this model. In this case, available
+        parameters are the following: **a, b, c, nu**.
+        To see their default values, check the :attr:`_defaults`
+        class attribute.
+
+    Notes
+    -----
+    The fit is given as
+
+    .. math:: T(k) = \left[1 + (\tilde{a}k + (\tilde{b}k)^{3/2} + (\tilde{c}k)^2)^\nu\right]^{-1/\nu}
+
+    where :math:`\tilde{x} = x\alpha` and
+
+    .. math:: \alpha = \frac{0.3\times 0.75^2}{\Omega_{m,0} h^2}.
     """
     _defaults = {"a":37.1,"b":21.1,"c":10.8,"nu":1.12}
 
@@ -405,4 +440,5 @@ class BondEfs(TransferComponent):
         return np.log((1 + (a * k + (b * k) ** 1.5 + (c * k) ** 2) ** nu) ** (-1 / nu))
 
 class EH(EH_BAO):
+    "Alias of :class:`EH_BAO`"
     pass
