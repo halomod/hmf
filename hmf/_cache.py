@@ -138,6 +138,7 @@ def obj_eq(ob1, ob2):
         else:
             return False
 
+
 def parameter(f):
     """
     A simple cached property which acts more like an input value.
@@ -200,5 +201,35 @@ def parameter(f):
         prop = ("_" + self.__class__.__name__ + prop_ext).replace("___", "__")
         return getattr(self, prop)
 
+    # Here we set the documentation
+    doc = (f.__doc__ or "").strip()
+    if doc.startswith("\n"):
+        doc = doc[1:]
 
-    return property(_get_property, _set_property, None,f.__doc__)
+    return  property(_get_property, _set_property, None,"**Parameter**: "+doc)#
+
+    # Register the function
+    #outfunc.decorator = parameter
+    #return outfunc
+
+# def makeRegisteringDecorator(foreignDecorator):
+#     """
+#         Returns a copy of foreignDecorator, which is identical in every
+#         way(*), except also appends a .decorator property to the callable it
+#         spits out.
+#     """
+#     def newDecorator(func):
+#         # Call to newDecorator(method)
+#         # Exactly like old decorator, but output keeps track of what decorated it
+#         R = foreignDecorator(func) # apply foreignDecorator, like call to foreignDecorator(method) would have done
+#         R.decorator = newDecorator # keep track of decorator
+#         #R.original = func         # might as well keep track of everything!
+#         return R
+#
+#     newDecorator.__name__ = foreignDecorator.__name__
+#     newDecorator.__doc__ = foreignDecorator.__doc__
+#     # (*)We can be somewhat "hygienic", but newDecorator still isn't signature-preserving, i.e. you will not be able to get a runtime list of parameters. For that, you need hackish libraries...but in this case, the only argument is func, so it's not a big issue
+#
+#     return newDecorator
+#
+# parameter = makeRegisteringDecorator(parameter)

@@ -35,24 +35,9 @@ class Cosmology(_framework.Framework):
     This dictionary is kept in memory and so adding a different parameter on a later
     update will *update* the dictionary, rather than replacing it.
 
-    Parameters
-    ----------
-    cosmo_model : instance of `astropy.cosmology.FLRW` subclass, optional
-        The basis for the cosmology -- see astropy documentation. Can be a custom
-        subclass. Defaults to Planck15.
-
-    cosmo_params : dict, optional
-        Parameters for the cosmology that deviate from the base cosmology passed.
-        This is useful for repeated updates of a single parameter (leaving others
-        the same). Default is the empty dict. The parameters passed must match
-        the allowed parameters of `cosmo_model`. For the basic class this is
-
-        :Tcmb0: Temperature of the CMB at z=0
-        :Neff: Number of massless neutrino species
-        :m_nu: Mass of neutrino species (list)
-        :H0: The hubble constant at z=0
-        :Om0: The normalised matter density at z=0
-
+    To read a standard documented list of parameters, use ``Cosmology.parameter_info()``.
+    If you want to just see the plain list of available parameters, use ``Cosmology.get_all_parameters()``.
+    To see the actual defaults for each parameter, use ``Cosmology.get_all_parameter_defaults()``.
     """
     def __init__(self, cosmo_model=Planck15, cosmo_params=None):
         # Call Framework init
@@ -68,11 +53,11 @@ class Cosmology(_framework.Framework):
     @_cache.parameter
     def cosmo_model(self, val):
         """
-        **Parameter:** The input cosmology model.
+        The basis for the cosmology -- see astropy documentation. Can be a custom
+        subclass. Defaults to Planck15.
 
-        Do *not* use this for calculations, as the custom parameters have not been
-        applied to it. Intrinsically, this is a :class:`~astropy.cosmology.FLRW`
-        instance."""
+        :type: instance of `astropy.cosmology.FLRW` subclass
+        """
         if isinstance(val, basestring):
             cosmo = get_cosmo(val)
             return cosmo
@@ -84,7 +69,20 @@ class Cosmology(_framework.Framework):
 
     @_cache.parameter
     def cosmo_params(self, val):
-        """**Parameter:** Dictionary of cosmological parameters to supplement the base model."""
+        """
+        Parameters for the cosmology that deviate from the base cosmology passed.
+        This is useful for repeated updates of a single parameter (leaving others
+        the same). Default is the empty dict. The parameters passed must match
+        the allowed parameters of `cosmo_model`. For the basic class this is
+
+        :Tcmb0: Temperature of the CMB at z=0
+        :Neff: Number of massless neutrino species
+        :m_nu: Mass of neutrino species (list)
+        :H0: The hubble constant at z=0
+        :Om0: The normalised matter density at z=0
+
+        :type: dict
+        """
         return val
 
     #===========================================================================
@@ -105,7 +103,6 @@ class Cosmology(_framework.Framework):
         """
         # fixme: why the *1e6??
         return (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2).to(u.MsolMass/u.Mpc**3).value * 1e6
-
 
 def get_cosmo(name):
     """

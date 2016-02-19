@@ -94,3 +94,66 @@ class Framework(Cache):
 
         if kwargs:
             raise ValueError("Invalid arguments: %s" % kwargs)
+
+    @classmethod
+    def get_all_parameter_names(cls):
+        "Yield all parameter names in the class."
+        for (name,obj) in cls.__dict__.iteritems():
+            if hasattr(obj, "__doc__"):
+                if obj.__doc__ is not None:
+                    if obj.__doc__.startswith("**Parameter**: "):
+                        yield name
+
+    @classmethod
+    def get_all_parameters(cls):
+        "Yield all parameters as tuples of (name,obj)"
+        for (name,obj) in cls.__dict__.iteritems():
+            if hasattr(obj, "__doc__"):
+                if obj.__doc__ is not None:
+                    if obj.__doc__.startswith("**Parameter**: "):
+                        yield name, obj
+
+    @classmethod
+    def get_all_parameter_defaults(cls):
+        "Dictionary of all parameters and defaults"
+        K = cls()
+        out = {}
+        for name in cls.get_all_parameter_names():
+            out[name] = getattr(K,name)
+        return out
+
+    @property
+    def parameter_values(self):
+        "Dictionary of all parameters and their current values"
+        out = {}
+        for name in self.get_all_parameter_names():
+            out[name] = getattr(self,name)
+        return out
+
+    @classmethod
+    def parameter_info(cls):
+        docs = ""
+        for name, obj in cls.get_all_parameters():
+            docs += name+" : "
+            objdoc = obj.__doc__.split("\n")
+
+            if len(objdoc[0]) == len("**Parameter**: "):
+                del objdoc[0]
+            else:
+                objdoc[0] = objdoc[0][len("**Parameter**: "):]
+
+            objdoc = [o.strip() for o in objdoc]
+
+            while "" in objdoc:
+                objdoc.remove("")
+
+            for i,line in enumerate(objdoc):
+                if ":type:" in line:
+                    docs += line.split(":type:")[-1].strip() + "\n    "
+                    del objdoc[i]
+                    break
+
+            docs += "\n    ".join(objdoc) +"\n\n"
+            while "\n\n\n" in docs:
+                docs.replace("\n\n\n","\n\n")
+        return docs[:-1]

@@ -32,43 +32,11 @@ class Transfer(cosmo.Cosmology):
     :meth:`update` method. All output quantities are calculated only when needed
     (but stored after first calculation for quick access).
 
-    Parameters
-    ----------
-    sigma_8 : float, optional
-        RMS linear density fluctations in spheres of radius 8 Mpc/h
-
-    n : float, optional
-        Spectral index of fluctations
-
-    z : float, optional
-        Redshift.
-
-    lnk_min, lnk_max : float, optional
-        min,max (natural) log wavenumber, *k* [h/Mpc].
-
-    dlnk : float
-        Step-size of log wavenumbers
-
-    transfer_model : str or :class:`hmf.transfer_models.TransferComponent` subclass, optional
-        Defines which transfer function model to use. Built-in available models
-        are found in the :mod:`hmf.transfer_models` module. Default is CAMB if installed,
-        otherwise EH.
-
-    transfer_params : dict
-        Relevant parameters of the `transfer_model`.
-
-    takahashi : bool, optional
-        Whether to use updated HALOFIT coefficients from Takahashi+12
-
-    growth_model : str or `hmf.growth_factor.GrowthFactor` subclass, optional
-        The model to use to calculate the growth function/growth rate.
-
-    growth_params : dict
-        Relevant parameters of the `growth_model`.
-
-    kwargs : keywords
-        The ``**kwargs`` take any cosmological parameters desired, which are
-        input to the :class:`hmf.cosmo.Cosmology` super-class.
+    In addition to the parameters directly passed to this class, others are available
+    which are passed on to its superclass. To read a standard documented list of (all) parameters,
+    use ``Transfer.parameter_info()``. If you want to just see the plain list of available parameters,
+    use ``Transfer.get_all_parameters()``.To see the actual defaults for each parameter, use
+    ``Transfer.get_all_parameter_defaults()``.
     '''
 
     def __init__(self, sigma_8=0.8344, n=0.9624, z=0.0, lnk_min=np.log(1e-8),
@@ -101,48 +69,102 @@ class Transfer(cosmo.Cosmology):
 
     @parameter
     def growth_model(self, val):
+        """
+        The model to use to calculate the growth function/growth rate.
+
+        :type: str or `hmf.growth_factor.GrowthFactor` subclass
+        """
         if not np.issubclass_(val, gf.GrowthFactor) and not isinstance(val, basestring):
             raise ValueError("growth_model must be a GrowthFactor or string, got %s" % type(val))
         return val
 
     @parameter
     def growth_params(self, val):
+        """
+        Relevant parameters of the :attr:`growth_model`.
+
+        :type: dict
+        """
         return val
 
     @parameter
     def transfer_params(self, val):
+        """
+        Relevant parameters of the `transfer_model`.
+
+        :type: dict
+        """
         return val
 
     @parameter
     def sigma_8(self, val):
+        """
+        RMS linear density fluctations in spheres of radius 8 Mpc/h
+
+        :type: float
+        """
         if val < 0.1 or val > 10:
             raise ValueError("sigma_8 out of bounds, %s" % val)
         return val
 
     @parameter
     def n(self, val):
+        """
+        Spectral index of fluctations
+
+        Must be greater than -3 and less than 4.
+
+        :type: float
+        """
         if val < -3 or val > 4:
             raise ValueError("n out of bounds, %s" % val)
         return val
 
     @parameter
     def lnk_min(self, val):
+        """
+        Minimum (natural) log wavenumber, :attr:`k` [h/Mpc].
+
+        :type: float
+        """
         return val
 
     @parameter
     def lnk_max(self, val):
+        """
+        Maximum (natural) log wavenumber, :attr:`k` [h/Mpc].
+
+        :type: float
+        """
         return val
 
     @parameter
     def dlnk(self, val):
+        """
+        Step-size of log wavenumbers
+
+        :type: float
+        """
         return val
 
     @parameter
     def takahashi(self, val):
+        """
+        Whether to use updated HALOFIT coefficients from Takahashi+12
+
+        :type: bool
+        """
         return val
 
     @parameter
     def z(self, val):
+        """
+        Redshift.
+
+        Must be greater than 0.
+
+        :type: float
+        """
         try:
             val = float(val)
         except ValueError:
@@ -153,13 +175,19 @@ class Transfer(cosmo.Cosmology):
 
         return val
 
-
-
     @parameter
     def transfer_model(self, val):
+        """
+        Defines which transfer function model to use.
+
+        Built-in available models are found in the :mod:`hmf.transfer_models` module.
+        Default is CAMB if installed, otherwise EH.
+
+        :type: str or :class:`hmf.transfer_models.TransferComponent` subclass, optional
+        """
         if not HAVE_PYCAMB and (val == "CAMB" or val == tm.CAMB):
             raise ValueError("You cannot use the CAMB transfer since pycamb isn't installed")
-        if not (np.issubclass_(val, tm.Transfer) or isinstance(val, basestring)):
+        if not (np.issubclass_(val, tm.TransferComponent) or isinstance(val, basestring)):
             raise ValueError("transfer_model must be string or Transfer subclass")
         return val
 
@@ -177,7 +205,7 @@ class Transfer(cosmo.Cosmology):
         """
         The un-normalised transfer function.
         """
-        if np.issubclass_(self.transfer_model, tm.Transfer):
+        if np.issubclass_(self.transfer_model, tm.TransferComponent):
             return self.transfer_model(self.cosmo, **self.transfer_params).lnt(np.log(self.k))
         elif isinstance(self.transfer_model, basestring):
             return get_model(self.transfer_model, "hmf.transfer_models", cosmo=self.cosmo,
