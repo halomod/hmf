@@ -19,6 +19,7 @@ API Summary
    hmf.integrate_hmf
    hmf.functional
    hmf.sample
+   hmf._framework
    
 
    
