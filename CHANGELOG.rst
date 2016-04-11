@@ -6,6 +6,9 @@ Development Version
 
 Older Versions
 ~~~~~~~~~~~~~~
+Enhancements
+++++++++++++
+- Removed unnecessary multiplication by 1e6 in cosmo.py (thanks @iw381)
 
 v2.0.0
 ------
