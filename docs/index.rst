@@ -46,7 +46,7 @@ installation instructions.
 
 Finally the `hmf` package needs to be installed: ``pip install hmf``. If you want
 to install the latest build (not necessarily stable), grab it `here 
-<https://github.com/steven-murray/hmf/tree/develop>`_.
+<https://github.com/steven-murray/hmf.git>`_.
 
 To go really bleeding edge, install the develop branch using
 ``pip install git+git://github.com/steven-murray/hmf.git@develop``.

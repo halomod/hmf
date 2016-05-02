@@ -39,7 +39,7 @@ class Transfer(cosmo.Cosmology):
     ``Transfer.get_all_parameter_defaults()``.
     '''
 
-    def __init__(self, sigma_8=0.8344, n=0.9624, z=0.0, lnk_min=np.log(1e-8),
+    def __init__(self, sigma_8=0.8159, n=0.9667, z=0.0, lnk_min=np.log(1e-8),
                  lnk_max=np.log(2e4), dlnk=0.05, transfer_model=tm.CAMB if HAVE_PYCAMB else tm.EH,
                  transfer_params=None, takahashi=True, growth_model=gf.GrowthFactor,
                  growth_params=None, **kwargs):

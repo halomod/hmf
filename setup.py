@@ -27,11 +27,6 @@ if sys.argv[-1] == "publish":
     sys.exit()
 
 
-if sys.argv[-1] == "publish":
-    os.system("python setup.py sdist upload")
-    os.system("python setup.py bdist_egg upload")
-    sys.exit()
-
 setup(
     name="hmf",
     version=find_version("hmf", "__init__.py"),

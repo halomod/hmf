@@ -6,7 +6,11 @@ Development Version
 
 Older Versions
 ~~~~~~~~~~~~~~
-Enhancements
+v2.0.1
+------
+2nd May, 2016
+
+Bugfixes
 ++++++++++++
 - Removed unnecessary multiplication by 1e6 in cosmo.py (thanks @iw381)
 
