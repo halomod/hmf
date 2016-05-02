@@ -6,6 +6,15 @@ Development Version
 
 Older Versions
 ~~~~~~~~~~~~~~
+v2.0.1
+------
+2nd May, 2016
+
+Bugfixes
+++++++++
+- Corrects the default sigma_8 and n (spectral index) parameters to be from Planck15 (previously
+  from Planck13), which corresponds to the default cosmology. **NOTE:** this will change user-code
+  output silently unless sigma_8 and n are explicitly set.
 
 v2.0.0
 ------
