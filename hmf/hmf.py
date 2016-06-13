@@ -403,20 +403,12 @@ class MassFunction(transfer.Transfer):
         """
         return -3.0 * (2.0 * self._dlnsdlnm + 1.0)
 
-    @cached_property("hmf", "sigma", "z", "delta_halo", "nu", "m")
+    @cached_property("hmf")
     def fsigma(self):
         """
         The multiplicity function, :math:`f(\sigma)`, for `hmf_model`. ``len=len(m)``
         """
         return self.hmf.fsigma
-
-        # if np.sum(np.logical_not(np.isnan(fsigma))) < 2:
-        #     # the input mass range is almost completely outside the cut
-        #     logger.warning("The specified mass-range was almost entirely \
-        #                     outside of the limits from the fit. Ignored fit range...")
-        #     fsigma = self.hmf.fsigma(False)
-        #
-        # return fsigma
 
     @cached_property("fsigma", "mean_density0", "_dlnsdlnm", "m", "z" )
     def dndm(self):
