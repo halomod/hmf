@@ -560,6 +560,6 @@ class MassFunction(transfer.Transfer):
     @cached_property("ngtm")
     def how_big(self):
         """
-        Size of simulation volume in which to expect one halo of mass m, ``len=len(m)`` [units :math:`Mpch^{-1}`]
+        Size of simulation volume in which to expect one halo of mass m (with 95% probability), ``len=len(m)`` [units :math:`Mpch^{-1}`]
         """
-        return self.ngtm ** (-1. / 3.)
+        return (0.366362 / self.ngtm) ** (1. / 3.)

@@ -4,11 +4,15 @@ Releases
 Development Version
 ~~~~~~~~~~~~~~~~~~~
 Bugfixes
-++++++++++++
+++++++++
 - Removed unnecessary multiplication by 1e6 in cosmo.py (thanks @iw381)
 - **IMPORTANT**: normalisation now calculated using convergent limits on k, rather than
   user-supplied values.
-  
+
+Enhancements
+++++++++++++
+- how_big now gives the boxsize required to expect at least one halo above m in 95% of boxes.
+
 Older Versions
 ~~~~~~~~~~~~~~
 v2.0.1
