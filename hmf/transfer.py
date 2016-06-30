@@ -228,10 +228,14 @@ class Transfer(cosmo.Cosmology):
         return self.k ** self.n * np.exp(self._unnormalised_lnT) ** 2
 
 
-    @cached_property("mean_density0", "k", "_unnormalised_power")
+    @cached_property("filter", "dlnk", "transfer","n")
     def _unn_sig8(self):
-        # Always use a TopHat for sigma_8
-        filter = filters.TopHat(self.k, self._unnormalised_power)
+        # Always use a TopHat for sigma_8, and always use full k-range
+        lnk = np.arange(-8, 8, self.dlnk)
+        t = self.transfer.lnt(lnk)
+        p = np.exp(lnk) ** self.n * np.exp(t) ** 2
+        filter = filters.TopHat(np.exp(lnk),p)
+
         return filter.sigma(8.0)[0]
 
     @cached_property("_unn_sig8", "sigma_8")
