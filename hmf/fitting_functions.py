@@ -486,7 +486,7 @@ class Bhattacharya(SMT):
             The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
         """
         vfv = super(Bhattacharya, self).fsigma
-        return vfv * (self.nu * np.sqrt(self.params['a'])) ** self.params['q']
+        return vfv * self.params['a'] ** (self.params['q']/2) * self.nu**(self.params['q']-1)
 
     @property
     def cutmask(self):
