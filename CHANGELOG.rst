@@ -8,6 +8,7 @@ Bugfixes
 - Removed unnecessary multiplication by 1e6 in cosmo.py (thanks @iw381)
 - **IMPORTANT**: normalisation now calculated using convergent limits on k, rather than
   user-supplied values.
+- **IMPORTANT**: fixed bug in Bhattacharya fit, which was multiplying by an extra delta_c/sigma.
 
 Enhancements
 ++++++++++++
