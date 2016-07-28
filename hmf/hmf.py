@@ -541,7 +541,7 @@ class MassFunction(transfer.Transfer):
         Mass density in haloes `<m`, ``len=len(m)`` [units :math:`M_\odot h^2 Mpc^{-3}`]
 
         .. note :: As of v1.6.2, this assumes that the entire mass density of
-                   halos is encoded by the ``mean_density`` parameter (ie. all
+                   halos is encoded by the ``mean_density0`` parameter (ie. all
                    mass is found in halos). This is not explicitly true of all
                    fitting functions (eg. Warren), in which case the definition
                    of this property is somewhat inconsistent, but will still

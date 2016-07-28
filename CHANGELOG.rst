@@ -13,6 +13,7 @@ Bugfixes
 Enhancements
 ++++++++++++
 - how_big now gives the boxsize required to expect at least one halo above m in 95% of boxes.
+- Added a bunch of information to each hmf_model, indicating simulation parameters from which the fit was derived.
 
 Older Versions
 ~~~~~~~~~~~~~~

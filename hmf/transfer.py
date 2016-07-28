@@ -306,11 +306,5 @@ class Transfer(cosmo.Cosmology):
         r"""
         Dimensionless nonlinear power spectrum, :math:`\Delta_k = \frac{k^3 P_{\rm nl}(k)}{2\pi^2}`
         """
-        # rknl, rneff, rncur = _get_spec(self.k, self.delta_k, self.sigma_8)
-        # mask = self.k > 0.005
-        # plin = self.delta_k[mask]
-        # k = self.k[mask]
-        # pnl = halofit(k, self.z, self.cosmo, rneff, rncur, rknl, plin, self.takahashi)
-        # nonlinear_delta_k = self.delta_k.copy()
-        # nonlinear_delta_k[mask] = pnl
+
         return _hfit(self.k,self.delta_k,self.sigma_8,self.z,self.cosmo)
