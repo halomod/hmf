@@ -205,6 +205,57 @@ class FromFile(CAMB):
             lnT = T[1, :]
         return spline(lnkout, lnT, k=1)(lnk)
 
+class FromArray(FromFile):
+    """
+    Use a spline over a given array to define the transfer function
+
+    Parameters
+    ----------
+    cosmo : :class:`astropy.cosmology.FLRW` instance
+        The cosmology used in the calculation
+
+    \*\*model_parameters : unpack-dict
+        Parameters specific to this model. In this case, available
+        parameters are the following. To see their default values,
+        check the :attr:`_defaults` class attribute.
+
+        :k: array
+            Wavenumbers, in [h/Mpc]
+
+        :T: array
+            Transfer function
+    """
+    _defaults = {"k":None,
+                 "T":None}
+
+    def lnt(self, lnk):
+        """
+        Natural log of the transfer function
+
+        Parameters
+        ----------
+        lnk : array_like
+            Wavenumbers [Mpc/h]
+
+        Returns
+        -------
+        lnt : array_like
+            The log of the transfer function at lnk.
+        """
+        k = self.params['k']
+        T = self.params['T']
+
+        if k is None or T is None:
+            raise ValueError("You must supply an array for both k and T for this Transfer Model")
+        if len(k) != len(T):
+            raise ValueError("k and T must have same length")
+
+        if lnk[0] < np.log(k.min()):
+            lnkout, lnT = self._check_low_k(np.log(k), np.log(T), lnk[0])
+        else:
+            lnkout = np.log(k)
+            lnT = np.log(T)
+        return spline(lnkout, lnT, k=1)(lnk)
 
 class EH_BAO(TransferComponent):
     """
