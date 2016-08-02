@@ -19,7 +19,7 @@ Bugfixes
 - **IMPORTANT**: normalisation now calculated using convergent limits on k, rather than
   user-supplied values.
 - **IMPORTANT**: fixed bug in Bhattacharya fit, which was multiplying by an extra delta_c/sigma.
-
+- fixed issue with ``nonlinear_mass`` raising exception when mass outside given mass range.
 
 Older Versions
 ~~~~~~~~~~~~~~
