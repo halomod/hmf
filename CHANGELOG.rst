@@ -3,6 +3,13 @@ Releases
 
 Development Version
 ~~~~~~~~~~~~~~~~~~~
+
+Older Versions
+~~~~~~~~~~~~~~
+v2.0.2
+------
+2nd August, 2016
+
 Features
 ++++++++
 - Added a bunch of information to each hmf_model, indicating simulation parameters from which the fit was derived.
@@ -21,8 +28,6 @@ Bugfixes
 - **IMPORTANT**: fixed bug in Bhattacharya fit, which was multiplying by an extra delta_c/sigma.
 - fixed issue with ``nonlinear_mass`` raising exception when mass outside given mass range.
 
-Older Versions
-~~~~~~~~~~~~~~
 v2.0.1
 ------
 2nd May, 2016
