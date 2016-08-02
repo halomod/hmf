@@ -6,6 +6,28 @@ Development Version
 
 Older Versions
 ~~~~~~~~~~~~~~
+v2.0.2
+------
+2nd August, 2016
+
+Features
+++++++++
+- Added a bunch of information to each hmf_model, indicating simulation parameters from which the fit was derived.
+- Added ``FromArray`` transfer model, allowing an array to be passed programmatically for `k` and `T`.
+- Added ``Carroll1992`` growth factor approximation model.
+
+Enhancements
+++++++++++++
+- how_big now gives the boxsize required to expect at least one halo above m in 95% of boxes.
+
+Bugfixes
+++++++++
+- Removed unnecessary multiplication by 1e6 in cosmo.py (thanks @iw381)
+- **IMPORTANT**: normalisation now calculated using convergent limits on k, rather than
+  user-supplied values.
+- **IMPORTANT**: fixed bug in Bhattacharya fit, which was multiplying by an extra delta_c/sigma.
+- fixed issue with ``nonlinear_mass`` raising exception when mass outside given mass range.
+
 v2.0.1
 ------
 2nd May, 2016
@@ -15,6 +37,7 @@ Bugfixes
 - Corrects the default sigma_8 and n (spectral index) parameters to be from Planck15 (previously
   from Planck13), which corresponds to the default cosmology. **NOTE:** this will change user-code
   output silently unless sigma_8 and n are explicitly set.
+
 
 v2.0.0
 ------

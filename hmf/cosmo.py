@@ -101,8 +101,7 @@ class Cosmology(_framework.Framework):
         """
         Mean density of universe at z=0, [Msun h^2 / Mpc**3]
         """
-        # fixme: why the *1e6??
-        return (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2).to(u.MsolMass/u.Mpc**3).value * 1e6
+        return (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2).to(u.solMass/u.Mpc**3).value
 
 def get_cosmo(name):
     """

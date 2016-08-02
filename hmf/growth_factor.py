@@ -254,3 +254,87 @@ class GenMFGrowth(GrowthFactor):
             self._zvec = np.arange(zmin, self.params['zmax'], self.params['dz'])
             gf = self.growth_factor(self._zvec)
             return _spline(gf[::-1], self._zvec[::-1])
+
+
+
+@_inherit
+class Carroll1992(GrowthFactor):
+    """
+    Analytic approximation for the growth factor from Carroll et al. 1992.
+
+    Adapted from chomp project.
+
+    Parameters
+    ----------
+    cosmo : ``astropy.cosmology.FLRW`` instance
+        Cosmological model.
+
+    \*\*model_parameters : unpack-dict
+        Parameters specific to this model. In this case, available
+        parameters are as follows.To see their default values, check
+        the :attr:`_defaults` class attribute.
+
+        :dz: Step-size for redshift spline
+        :zmax: Maximum redshift of spline. Only used for :meth:`growth_factor_fn`, when `inverse=True`.
+    """
+    _defaults = {"dz":0.01, "zmax":1000.0}
+
+    def _d_plus(self, z, getvec=False):
+        """
+        Calculate un-normalised growth factor as a function
+        of redshift. Note that the `getvec` argument is not
+        used in this function.
+        """
+        a = 1 / (1 + z)
+
+        om = self.cosmo.Om0/a ** 3
+        denom = self.cosmo.Ode0 + om
+        Omega_m = om/denom
+        Omega_L = self.cosmo.Ode0/denom
+        coeff = 5.*Omega_m/(2./a)
+        term1 = Omega_m*(4./7.)
+        term3 = (1. + 0.5*Omega_m)*(1. + Omega_L/70.)
+        return coeff/(term1 - Omega_L + term3)
+
+    def growth_factor(self, z):
+        """
+        The growth factor, :math:`d(a) = D^+(a)/D^+(a=1)`.
+
+        Parameters
+        ----------
+        z : array_like
+            Redshift.
+
+        Returns
+        -------
+        gf : array_like
+            The growth factor at `z`.
+        """
+
+        return self._d_plus(z)/self._d_plus(0.0)
+
+    def growth_factor_fn(self, zmin=0.0, inverse=False):
+        """
+        Return the growth factor as a callable function.
+
+        Parameters
+        ----------
+        zmin : float, optional
+            The minimum redshift of the function. Default 0.0
+
+        inverse: bool, optional
+            Whether to return the inverse relationship [z(g)]. Default False.
+
+        Returns
+        -------
+        callable
+            The normalised growth factor as a function of redshift, or
+            redshift as a function of growth factor if ``inverse`` is True.
+
+        """
+        if not inverse:
+            return self.growth_factor
+        else:
+            self._zvec = np.arange(zmin, self.params['zmax'], self.params['dz'])
+            gf = self.growth_factor(self._zvec)
+            return _spline(gf[::-1], self._zvec[::-1])

@@ -227,12 +227,18 @@ class Transfer(cosmo.Cosmology):
         """
         return self.k ** self.n * np.exp(self._unnormalised_lnT) ** 2
 
-
-    @cached_property("mean_density0", "k", "_unnormalised_power")
+    @cached_property("dlnk", "transfer","n")
     def _unn_sig8(self):
-        # Always use a TopHat for sigma_8
-        filter = filters.TopHat(self.k, self._unnormalised_power)
-        return filter.sigma(8.0)[0]
+        # Always use a TopHat for sigma_8, and always use full k-range
+        if self.lnk_min > -15 or self.lnk_max < 9:
+            lnk = np.arange(-8, 8, self.dlnk)
+            t = self.transfer.lnt(lnk)
+            p = np.exp(lnk) ** self.n * np.exp(t) ** 2
+            filt = filters.TopHat(np.exp(lnk),p)
+        else:
+            filt = filters.TopHat(self.k,self._unnormalised_power)
+
+        return filt.sigma(8.0)[0]
 
     @cached_property("_unn_sig8", "sigma_8")
     def _normalisation(self):
@@ -300,11 +306,5 @@ class Transfer(cosmo.Cosmology):
         r"""
         Dimensionless nonlinear power spectrum, :math:`\Delta_k = \frac{k^3 P_{\rm nl}(k)}{2\pi^2}`
         """
-        # rknl, rneff, rncur = _get_spec(self.k, self.delta_k, self.sigma_8)
-        # mask = self.k > 0.005
-        # plin = self.delta_k[mask]
-        # k = self.k[mask]
-        # pnl = halofit(k, self.z, self.cosmo, rneff, rncur, rknl, plin, self.takahashi)
-        # nonlinear_delta_k = self.delta_k.copy()
-        # nonlinear_delta_k[mask] = pnl
+
         return _hfit(self.k,self.delta_k,self.sigma_8,self.z,self.cosmo)

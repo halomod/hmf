@@ -366,13 +366,14 @@ class MassFunction(transfer.Transfer):
             else:
                 startr = np.log(self.radii.max())
 
-            model = lambda lnr : (self.filter.sigma(np.exp(lnr))*self._normalisation*self.growth_factor - self.delta_c)**2
+            model = lambda lnr : (self.filter.sigma(np.exp(lnr))*self._normalisation * self.growth_factor
+                                  - self.delta_c)**2
 
             res = minimize(model,[startr,])
 
             if res.success:
                 r = np.exp(res.x[0])
-                return self.filter.radius_to_mass(r)
+                return self.filter.radius_to_mass(r,self.mean_density0)
             else:
                 warnings.warn("Minimization failed :(")
                 return 0
@@ -403,20 +404,12 @@ class MassFunction(transfer.Transfer):
         """
         return -3.0 * (2.0 * self._dlnsdlnm + 1.0)
 
-    @cached_property("hmf", "sigma", "z", "delta_halo", "nu", "m")
+    @cached_property("hmf")
     def fsigma(self):
         """
         The multiplicity function, :math:`f(\sigma)`, for `hmf_model`. ``len=len(m)``
         """
         return self.hmf.fsigma
-
-        # if np.sum(np.logical_not(np.isnan(fsigma))) < 2:
-        #     # the input mass range is almost completely outside the cut
-        #     logger.warning("The specified mass-range was almost entirely \
-        #                     outside of the limits from the fit. Ignored fit range...")
-        #     fsigma = self.hmf.fsigma(False)
-        #
-        # return fsigma
 
     @cached_property("fsigma", "mean_density0", "_dlnsdlnm", "m", "z" )
     def dndm(self):
@@ -549,7 +542,7 @@ class MassFunction(transfer.Transfer):
         Mass density in haloes `<m`, ``len=len(m)`` [units :math:`M_\odot h^2 Mpc^{-3}`]
 
         .. note :: As of v1.6.2, this assumes that the entire mass density of
-                   halos is encoded by the ``mean_density`` parameter (ie. all
+                   halos is encoded by the ``mean_density0`` parameter (ie. all
                    mass is found in halos). This is not explicitly true of all
                    fitting functions (eg. Warren), in which case the definition
                    of this property is somewhat inconsistent, but will still
@@ -568,6 +561,6 @@ class MassFunction(transfer.Transfer):
     @cached_property("ngtm")
     def how_big(self):
         """
-        Size of simulation volume in which to expect one halo of mass m, ``len=len(m)`` [units :math:`Mpch^{-1}`]
+        Size of simulation volume in which to expect one halo of mass m (with 95% probability), ``len=len(m)`` [units :math:`Mpch^{-1}`]
         """
-        return self.ngtm ** (-1. / 3.)
+        return (0.366362 / self.ngtm) ** (1. / 3.)
