@@ -366,13 +366,14 @@ class MassFunction(transfer.Transfer):
             else:
                 startr = np.log(self.radii.max())
 
-            model = lambda lnr : (self.filter.sigma(np.exp(lnr))*self._normalisation*self.growth_factor - self.delta_c)**2
+            model = lambda lnr : (self.filter.sigma(np.exp(lnr))*self._normalisation * self.growth_factor
+                                  - self.delta_c)**2
 
             res = minimize(model,[startr,])
 
             if res.success:
                 r = np.exp(res.x[0])
-                return self.filter.radius_to_mass(r)
+                return self.filter.radius_to_mass(r,self.mean_density0)
             else:
                 warnings.warn("Minimization failed :(")
                 return 0
