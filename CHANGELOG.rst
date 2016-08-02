@@ -3,6 +3,16 @@ Releases
 
 Development Version
 ~~~~~~~~~~~~~~~~~~~
+Features
+++++++++
+- Added a bunch of information to each hmf_model, indicating simulation parameters from which the fit was derived.
+- Added ``FromArray`` transfer model, allowing an array to be passed programmatically for `k` and `T`.
+- Added ``Carroll1992`` growth factor approximation model.
+
+Enhancements
+++++++++++++
+- how_big now gives the boxsize required to expect at least one halo above m in 95% of boxes.
+
 Bugfixes
 ++++++++
 - Removed unnecessary multiplication by 1e6 in cosmo.py (thanks @iw381)
@@ -10,10 +20,6 @@ Bugfixes
   user-supplied values.
 - **IMPORTANT**: fixed bug in Bhattacharya fit, which was multiplying by an extra delta_c/sigma.
 
-Enhancements
-++++++++++++
-- how_big now gives the boxsize required to expect at least one halo above m in 95% of boxes.
-- Added a bunch of information to each hmf_model, indicating simulation parameters from which the fit was derived.
 
 Older Versions
 ~~~~~~~~~~~~~~
