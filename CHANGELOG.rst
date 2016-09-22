@@ -7,6 +7,9 @@ Bugfixes
 ++++++++
 - SharpK filter integrated over incorrect range of k, now fixed.
 
+Enhancements
+++++++++++++
+- WDM models now more consistent with MassFunction API.
 
 Older Versions
 ~~~~~~~~~~~~~~

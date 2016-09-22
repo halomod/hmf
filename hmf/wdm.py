@@ -318,15 +318,15 @@ class TransferWDM(_Tr):
     #===========================================================================
     # Derived properties
     #===========================================================================
-    @cached_property("cosmo", "wdm_mass", "wdm_transfer", "wdm_params")
+    @cached_property("cosmo", "wdm_mass", "wdm_model", "wdm_params")
     def wdm(self):
         """
         The instantiated WDM model.
 
         Contains quantities relevant to WDM.
         """
-        if np.issubclass_(self.wdm_transfer, WDM):
-            return self.wdm_transfer(self.wdm_mass, self.cosmo,self.z,
+        if np.issubclass_(self.wdm_model, WDM):
+            return self.wdm_model(self.wdm_mass, self.cosmo,self.z,
                                      **self.wdm_params)
         elif isinstance(self.wdm_transfer, basestring):
             return get_model(self.wdm_model, __name__, mx=self.wdm_mass, cosmo=self.cosmo,
