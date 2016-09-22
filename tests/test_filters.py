@@ -112,25 +112,30 @@ class TestSharpK(object):
     def test_sigma_Rhalf(self):
         # should also raise a warning
         R = 0.5
+        thisr = 1./self.cls.k.max()
         t = 2 + 2 + 1
-        true = 1./(2*pi**2 * t * 0.5**t)
+        true = 1./(2*pi**2 * t * thisr**t)
 
         with warnings.catch_warnings(record=True) as w:
             s2 = self.cls.sigma(R)[0]**2
             assert w
-
+        print s2,true
         assert np.isclose(s2,true)
+
 
     def test_sigma1_Rhalf(self):
         # should also raise a warning
         R = 0.5
+        thisr = 1./self.cls.k.max()
+
         t = 4 + 2 + 1
-        true = 1./(2*pi**2 * t * 0.5**t)
+        true = 1./(2*pi**2 * t * thisr**t)
 
         with warnings.catch_warnings(record=True) as w:
             s2 = self.cls.sigma(R,1)[0]**2
             assert w
 
+        print s2,true
         assert np.isclose(s2,true)
 
 
