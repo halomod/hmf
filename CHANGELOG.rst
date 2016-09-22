@@ -3,6 +3,10 @@ Releases
 
 Development Version
 ~~~~~~~~~~~~~~~~~~~
+Bugfixes
+++++++++
+- SharpK filter integrated over incorrect range of k, now fixed.
+
 
 Older Versions
 ~~~~~~~~~~~~~~

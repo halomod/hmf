@@ -424,7 +424,8 @@ class SharpK(Filter):
         sigma = np.zeros(len(r))
         power = _spline(self.k, self.power)
         for i, rr in enumerate(r):
-            k = np.logspace(np.log(self.k[0]), min(self.k.max(),np.log(1.0 / rr)), len(self.k)-i, base=np.e)
+            k = np.logspace(np.log10(self.k[0]), min(np.log10(self.k.max()),np.log10(1.0 / rr)), max(100,len(self.k)-i))
+
             p = power(k)
             dlnk = np.log(k[1] / k[0])
             integ = p * k ** (3 + 2 * order)
