@@ -10,6 +10,7 @@ Bugfixes
 Enhancements
 ++++++++++++
 - WDM models now more consistent with MassFunction API.
+- Better warning in HALOFIT module when derivatives don't work first time.
 
 Older Versions
 ~~~~~~~~~~~~~~
