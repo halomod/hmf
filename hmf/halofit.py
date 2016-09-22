@@ -81,7 +81,7 @@ def _get_spec(k, delta_k, sigma_8):
     try:
         dev1, dev2 = sig_of_r.derivatives(np.log(1.0 / rknl))[1:3]
     except Exception as e:
-        print "WARNING: ", e
+        print "HALOFIT WARNING: Requiring extra iterations to find derivatives of sigma at 1/rknl (this often happens at high redshift)."
         lnr = np.linspace(np.log(0.2 / rknl), np.log(5 / rknl), 100)
         lnsig = np.empty(100)
 

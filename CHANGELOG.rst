@@ -4,8 +4,23 @@ Releases
 Development Version
 ~~~~~~~~~~~~~~~~~~~
 
+
 Older Versions
 ~~~~~~~~~~~~~~
+v2.0.3
+------
+22nd September, 2016
+
+Bugfixes
+++++++++
+- SharpK filter integrated over incorrect range of k, now fixed.
+
+Enhancements
+++++++++++++
+- WDM models now more consistent with MassFunction API.
+- Better warning in HALOFIT module when derivatives don't work first time.
+
+
 v2.0.2
 ------
 2nd August, 2016
