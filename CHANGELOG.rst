@@ -7,6 +7,14 @@ Development Version
 
 Older Versions
 ~~~~~~~~~~~~~~
+v2.0.4
+------
+11th November, 2016
+
+Bugfixes
+++++++++
+**IMPORTANT**: Fixed a bug in which updating the cosmology after creation did not update the transfer function.
+
 v2.0.3
 ------
 22nd September, 2016

@@ -1,4 +1,4 @@
-__version__ = "2.0.3"
+__version__ = "2.0.4"
 from hmf import MassFunction
 import fitting_functions as fits
 from cosmo import Cosmology
