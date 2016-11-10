@@ -202,7 +202,7 @@ class Transfer(cosmo.Cosmology):
         "Wavenumbers, [h/Mpc]"
         return np.exp(np.arange(self.lnk_min, self.lnk_max, self.dlnk))
 
-    @cached_property("transfer_model","transfer_params")
+    @cached_property("transfer_model","transfer_params","cosmo")
     def transfer(self):
         """
         The instantiated transfer model
