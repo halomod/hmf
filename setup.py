@@ -22,8 +22,10 @@ def find_version(*file_paths):
     raise RuntimeError("Unable to find version string.")
 
 if sys.argv[-1] == "publish":
-    os.system("python setup.py sdist upload")
-    os.system("python setup.py bdist_wheel upload")
+    os.system("rm dist/*")
+    os.system("python setup.py sdist")
+    os.system("python setup.py bdist_wheel")
+    os.system("twine upload dist/*")
     sys.exit()
 
 
