@@ -3,7 +3,10 @@ Releases
 
 Development Version
 ~~~~~~~~~~~~~~~~~~~
-
+Bugfixes
+++++++++
+ - Fixed bug in GrowthFactor which gave ripples in functions of z when a coarse grid was used. Thanks to @mirochaj and
+   @thomasguillet!
 
 Older Versions
 ~~~~~~~~~~~~~~

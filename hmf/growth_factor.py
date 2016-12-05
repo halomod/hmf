@@ -65,8 +65,11 @@ class GrowthFactor(Cmpt):
         dplus : float
             The un-normalised growth factor.
         """
+
         a_upper = 1.0 / (1.0 + z)
-        lna = np.arange(np.log(self.params["amin"]), np.log(a_upper) + self.params['dlna'] / 2, self.params['dlna'])
+        self._nlna = 1 + int((np.log(a_upper) - np.log(self.params['amin']))/self.params['dlna'])
+
+        lna = np.linspace(np.log(self.params["amin"]), np.log(a_upper), self._nlna)
         self._zvec = 1.0 / np.exp(lna) - 1.0
 
         integrand = 1.0 / (np.exp(lna) * self.cosmo.efunc(self._zvec)) ** 3
