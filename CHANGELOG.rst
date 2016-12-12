@@ -5,8 +5,14 @@ Development Version
 ~~~~~~~~~~~~~~~~~~~
 Bugfixes
 ++++++++
- - Fixed bug in GrowthFactor which gave ripples in functions of z when a coarse grid was used. Thanks to @mirochaj and
-   @thomasguillet!
+- Fixed bug in GrowthFactor which gave ripples in functions of z when a coarse grid was used. Thanks to @mirochaj and
+  @thomasguillet!
+
+Enhancements
+++++++++++++
+- Streamlined the caching framework a bit (removing cruft)
+- Totally removed dependency on the Cache (super)class -- caching indexes now inherent to the called class.
+- More robust parameter information based on introspection.
 
 Older Versions
 ~~~~~~~~~~~~~~
