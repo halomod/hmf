@@ -168,26 +168,45 @@ def parameter(f):
 
     name = f.__name__
     prop_ext = '__%s' % name
+    par_ext = "__parameters"
     recalc = "_Cache__recalc"
     recalc_papr = "_Cache__recalc_par_prop"
 
     def _set_property(self, val):
-        prop = ("_" + self.__class__.__name__ + prop_ext).replace("___", "__")
+#        prop = ("_" + self.__class__.__name__ + prop_ext).replace("___", "__")
+        # The following does any complex setting that is written into the code
         val = f(self, val)
+
+        # The actual location of the property
+        prop = ("_" + self.__class__.__name__ + prop_ext).replace("___", "__")
+
         try:
-            old_val = getattr(self, prop)
+            # If the property has already been set, we can grab its old value
+#            old_val = getattr(self, prop)
+            old_val = self._get_property()
             doset = False
         except AttributeError:
+            # Otherwise, it has no old value.
             old_val = None
             doset = True
 
+            # It's not been set before, so add it to our list of parameters
+            try:
+                # Only works if something has been set before
+                parlist =  getattr(self,("_" + self.__class__.__name__ + par_ext).replace("___", "__"))
+                parlist += [name]
+                setattr(self,("_" + self.__class__.__name__ + par_ext).replace("___", "__"),parlist)
+            except AttributeError:
+                # If nothing has ever been set, start a list
+                setattr(self, ("_" + self.__class__.__name__ + par_ext).replace("___", "__"), [name])
 
+
+        # If either the new value is different from the old, or we never set it before
         if not obj_eq(val, old_val) or doset:
-            if isinstance(val, dict) and hasattr(self, prop):
-                if val:
-                    getattr(self, prop).update(val)
-                else:
-                    setattr(self, prop, val)
+            # Then if its a dict, we update it
+            if isinstance(val, dict) and hasattr(self, prop) and val:
+                getattr(self, prop).update(val)
+            # Otherwise, just overwrite it. Note if dict is passed empty, it clears the whole dict.
             else:
                 setattr(self, prop, val)
 
@@ -207,29 +226,3 @@ def parameter(f):
         doc = doc[1:]
 
     return  property(_get_property, _set_property, None,"**Parameter**: "+doc)#
-
-    # Register the function
-    #outfunc.decorator = parameter
-    #return outfunc
-
-# def makeRegisteringDecorator(foreignDecorator):
-#     """
-#         Returns a copy of foreignDecorator, which is identical in every
-#         way(*), except also appends a .decorator property to the callable it
-#         spits out.
-#     """
-#     def newDecorator(func):
-#         # Call to newDecorator(method)
-#         # Exactly like old decorator, but output keeps track of what decorated it
-#         R = foreignDecorator(func) # apply foreignDecorator, like call to foreignDecorator(method) would have done
-#         R.decorator = newDecorator # keep track of decorator
-#         #R.original = func         # might as well keep track of everything!
-#         return R
-#
-#     newDecorator.__name__ = foreignDecorator.__name__
-#     newDecorator.__doc__ = foreignDecorator.__doc__
-#     # (*)We can be somewhat "hygienic", but newDecorator still isn't signature-preserving, i.e. you will not be able to get a runtime list of parameters. For that, you need hackish libraries...but in this case, the only argument is func, so it's not a big issue
-#
-#     return newDecorator
-#
-# parameter = makeRegisteringDecorator(parameter)
