@@ -135,8 +135,7 @@ def obj_eq(ob1, ob2):
         else:
             return False
 
-
-def parameter(f):
+def parameter(kind):
     """
     A decorator which indicates a parameter of a calculation (i.e. something that must be input by user).
 
@@ -144,6 +143,13 @@ def parameter(f):
     It provides the mechanisms by which the quantities are re-calculated intelligently.
     Parameters should be set by the `__init__` call in any class, so that they are set before any
     dependent quantity is accessed.
+
+    Parameters
+    ----------
+    kind : str
+        Either "param", "option", "model", "switch" or "res". Changes the behaviour of the parameter.
+        "param", "option", "model" and "res" all behave the same currently, while when a "switch" is modified,
+        all dependent quantities have their dependencies re-indexed.
 
     Examples
     --------
@@ -166,70 +172,78 @@ def parameter(f):
     calculation of either `a_quantity` and `a_child_quantity` will be re-performed when requested.
     """
 
-    name = f.__name__
+    def param(f):
 
-    def _set_property(self, val):
-        prop = hidden_loc(self, name)
 
-        # The following does any complex setting that is written into the code
-        val = f(self, val)
+        name = f.__name__
 
-        # Locations of indexes
-        recalc = hidden_loc(self, "recalc")
-        recalc_prpa = hidden_loc(self, "recalc_prop_par")
-        recalc_papr = hidden_loc(self, "recalc_par_prop")
-        recalc_prpa_static = hidden_loc(self, "recalc_prop_par_static")
+        def _set_property(self, val):
+            prop = hidden_loc(self, name)
 
-        try:
-            # If the property has already been set, we can grab its old value
-            old_val = _get_property(self)
-            doset = False
-        except AttributeError:
-            # Otherwise, it has no old value.
-            old_val = None
-            doset = True
+            # The following does any complex setting that is written into the code
+            val = f(self, val)
 
-            # It's not been set before, so add it to our list of parameters
+            # Locations of indexes
+            recalc = hidden_loc(self, "recalc")
+            recalc_prpa = hidden_loc(self, "recalc_prop_par")
+            recalc_papr = hidden_loc(self, "recalc_par_prop")
+            recalc_prpa_static = hidden_loc(self, "recalc_prop_par_static")
+
             try:
-                # Only works if something has been set before
-                getattr(self,recalc_papr)[name] = []
-
+                # If the property has already been set, we can grab its old value
+                old_val = _get_property(self)
+                doset = False
             except AttributeError:
-                # Given that *at least one* parameter must be set before properties are calculated,
-                # we can define the original empty indexes here.
-                setattr(self, recalc, {})
-                setattr(self, recalc_prpa, {})
-                setattr(self, recalc_prpa_static, {})
-                setattr(self, recalc_papr, {name: []})
+                # Otherwise, it has no old value.
+                old_val = None
+                doset = True
 
-        # If either the new value is different from the old, or we never set it before
-        if not obj_eq(val, old_val) or doset:
-            # Then if its a dict, we update it
-            if isinstance(val, dict) and hasattr(self, prop) and val:
-                getattr(self, prop).update(val)
-            # Otherwise, just overwrite it. Note if dict is passed empty, it clears the whole dict.
-            else:
-                setattr(self, prop, val)
+                # It's not been set before, so add it to our list of parameters
+                try:
+                    # Only works if something has been set before
+                    getattr(self,recalc_papr)[name] = []
 
-            # Make sure children are updated
-            for pr in getattr(self, recalc_papr).get(name):
-                getattr(self, recalc)[pr] = True
+                except AttributeError:
+                    # Given that *at least one* parameter must be set before properties are calculated,
+                    # we can define the original empty indexes here.
+                    setattr(self, recalc, {})
+                    setattr(self, recalc_prpa, {})
+                    setattr(self, recalc_prpa_static, {})
+                    setattr(self, recalc_papr, {name: []})
 
-    update_wrapper(_set_property, f)
+            # If either the new value is different from the old, or we never set it before
+            if not obj_eq(val, old_val) or doset:
+                # Then if its a dict, we update it
+                if isinstance(val, dict) and hasattr(self, prop) and val:
+                    getattr(self, prop).update(val)
+                # Otherwise, just overwrite it. Note if dict is passed empty, it clears the whole dict.
+                else:
+                    setattr(self, prop, val)
 
-    def _get_property(self):
-        prop = hidden_loc(self,name)
-        recalc_prpa = hidden_loc(self,"recalc_prop_par")
+                # Make sure children are updated
+                if kind != "switch": # Normal parameters just update dependencies
+                    for pr in getattr(self, recalc_papr).get(name):
+                        getattr(self, recalc)[pr] = True
+                else: # Switches mean that dependencies could depend on new parameters, so need to re-index
+                    for pr in getattr(self, recalc_papr).get(name):
+                        delattr(self,hidden_loc(self, pr))
 
-        # Add parameter to any index that hasn't been finalised
-        for pr,v in getattr(self,recalc_prpa).iteritems():
-            v.add(name)
+        update_wrapper(_set_property, f)
 
-        return getattr(self, prop)
+        def _get_property(self):
+            prop = hidden_loc(self,name)
+            recalc_prpa = hidden_loc(self,"recalc_prop_par")
 
-    # Here we set the documentation
-    doc = (f.__doc__ or "").strip()
-    if doc.startswith("\n"):
-        doc = doc[1:]
+            # Add parameter to any index that hasn't been finalised
+            for pr,v in getattr(self,recalc_prpa).iteritems():
+                v.add(name)
 
-    return  property(_get_property, _set_property, None,"**Parameter**: "+doc)#
+            return getattr(self, prop)
+
+        # Here we set the documentation
+        doc = (f.__doc__ or "").strip()
+        if doc.startswith("\n"):
+            doc = doc[1:]
+
+        return  property(_get_property, _set_property, None,"**Parameter**: "+doc)
+    return param

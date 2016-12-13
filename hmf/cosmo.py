@@ -50,7 +50,7 @@ class Cosmology(_framework.Framework):
     #===========================================================================
     # Parameters
     #===========================================================================
-    @_cache.parameter
+    @_cache.parameter("model")
     def cosmo_model(self, val):
         """
         The basis for the cosmology -- see astropy documentation. Can be a custom
@@ -67,7 +67,7 @@ class Cosmology(_framework.Framework):
         else:
             return val
 
-    @_cache.parameter
+    @_cache.parameter("param")
     def cosmo_params(self, val):
         """
         Parameters for the cosmology that deviate from the base cosmology passed.

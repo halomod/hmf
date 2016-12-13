@@ -67,7 +67,7 @@ class Transfer(cosmo.Cosmology):
     # Parameters
     #===========================================================================
 
-    @parameter
+    @parameter("model")
     def growth_model(self, val):
         """
         The model to use to calculate the growth function/growth rate.
@@ -78,7 +78,7 @@ class Transfer(cosmo.Cosmology):
             raise ValueError("growth_model must be a GrowthFactor or string, got %s" % type(val))
         return val
 
-    @parameter
+    @parameter("param")
     def growth_params(self, val):
         """
         Relevant parameters of the :attr:`growth_model`.
@@ -87,7 +87,7 @@ class Transfer(cosmo.Cosmology):
         """
         return val
 
-    @parameter
+    @parameter("model")
     def transfer_model(self, val):
         """
         Defines which transfer function model to use.
@@ -103,7 +103,7 @@ class Transfer(cosmo.Cosmology):
             raise ValueError("transfer_model must be string or Transfer subclass")
         return val
 
-    @parameter
+    @parameter("param")
     def transfer_params(self, val):
         """
         Relevant parameters of the `transfer_model`.
@@ -112,7 +112,7 @@ class Transfer(cosmo.Cosmology):
         """
         return val
 
-    @parameter
+    @parameter("param")
     def sigma_8(self, val):
         """
         RMS linear density fluctations in spheres of radius 8 Mpc/h
@@ -123,7 +123,7 @@ class Transfer(cosmo.Cosmology):
             raise ValueError("sigma_8 out of bounds, %s" % val)
         return val
 
-    @parameter
+    @parameter("param")
     def n(self, val):
         """
         Spectral index of fluctations
@@ -136,7 +136,7 @@ class Transfer(cosmo.Cosmology):
             raise ValueError("n out of bounds, %s" % val)
         return val
 
-    @parameter
+    @parameter("res")
     def lnk_min(self, val):
         """
         Minimum (natural) log wavenumber, :attr:`k` [h/Mpc].
@@ -145,7 +145,7 @@ class Transfer(cosmo.Cosmology):
         """
         return val
 
-    @parameter
+    @parameter("res")
     def lnk_max(self, val):
         """
         Maximum (natural) log wavenumber, :attr:`k` [h/Mpc].
@@ -154,7 +154,7 @@ class Transfer(cosmo.Cosmology):
         """
         return val
 
-    @parameter
+    @parameter('res')
     def dlnk(self, val):
         """
         Step-size of log wavenumbers
@@ -163,7 +163,7 @@ class Transfer(cosmo.Cosmology):
         """
         return val
 
-    @parameter
+    @parameter("switch")
     def takahashi(self, val):
         """
         Whether to use updated HALOFIT coefficients from Takahashi+12
@@ -172,7 +172,7 @@ class Transfer(cosmo.Cosmology):
         """
         return val
 
-    @parameter
+    @parameter("param")
     def z(self, val):
         """
         Redshift.

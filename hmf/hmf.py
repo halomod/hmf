@@ -89,7 +89,7 @@ class MassFunction(transfer.Transfer):
     #===========================================================================
     # PARAMETERS
     #===========================================================================
-    @parameter
+    @parameter("res")
     def Mmin(self, val):
         """
         Minimum mass at which to perform analysis [units :math:`\log_{10}M_\odot h^{-1}`].
@@ -98,7 +98,7 @@ class MassFunction(transfer.Transfer):
         """
         return val
 
-    @parameter
+    @parameter("res")
     def Mmax(self, val):
         """
         Maximum mass at which to perform analysis [units :math:`\log_{10}M_\odot h^{-1}`].
@@ -107,7 +107,7 @@ class MassFunction(transfer.Transfer):
         """
         return val
 
-    @parameter
+    @parameter("res")
     def dlog10m(self, val):
         """
         log10 interval between mass bins
@@ -116,7 +116,7 @@ class MassFunction(transfer.Transfer):
         """
         return val
 
-    @parameter
+    @parameter("model")
     def filter_model(self, val):
         """
         A model for the window/filter function.
@@ -127,7 +127,7 @@ class MassFunction(transfer.Transfer):
             raise ValueError("filter must be a Filter or string, got %s" % type(val))
         return val
 
-    @parameter
+    @parameter("param")
     def filter_params(self, val):
         """
         Model parameters for `filter_model`.
@@ -136,7 +136,7 @@ class MassFunction(transfer.Transfer):
         """
         return val
 
-    @parameter
+    @parameter("param")
     def delta_c(self, val):
         """
         The critical overdensity for collapse, :math:`\delta_c`.
@@ -155,7 +155,7 @@ class MassFunction(transfer.Transfer):
 
         return val
 
-    @parameter
+    @parameter("model")
     def hmf_model(self, val):
         """
         A model to use as the fitting function :math:`f(\sigma)`
@@ -166,7 +166,7 @@ class MassFunction(transfer.Transfer):
             raise ValueError("hmf_model must be a ff.FittingFunction or string, got %s" % type(val))
         return val
 
-    @parameter
+    @parameter("param")
     def hmf_params(self, val):
         """
         Model parameters for `hmf_model`.
@@ -177,7 +177,7 @@ class MassFunction(transfer.Transfer):
             raise ValueError("hmf_params must be a dictionary")
         return val
 
-    @parameter
+    @parameter("param")
     def delta_h(self, val):
         """
         The overdensity for the halo definition, with respect to :attr:`delta_wrt`
@@ -198,7 +198,7 @@ class MassFunction(transfer.Transfer):
 
 
 
-    @parameter
+    @parameter("switch")
     def delta_wrt(self, val):
         """
         Defines what the overdensity of a halo is with respect to, mean density
