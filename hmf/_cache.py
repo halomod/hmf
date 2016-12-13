@@ -20,25 +20,30 @@ def cached_quantity(f):
     """
     A robust property caching decorator.
 
-    This decorator only works when used with the entire system here....
+    This decorator is intended for use with the complementary `parameter` decorator.
+    It caches the decorated quantity, contingent on the parameters it depends on.
+    When those parameters are modified, a further call to the quantity will result
+    in a recalculation.
 
-    Usage::
-       class CachedClass(Cache):
+    Examples
+    --------
 
+    >>>   class CachedClass():
+    >>>      @parameter
+    >>>      def a_param(self,val):
+    >>>         return val
+    >>>
+    >>>      @cached_quantity
+    >>>      def a_quantity(self):
+    >>>         return 2*self.a_param
+    >>>
+    >>>      @cached_quantity
+    >>>      def a_child_quantity(self):
+    >>>         return self.a_quantity**3
 
-           @cached_property("parent_parameter")
-           def amethod(self):
-              ...calculations...
-              return final_value
-
-           @cached_property("amethod")
-           def a_child_method(self): #method dependent on amethod
-              final_value = 3*self.amethod
-              return final_value
-
-    This code will calculate ``amethod`` on the first call, but return the cached
-    value on all subsequent calls. If any parent parameter is modified, the
-    calculation will be re-performed.
+    This code will calculate ``a_child_quantity`` on the first call, but return the cached
+    value on all subsequent calls. If `a_param` is modified, the
+    calculation of either `a_quantity` and `a_child_quantity` will be re-performed when requested.
     """
 
     name = f.__name__
@@ -133,29 +138,32 @@ def obj_eq(ob1, ob2):
 
 def parameter(f):
     """
-    A simple cached property which acts more like an input value.
+    A decorator which indicates a parameter of a calculation (i.e. something that must be input by user).
 
-    This cached property is intended to be used on values that are passed in
-    ``__init__``, and can possibly be reset later. It provides the opportunity
-    for complex setters, and also the ability to update dependent properties
-    whenever the value is modified.
+    This decorator is intended for use with the complementary `cached_quantity` decorator.
+    It provides the mechanisms by which the quantities are re-calculated intelligently.
+    Parameters should be set by the `__init__` call in any class, so that they are set before any
+    dependent quantity is accessed.
 
-    Usage::
-       @set_property("amethod")
-       def parameter(self,val):
-           if isinstance(int,val):
-              return val
-           else:
-              raise ValueError("parameter must be an integer")
+    Examples
+    --------
 
-       @cached_property()
-       def amethod(self):
-          return 3*self.parameter
+    >>>   class CachedClass():
+    >>>      @parameter
+    >>>      def a_param(self,val):
+    >>>         return val
+    >>>
+    >>>      @cached_quantity
+    >>>      def a_quantity(self):
+    >>>         return 2*self.a_param
+    >>>
+    >>>      @cached_quantity
+    >>>      def a_child_quantity(self):
+    >>>         return self.a_quantity**3
 
-    Note that the definition of the setter merely returns the value to be set,
-    it doesn't set it to any particular instance attribute. The decorator
-    automatically sets ``self.__parameter = val`` and defines the get method
-    accordingly
+    This code will calculate ``a_child_quantity`` on the first call, but return the cached
+    value on all subsequent calls. If `a_param` is modified, the
+    calculation of either `a_quantity` and `a_child_quantity` will be re-performed when requested.
     """
 
     name = f.__name__
