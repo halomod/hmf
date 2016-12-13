@@ -13,6 +13,9 @@ Enhancements
 - Streamlined the caching framework a bit (removing cruft)
 - Totally removed dependency on the Cache (super)class -- caching indexes now inherent to the called class.
 - More robust parameter information based on introspection.
+- Complete overhaul of the caching system. Should be invisible to the user, but streamlines writing of framework
+  code considerably. Removes required manual specification of dependencies between quantities, and adds ability
+  to specify parameter kinds (model, param, res, option, switch).
 
 Older Versions
 ~~~~~~~~~~~~~~
