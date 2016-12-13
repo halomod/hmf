@@ -7,6 +7,7 @@ functionality of being automatically updated when a parent property is
 updated.
 """
 from functools import update_wrapper
+from copy import copy
 
 def hidden_loc(obj,name):
     """
@@ -15,7 +16,7 @@ def hidden_loc(obj,name):
     """
     return ("_" + obj.__class__.__name__ + "__"+ name).replace("___", "__")
 
-def cached_property(*parents):
+def cached_quantity(f):
     """
     A robust property caching decorator.
 
@@ -40,97 +41,82 @@ def cached_property(*parents):
     calculation will be re-performed.
     """
 
-    def cache(f):
-        name = f.__name__
+    name = f.__name__
 
-        def _get_property(self):
-            # Location of the property to be accessed
-            prop = hidden_loc(self,name)
+    def _get_property(self):
+        # Location of the property to be accessed
+        prop = hidden_loc(self,name)
 
-            # Locations of indexes
-            recalc = hidden_loc(self,"recalc")
-            recalc_prpa = hidden_loc(self,"recalc_prop_par")
-            recalc_papr = hidden_loc(self,"recalc_par_prop")
+        # Locations of indexes [they are set up in the parameter decorator]
+        recalc = hidden_loc(self,"recalc")
+        recalc_prpa = hidden_loc(self,"recalc_prop_par")
+        recalc_prpa_static = hidden_loc(self, "recalc_prop_par_static")
+        recalc_papr = hidden_loc(self,"recalc_par_prop")
 
-            # If recalc is constructed, and it needs to be updated,
-            # or if recalc is NOT constructed, recalculate
-            if getattr(self, recalc).get(name, True):
-                value = f(self)
-                setattr(self, prop, value)
-
-            # If recalc constructed and doesn't need updating, just return.
-            else:
-                return  getattr(self, prop)
-
-            # Figure out if it is a sub-class method
-            # To be sub-class, it must already be in the recalc dict, but some
-            # of the parents (if parameters) won't be in the papr dict, and also
-            # if some parents are properties, THEIR parents won't be in prpa.
-            # FIXME: this must be relatively slow, must be a better way.
-            is_sub = False
-            not_in_papr = any(p not in getattr(self, recalc_papr) for p in parents)
-            if not_in_papr and name in getattr(self, recalc):
-                all_pars = []
-                if any(p in getattr(self, recalc_prpa) for p in parents):
-                    for p in parents:
-                        all_pars += list(getattr(self, recalc_prpa).get(p, []))
-                if any(p not in getattr(self, recalc_prpa)[name] for p in all_pars):
-                    is_sub = True
+        # First, if this property has already been indexed,
+        # we must ensure all dependent parameters are copied into active indexes,
+        # otherwise they will be lost to their parents.
+        if name in getattr(self,recalc):
+            for pr, v in getattr(self, recalc_prpa).iteritems():
+                v.update(getattr(self, recalc_prpa_static)[name])
 
 
-            # At this point, the value has been calculated.
-            # If this quantity isn't in recalc, we need to construct an entry for it.
-            if name not in getattr(self, recalc) or is_sub:
-                final = set()
-                # For each of its parents, either get all its already known parameters,
-                # or just add the parent to a list (in this case it's a parameter itself).
-                for p in parents:
-                    # Hit each parent to make sure it's evaluated
-                    getattr(self, p)
-                    if p in getattr(self, recalc_prpa):
-                        final |= set(getattr(self, recalc_prpa)[p])
-                    else:
-                        final.add(p)
+        # If this property already in recalc and doesn't need updating, just return.
+        if not getattr(self, recalc).get(name, True):
+            return getattr(self, prop)
 
-                # final is a set of pure parameters that affect this quantity
-                if name in getattr(self, recalc_prpa):
-                    # This happens in the case of inheritance
-                    getattr(self, recalc_prpa)[name] |= final
-                else:
-                    getattr(self, recalc_prpa)[name] = final
+        # Otherwise, if its in recalc, and needs updating, just update it
+        elif name in getattr(self,recalc):
+            value = f(self)
+            setattr(self, prop, value)
 
-                # Go through each parameter and add the current quantity to its
-                # entry (inverse of prpa).
-                for e in final:
-                    if e in getattr(self, recalc_papr):
-                        getattr(self, recalc_papr)[e].add(name)
-                    else:
-                        getattr(self, recalc_papr)[e] = set([name])
-
+            # Ensure it doesn't need to be recalculated again
             getattr(self, recalc)[name] = False
+
             return value
-        update_wrapper(_get_property, f)
 
-        def _del_property(self):
-            # Locations of indexes
-            recalc = hidden_loc(self,"recalc")
-            recalc_prpa = hidden_loc(self,"recalc_prop_par")
-            recalc_papr = hidden_loc(self,"recalc_par_prop")
+        # Otherwise, we need to create its index for caching.
+        getattr(self,recalc_prpa)[name] = set()  # Empty set to which parameter names will be added
 
-            # Delete the property AND its recalc dicts
-            try:
-                prop = hidden_loc(self,name)
-                delattr(self, prop)
-                del getattr(self, recalc)[name]
-                del getattr(self, recalc_prpa)[name]
-                for e in getattr(self, recalc_papr):
-                    if name in getattr(self, recalc_papr)[e]:
-                        getattr(self, recalc_papr)[e].remove(name)
-            except AttributeError:
-                pass
+        # Go ahead and calculate the value -- each parameter accessed will add itself to the index.
+        value = f(self)
+        setattr(self,prop, value)
 
-        return property(_get_property, None, _del_property)
-    return cache
+        # Invert the index
+        for par in getattr(self,recalc_prpa)[name]:
+            getattr(self,recalc_papr)[par].append(name)
+
+        # Copy index to static dict, and remove the index (so that parameters don't keep on trying to add themselves)
+        getattr(self,recalc_prpa_static)[name] = copy(getattr(self,recalc_prpa)[name])
+        del getattr(self,recalc_prpa)[name]
+
+        # Add entry to master recalc list
+        getattr(self,recalc)[name] = False
+
+        return value
+
+    update_wrapper(_get_property, f)
+
+    def _del_property(self):
+        # Locations of indexes
+        recalc = hidden_loc(self,"recalc")
+        recalc_prpa = hidden_loc(self,"recalc_prop_par")
+        recalc_papr = hidden_loc(self,"recalc_par_prop")
+
+        # Delete the property AND its recalc dicts
+        try:
+            prop = hidden_loc(self,name)
+            delattr(self, prop)
+            del getattr(self, recalc)[name]
+            del getattr(self, recalc_prpa)[name]
+            for e in getattr(self, recalc_papr):
+                if name in getattr(self, recalc_papr)[e]:
+                    getattr(self, recalc_papr)[e].remove(name)
+        except AttributeError:
+            pass
+
+    return property(_get_property, None, _del_property)
+
 
 def obj_eq(ob1, ob2):
     try:
@@ -173,7 +159,6 @@ def parameter(f):
     """
 
     name = f.__name__
-    par_ext = "__parameters"
 
     def _set_property(self, val):
         prop = hidden_loc(self, name)
@@ -185,12 +170,11 @@ def parameter(f):
         recalc = hidden_loc(self, "recalc")
         recalc_prpa = hidden_loc(self, "recalc_prop_par")
         recalc_papr = hidden_loc(self, "recalc_par_prop")
-        parameters = hidden_loc(self,"parameters")
+        recalc_prpa_static = hidden_loc(self, "recalc_prop_par_static")
 
         try:
             # If the property has already been set, we can grab its old value
-#            old_val = getattr(self, prop)
-            old_val = self._get_property()
+            old_val = _get_property(self)
             doset = False
         except AttributeError:
             # Otherwise, it has no old value.
@@ -200,18 +184,15 @@ def parameter(f):
             # It's not been set before, so add it to our list of parameters
             try:
                 # Only works if something has been set before
-                parlist =  getattr(self,parameters)
-                parlist += [name]
-                setattr(self,parameters,parlist)
-            except AttributeError:
-                # If nothing has ever been set, start a list
-                setattr(self, parameters, [name])
+                getattr(self,recalc_papr)[name] = []
 
+            except AttributeError:
                 # Given that *at least one* parameter must be set before properties are calculated,
                 # we can define the original empty indexes here.
                 setattr(self, recalc, {})
                 setattr(self, recalc_prpa, {})
-                setattr(self, recalc_papr, {})
+                setattr(self, recalc_prpa_static, {})
+                setattr(self, recalc_papr, {name: []})
 
         # If either the new value is different from the old, or we never set it before
         if not obj_eq(val, old_val) or doset:
@@ -223,13 +204,19 @@ def parameter(f):
                 setattr(self, prop, val)
 
             # Make sure children are updated
-            for pr in getattr(self, recalc_papr).get(name, []):
+            for pr in getattr(self, recalc_papr).get(name):
                 getattr(self, recalc)[pr] = True
 
     update_wrapper(_set_property, f)
 
     def _get_property(self):
         prop = hidden_loc(self,name)
+        recalc_prpa = hidden_loc(self,"recalc_prop_par")
+
+        # Add parameter to any index that hasn't been finalised
+        for pr,v in getattr(self,recalc_prpa).iteritems():
+            v.add(name)
+
         return getattr(self, prop)
 
     # Here we set the documentation

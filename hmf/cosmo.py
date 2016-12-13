@@ -88,7 +88,7 @@ class Cosmology(_framework.Framework):
     #===========================================================================
     # DERIVED PROPERTIES AND FUNCTIONS
     #===========================================================================
-    @_cache.cached_property("cosmo_params", "cosmo_model")
+    @_cache.cached_quantity
     def cosmo(self):
         """
         Cosmographic object (:class:`astropy.cosmology.FLRW` object), with custom
@@ -96,7 +96,7 @@ class Cosmology(_framework.Framework):
         """
         return self.cosmo_model.clone(**self.cosmo_params)
 
-    @_cache.cached_property("cosmo")
+    @_cache.cached_quantity
     def mean_density0(self):
         """
         Mean density of universe at z=0, [Msun h^2 / Mpc**3]
