@@ -8,11 +8,12 @@ updated.
 """
 from functools import update_wrapper
 
-class Cache(object):
-    def __init__(self):
-        self.__recalc_prop_par = {}
-        self.__recalc_par_prop = {}
-        self.__recalc = {}
+def hidden_loc(obj,name):
+    """
+    Generate the location of a hidden attribute.
+    Importantly deals with attributes beginning with an underscore.
+    """
+    return ("_" + obj.__class__.__name__ + "__"+ name).replace("___", "__")
 
 def cached_property(*parents):
     """
@@ -39,20 +40,20 @@ def cached_property(*parents):
     calculation will be re-performed.
     """
 
-    recalc = "_Cache__recalc"
-    recalc_prpa = "_Cache__recalc_prop_par"
-    recalc_papr = "_Cache__recalc_par_prop"
-
     def cache(f):
         name = f.__name__
 
-        prop_ext = '__%s' % name
-
         def _get_property(self):
-            prop = ("_" + self.__class__.__name__ + prop_ext).replace("___", "__")
+            # Location of the property to be accessed
+            prop = hidden_loc(self,name)
+
+            # Locations of indexes
+            recalc = hidden_loc(self,"recalc")
+            recalc_prpa = hidden_loc(self,"recalc_prop_par")
+            recalc_papr = hidden_loc(self,"recalc_par_prop")
 
             # If recalc is constructed, and it needs to be updated,
-            # or ifq recalc is NOT constructed, recalculate
+            # or if recalc is NOT constructed, recalculate
             if getattr(self, recalc).get(name, True):
                 value = f(self)
                 setattr(self, prop, value)
@@ -111,9 +112,14 @@ def cached_property(*parents):
         update_wrapper(_get_property, f)
 
         def _del_property(self):
+            # Locations of indexes
+            recalc = hidden_loc(self,"recalc")
+            recalc_prpa = hidden_loc(self,"recalc_prop_par")
+            recalc_papr = hidden_loc(self,"recalc_par_prop")
+
             # Delete the property AND its recalc dicts
             try:
-                prop = ("_" + self.__class__.__name__ + prop_ext).replace("___", "__")
+                prop = hidden_loc(self,name)
                 delattr(self, prop)
                 del getattr(self, recalc)[name]
                 del getattr(self, recalc_prpa)[name]
@@ -167,27 +173,52 @@ def parameter(f):
     """
 
     name = f.__name__
-    prop_ext = '__%s' % name
-    recalc = "_Cache__recalc"
-    recalc_papr = "_Cache__recalc_par_prop"
+    par_ext = "__parameters"
 
     def _set_property(self, val):
-        prop = ("_" + self.__class__.__name__ + prop_ext).replace("___", "__")
+        prop = hidden_loc(self, name)
+
+        # The following does any complex setting that is written into the code
         val = f(self, val)
+
+        # Locations of indexes
+        recalc = hidden_loc(self, "recalc")
+        recalc_prpa = hidden_loc(self, "recalc_prop_par")
+        recalc_papr = hidden_loc(self, "recalc_par_prop")
+        parameters = hidden_loc(self,"parameters")
+
         try:
-            old_val = getattr(self, prop)
+            # If the property has already been set, we can grab its old value
+#            old_val = getattr(self, prop)
+            old_val = self._get_property()
             doset = False
         except AttributeError:
+            # Otherwise, it has no old value.
             old_val = None
             doset = True
 
+            # It's not been set before, so add it to our list of parameters
+            try:
+                # Only works if something has been set before
+                parlist =  getattr(self,parameters)
+                parlist += [name]
+                setattr(self,parameters,parlist)
+            except AttributeError:
+                # If nothing has ever been set, start a list
+                setattr(self, parameters, [name])
 
+                # Given that *at least one* parameter must be set before properties are calculated,
+                # we can define the original empty indexes here.
+                setattr(self, recalc, {})
+                setattr(self, recalc_prpa, {})
+                setattr(self, recalc_papr, {})
+
+        # If either the new value is different from the old, or we never set it before
         if not obj_eq(val, old_val) or doset:
-            if isinstance(val, dict) and hasattr(self, prop):
-                if val:
-                    getattr(self, prop).update(val)
-                else:
-                    setattr(self, prop, val)
+            # Then if its a dict, we update it
+            if isinstance(val, dict) and hasattr(self, prop) and val:
+                getattr(self, prop).update(val)
+            # Otherwise, just overwrite it. Note if dict is passed empty, it clears the whole dict.
             else:
                 setattr(self, prop, val)
 
@@ -198,7 +229,7 @@ def parameter(f):
     update_wrapper(_set_property, f)
 
     def _get_property(self):
-        prop = ("_" + self.__class__.__name__ + prop_ext).replace("___", "__")
+        prop = hidden_loc(self,name)
         return getattr(self, prop)
 
     # Here we set the documentation
@@ -207,29 +238,3 @@ def parameter(f):
         doc = doc[1:]
 
     return  property(_get_property, _set_property, None,"**Parameter**: "+doc)#
-
-    # Register the function
-    #outfunc.decorator = parameter
-    #return outfunc
-
-# def makeRegisteringDecorator(foreignDecorator):
-#     """
-#         Returns a copy of foreignDecorator, which is identical in every
-#         way(*), except also appends a .decorator property to the callable it
-#         spits out.
-#     """
-#     def newDecorator(func):
-#         # Call to newDecorator(method)
-#         # Exactly like old decorator, but output keeps track of what decorated it
-#         R = foreignDecorator(func) # apply foreignDecorator, like call to foreignDecorator(method) would have done
-#         R.decorator = newDecorator # keep track of decorator
-#         #R.original = func         # might as well keep track of everything!
-#         return R
-#
-#     newDecorator.__name__ = foreignDecorator.__name__
-#     newDecorator.__doc__ = foreignDecorator.__doc__
-#     # (*)We can be somewhat "hygienic", but newDecorator still isn't signature-preserving, i.e. you will not be able to get a runtime list of parameters. For that, you need hackish libraries...but in this case, the only argument is func, so it's not a big issue
-#
-#     return newDecorator
-#
-# parameter = makeRegisteringDecorator(parameter)

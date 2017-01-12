@@ -65,17 +65,21 @@ class GrowthFactor(Cmpt):
         dplus : float
             The un-normalised growth factor.
         """
+
         a_upper = 1.0 / (1.0 + z)
-        lna = np.arange(np.log(self.params["amin"]), np.log(a_upper) + self.params['dlna'] / 2, self.params['dlna'])
+
+        lna = np.arange(np.log(self.params["amin"]), np.log(a_upper), self.params['dlna'])
+        lna = np.hstack((lna,np.log(a_upper)))
+
         self._zvec = 1.0 / np.exp(lna) - 1.0
 
         integrand = 1.0 / (np.exp(lna) * self.cosmo.efunc(self._zvec)) ** 3
 
         if not getvec:
-            integral = intg.simps(np.exp(lna) * integrand, dx=self.params['dlna'])
+            integral = intg.simps(np.exp(lna) * integrand, x=lna,even="avg")
             dplus = 5.0 * self.cosmo.Om0 * self.cosmo.efunc(z) * integral / 2.0
         else:
-            integral = intg.cumtrapz(np.exp(lna) * integrand, dx=self.params['dlna'], initial=0.0)
+            integral = intg.cumtrapz(np.exp(lna) * integrand, x=lna, initial=0.0)
             dplus = 5.0 * self.cosmo.Om0 * self.cosmo.efunc(self._zvec) * integral / 2.0
 
         return dplus

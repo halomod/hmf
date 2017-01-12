@@ -3,7 +3,7 @@ Classes defining the overall structure of the hmf framework.
 '''
 import copy
 import sys
-from _cache import Cache
+#from _cache import Cache
 
 class Component(object):
     """
@@ -62,7 +62,7 @@ def get_model(name, mod, **kwargs):
     """
     return get_model_(name,mod)(**kwargs)
 
-class Framework(Cache):
+class Framework(object):
     """
     Class representing a coherent framework of component models.
 
@@ -95,42 +95,60 @@ class Framework(Cache):
     @classmethod
     def get_all_parameter_names(cls):
         "Yield all parameter names in the class."
-        for (name,obj) in cls.__dict__.iteritems():
-            if hasattr(obj, "__doc__"):
-                if obj.__doc__ is not None:
-                    if obj.__doc__.startswith("**Parameter**: "):
-                        yield name
+        K = cls()
+        return getattr(K,"_"+K.__class__.__name__+"__parameters")
 
     @classmethod
-    def get_all_parameters(cls):
-        "Yield all parameters as tuples of (name,obj)"
-        for (name,obj) in cls.__dict__.iteritems():
-            if hasattr(obj, "__doc__"):
-                if obj.__doc__ is not None:
-                    if obj.__doc__.startswith("**Parameter**: "):
-                        yield name, obj
-
-    @classmethod
-    def get_all_parameter_defaults(cls):
+    def get_all_parameter_defaults(cls,recursive=True):
         "Dictionary of all parameters and defaults"
         K = cls()
         out = {}
         for name in cls.get_all_parameter_names():
             out[name] = getattr(K,name)
+
+        if recursive:
+            for name,default in out.iteritems():
+                if default == {} and name.endswith("_params"):
+                    try:
+                        out[name] = getattr(getattr(K,name.replace("_params","_model")),"_defaults")
+                    except Exception as e:
+                        print e
+                        pass
+
         return out
 
     @property
     def parameter_values(self):
         "Dictionary of all parameters and their current values"
         out = {}
-        for name in self.get_all_parameter_names():
+        for name in getattr(self,"_"+self.__class__.__name__+"__parameters"):
             out[name] = getattr(self,name)
         return out
 
     @classmethod
-    def parameter_info(cls):
+    def quantities_available(cls):
+        return [name for name in dir(cls) if name not in cls.get_all_parameter_names() and not name.startswith("__")
+                and name not in dir(Framework)]
+        # return getattr(self, "_" + self.__class__.__name__ + "__recalc_prop_par").keys()
+
+    @classmethod
+    def _get_all_parameters(cls):
+        "Yield all parameters as tuples of (name,obj)"
+        for name in cls.get_all_parameter_names():
+            yield name, getattr(cls,name)
+
+    @classmethod
+    def parameter_info(cls,names=None):
+        """
+        Prints information about each parameter in the class.
+
+        Optionally, restrict printed parameters to those found in the list of names provided.
+        """
         docs = ""
-        for name, obj in cls.get_all_parameters():
+        for name, obj in cls._get_all_parameters():
+            if names and name not in names:
+                continue
+
             docs += name+" : "
             objdoc = obj.__doc__.split("\n")
 
@@ -153,4 +171,4 @@ class Framework(Cache):
             docs += "\n    ".join(objdoc) +"\n\n"
             while "\n\n\n" in docs:
                 docs.replace("\n\n\n","\n\n")
-        print docs[:-1]
+        print(docs[:-1])

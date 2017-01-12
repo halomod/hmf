@@ -68,7 +68,7 @@ def get_best_param_order(kls, q="dndm", **kwargs):
 
     final_list = []
     final_num = []
-    for k, v in a._Cache__recalc_par_prop.iteritems():
+    for k, v in getattr(a,"_"+a.__class__.__name__+"__recalc_par_prop").iteritems():
         num = len(v)
         for i, l in enumerate(final_num):
             if l >= num:
