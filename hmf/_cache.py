@@ -9,12 +9,14 @@ updated.
 from functools import update_wrapper
 from copy import copy
 
-def hidden_loc(obj,name):
+
+def hidden_loc(obj, name):
     """
     Generate the location of a hidden attribute.
     Importantly deals with attributes beginning with an underscore.
     """
-    return ("_" + obj.__class__.__name__ + "__"+ name).replace("___", "__")
+    return ("_" + obj.__class__.__name__ + "__" + name).replace("___", "__")
+
 
 def cached_quantity(f):
     """
@@ -28,7 +30,7 @@ def cached_quantity(f):
     Examples
     --------
 
-    >>>   class CachedClass():
+    >>>   class CachedClass(object):
     >>>      @parameter
     >>>      def a_param(self,val):
     >>>         return val
@@ -50,28 +52,27 @@ def cached_quantity(f):
 
     def _get_property(self):
         # Location of the property to be accessed
-        prop = hidden_loc(self,name)
+        prop = hidden_loc(self, name)
 
         # Locations of indexes [they are set up in the parameter decorator]
-        recalc = hidden_loc(self,"recalc")
-        recalc_prpa = hidden_loc(self,"recalc_prop_par")
+        recalc = hidden_loc(self, "recalc")
+        recalc_prpa = hidden_loc(self, "recalc_prop_par")
         recalc_prpa_static = hidden_loc(self, "recalc_prop_par_static")
-        recalc_papr = hidden_loc(self,"recalc_par_prop")
+        recalc_papr = hidden_loc(self, "recalc_par_prop")
 
         # First, if this property has already been indexed,
         # we must ensure all dependent parameters are copied into active indexes,
         # otherwise they will be lost to their parents.
-        if name in getattr(self,recalc):
+        if name in getattr(self, recalc):
             for pr, v in getattr(self, recalc_prpa).iteritems():
                 v.update(getattr(self, recalc_prpa_static)[name])
-
 
         # If this property already in recalc and doesn't need updating, just return.
         if not getattr(self, recalc).get(name, True):
             return getattr(self, prop)
 
         # Otherwise, if its in recalc, and needs updating, just update it
-        elif name in getattr(self,recalc):
+        elif name in getattr(self, recalc):
             value = f(self)
             setattr(self, prop, value)
 
@@ -81,22 +82,22 @@ def cached_quantity(f):
             return value
 
         # Otherwise, we need to create its index for caching.
-        getattr(self,recalc_prpa)[name] = set()  # Empty set to which parameter names will be added
+        getattr(self, recalc_prpa)[name] = set()  # Empty set to which parameter names will be added
 
         # Go ahead and calculate the value -- each parameter accessed will add itself to the index.
         value = f(self)
-        setattr(self,prop, value)
+        setattr(self, prop, value)
 
         # Invert the index
-        for par in getattr(self,recalc_prpa)[name]:
-            getattr(self,recalc_papr)[par].append(name)
+        for par in getattr(self, recalc_prpa)[name]:
+            getattr(self, recalc_papr)[par].add(name)
 
         # Copy index to static dict, and remove the index (so that parameters don't keep on trying to add themselves)
-        getattr(self,recalc_prpa_static)[name] = copy(getattr(self,recalc_prpa)[name])
-        del getattr(self,recalc_prpa)[name]
+        getattr(self, recalc_prpa_static)[name] = copy(getattr(self, recalc_prpa)[name])
+        del getattr(self, recalc_prpa)[name]
 
         # Add entry to master recalc list
-        getattr(self,recalc)[name] = False
+        getattr(self, recalc)[name] = False
 
         return value
 
@@ -104,19 +105,19 @@ def cached_quantity(f):
 
     def _del_property(self):
         # Locations of indexes
-        recalc = hidden_loc(self,"recalc")
-        recalc_prpa = hidden_loc(self,"recalc_prop_par")
-        recalc_papr = hidden_loc(self,"recalc_par_prop")
+        recalc = hidden_loc(self, "recalc")
+        recalc_prpa = hidden_loc(self, "recalc_prop_par_static")
+        recalc_papr = hidden_loc(self, "recalc_par_prop")
 
         # Delete the property AND its recalc dicts
         try:
-            prop = hidden_loc(self,name)
+            prop = hidden_loc(self, name)
             delattr(self, prop)
             del getattr(self, recalc)[name]
             del getattr(self, recalc_prpa)[name]
-            for e in getattr(self, recalc_papr):
-                if name in getattr(self, recalc_papr)[e]:
-                    getattr(self, recalc_papr)[e].remove(name)
+            # for e in getattr(self, recalc_papr):
+            #     if name in getattr(self, recalc_papr)[e]:
+            #         getattr(self, recalc_papr)[e].remove(name)
         except AttributeError:
             pass
 
@@ -130,10 +131,11 @@ def obj_eq(ob1, ob2):
         else:
             return False
     except ValueError:
-        if  (ob1 == ob2).all():
+        if (ob1 == ob2).all():
             return True
         else:
             return False
+
 
 def parameter(kind):
     """
@@ -154,7 +156,7 @@ def parameter(kind):
     Examples
     --------
 
-    >>>   class CachedClass():
+    >>>   class CachedClass(object):
     >>>      @parameter
     >>>      def a_param(self,val):
     >>>         return val
@@ -173,8 +175,6 @@ def parameter(kind):
     """
 
     def param(f):
-
-
         name = f.__name__
 
         def _set_property(self, val):
@@ -201,7 +201,7 @@ def parameter(kind):
                 # It's not been set before, so add it to our list of parameters
                 try:
                     # Only works if something has been set before
-                    getattr(self,recalc_papr)[name] = []
+                    getattr(self, recalc_papr)[name] = set()
 
                 except AttributeError:
                     # Given that *at least one* parameter must be set before properties are calculated,
@@ -209,7 +209,7 @@ def parameter(kind):
                     setattr(self, recalc, {})
                     setattr(self, recalc_prpa, {})
                     setattr(self, recalc_prpa_static, {})
-                    setattr(self, recalc_papr, {name: []})
+                    setattr(self, recalc_papr, {name: set()})
 
             # If either the new value is different from the old, or we never set it before
             if not obj_eq(val, old_val) or doset:
@@ -221,21 +221,21 @@ def parameter(kind):
                     setattr(self, prop, val)
 
                 # Make sure children are updated
-                if kind != "switch": # Normal parameters just update dependencies
+                if kind != "switch" or doset:  # Normal parameters just update dependencies
                     for pr in getattr(self, recalc_papr).get(name):
                         getattr(self, recalc)[pr] = True
-                else: # Switches mean that dependencies could depend on new parameters, so need to re-index
-                    for pr in getattr(self, recalc_papr).get(name):
-                        delattr(self,hidden_loc(self, pr))
+                else:  # Switches mean that dependencies could depend on new parameters, so need to re-index
+                    for pr in getattr(self, recalc_papr)[name]:
+                        delattr(self, pr)
 
         update_wrapper(_set_property, f)
 
         def _get_property(self):
-            prop = hidden_loc(self,name)
-            recalc_prpa = hidden_loc(self,"recalc_prop_par")
+            prop = hidden_loc(self, name)
+            recalc_prpa = hidden_loc(self, "recalc_prop_par")
 
             # Add parameter to any index that hasn't been finalised
-            for pr,v in getattr(self,recalc_prpa).iteritems():
+            for pr, v in getattr(self, recalc_prpa).iteritems():
                 v.add(name)
 
             return getattr(self, prop)
@@ -245,5 +245,6 @@ def parameter(kind):
         if doc.startswith("\n"):
             doc = doc[1:]
 
-        return  property(_get_property, _set_property, None,"**Parameter**: "+doc)
+        return property(_get_property, _set_property, None, "**Parameter**: " + doc)
+
     return param

@@ -38,7 +38,7 @@ setup(
                       "astropy>=1.0"],
     scripts=["scripts/hmf", "scripts/hmf-fit"],
     author="Steven Murray",
-    author_email="steven.murray@uwa.edu.au",
+    author_email="steven.murray@curtin.edu.au",
     description="A halo mass function calculator",
     long_description=read('README.rst'),
     license="MIT",
