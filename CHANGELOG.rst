@@ -1,9 +1,17 @@
 Releases
 ========
 
+Development Version
+-------------------
+**Enhancement**
+
+- Complete overhaul of the caching system. Should be invisible to the user, but streamlines writing of framework
+  code considerably. Removes required manual specification of dependencies between quantities, and adds ability
+  to specify parameter kinds (model, param, res, option, switch).
+
+
 v2.0.5 [12th January 2017]
 --------------------------
-
 **Bugfixes**
 
 - Fixed bug in GrowthFactor which gave ripples in functions of z when a coarse grid was used. Thanks to @mirochaj and
@@ -14,6 +22,7 @@ v2.0.5 [12th January 2017]
 - Streamlined the caching framework a bit (removing cruft)
 - Totally removed dependency on the Cache (super)class -- caching indexes now inherent to the called class.
 - More robust parameter information based on introspection.
+
 
 v2.0.4 [11th November, 2016]
 ------

@@ -13,7 +13,7 @@ import copy
 import logging
 import fitting_functions as ff
 import transfer
-from _cache import parameter, cached_property
+from _cache import parameter, cached_quantity
 from integrate_hmf import hmf_integral_gtm as int_gtm
 from numpy import issubclass_
 logger = logging.getLogger('hmf')
@@ -89,7 +89,7 @@ class MassFunction(transfer.Transfer):
     #===========================================================================
     # PARAMETERS
     #===========================================================================
-    @parameter
+    @parameter("res")
     def Mmin(self, val):
         """
         Minimum mass at which to perform analysis [units :math:`\log_{10}M_\odot h^{-1}`].
@@ -98,7 +98,7 @@ class MassFunction(transfer.Transfer):
         """
         return val
 
-    @parameter
+    @parameter("res")
     def Mmax(self, val):
         """
         Maximum mass at which to perform analysis [units :math:`\log_{10}M_\odot h^{-1}`].
@@ -107,7 +107,7 @@ class MassFunction(transfer.Transfer):
         """
         return val
 
-    @parameter
+    @parameter("res")
     def dlog10m(self, val):
         """
         log10 interval between mass bins
@@ -116,7 +116,7 @@ class MassFunction(transfer.Transfer):
         """
         return val
 
-    @parameter
+    @parameter("model")
     def filter_model(self, val):
         """
         A model for the window/filter function.
@@ -127,7 +127,7 @@ class MassFunction(transfer.Transfer):
             raise ValueError("filter must be a Filter or string, got %s" % type(val))
         return val
 
-    @parameter
+    @parameter("param")
     def filter_params(self, val):
         """
         Model parameters for `filter_model`.
@@ -136,7 +136,7 @@ class MassFunction(transfer.Transfer):
         """
         return val
 
-    @parameter
+    @parameter("param")
     def delta_c(self, val):
         """
         The critical overdensity for collapse, :math:`\delta_c`.
@@ -155,7 +155,7 @@ class MassFunction(transfer.Transfer):
 
         return val
 
-    @parameter
+    @parameter("model")
     def hmf_model(self, val):
         """
         A model to use as the fitting function :math:`f(\sigma)`
@@ -166,7 +166,7 @@ class MassFunction(transfer.Transfer):
             raise ValueError("hmf_model must be a ff.FittingFunction or string, got %s" % type(val))
         return val
 
-    @parameter
+    @parameter("param")
     def hmf_params(self, val):
         """
         Model parameters for `hmf_model`.
@@ -177,7 +177,7 @@ class MassFunction(transfer.Transfer):
             raise ValueError("hmf_params must be a dictionary")
         return val
 
-    @parameter
+    @parameter("param")
     def delta_h(self, val):
         """
         The overdensity for the halo definition, with respect to :attr:`delta_wrt`
@@ -198,7 +198,7 @@ class MassFunction(transfer.Transfer):
 
 
 
-    @parameter
+    @parameter("switch")
     def delta_wrt(self, val):
         """
         Defines what the overdensity of a halo is with respect to, mean density
@@ -251,15 +251,14 @@ class MassFunction(transfer.Transfer):
 
 
     #--------------------------------  PROPERTIES ------------------------------
-    @cached_property("z", "mean_density0")
+    @cached_quantity
     def mean_density(self):
         """
         Mean density of universe at redshift z
         """
         return self.mean_density0 * (1 + self.z) ** 3
 
-    @cached_property("hmf_model", "sigma", "z", "delta_halo", "nu", "m", "hmf_params",
-                     "cosmo", "delta_c")
+    @cached_quantity
     def hmf(self):
         """
         Instantiated model for the hmf fitting function.
@@ -276,7 +275,7 @@ class MassFunction(transfer.Transfer):
                             delta_c=self.delta_c, n_eff=self.n_eff,
                             ** self.hmf_params)
 
-    @cached_property("mean_density0", "filter_model", "delta_c", "k", "_unnormalised_power", "filter_params")
+    @cached_quantity
     def filter(self):
         """
         Instantiated model for filter/window functions.
@@ -287,17 +286,17 @@ class MassFunction(transfer.Transfer):
             return get_model(self.filter_model, "hmf.filters", k=self.k,
                                 power=self._unnormalised_power, **self.filter_params)
 
-    @cached_property("Mmin", "Mmax", "dlog10m")
+    @cached_quantity
     def m(self):
         """Masses"""
         return 10 ** np.arange(self.Mmin, self.Mmax, self.dlog10m)
 
-    @cached_property("m")
+    @cached_quantity
     def M(self):
         "Masses (alias of m, deprecated)"
         return self.m
 
-    @cached_property("delta_wrt", "delta_h", "z", "cosmo")
+    @cached_quantity
     def delta_halo(self):
         """ Overdensity of a halo w.r.t mean density"""
         if self.delta_wrt == 'mean':
@@ -306,28 +305,28 @@ class MassFunction(transfer.Transfer):
         elif self.delta_wrt == 'crit':
             return self.delta_h / self.cosmo.Om(self.z)
 
-    @cached_property("radii", "filter")
+    @cached_quantity
     def _unn_sigma0(self):
         """
         Unnormalised mass variance at z=0
         """
         return self.filter.sigma(self.radii)
 
-    @cached_property("_normalisation", "_unn_sigma0")
+    @cached_quantity
     def _sigma_0(self):
         """
         The normalised mass variance at z=0 :math:`\sigma`
         """
         return self._normalisation * self._unn_sigma0
 
-    @cached_property("m", "filter","mean_density0")
+    @cached_quantity
     def radii(self):
         """
         The radii corresponding to the masses `m`.
         """
         return self.filter.mass_to_radius(self.m,self.mean_density0)
 
-    @cached_property("radii", "filter")
+    @cached_quantity
     def _dlnsdlnm(self):
         """
         The value of :math:`\left|\frac{\d \ln \sigma}{\d \ln m}\right|`, ``len=len(m)``
@@ -340,21 +339,21 @@ class MassFunction(transfer.Transfer):
         """
         return 0.5 * self.filter.dlnss_dlnm(self.radii)
 
-    @cached_property("_sigma_0", "growth_factor")
+    @cached_quantity
     def sigma(self):
         """
         The mass variance at `z`, ``len=len(m)``
         """
         return self._sigma_0 * self.growth_factor
 
-    @cached_property("sigma", "delta_c")
+    @cached_quantity
     def nu(self):
         r"""
         The parameter :math:`\nu = \left(\frac{\delta_c}{\sigma}\right)^2`, ``len=len(m)``
         """
         return (self.delta_c / self.sigma) ** 2
 
-    @cached_property("nu")
+    @cached_quantity
     def mass_nonlinear(self):
         """
         The nonlinear mass, nu(Mstar) = 1.
@@ -381,14 +380,14 @@ class MassFunction(transfer.Transfer):
             nu = spline(self.nu,self.m,k=5)
             return nu(1)
 
-    @cached_property("sigma")
+    @cached_quantity
     def lnsigma(self):
         """
         Natural log of inverse mass variance, ``len=len(m)``
         """
         return np.log(1 / self.sigma)
 
-    @cached_property("_dlnsdlnm")
+    @cached_quantity
     def n_eff(self):
         """
         Effective spectral index at scale of halo radius, ``len=len(m)``
@@ -404,14 +403,14 @@ class MassFunction(transfer.Transfer):
         """
         return -3.0 * (2.0 * self._dlnsdlnm + 1.0)
 
-    @cached_property("hmf")
+    @cached_quantity
     def fsigma(self):
         """
         The multiplicity function, :math:`f(\sigma)`, for `hmf_model`. ``len=len(m)``
         """
         return self.hmf.fsigma
 
-    @cached_property("fsigma", "mean_density0", "_dlnsdlnm", "m", "z" )
+    @cached_quantity
     def dndm(self):
         """
         The number density of haloes, ``len=len(m)`` [units :math:`h^4 M_\odot^{-1} Mpc^{-3}`]
@@ -450,14 +449,14 @@ class MassFunction(transfer.Transfer):
 
         return dndm
 
-    @cached_property("m", "dndm")
+    @cached_quantity
     def dndlnm(self):
         """
         The differential mass function in terms of natural log of `m`, ``len=len(m)`` [units :math:`h^3 Mpc^{-3}`]
         """
         return self.m * self.dndm
 
-    @cached_property("m", "dndm")
+    @cached_quantity
     def dndlog10m(self):
         """
         The differential mass function in terms of log of `m`, ``len=len(m)`` [units :math:`h^3 Mpc^{-3}`]
@@ -507,7 +506,7 @@ class MassFunction(transfer.Transfer):
         # Since ngtm may have been extended, we cut it back
         return ngtm[:size]
 
-    @cached_property("m", "dndm")
+    @cached_quantity
     def ngtm(self):
         """
         The cumulative mass function above `m`, ``len=len(m)`` [units :math:`h^3 Mpc^{-3}`]
@@ -521,7 +520,7 @@ class MassFunction(transfer.Transfer):
         """
         return self._gtm(self.dndm)
 
-    @cached_property("m", "dndm")
+    @cached_quantity
     def rho_gtm(self):
         """
         Mass density in haloes `>m`, ``len=len(m)`` [units :math:`M_\odot h^2 Mpc^{-3}`]
@@ -536,7 +535,7 @@ class MassFunction(transfer.Transfer):
         return self._gtm(self.dndm, mass_density=True)
 
 
-    @cached_property("mean_density0", 'rho_gtm')
+    @cached_quantity
     def rho_ltm(self):
         """
         Mass density in haloes `<m`, ``len=len(m)`` [units :math:`M_\odot h^2 Mpc^{-3}`]
@@ -558,7 +557,7 @@ class MassFunction(transfer.Transfer):
         return self.mean_density0 - self.rho_gtm
 
 
-    @cached_property("ngtm")
+    @cached_quantity
     def how_big(self):
         """
         Size of simulation volume in which to expect one halo of mass m (with 95% probability), ``len=len(m)`` [units :math:`Mpch^{-1}`]

@@ -96,7 +96,7 @@ class Framework(object):
     def get_all_parameter_names(cls):
         "Yield all parameter names in the class."
         K = cls()
-        return getattr(K,"_"+K.__class__.__name__+"__parameters")
+        return getattr(K,"_"+K.__class__.__name__+"__recalc_par_prop")
 
     @classmethod
     def get_all_parameter_defaults(cls,recursive=True):
@@ -121,7 +121,7 @@ class Framework(object):
     def parameter_values(self):
         "Dictionary of all parameters and their current values"
         out = {}
-        for name in getattr(self,"_"+self.__class__.__name__+"__parameters"):
+        for name in getattr(self,"_"+self.__class__.__name__+"__recalc_par_prop"):
             out[name] = getattr(self,name)
         return out
 

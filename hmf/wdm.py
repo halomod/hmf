@@ -10,7 +10,7 @@ other alternative cosmologies.
 import numpy as np
 from transfer import Transfer as _Tr
 from hmf import MassFunction as _MF
-from _cache import parameter, cached_property
+from _cache import parameter, cached_quantity
 from _framework import Component, get_model
 import astropy.units as u
 
@@ -279,7 +279,7 @@ class TransferWDM(_Tr):
     #===========================================================================
     # Parameters
     #===========================================================================
-    @parameter
+    @parameter("model")
     def wdm_model(self, val):
         """
         A model for the WDM effect on the transfer function.
@@ -290,7 +290,7 @@ class TransferWDM(_Tr):
             raise ValueError("wdm_model must be a WDM subclass or string, got %s" % type(val))
         return val
 
-    @parameter
+    @parameter("param")
     def wdm_params(self, val):
         """
         Parameters of the WDM model.
@@ -299,7 +299,7 @@ class TransferWDM(_Tr):
         """
         return val
 
-    @parameter
+    @parameter("param")
     def wdm_mass(self, val):
         """
         Mass of the WDM particle.
@@ -318,7 +318,7 @@ class TransferWDM(_Tr):
     #===========================================================================
     # Derived properties
     #===========================================================================
-    @cached_property("cosmo", "wdm_mass", "wdm_model", "wdm_params")
+    @cached_quantity
     def wdm(self):
         """
         The instantiated WDM model.
@@ -332,7 +332,7 @@ class TransferWDM(_Tr):
             return get_model(self.wdm_model, __name__, mx=self.wdm_mass, cosmo=self.cosmo,
                              z=self.z,**self.wdm_params)
 
-    @cached_property("wdm")
+    @cached_quantity
     def _unnormalised_power(self):
         """
         Normalised log power at :math:`z=0`
@@ -358,7 +358,7 @@ class MassFunctionWDM(_MF, TransferWDM):
         self.alter_dndm = alter_dndm
         self.alter_params = alter_params or {}
 
-    @parameter
+    @parameter("switch")
     def alter_dndm(self, val):
         """
         A model for empirical recalibration of the HMF.
@@ -370,14 +370,14 @@ class MassFunctionWDM(_MF, TransferWDM):
         else:
             return val
 
-    @parameter
+    @parameter("param")
     def alter_params(self, val):
         """
         Model parameters for `alter_dndm`.
         """
         return val
 
-    @cached_property("alter_dndm", "M", "wdm", "alter_params")
+    @cached_quantity
     def dndm(self):
         """
         The number density of haloes in WDM, ``len=len(m)`` [units :math:`h^4 M_\odot^{-1} Mpc^{-3}`]

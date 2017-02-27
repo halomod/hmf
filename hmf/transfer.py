@@ -7,7 +7,7 @@ related quantities.
 """
 import numpy as np
 import cosmo
-from _cache import cached_property, parameter
+from _cache import cached_quantity, parameter
 from halofit import halofit as _hfit
 import growth_factor as gf
 import transfer_models as tm
@@ -67,7 +67,7 @@ class Transfer(cosmo.Cosmology):
     # Parameters
     #===========================================================================
 
-    @parameter
+    @parameter("model")
     def growth_model(self, val):
         """
         The model to use to calculate the growth function/growth rate.
@@ -78,7 +78,7 @@ class Transfer(cosmo.Cosmology):
             raise ValueError("growth_model must be a GrowthFactor or string, got %s" % type(val))
         return val
 
-    @parameter
+    @parameter("param")
     def growth_params(self, val):
         """
         Relevant parameters of the :attr:`growth_model`.
@@ -87,7 +87,7 @@ class Transfer(cosmo.Cosmology):
         """
         return val
 
-    @parameter
+    @parameter("model")
     def transfer_model(self, val):
         """
         Defines which transfer function model to use.
@@ -103,7 +103,7 @@ class Transfer(cosmo.Cosmology):
             raise ValueError("transfer_model must be string or Transfer subclass")
         return val
 
-    @parameter
+    @parameter("param")
     def transfer_params(self, val):
         """
         Relevant parameters of the `transfer_model`.
@@ -112,7 +112,7 @@ class Transfer(cosmo.Cosmology):
         """
         return val
 
-    @parameter
+    @parameter("param")
     def sigma_8(self, val):
         """
         RMS linear density fluctations in spheres of radius 8 Mpc/h
@@ -123,7 +123,7 @@ class Transfer(cosmo.Cosmology):
             raise ValueError("sigma_8 out of bounds, %s" % val)
         return val
 
-    @parameter
+    @parameter("param")
     def n(self, val):
         """
         Spectral index of fluctations
@@ -136,7 +136,7 @@ class Transfer(cosmo.Cosmology):
             raise ValueError("n out of bounds, %s" % val)
         return val
 
-    @parameter
+    @parameter("res")
     def lnk_min(self, val):
         """
         Minimum (natural) log wavenumber, :attr:`k` [h/Mpc].
@@ -145,7 +145,7 @@ class Transfer(cosmo.Cosmology):
         """
         return val
 
-    @parameter
+    @parameter("res")
     def lnk_max(self, val):
         """
         Maximum (natural) log wavenumber, :attr:`k` [h/Mpc].
@@ -154,7 +154,7 @@ class Transfer(cosmo.Cosmology):
         """
         return val
 
-    @parameter
+    @parameter('res')
     def dlnk(self, val):
         """
         Step-size of log wavenumbers
@@ -163,7 +163,7 @@ class Transfer(cosmo.Cosmology):
         """
         return val
 
-    @parameter
+    @parameter("switch")
     def takahashi(self, val):
         """
         Whether to use updated HALOFIT coefficients from Takahashi+12
@@ -172,7 +172,7 @@ class Transfer(cosmo.Cosmology):
         """
         return val
 
-    @parameter
+    @parameter("param")
     def z(self, val):
         """
         Redshift.
@@ -197,12 +197,12 @@ class Transfer(cosmo.Cosmology):
     #===========================================================================
     # DERIVED PROPERTIES AND FUNCTIONS
     #===========================================================================
-    @cached_property("lnk_min", "lnk_max", "dlnk")
+    @cached_quantity
     def k(self):
         "Wavenumbers, [h/Mpc]"
         return np.exp(np.arange(self.lnk_min, self.lnk_max, self.dlnk))
 
-    @cached_property("transfer_model","transfer_params","cosmo")
+    @cached_quantity
     def transfer(self):
         """
         The instantiated transfer model
@@ -213,21 +213,21 @@ class Transfer(cosmo.Cosmology):
             return get_model(self.transfer_model, "hmf.transfer_models", cosmo=self.cosmo,
                              **self.transfer_params)
 
-    @cached_property("k", "transfer")
+    @cached_quantity
     def _unnormalised_lnT(self):
         """
         The un-normalised transfer function.
         """
         return self.transfer.lnt(np.log(self.k))
 
-    @cached_property("n", "k", "_unnormalised_lnT")
+    @cached_quantity
     def _unnormalised_power(self):
         """
         Un-normalised CDM power at :math:`z=0` [units :math:`Mpc^3/h^3`]
         """
         return self.k ** self.n * np.exp(self._unnormalised_lnT) ** 2
 
-    @cached_property("dlnk", "transfer","n")
+    @cached_quantity
     def _unn_sig8(self):
         # Always use a TopHat for sigma_8, and always use full k-range
         if self.lnk_min > -15 or self.lnk_max < 9:
@@ -240,26 +240,26 @@ class Transfer(cosmo.Cosmology):
 
         return filt.sigma(8.0)[0]
 
-    @cached_property("_unn_sig8", "sigma_8")
+    @cached_quantity
     def _normalisation(self):
         # Calculate the normalization factor
         return self.sigma_8 / self._unn_sig8
 
-    @cached_property("_normalisation", "_unnormalised_power")
+    @cached_quantity
     def _power0(self):
         """
         Normalised power spectrum at z=0 [units :math:`Mpc^3/h^3`]
         """
         return self._normalisation ** 2 * self._unnormalised_power
 
-    @cached_property("sigma_8", "_unnormalised_lnT", "lnk", "mean_density0")
+    @cached_quantity
     def _transfer(self):
         """
         Normalised CDM log transfer function
         """
         return self._normalisation * np.exp(self._unnormalised_lnT)
 
-    @cached_property("cosmo", "growth_model", "growth_params")
+    @cached_quantity
     def growth(self):
         "The instantiated growth model"
         if np.issubclass_(self.growth_model, gf.GrowthFactor):
@@ -268,31 +268,28 @@ class Transfer(cosmo.Cosmology):
             return get_model(self.growth_model, "hmf.growth_factor", cosmo=self.cosmo,
                              **self.growth_params)
 
-    @cached_property("z", "growth")
+    @cached_quantity
     def growth_factor(self):
         r"""
         The growth factor
         """
-        if self.z > 0:
-            return self.growth.growth_factor(self.z)
-        else:
-            return 1.0
+        return self.growth.growth_factor(self.z)
 
-    @cached_property("growth_factor", "_power0")
+    @cached_quantity
     def power(self):
         """
         Normalised log power spectrum [units :math:`Mpc^3/h^3`]
         """
         return self.growth_factor ** 2 * self._power0
 
-    @cached_property("k", "power")
+    @cached_quantity
     def delta_k(self):
         r"""
         Dimensionless power spectrum, :math:`\Delta_k = \frac{k^3 P(k)}{2\pi^2}`
         """
         return self.k ** 3 * self.power / (2 * np.pi ** 2)
 
-    @cached_property("k", "nonlinear_delta_k")
+    @cached_quantity
     def nonlinear_power(self):
         """
         Non-linear log power [units :math:`Mpc^3/h^3`]
@@ -301,7 +298,7 @@ class Transfer(cosmo.Cosmology):
         """
         return self.k ** -3 * self.nonlinear_delta_k * (2 * np.pi ** 2)
 
-    @cached_property("delta_k", "k", "z", "sigma_8", "cosmo", 'takahashi')
+    @cached_quantity
     def nonlinear_delta_k(self):
         r"""
         Dimensionless nonlinear power spectrum, :math:`\Delta_k = \frac{k^3 P_{\rm nl}(k)}{2\pi^2}`
