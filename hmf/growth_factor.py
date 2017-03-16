@@ -296,7 +296,7 @@ class Carroll1992(GrowthFactor):
         Omega_m = om/denom
         Omega_L = self.cosmo.Ode0/denom
         coeff = 5.*Omega_m/(2./a)
-        term1 = Omega_m*(4./7.)
+        term1 = Omega_m**(4./7.)
         term3 = (1. + 0.5*Omega_m)*(1. + Omega_L/70.)
         return coeff/(term1 - Omega_L + term3)
 

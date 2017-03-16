@@ -3,6 +3,10 @@ Releases
 
 Development Version
 -------------------
+**Bugfixes**
+
+- Fixed bug in Caroll1992 GrowthFactor class which affected high-redshift growth factors (thanks to Olmo Piana).
+
 **Enhancement**
 
 - Complete overhaul of the caching system. Should be invisible to the user, but streamlines writing of framework
