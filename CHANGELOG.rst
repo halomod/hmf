@@ -6,6 +6,7 @@ Development Version
 **Bugfixes**
 
 - Fixed bug in Caroll1992 GrowthFactor class which affected high-redshift growth factors (thanks to Olmo Piana).
+- Fixed astropy dependency to be >= 1.1
 
 **Enhancement**
 
