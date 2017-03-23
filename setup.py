@@ -35,7 +35,7 @@ setup(
     packages=['hmf', 'hmf.fitting'],
     install_requires=["numpy>=1.6.2",
                       "scipy>=0.12.0",
-                      "astropy>=1.0"],
+                      "astropy>=1.1"],
     scripts=["scripts/hmf", "scripts/hmf-fit"],
     author="Steven Murray",
     author_email="steven.murray@curtin.edu.au",
