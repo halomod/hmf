@@ -11,9 +11,9 @@ Cosmology framework. All custom subclasses of :class:`astropy.cosmology.FLRW`
 may be used as inputs.
 """
 
-import _cache
+from . import _cache
 from astropy.cosmology import Planck13, FLRW, WMAP5, WMAP7, WMAP9, Planck15
-import _framework
+from . import _framework
 import sys
 import astropy.units as u
 
@@ -58,7 +58,7 @@ class Cosmology(_framework.Framework):
 
         :type: instance of `astropy.cosmology.FLRW` subclass
         """
-        if isinstance(val, basestring):
+        if isinstance(val, str):
             cosmo = get_cosmo(val)
             return cosmo
 

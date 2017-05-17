@@ -26,7 +26,7 @@ class TestTopHat(object):
         R = 1.0
         true =(9*R**2*sin(R)**2/2 + 9*R**2*cos(R)**2/2 + 9*R*sin(R)*cos(R)/2 - 9*sin(R)**2)/(2*pi**2*R**6)
 
-        print true,self.cls.sigma(R)**2
+        print(true,self.cls.sigma(R)**2)
         assert np.isclose(self.cls.sigma(R)[0]**2,true)
 
     def test_sigma1(self):
@@ -34,7 +34,7 @@ class TestTopHat(object):
         true = (3*R**2*sin(R)**2/2 + 3*R**2*cos(R)**2/2 + 9*R*sin(R)*cos(R)/2 - 9*sin(R)**2/4 + 45*cos(R)**2/4 - 45*sin(R)*cos(R)/(4*R))/(2*pi**2*R**6)
 
 
-        print true,self.cls.sigma(R,1)**2
+        print(true,self.cls.sigma(R,1)**2)
         assert np.isclose(self.cls.sigma(R,1)[0]**2,true)
 
     def test_dwdlnkr(self):
@@ -46,7 +46,7 @@ class TestTopHat(object):
         R = 1.0
         true = 2*R**4*(-45*sin(R)**2/(4*R**2) - 27*cos(R)**2/(4*R**2) - 81*sin(R)*cos(R)/(4*R**3) + 27*sin(R)**2/R**4)/(9*R**2*sin(R)**2/2 + 9*R**2*cos(R)**2/2 + 9*R*sin(R)*cos(R)/2 - 9*sin(R)**2)
 
-        print true, self.cls.dlnss_dlnr(R)
+        print(true, self.cls.dlnss_dlnr(R))
         assert np.isclose(self.cls.dlnss_dlnr(R),true)
 
 class TestSharpK(object):
@@ -60,7 +60,7 @@ class TestSharpK(object):
         t = 2 + 2 + 1
         true = 1./(2*pi**2 * t * R**t)
 
-        print true,self.cls.sigma(R)**2
+        print(true,self.cls.sigma(R)**2)
         assert np.isclose(self.cls.sigma(R)[0]**2,true)
 
     def test_sigma1(self):
@@ -68,7 +68,7 @@ class TestSharpK(object):
         t = 4 + 2 + 1
         true = 1./(2*pi**2 * t * R**t)
 
-        print true,self.cls.sigma(R,1)**2
+        print(true,self.cls.sigma(R,1)**2)
         assert np.isclose(self.cls.sigma(R,1)[0]**2,true)
 
 
@@ -78,7 +78,7 @@ class TestSharpK(object):
         sigma2 = 1./(2*pi**2 * t * R**t)
         true = -1./(2*pi**2*sigma2 * R**(3+2))
 
-        print true, self.cls.dlnss_dlnr(R)
+        print(true, self.cls.dlnss_dlnr(R))
         assert np.isclose(self.cls.dlnss_dlnr(R),true)
 
 
@@ -87,7 +87,7 @@ class TestSharpK(object):
         t = 2 + 2 + 1
         true = 1./(2*pi**2 * t * R**t)
 
-        print true,self.cls.sigma(R)**2
+        print(true,self.cls.sigma(R)**2)
         assert np.isclose(self.cls.sigma(R)[0]**2,true)
 
     def test_sigma1_R3(self):
@@ -95,7 +95,7 @@ class TestSharpK(object):
         t = 4 + 2 + 1
         true = 1./(2*pi**2 * t * R**t)
 
-        print true,self.cls.sigma(R,1)**2
+        print(true,self.cls.sigma(R,1)**2)
         assert np.isclose(self.cls.sigma(R,1)[0]**2,true)
 
 
@@ -105,7 +105,7 @@ class TestSharpK(object):
         sigma2 = 1./(2*pi**2 * t * R**t)
         true = -1./(2*pi**2*sigma2 * R**(3+2))
 
-        print true, self.cls.dlnss_dlnr(R)
+        print(true, self.cls.dlnss_dlnr(R))
         assert np.isclose(self.cls.dlnss_dlnr(R),true)
 
 
@@ -119,7 +119,7 @@ class TestSharpK(object):
         with warnings.catch_warnings(record=True) as w:
             s2 = self.cls.sigma(R)[0]**2
             assert w
-        print s2,true
+        print(s2,true)
         assert np.isclose(s2,true)
 
 
@@ -135,7 +135,7 @@ class TestSharpK(object):
             s2 = self.cls.sigma(R,1)[0]**2
             assert w
 
-        print s2,true
+        print(s2,true)
         assert np.isclose(s2,true)
 
 
@@ -145,7 +145,7 @@ class TestSharpK(object):
         sigma2 = 1./(2*pi**2 * t * R**t)
         true = -1./(2*pi**2*sigma2 * R**(3+2))
 
-        print true, self.cls.dlnss_dlnr(R)
+        print(true, self.cls.dlnss_dlnr(R))
         assert np.isclose(self.cls.dlnss_dlnr(R),true)
 
 
@@ -160,14 +160,14 @@ class TestGaussian(object):
         R = 10.0
         true = 3./(16*pi**(3./2.)*R**5)
 
-        print true,self.cls.sigma(R)**2
+        print(true,self.cls.sigma(R)**2)
         assert np.isclose(self.cls.sigma(R)[0]**2,true)
 
     def test_sigma1(self):
         R = 10.0
         true = 15/(32*pi**(3./2.)*R**7)
 
-        print true,self.cls.sigma(R,1)**2
+        print(true,self.cls.sigma(R,1)**2)
         assert np.isclose(self.cls.sigma(R,1)[0]**2,true)
 
 
@@ -175,5 +175,5 @@ class TestGaussian(object):
         R = 10.0
         true = -5
 
-        print true, self.cls.dlnss_dlnr(R)
+        print(true, self.cls.dlnss_dlnr(R))
         assert np.isclose(self.cls.dlnss_dlnr(R),true)

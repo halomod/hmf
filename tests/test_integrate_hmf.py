@@ -4,8 +4,18 @@ import os
 LOCATION = "/".join(os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))).split("/")[:-1])
 import sys
 sys.path.insert(0, LOCATION)
-from mrpy.special import gammainc
+from mpmath import gammainc as _mp_ginc
+
 from hmf.integrate_hmf import hmf_integral_gtm
+
+def _flt(a):
+    try:
+        return a.astype('float')
+    except AttributeError:
+        return float(a)
+_ginc_ufunc = np.frompyfunc(lambda z, x: _mp_ginc(z, x), 2, 1)
+def gammainc(z,x):
+    return _flt(_ginc_ufunc(z,x))
 
 class TestAnalyticIntegral(object):
     def __init__(self):
@@ -41,7 +51,7 @@ class TestAnalyticIntegral(object):
         dndm = self.tggd(m,9.0,-1.93,0.4)
         ngtm = self.anl_int(m,9.0,-1.93,0.4)
 
-        print ngtm/hmf_integral_gtm(m,dndm)
+        print(ngtm/hmf_integral_gtm(m,dndm))
         assert np.allclose(ngtm,hmf_integral_gtm(m,dndm),rtol=0.03)
 
     # def test_low_mmax_z0(self):
@@ -57,5 +67,5 @@ class TestAnalyticIntegral(object):
         dndm = self.tggd(m,9.0,-1.93,0.4)
         ngtm = self.anl_int(m,9.0,-1.93,0.4)
 
-        print ngtm/hmf_integral_gtm(m,dndm)
+        print(ngtm/hmf_integral_gtm(m,dndm))
         assert np.allclose(ngtm,hmf_integral_gtm(m,dndm),rtol=0.03)

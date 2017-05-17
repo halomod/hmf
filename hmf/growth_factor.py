@@ -9,9 +9,9 @@ may be implemented.
 
 import numpy as np
 from scipy import integrate as intg
-from _framework import Component as Cmpt
+from ._framework import Component as Cmpt
 from scipy.interpolate import InterpolatedUnivariateSpline as _spline
-from _utils import inherit_docstrings as _inherit
+from ._utils import inherit_docstrings as _inherit
 
 
 class GrowthFactor(Cmpt):

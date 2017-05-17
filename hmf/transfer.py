@@ -6,16 +6,16 @@ calculate the transfer function, matter power spectrum and several other
 related quantities.
 """
 import numpy as np
-import cosmo
-from _cache import cached_quantity, parameter
-from halofit import halofit as _hfit
-import growth_factor as gf
-import transfer_models as tm
-from _framework import get_model
-import filters
+from . import cosmo
+from ._cache import cached_quantity, parameter
+from .halofit import halofit as _hfit
+from . import growth_factor as gf
+from . import transfer_models as tm
+from ._framework import get_model
+from . import filters
 
 try:
-    import pycamb
+    import camb
     HAVE_PYCAMB = True
 except ImportError:
     HAVE_PYCAMB = False
@@ -43,8 +43,6 @@ class Transfer(cosmo.Cosmology):
                  lnk_max=np.log(2e4), dlnk=0.05, transfer_model=tm.CAMB if HAVE_PYCAMB else tm.EH,
                  transfer_params=None, takahashi=True, growth_model=gf.GrowthFactor,
                  growth_params=None, **kwargs):
-        # Note the parameters that have empty dicts as defaults must be specified
-        # as None, or the defaults themselves are updated!
 
         # Call Cosmology init
         super(Transfer, self).__init__(**kwargs)
@@ -74,7 +72,7 @@ class Transfer(cosmo.Cosmology):
 
         :type: str or `hmf.growth_factor.GrowthFactor` subclass
         """
-        if not np.issubclass_(val, gf.GrowthFactor) and not isinstance(val, basestring):
+        if not np.issubclass_(val, gf.GrowthFactor) and not isinstance(val, str):
             raise ValueError("growth_model must be a GrowthFactor or string, got %s" % type(val))
         return val
 
@@ -99,7 +97,7 @@ class Transfer(cosmo.Cosmology):
         """
         if not HAVE_PYCAMB and (val == "CAMB" or val == tm.CAMB):
             raise ValueError("You cannot use the CAMB transfer since pycamb isn't installed")
-        if not (np.issubclass_(val, tm.TransferComponent) or isinstance(val, basestring)):
+        if not (np.issubclass_(val, tm.TransferComponent) or isinstance(val, str)):
             raise ValueError("transfer_model must be string or Transfer subclass")
         return val
 
@@ -209,7 +207,7 @@ class Transfer(cosmo.Cosmology):
         """
         if np.issubclass_(self.transfer_model, tm.TransferComponent):
             return self.transfer_model(self.cosmo, **self.transfer_params)
-        elif isinstance(self.transfer_model, basestring):
+        elif isinstance(self.transfer_model, str):
             return get_model(self.transfer_model, "hmf.transfer_models", cosmo=self.cosmo,
                              **self.transfer_params)
 
@@ -253,7 +251,7 @@ class Transfer(cosmo.Cosmology):
         return self._normalisation ** 2 * self._unnormalised_power
 
     @cached_quantity
-    def _transfer(self):
+    def transfer_function(self):
         """
         Normalised CDM log transfer function
         """

@@ -8,10 +8,10 @@ other alternative cosmologies.
 '''
 
 import numpy as np
-from transfer import Transfer as _Tr
-from hmf import MassFunction as _MF
-from _cache import parameter, cached_quantity
-from _framework import Component, get_model
+from .transfer import Transfer as _Tr
+from .hmf import MassFunction as _MF
+from ._cache import parameter, cached_quantity
+from ._framework import Component, get_model
 import astropy.units as u
 
 #===============================================================================
@@ -286,7 +286,7 @@ class TransferWDM(_Tr):
 
         :type: str or :class:`WDM` subclass
         """
-        if not np.issubclass_(val, WDM) and not isinstance(val, basestring):
+        if not np.issubclass_(val, WDM) and not isinstance(val, str):
             raise ValueError("wdm_model must be a WDM subclass or string, got %s" % type(val))
         return val
 
@@ -328,7 +328,7 @@ class TransferWDM(_Tr):
         if np.issubclass_(self.wdm_model, WDM):
             return self.wdm_model(self.wdm_mass, self.cosmo,self.z,
                                      **self.wdm_params)
-        elif isinstance(self.wdm_transfer, basestring):
+        elif isinstance(self.wdm_transfer, str):
             return get_model(self.wdm_model, __name__, mx=self.wdm_mass, cosmo=self.cosmo,
                              z=self.z,**self.wdm_params)
 
@@ -365,7 +365,7 @@ class MassFunctionWDM(_MF, TransferWDM):
 
         :type: None, str, or :class`WDMRecalibrateMF` subclass.
         """
-        if not np.issubclass_(val, WDMRecalibrateMF) and val is not None and not np.issubclass_(val, basestring):
+        if not np.issubclass_(val, WDMRecalibrateMF) and val is not None and not np.issubclass_(val, str):
             raise TypeError("alter_dndm must be a WDMRecalibrateMF subclass, string, or None")
         else:
             return val

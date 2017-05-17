@@ -8,10 +8,10 @@ listed here, please advise via GitHub.
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as _spline
 import scipy.special as sp
-import cosmo as csm
-import _framework
+from . import cosmo as csm
+from . import _framework
 from copy import copy
-import _utils
+from . import _utils
 
 
 

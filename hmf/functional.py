@@ -11,7 +11,7 @@ functions to determine that order, and indeed perform the loops.
 """
 
 import collections
-import hmf
+from . import hmf
 import itertools
 
 
@@ -60,7 +60,7 @@ def get_best_param_order(kls, q="dndm", **kwargs):
     """
     a = kls(**kwargs)
 
-    if isinstance(q, basestring):
+    if isinstance(q, str):
         getattr(a, q)
     else:
         for qq in q:
@@ -68,7 +68,7 @@ def get_best_param_order(kls, q="dndm", **kwargs):
 
     final_list = []
     final_num = []
-    for k, v in getattr(a,"_"+a.__class__.__name__+"__recalc_par_prop").iteritems():
+    for k, v in getattr(a,"_"+a.__class__.__name__+"__recalc_par_prop").items():
         num = len(v)
         for i, l in enumerate(final_num):
             if l >= num:
@@ -166,10 +166,10 @@ def get_hmf(req_qauntities, get_label=True, framework=hmf.MassFunction,
     >>> print [x[0][0]/1e10 for x in big_list]
     [8.531878308131338, 68.2550264650507, 230.36071431954613, 546.0402117204056, 1066.4847885164174, 1842.885714556369, 2926.434259689049, 4368.321693763245]
     """
-    if isinstance(req_qauntities, basestring):
+    if isinstance(req_qauntities, str):
         req_qauntities = [req_qauntities]
     lists = {}
-    for k, v in kwargs.items():
+    for k, v in list(kwargs.items()):
         if isinstance(v, (list, tuple)):
             if len(v) > 1:
                 lists[k] = kwargs.pop(k)
@@ -184,7 +184,7 @@ def get_hmf(req_qauntities, get_label=True, framework=hmf.MassFunction,
             yield [[getattr(x, a) for a in req_qauntities], x]
 
     if len(lists) == 1:
-        for k, v in lists.iteritems():
+        for k, v in lists.items():
             for vv in v:
                 x.update(**{k: vv})
                 if get_label:
@@ -205,12 +205,12 @@ def get_hmf(req_qauntities, get_label=True, framework=hmf.MassFunction,
                 pass
 
         # # add the rest in any order (there shouldn't actually be any)
-        for k in lists.items():
+        for k in list(lists.items()):
             if isinstance(lists[k], (list, tuple)):
                 ordered_kwargs[k] = lists.pop(k)
 
         ordered_list = [ordered_kwargs[k] for k in ordered_kwargs]
-        final_list = [dict(zip(ordered_kwargs.keys(), v)) for v in itertools.product(*ordered_list)]
+        final_list = [dict(list(zip(list(ordered_kwargs.keys()), v))) for v in itertools.product(*ordered_list)]
 
         for vals in final_list:
             x.update(**vals)
@@ -223,11 +223,11 @@ def get_hmf(req_qauntities, get_label=True, framework=hmf.MassFunction,
 
 def _make_label(d):
     label = ""
-    for key, val in d.iteritems():
-        if isinstance(val, basestring):
+    for key, val in d.items():
+        if isinstance(val, str):
             label += val + ", "
         elif isinstance(val, dict):
-            for k, v in val.iteritems():
+            for k, v in val.items():
                 label += "%s: %s, "%(k, v)
         else:
             label += "%s: %s, "%(key, val)

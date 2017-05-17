@@ -4,7 +4,7 @@ Module for dealing with sampled mass functions.
 Provides routines for sampling theoretical functions, and for binning sampled data.
 '''
 import numpy as np
-import hmf
+from . import hmf
 from scipy.interpolate import InterpolatedUnivariateSpline as _spline
 
 def _prepare_mf(log_mmin, **mf_kwargs):

@@ -6,11 +6,10 @@ Created on 27/02/2015
 
 import sys
 import os
-from configparser import SafeConfigParser as cfg
-from functools import reduce
+from ConfigParser import SafeConfigParser as cfg
 cfg.optionxform = str
 import numpy as np
-from . import fit
+import fit
 import json
 import time
 import errno
@@ -65,7 +64,7 @@ class CLIRunner(object):
         if self.outdir:
             try:
                 os.makedirs(self.outdir)
-            except OSError as e:
+            except OSError, e:
                 if e.errno != errno.EEXIST:
                     raise
 
@@ -116,7 +115,7 @@ class CLIRunner(object):
         self.burnin = json.loads(res["MCMC"].pop("burnin"))
 
         # Downhill-specific
-        self.downhill_kwargs = {k:json.loads(v) for k,v in res['Downhill'].items()}
+        self.downhill_kwargs = {k:json.loads(v) for k,v in res['Downhill'].iteritems()}
         del res["Downhill"]
 
         #IO-specific
@@ -136,9 +135,9 @@ class CLIRunner(object):
             except:
                 pass
 
-        self.constraints = {k:json.loads(v) for k, v in res["Constraints"].items()}
+        self.constraints = {k:json.loads(v) for k, v in res["Constraints"].iteritems()}
 
-        param_dict = {k:res.pop(k) for k in list(res.keys()) if k.endswith("Params")}
+        param_dict = {k:res.pop(k) for k in res.keys() if k.endswith("Params")}
         return param_dict
 
     def get_data(self):
@@ -219,13 +218,13 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
 
         # Deal specifically with cosmology priors, separating types
         original_cpars = copy.copy(params['cosmo_paramsParams'])
-        cosmo_priors = {k:json.loads(v) for k, v in params["cosmo_paramsParams"].items()}
+        cosmo_priors = {k:json.loads(v) for k, v in params["cosmo_paramsParams"].iteritems()}
         # the following rely on covdata
-        cov_vars = {k:v for k, v in cosmo_priors.items() if v[0] == "cov"}
-        norm_vars = {k:v for k, v in cosmo_priors.items() if (v[0] == "norm" and len(v) == 2)}
+        cov_vars = {k:v for k, v in cosmo_priors.iteritems() if v[0] == "cov"}
+        norm_vars = {k:v for k, v in cosmo_priors.iteritems() if (v[0] == "norm" and len(v) == 2)}
 
         # remove these to be left with normal stuff
-        for k in list(cov_vars.keys()) + list(norm_vars.keys()):
+        for k in cov_vars.keys() + norm_vars.keys():
             del params["cosmo_paramsParams"][k]
 
         # sigma_8 and n are special cosmology parameters that don't nest
@@ -245,19 +244,19 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
 
         # All non-cosmology-covariance-dependent stuff that is top-level
         otherparams = params["OtherParams"]
-        for param, val in otherparams.items():
+        for param, val in otherparams.iteritems():
             priors += self.set_prior(param, val)
 
 
         # All non-cosmology-covariance-dependent stuff that is nested
-        for k, v in params.items():
+        for k, v in params.iteritems():
             if k != "OtherParams":
-                for kk, vv in v.items():
+                for kk, vv in v.iteritems():
                     priors += self.set_prior(k[:-6] + ":" + kk, vv)
 
         # Create list of all the names of parameters (pure name without :)
         for prior in priors:
-            if isinstance(prior.name, str):
+            if isinstance(prior.name, basestring):
                 keys += [prior.name]
             else:
                 keys += prior.name
@@ -267,16 +266,16 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
         params['cosmo_paramsParams'] = original_cpars
         guess = self.get_guess(params, keys, priors)
 
-        print("KEY NAMES: ", keys)
-        print("INITIAL GUESSES: ", guess)
+        print "KEY NAMES: ", keys
+        print "INITIAL GUESSES: ", guess
 
         return priors, keys, guess
 
     def get_guess(self, params, keys, priors):
         # Get all parameters to be set as a flat dictionary
         allparams = {}
-        for pset, vset in params.items():
-            for p, val in vset.items():
+        for pset, vset in params.iteritems():
+            for p, val in vset.iteritems():
                 allparams[p] = val
 
         # Get the guesses
@@ -397,7 +396,7 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
             instance = self._setup_instance()
 
         result = fitter.fit(instance,**self.downhill_kwargs)
-        print("Optimization Result: ", result)
+        print "Optimization Result: ", result
 
         self._write_opt_log(result)
         return result
@@ -433,7 +432,7 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
                                         self.chunks)):
             # Write out files
             self.write_iter_pickle(s)
-            print("Done {0}%. Time per sample: {1}".format(100 * float(i + 1) / nchunks,(time.time() - start) / ((i + 1) * self.chunks*self.nwalkers)))
+            print "Done {0}%. Time per sample: {1}".format(100 * float(i + 1) / nchunks,(time.time() - start) / ((i + 1) * self.chunks*self.nwalkers))
 
         total_time = time.time() - start
 

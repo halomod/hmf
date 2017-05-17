@@ -64,7 +64,7 @@ def cached_quantity(f):
         # we must ensure all dependent parameters are copied into active indexes,
         # otherwise they will be lost to their parents.
         if name in getattr(self, recalc):
-            for pr, v in getattr(self, recalc_prpa).iteritems():
+            for pr, v in getattr(self, recalc_prpa).items():
                 v.update(getattr(self, recalc_prpa_static)[name])
 
         # If this property already in recalc and doesn't need updating, just return.
@@ -235,7 +235,7 @@ def parameter(kind):
             recalc_prpa = hidden_loc(self, "recalc_prop_par")
 
             # Add parameter to any index that hasn't been finalised
-            for pr, v in getattr(self, recalc_prpa).iteritems():
+            for pr, v in getattr(self, recalc_prpa).items():
                 v.add(name)
 
             return getattr(self, prop)

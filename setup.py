@@ -5,6 +5,8 @@ import sys
 import re
 import io
 
+test_suite = "nose.collector"
+
 def read(*names, **kwargs):
     with io.open(
         os.path.join(os.path.dirname(__file__), *names),
@@ -44,5 +46,8 @@ setup(
     license="MIT",
     keywords="halo mass function",
     url="https://github.com/steven-murray/hmf",
+    classifiers=["Programming Language :: Python :: 2.7",
+                 "Programming Language :: Python :: 3.6",
+                 ]
     # could also include long_description, download_url, classifiers, etc.
 )

@@ -60,7 +60,7 @@ def rms_diff(vec1, vec2, tol):
     vec1 = vec1[mask]
     vec2 = vec2[mask]
     err = np.sqrt(np.mean(((vec1 - vec2) / vec2) ** 2))
-    print "RMS Error: ", err, "(> ", tol, ")"
+    print("RMS Error: ", err, "(> ", tol, ")")
     return err < tol
 
 def max_diff_rel(vec1, vec2, tol):
@@ -68,7 +68,7 @@ def max_diff_rel(vec1, vec2, tol):
     vec1 = vec1[mask]
     vec2 = vec2[mask]
     err = np.max(np.abs((vec1 - vec2) / vec2))
-    print "Max Diff: ", err, "(> ", tol, ")"
+    print("Max Diff: ", err, "(> ", tol, ")")
     return err < tol
 
 def max_diff(vec1, vec2, tol):
@@ -76,7 +76,7 @@ def max_diff(vec1, vec2, tol):
     vec1 = vec1[mask]
     vec2 = vec2[mask]
     err = np.max(np.abs((vec1 - vec2)))
-    print "Max Diff: ", err, "(> ", tol, ")"
+    print("Max Diff: ", err, "(> ", tol, ")")
     return err < tol
 
 #===============================================================================

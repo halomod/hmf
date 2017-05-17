@@ -11,14 +11,14 @@ functionality of :mod:`hmf` in an easy-to-use way.
 import numpy as np
 import copy
 import logging
-import fitting_functions as ff
-import transfer
-from _cache import parameter, cached_quantity
-from integrate_hmf import hmf_integral_gtm as int_gtm
+from . import fitting_functions as ff
+from . import transfer
+from ._cache import parameter, cached_quantity
+from .integrate_hmf import hmf_integral_gtm as int_gtm
 from numpy import issubclass_
 logger = logging.getLogger('hmf')
-from filters import TopHat, Filter
-from _framework import get_model
+from .filters import TopHat, Filter
+from ._framework import get_model
 from scipy.optimize import minimize
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import warnings
@@ -123,7 +123,7 @@ class MassFunction(transfer.Transfer):
 
         :type: str or :class:`hmf.filters.Filter` subclass
         """
-        if not issubclass_(val, Filter) and not isinstance(val, basestring):
+        if not issubclass_(val, Filter) and not isinstance(val, str):
             raise ValueError("filter must be a Filter or string, got %s" % type(val))
         return val
 
@@ -162,7 +162,7 @@ class MassFunction(transfer.Transfer):
 
         :type: str or `hmf.fitting_functions.FittingFunction` subclass
         """
-        if not issubclass_(val, ff.FittingFunction) and not isinstance(val, basestring):
+        if not issubclass_(val, ff.FittingFunction) and not isinstance(val, str):
             raise ValueError("hmf_model must be a ff.FittingFunction or string, got %s" % type(val))
         return val
 
@@ -268,7 +268,7 @@ class MassFunction(transfer.Transfer):
                               delta_halo=self.delta_halo, omegam_z=self.cosmo.Om(self.z),
                               delta_c=self.delta_c, n_eff=self.n_eff,
                               ** self.hmf_params)
-        elif isinstance(self.hmf_model, basestring):
+        elif isinstance(self.hmf_model, str):
             return get_model(self.hmf_model, "hmf.fitting_functions",
                             m=self.m, nu2=self.nu, z=self.z,
                             delta_halo=self.delta_halo, omegam_z=self.cosmo.Om(self.z),
@@ -282,7 +282,7 @@ class MassFunction(transfer.Transfer):
         """
         if issubclass_(self.filter_model, Filter):
             return self.filter_model(self.k,self._unnormalised_power, **self.filter_params)
-        elif isinstance(self.filter_model, basestring):
+        elif isinstance(self.filter_model, str):
             return get_model(self.filter_model, "hmf.filters", k=self.k,
                                 power=self._unnormalised_power, **self.filter_params)
 

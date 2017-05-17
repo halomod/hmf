@@ -7,8 +7,8 @@ import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as _spline
 import scipy.integrate as intg
 import collections
-import _framework
-import _utils
+from . import _framework
+from . import _utils
 import warnings
 
 class Filter(_framework.Component):

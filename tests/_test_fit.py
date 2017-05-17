@@ -29,7 +29,7 @@ def test_circular_minimize():
                      guess=[0.9], blobs=None,
                      verbose=0, store_class=False, relax=False)
     res = f.fit(h)
-    print "Diff: ", np.abs(res.x - 0.8)
+    print("Diff: ", np.abs(res.x - 0.8))
     assert np.abs(res.x - 0.8) < 0.01
 
 
@@ -43,5 +43,5 @@ if HAVE_EMCEE and RUN_MCMC:
                          verbose=0, store_class=False, relax=False)
         sampler = f.fit(h, nwalkers=16, nsamples=15, burnin=0,
                         nthreads=0)
-        print "Diff: ", np.abs(np.mean(sampler.chain) - 0.8)
+        print("Diff: ", np.abs(np.mean(sampler.chain) - 0.8))
         assert np.abs(np.mean(sampler.chain) - 0.8) < 0.01

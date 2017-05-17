@@ -84,7 +84,7 @@ class Framework(object):
         """
         Update parameters of the framework with kwargs.
         """
-        for k, v in kwargs.items():
+        for k, v in list(kwargs.items()):
             if hasattr(self, k):
                 setattr(self, k, v)
                 del kwargs[k]
@@ -107,12 +107,12 @@ class Framework(object):
             out[name] = getattr(K,name)
 
         if recursive:
-            for name,default in out.iteritems():
+            for name,default in out.items():
                 if default == {} and name.endswith("_params"):
                     try:
                         out[name] = getattr(getattr(K,name.replace("_params","_model")),"_defaults")
                     except Exception as e:
-                        print e
+                        print(e)
                         pass
 
         return out
@@ -171,4 +171,4 @@ class Framework(object):
             docs += "\n    ".join(objdoc) +"\n\n"
             while "\n\n\n" in docs:
                 docs.replace("\n\n\n","\n\n")
-        print(docs[:-1])
+        print((docs[:-1]))
