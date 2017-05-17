@@ -34,6 +34,8 @@ class TestFitsCloseness(object):
     def test_max_lt_ps(self):
         for redshift in [0.0, 2.0]:
             for fit in allfits:
+                if fit is ff.PS:
+                    continue
                 # if fit is ff.AnguloBound:
                 #     continue
                 yield self.check_form, fit, redshift
