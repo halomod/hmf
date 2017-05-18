@@ -18,7 +18,9 @@ deploy:
 
 # Setup anaconda
 before_install:
-  - sudo apt-get install gfortran
+  - add-apt-repository ppa:ubuntu-toolchain-r/test
+  - apt update
+  - apt install gfortran-6
   - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
       wget https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh;
     else
@@ -33,7 +35,7 @@ before_install:
   - conda info -a
 
 install:
-  - conda install python=$TRAVIS_PYTHON_VERSION numpy scipy mpmath nose astropy
+  - conda install python=$TRAVIS_PYTHON_VERSION numpy scipy mpmath nose astropy gfortran
   - pip install python-coveralls
   - pip install emcee
   - pip install mrpy
