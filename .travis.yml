@@ -35,7 +35,7 @@ before_install:
   - conda info -a
 
 install:
-  - conda install python=$TRAVIS_PYTHON_VERSION numpy scipy mpmath nose astropy gfortran
+  - conda install python=$TRAVIS_PYTHON_VERSION numpy scipy mpmath nose astropy libgfortran
   - pip install python-coveralls
   - pip install emcee
   - pip install mrpy
