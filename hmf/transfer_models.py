@@ -8,13 +8,10 @@ import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from ._framework import Component
 
-import camb
-# try:
-#     import camb
-# except ImportError as e:
-#     print("Could not import camb: %s"%e)
-#     print("Will be unable to use CAMB")
-#     pass
+try:
+    import camb
+except ImportError as e:
+    pass
 
 
 _allfits = ["CAMB", "FromFile", "EH_BAO", "EH_NoBAO", "BBKS", "BondEfs"]
