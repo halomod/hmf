@@ -82,7 +82,9 @@ def cached_quantity(f):
             return value
 
         # Otherwise, we need to create its index for caching.
-        getattr(self, recalc_prpa)[name] = set()  # Empty set to which parameter names will be added
+        supered = name in getattr(self, recalc_prpa) # if name is already there, can only be because the method has been supered.
+        if not supered:
+            getattr(self, recalc_prpa)[name] = set()  # Empty set to which parameter names will be added
 
         # Go ahead and calculate the value -- each parameter accessed will add itself to the index.
         value = f(self)
@@ -92,9 +94,11 @@ def cached_quantity(f):
         for par in getattr(self, recalc_prpa)[name]:
             getattr(self, recalc_papr)[par].add(name)
 
+
         # Copy index to static dict, and remove the index (so that parameters don't keep on trying to add themselves)
-        getattr(self, recalc_prpa_static)[name] = copy(getattr(self, recalc_prpa)[name])
-        del getattr(self, recalc_prpa)[name]
+        if not supered: # If super, don't want to remove the name just yet.
+            getattr(self, recalc_prpa_static)[name] = copy(getattr(self, recalc_prpa)[name])
+            del getattr(self, recalc_prpa)[name]
 
         # Add entry to master recalc list
         getattr(self, recalc)[name] = False
