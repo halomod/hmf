@@ -12,6 +12,8 @@ from .transfer import Transfer as _Tr
 from .hmf import MassFunction as _MF
 from ._cache import parameter, cached_quantity
 from ._framework import Component, get_model
+from .cosmo import Planck15
+
 import astropy.units as u
 
 #===============================================================================
@@ -42,7 +44,7 @@ class WDM(Component):
         To see the default values, check the :attr:`_defaults`
         class attribute.
     """
-    def __init__(self, mx, cosmo,z, **model_params):
+    def __init__(self, mx, cosmo = Planck15, z =0, **model_params):
         self.mx = mx
         self.cosmo = cosmo
         self.rho_mean = (1+z)**3 * (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2).to(u.MsolMass / u.Mpc ** 3).value * 1e6
@@ -165,7 +167,7 @@ class WDMRecalibrateMF(Component):
         To see the default values, check the :attr:`_defaults`
         class attribute.
     """
-    def __init__(self, m, dndm0, wdm, **model_parameters):
+    def __init__(self, m, dndm0, wdm=Viel05(mx=1.0), **model_parameters):
         self.m = m
         self.dndm0 = dndm0
         self.wdm = wdm
@@ -386,10 +388,10 @@ class MassFunctionWDM(_MF, TransferWDM):
 
         if self.alter_dndm is not None:
             if np.issubclass_(self.alter_dndm, WDMRecalibrateMF):
-                alter = self.alter_dndm(M=self.M, dndm0=dndm, wdm=self.wdm,
+                alter = self.alter_dndm(m=self.m, dndm0=dndm, wdm=self.wdm,
                                         **self.alter_params)
             else:
-                alter = get_model(self.alter_dndm, __name__, M=self.M,
+                alter = get_model(self.alter_dndm, __name__, m=self.m,
                                   dndm0=dndm, wdm=self.wdm, **self.alter_params)
             dndm = alter.dndm_alter()
 
