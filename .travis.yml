@@ -1,5 +1,5 @@
 language: python
-sudo: false
+sudo: required
 
 
 python:
@@ -25,7 +25,6 @@ addons:
     sources:
     - ubuntu-toolchain-r-test
     packages:
-    - gfortran
     - gfortran-6
 
 # Setup anaconda
@@ -48,11 +47,8 @@ install:
   - pip install python-coveralls
   - pip install emcee
   #- CAMBURL=http://camb.info/CAMB_Mar13.tar.gz pip install git+git://github.com/steven-murray/pycamb.git
-  - git clone git@github.com:cmbant/camb
-  - ln -s /usr/bin/gfortran-6 camb/gfortran
-  - cd camb/pycamb
-  - python setup.py install
-  - cd ../..
+  - sudo ln -s /usr/bin/gfortran-6 /usr/bin/gfortran
+  - pip install --egg camb
   - pip install coveralls
 
 script:
