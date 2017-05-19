@@ -6,6 +6,7 @@ python:
   - 2.7
   - 3.5
   - 3.6
+
 notifications:
   email:
     recipients:
@@ -28,6 +29,7 @@ addons:
 
 # Setup anaconda
 before_install:
+  - alias gfortran=gfortran-6
   - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
       wget https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh;
     else
