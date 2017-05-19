@@ -65,7 +65,7 @@ class WDM(Component):
             The WDM transfer function at `lnk`.
 
         """
-        pass
+        raise NotImplementedError("You shouldn't call the WDM class, and any subclass should define the transfer method.")
 
 
 
