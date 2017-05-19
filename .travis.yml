@@ -1,4 +1,7 @@
 language: python
+sudo: false
+
+
 python:
   - 2.7
   - 3.5
@@ -16,11 +19,15 @@ deploy:
   password:
     secure: lAM0ScaCdOTbixtJf908INAKIpVCIPLSu4ZpqSxdp0zzMsTJJoTLo00wlmzzjeQDsxqgpiUIvjnwlpdur7Q+IPmwFa9hkg4VX4Mqe0keoDaoUQaUzpypZqYF0w4egVgc62NnXCGg3B/JuqUFuyM692uvmjvokGmadXLevXvPaxM=
 
+addons:
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    packages:
+    - gfortran-6
+
 # Setup anaconda
 before_install:
-  - sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
-  - sudo apt update
-  - sudo apt install gfortran-6 -y
   - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
       wget https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh;
     else
@@ -38,10 +45,8 @@ install:
   - conda install python=$TRAVIS_PYTHON_VERSION numpy scipy mpmath nose astropy libgfortran
   - pip install python-coveralls
   - pip install emcee
-  - pip install mrpy
   #- CAMBURL=http://camb.info/CAMB_Mar13.tar.gz pip install git+git://github.com/steven-murray/pycamb.git
   - pip install --egg camb
-  - pip install cached_property
   - pip install coveralls
 
 script:
