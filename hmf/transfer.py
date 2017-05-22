@@ -168,7 +168,7 @@ class Transfer(cosmo.Cosmology):
 
         :type: bool
         """
-        return val
+        return bool(val)
 
     @parameter("param")
     def z(self, val):
@@ -302,4 +302,4 @@ class Transfer(cosmo.Cosmology):
         Dimensionless nonlinear power spectrum, :math:`\Delta_k = \frac{k^3 P_{\rm nl}(k)}{2\pi^2}`
         """
 
-        return _hfit(self.k,self.delta_k,self.sigma_8,self.z,self.cosmo)
+        return _hfit(self.k,self.delta_k,self.sigma_8,self.z,self.cosmo,self.takahashi)

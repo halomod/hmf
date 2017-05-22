@@ -12,6 +12,7 @@ Development Version
 
 - Fixed bug in Caroll1992 GrowthFactor class which affected high-redshift growth factors (thanks to Olmo Piana).
 - Fixed astropy dependency to be >= 1.1
+- Fixed bug where Takahashi parameters were always passed through regardess of ``takahashi`` setting.
 
 **Enhancement**
 
