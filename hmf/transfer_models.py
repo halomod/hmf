@@ -146,13 +146,16 @@ class CAMB(FromFile):
         **camb_params:** An instantiated ``CAMBparams`` object, pre-set with desired accuracy options etc.
 
     """
-    _defaults = {"camb_params": camb.CAMBparams()}
+    _defaults = {"camb_params": None}
 
     def __init__(self, *args, **kwargs):
         super(CAMB, self).__init__(*args, **kwargs)
 
         # Save the CAMB object properly for use
         # Set the cosmology
+        if self.params['camb_params'] is None:
+            self.params['camb_params'] = camb.CAMBparams()
+
         self.params['camb_params'].set_cosmology(H0=self.cosmo.H0.value,
                                                  ombh2=self.cosmo.Ob0 * self.cosmo.h ** 2,
                                                  omch2=(self.cosmo.Om0 - self.cosmo.Ob0) * self.cosmo.h ** 2,
