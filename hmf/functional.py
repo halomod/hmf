@@ -210,7 +210,7 @@ def get_hmf(req_qauntities, get_label=True, framework=hmf.MassFunction,
                 ordered_kwargs[k] = lists.pop(k)
 
         ordered_list = [ordered_kwargs[k] for k in ordered_kwargs]
-        final_list = [dict(list(zip(list(ordered_kwargs.keys()), v))) for v in itertools.product(*ordered_list)]
+        final_list = [collections.OrderedDict(list(zip(list(ordered_kwargs.keys()), v))) for v in itertools.product(*ordered_list)]
 
         for vals in final_list:
             x.update(**vals)
