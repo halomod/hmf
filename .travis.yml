@@ -45,6 +45,7 @@ before_install:
 install:
   - conda install python=$TRAVIS_PYTHON_VERSION numpy scipy mpmath nose astropy libgfortran
   - pip install python-coveralls
+  - pip install coverage
   - pip install emcee
   #- CAMBURL=http://camb.info/CAMB_Mar13.tar.gz pip install git+git://github.com/steven-murray/pycamb.git
   - sudo ln -s /usr/bin/gfortran-6 /usr/bin/gfortran
@@ -52,7 +53,7 @@ install:
   - pip install coveralls
 
 script:
-  - nosetests --with-coverage --cover-package=hmf
+  - coverage run --source=hmf --omit=hmf/.fitting/* $(which nosetests)
 
 
 # Calculate coverage
