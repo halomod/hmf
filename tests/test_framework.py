@@ -5,7 +5,6 @@ LOCATION = "/".join(os.path.dirname(os.path.abspath(inspect.getfile(inspect.curr
 from nose.tools import raises
 import sys
 sys.path.insert(0, LOCATION)
-from hmf import _framework as fm
 from hmf import hmf
 
 @raises(TypeError)
