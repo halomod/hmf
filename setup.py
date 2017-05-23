@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 import os
 import sys
@@ -34,7 +34,7 @@ if sys.argv[-1] == "publish":
 setup(
     name="hmf",
     version=find_version("hmf", "__init__.py"),
-    packages=['hmf', 'hmf.fitting'],
+    packages=find_packages(),
     install_requires=["numpy>=1.6.2",
                       "scipy>=0.12.0",
                       "astropy>=1.1"],
