@@ -5,9 +5,7 @@ LOCATION = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe(
 import sys
 sys.path.insert(0, LOCATION)
 from hmf.transfer import Transfer
-from astropy.cosmology import LambdaCDM
 from hmf.transfer_models import EH_BAO
-import camb
 
 def rms(a):
     print(a)
@@ -38,6 +36,16 @@ def test_halofit():
     assert np.isclose(t.power[0],t.nonlinear_power[0])
     assert 5 * t.power[-1] < t.nonlinear_power[-1]
 
+def test_ehnobao():
+    t = Transfer(transfer_model="EH")
+    tnobao = Transfer(transfer_model="EH_NoBAO")
+
+    assert np.isclose(t._unnormalised_lnT[0], tnobao._unnormalised_lnT[0],rtol=1e-5)
+
+def test_bondefs():
+    t = Transfer(transfer_model="BondEfs")
+    print(np.exp(t._unnormalised_lnT))
+    assert np.isclose(np.exp(t._unnormalised_lnT[0]),1,rtol=1e-5)
 # Following test is too slow... and would need to be updated whenever CAMB is updated...
 
 # def test_data():
