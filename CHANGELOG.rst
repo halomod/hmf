@@ -6,21 +6,23 @@ Development Version
 **Features**
 
 - Now provides compatibility with Python 3.x. Support for 2.x will be removed in hmf v3 (whenever that comes).
-
+- Complete overhaul of the caching system. Should be invisible to the user, but streamlines writing of framework
+  code considerably. Removes required manual specification of dependencies between quantities, and adds ability
+  to specify parameter kinds (model, param, res, option, switch).
 
 **Bugfixes**
 
 - Fixed bug in Caroll1992 GrowthFactor class which affected high-redshift growth factors (thanks to Olmo Piana).
 - Fixed astropy dependency to be >= 1.1
 - Fixed bug where Takahashi parameters were always passed through regardess of ``takahashi`` setting.
+- Fixed small bug where the functional.get_label method returned differently ordered parameters because of dicts.
+- Note that the fitting subpackage is temporarily unsupported and I discourage its use for the time being.
 
 **Enhancement**
 
-- Complete overhaul of the caching system. Should be invisible to the user, but streamlines writing of framework
-  code considerably. Removes required manual specification of dependencies between quantities, and adds ability
-  to specify parameter kinds (model, param, res, option, switch).
 - Completely removes dependence on archaic pycamb package. Now supports natively supplied python interface to CAMB.
   Install camb with ``pip install --egg camb``. This means that much more modern versions of CAMB can be used.
+- Many new tests, to bring total coverage up to >80%, and continuous testing on Python 2.7, 3.5 and 3.6
 
 
 v2.0.5 [12th January 2017]

@@ -53,7 +53,7 @@ install:
   - pip install coveralls
 
 script:
-  - coverage run --source=hmf --omit=hmf/.fitting/* $(which nosetests)
+  - coverage run --source=hmf --omit=hmf/fitting/* $(which nosetests)
 
 
 # Calculate coverage
