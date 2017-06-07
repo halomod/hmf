@@ -1,11 +1,11 @@
 Releases
 ========
 
-Development Version
--------------------
+v3.0.0 [7th June 2017]
+----------------------
 **Features**
 
-- Now provides compatibility with Python 3.x. Support for 2.x will be removed in hmf v3 (whenever that comes).
+- Now provides compatibility with Python 3.x. Support for 2.x will be removed in hmf v3.1 (whenever that comes).
 - Complete overhaul of the caching system. Should be invisible to the user, but streamlines writing of framework
   code considerably. Removes required manual specification of dependencies between quantities, and adds ability
   to specify parameter kinds (model, param, res, option, switch).
