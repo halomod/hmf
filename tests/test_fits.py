@@ -4,7 +4,7 @@ import numpy as np
 import inspect
 import os
 LOCATION = "/".join(os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))).split("/")[:-1])
-# from nose.tools import raises
+from nose.tools import raises
 import sys
 sys.path.insert(0, LOCATION)
 from hmf import MassFunction
@@ -34,6 +34,8 @@ class TestFitsCloseness(object):
     def test_max_lt_ps(self):
         for redshift in [0.0, 2.0]:
             for fit in allfits:
+                if fit is ff.PS:
+                    continue
                 # if fit is ff.AnguloBound:
                 #     continue
                 yield self.check_form, fit, redshift
@@ -44,3 +46,36 @@ class TestFitsCloseness(object):
         assert self.ps_max >= self.hmf.fsigma[maxarg]
         assert np.all(np.diff(self.hmf.fsigma[:maxarg]) >= 0)
         assert np.all(np.diff(self.hmf.fsigma[maxarg:]) <= 0)
+
+def test_tinker08_dh():
+    h = MassFunction(hmf_model="Tinker08", delta_h=200)
+    h1 = MassFunction(hmf_model="Tinker08", delta_h=200.1)
+
+    assert np.allclose(h.fsigma,h1.fsigma,rtol=1e-2)
+
+def test_tinker10_dh():
+    h = MassFunction(hmf_model="Tinker10", delta_h=200)
+    h1 = MassFunction(hmf_model="Tinker10", delta_h=200.1)
+
+    assert np.allclose(h.fsigma,h1.fsigma,rtol=1e-2)
+
+@raises(ValueError)
+def test_tinker10_neg_gam():
+    h = MassFunction(hmf_model="Tinker10", hmf_params={"gamma_200":-1})
+    h.fsigma
+
+@raises(ValueError)
+def test_tinker10_neg_eta():
+    h = MassFunction(hmf_model="Tinker10", hmf_params={"eta_200":-1})
+    h.fsigma
+
+@raises(ValueError)
+def test_tinker10_neg_etaphi():
+    h = MassFunction(hmf_model="Tinker10", hmf_params={"eta_200":-1, "phi_200":0})
+    h.fsigma
+
+@raises(ValueError)
+def test_tinker10_neg_beta():
+    h = MassFunction(hmf_model="Tinker10", hmf_params={"beta_200":-1})
+    h.fsigma
+

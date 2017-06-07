@@ -5,6 +5,7 @@
 
 .. include:: ../README.rst
 
+
 Features
 --------
 * Calculate mass functions and related quantities extremely easily.
@@ -26,6 +27,7 @@ Features
 * Nonlinear power spectra via HALOFIT
 * Functions for sampling the mass function.
 * CLI scripts both for producing any quantity included, or fitting any quantity.
+* Python 2 and 3 compatible
 
 Installation
 ------------
@@ -35,14 +37,8 @@ installed when installing `hmf`, except for one. Explicitly, the dependencies ar
 numpy, scipy, scitools, cosmolopy and emcee. 
 
 You will only need `emcee` if you are going to be using the fitting capabilities
-of `hmf`. The final, optional, library is pycamb, which can not be installed 
-using pip currently. 
-
-Please follow the guidelines on its `readme page <https://github.com/steven-murray/pycamb.git>`_.
-installation instructions.
-
-.. note :: At present, versions of CAMB post March 2013 are not working with 
-		`pycamb`. Please use earlier versions until further notice.
+of `hmf`. The final, optional, library is `camb <https://github.com/cmbant/CAMB/pycamb>`_,
+for which you should consult the repository for install instructions.
 
 Finally the `hmf` package needs to be installed: ``pip install hmf``. If you want
 to install the latest build (not necessarily stable), grab it `here 

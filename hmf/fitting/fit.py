@@ -38,7 +38,7 @@ try:
 
     class EnsembleSampler(es):
         def __getstate__(self):
-            return dict((k, v) for (k, v) in self.__dict__.iteritems() if should_pickle(k))
+            return dict((k, v) for (k, v) in list(self.__dict__.items()) if should_pickle(k))
 
 except ImportError:
     HAVE_EMCEE = False
@@ -68,7 +68,7 @@ def model(parm, h, self):
         The log likelihood of the model at the given position.
     """
     if self.verbose > 1:
-        print "Params: ", zip(self.attrs, parm)
+        print(("Params: ", list(zip(self.attrs, parm))))
 
     ll = 0
     p = copy.copy(parm)
@@ -102,12 +102,12 @@ def model(parm, h, self):
         h.update(**param_dict)
     except ValueError as e:
         if self.relax:
-            print "WARNING: PARAMETERS FAILED ON UPDATE, RETURNING INF: ", zip(self.attrs, parm)
-            print e
-            print traceback.format_exc()
+            print(("WARNING: PARAMETERS FAILED ON UPDATE, RETURNING INF: ", list(zip(self.attrs, parm))))
+            print(e)
+            print((traceback.format_exc()))
             return ret_arg(-np.inf, self.blobs)
         else:
-            print traceback.format_exc()
+            print((traceback.format_exc()))
             raise e
 
     # Get the quantity to compare (if exceptions are raised, treat properly)
@@ -115,12 +115,12 @@ def model(parm, h, self):
         q = getattr(h, self.quantity)
     except Exception as e:
         if self.relax:
-            print "WARNING: PARAMETERS FAILED WHEN CALCULATING QUANTITY, RETURNING INF: ", zip(self.attrs, parm)
-            print e
-            print traceback.format_exc()
+            print(("WARNING: PARAMETERS FAILED WHEN CALCULATING QUANTITY, RETURNING INF: ", list(zip(self.attrs, parm))))
+            print(e)
+            print((traceback.format_exc()))
             return ret_arg(-np.inf, self.blobs)
         else:
-            print traceback.format_exc()
+            print((traceback.format_exc()))
             raise e
 
 
@@ -131,17 +131,17 @@ def model(parm, h, self):
         ll += np.sum(norm.logpdf(self.data, loc=q, scale=self.sigma))
 
     # Add the likelihood of the contraints
-    for k, v in self.constraints.iteritems():
+    for k, v in list(self.constraints.items()):
         ll += norm.logpdf(getattr(h, k), loc=v[0], scale=v[1])
         if self.verbose > 2:
-            print "CONSTRAINT: ", k, getattr(h, k)
+            print(("CONSTRAINT: ", k, getattr(h, k)))
 
     if self.verbose:
-        print "Likelihood: ", ll
+        print(("Likelihood: ", ll))
     if self.verbose > 1 :
-        print "Update Dictionary: ", param_dict
+        print(("Update Dictionary: ", param_dict))
     if self.verbose > 2:
-        print "Final Quantity: ", q
+        print(("Final Quantity: ", q))
 
     # Get blobs to return as well.
     if self.blobs is not None:
@@ -207,7 +207,7 @@ class Fit(object):
         # Save which attributes are updatable as a list
         self.attrs = []
         for prior in self.priors:
-            if isinstance(prior.name, basestring):
+            if isinstance(prior.name, str):
                 self.attrs += [prior.name]
             else:
                 self.attrs += prior.name
@@ -421,7 +421,7 @@ class MCMC(Fit):
 
             if self.verbose > 0:
                 burnin = self.sampler.iterations
-                print "Used %s samples for burnin" % self.sampler.iterations
+                print(("Used %s samples for burnin" % self.sampler.iterations))
             self.sampler.reset()
         return initial_pos, lnprob,rstate,blobs0
 

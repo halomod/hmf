@@ -6,10 +6,11 @@ in :mod:`hmf.transfer`.
 '''
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
-from _framework import Component
+from ._framework import Component
+
 try:
-    import pycamb
-except ImportError:
+    import camb
+except ImportError as e:
     pass
 
 
@@ -52,9 +53,14 @@ class TransferComponent(Component):
         """
         pass
 
-class CAMB(TransferComponent):
+
+
+class FromFile(TransferComponent):
     """
-    Transfer function computed by CAMB.
+    Import a transfer function from file.
+
+    .. note:: The file should be in the same format as output from CAMB,
+              or else in two-column ASCII format (k,T).
 
     Parameters
     ----------
@@ -66,30 +72,10 @@ class CAMB(TransferComponent):
         parameters are the following. To see their default values,
         check the :attr:`_defaults` class attribute.
 
-        :Scalar_initial_condition: Initial scalar perturbation mode (adiabatic=1, CDM iso=2,
-                                   Baryon iso=3,neutrino density iso =4, neutrino velocity iso = 5)
-        :lAccuracyBoost: Larger to keep more terms in the hierarchy evolution
-        :AccuracyBoost: Increase accuracy_boost to decrease time steps, use more k
-                        values,  etc.Decrease to speed up at cost of worse accuracy.
-                        Suggest 0.8 to 3.
-        :w_perturb: Whether to perturb the dark energy equation of state.
-        :transfer__k_per_logint: Number of wavenumbers estimated per log interval by CAMB
-                                 Default of 11 gets best performance for requisite accuracy of mass function.
-        :transfer__kmax: Maximum value of the wavenumber.
-                         Default of 0.25 is high enough for requisite accuracy of mass function.
-        :ThreadNum: Number of threads to use for calculation of transfer
-                    function by CAMB. Default 0 automatically determines the number.
-        :scalar_amp: Amplitude of the power spectrum. It is not recommended to modify
-                     this parameter, as the amplitude is typically set by sigma_8.
+        :fname: str
+            Location of the file to import.
     """
-    _defaults = {"Scalar_initial_condition":1,
-                 "lAccuracyBoost":1,
-                 "AccuracyBoost":1,
-                 "w_perturb":False,
-                 "transfer__k_per_logint":11,
-                 "transfer__kmax":5,
-                 "ThreadNum":0,
-                 "scalar_amp":1e-9}
+    _defaults = {"fname":""}
 
     def _check_low_k(self, lnk, lnT, lnkmin):
         """
@@ -132,23 +118,10 @@ class CAMB(TransferComponent):
         lnt : array_like
             The log of the transfer function at lnk.
         """
-
-        pycamb_dict = {"w_lam":self.cosmo.w(0),
-                       "TCMB":self.cosmo.Tcmb0.value,
-                       "Num_Nu_massless":self.cosmo.Neff,
-                       "omegab":self.cosmo.Ob0,
-                       "omegac":self.cosmo.Om0 - self.cosmo.Ob0,
-                       "H0":self.cosmo.H0.value,
-                       "omegav":self.cosmo.Ode0,
-                       "omegak":self.cosmo.Ok0,
-                       "omegan":self.cosmo.Onu0,
-#                        "scalar_index":self.n,
-                       }
-
-        cdict = dict(pycamb_dict,
-                     **self.params)
-        T = pycamb.transfers(**cdict)[1]
-        T = np.log(T[[0, 6], :, 0])
+        try:
+            T = np.log(np.genfromtxt(self.params["fname"])[:, [0, 6]].T)
+        except IndexError:
+            T = np.log(np.genfromtxt(self.params["fname"])[:, [0, 1]].T)
 
         if lnk[0] < T[0, 0]:
             lnkout, lnT = self._check_low_k(T[0, :], T[1, :], lnk[0])
@@ -157,12 +130,10 @@ class CAMB(TransferComponent):
             lnT = T[1, :]
         return spline(lnkout, lnT, k=1)(lnk)
 
-class FromFile(CAMB):
-    """
-    Import a transfer function from file.
 
-    .. note:: The file should be in the same format as output from CAMB,
-              or else in two-column ASCII format (k,T).
+class CAMB(FromFile):
+    """
+    Transfer function computed by CAMB.
 
     Parameters
     ----------
@@ -170,14 +141,29 @@ class FromFile(CAMB):
         The cosmology used in the calculation
 
     \*\*model_parameters : unpack-dict
-        Parameters specific to this model. In this case, available
-        parameters are the following. To see their default values,
-        check the :attr:`_defaults` class attribute.
+        Parameters specific to this model.
 
-        :fname: str
-            Location of the file to import.
+        **camb_params:** An instantiated ``CAMBparams`` object, pre-set with desired accuracy options etc.
+
     """
-    _defaults = {"fname":""}
+    _defaults = {"camb_params": None}
+
+    def __init__(self, *args, **kwargs):
+        super(CAMB, self).__init__(*args, **kwargs)
+
+        # Save the CAMB object properly for use
+        # Set the cosmology
+        if self.params['camb_params'] is None:
+            self.params['camb_params'] = camb.CAMBparams()
+
+        self.params['camb_params'].set_cosmology(H0=self.cosmo.H0.value,
+                                                 ombh2=self.cosmo.Ob0 * self.cosmo.h ** 2,
+                                                 omch2=(self.cosmo.Om0 - self.cosmo.Ob0) * self.cosmo.h ** 2,
+                                                 omk=self.cosmo.Ok0,
+                                                 nnu=self.cosmo.Neff,
+                                                 standard_neutrino_neff=self.cosmo.Neff,
+                                                 TCMB=self.cosmo.Tcmb0.value)
+        self.params['camb_params'].WantTransfer = True
 
     def lnt(self, lnk):
         """
@@ -193,17 +179,19 @@ class FromFile(CAMB):
         lnt : array_like
             The log of the transfer function at lnk.
         """
-        try:
-            T = np.log(np.genfromtxt(self.params["fname"])[:, [0, 6]].T)
-        except IndexError:
-            T = np.log(np.genfromtxt(self.params["fname"])[:, [0, 1]].T)
+
+        camb_transfers = camb.get_transfer_functions(self.params['camb_params'])
+        T = camb_transfers.get_matter_transfer_data().transfer_data
+        T = np.log(T[[0, 6], :, 0])
 
         if lnk[0] < T[0, 0]:
             lnkout, lnT = self._check_low_k(T[0, :], T[1, :], lnk[0])
         else:
             lnkout = T[0, :]
             lnT = T[1, :]
+
         return spline(lnkout, lnT, k=1)(lnk)
+
 
 class FromArray(FromFile):
     """

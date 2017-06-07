@@ -15,7 +15,7 @@ def test_circular():
 
     s = spline(np.log10(h.m),np.log10(h.dndm))
 
-    print hist, 10**s(centres)
+    print(hist, 10**s(centres))
     assert np.allclose(hist,10**s(centres),rtol=0.05)
 
 

@@ -1,9 +1,11 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 import os
 import sys
 import re
 import io
+
+test_suite = "nose.collector"
 
 def read(*names, **kwargs):
     with io.open(
@@ -32,17 +34,20 @@ if sys.argv[-1] == "publish":
 setup(
     name="hmf",
     version=find_version("hmf", "__init__.py"),
-    packages=['hmf', 'hmf.fitting'],
+    packages=find_packages(),
     install_requires=["numpy>=1.6.2",
                       "scipy>=0.12.0",
-                      "astropy>=1.0"],
+                      "astropy>=1.1"],
     scripts=["scripts/hmf", "scripts/hmf-fit"],
     author="Steven Murray",
-    author_email="steven.murray@uwa.edu.au",
+    author_email="steven.murray@curtin.edu.au",
     description="A halo mass function calculator",
     long_description=read('README.rst'),
     license="MIT",
     keywords="halo mass function",
     url="https://github.com/steven-murray/hmf",
+    classifiers=["Programming Language :: Python :: 2.7",
+                 "Programming Language :: Python :: 3.6",
+                 ]
     # could also include long_description, download_url, classifiers, etc.
 )

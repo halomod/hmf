@@ -8,10 +8,12 @@ other alternative cosmologies.
 '''
 
 import numpy as np
-from transfer import Transfer as _Tr
-from hmf import MassFunction as _MF
-from _cache import parameter, cached_property
-from _framework import Component, get_model
+from .transfer import Transfer as _Tr
+from .hmf import MassFunction as _MF
+from ._cache import parameter, cached_quantity
+from ._framework import Component, get_model
+from .cosmo import Planck15
+
 import astropy.units as u
 
 #===============================================================================
@@ -42,7 +44,7 @@ class WDM(Component):
         To see the default values, check the :attr:`_defaults`
         class attribute.
     """
-    def __init__(self, mx, cosmo,z, **model_params):
+    def __init__(self, mx, cosmo = Planck15, z =0, **model_params):
         self.mx = mx
         self.cosmo = cosmo
         self.rho_mean = (1+z)**3 * (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2).to(u.MsolMass / u.Mpc ** 3).value * 1e6
@@ -65,7 +67,7 @@ class WDM(Component):
             The WDM transfer function at `lnk`.
 
         """
-        pass
+        raise NotImplementedError("You shouldn't call the WDM class, and any subclass should define the transfer method.")
 
 
 
@@ -165,7 +167,7 @@ class WDMRecalibrateMF(Component):
         To see the default values, check the :attr:`_defaults`
         class attribute.
     """
-    def __init__(self, m, dndm0, wdm, **model_parameters):
+    def __init__(self, m, dndm0, wdm=Viel05(mx=1.0), **model_parameters):
         self.m = m
         self.dndm0 = dndm0
         self.wdm = wdm
@@ -279,18 +281,18 @@ class TransferWDM(_Tr):
     #===========================================================================
     # Parameters
     #===========================================================================
-    @parameter
+    @parameter("model")
     def wdm_model(self, val):
         """
         A model for the WDM effect on the transfer function.
 
         :type: str or :class:`WDM` subclass
         """
-        if not np.issubclass_(val, WDM) and not isinstance(val, basestring):
+        if not np.issubclass_(val, WDM) and not isinstance(val, str):
             raise ValueError("wdm_model must be a WDM subclass or string, got %s" % type(val))
         return val
 
-    @parameter
+    @parameter("param")
     def wdm_params(self, val):
         """
         Parameters of the WDM model.
@@ -299,7 +301,7 @@ class TransferWDM(_Tr):
         """
         return val
 
-    @parameter
+    @parameter("param")
     def wdm_mass(self, val):
         """
         Mass of the WDM particle.
@@ -318,7 +320,7 @@ class TransferWDM(_Tr):
     #===========================================================================
     # Derived properties
     #===========================================================================
-    @cached_property("cosmo", "wdm_mass", "wdm_model", "wdm_params")
+    @cached_quantity
     def wdm(self):
         """
         The instantiated WDM model.
@@ -328,11 +330,11 @@ class TransferWDM(_Tr):
         if np.issubclass_(self.wdm_model, WDM):
             return self.wdm_model(self.wdm_mass, self.cosmo,self.z,
                                      **self.wdm_params)
-        elif isinstance(self.wdm_transfer, basestring):
+        elif isinstance(self.wdm_transfer, str):
             return get_model(self.wdm_model, __name__, mx=self.wdm_mass, cosmo=self.cosmo,
                              z=self.z,**self.wdm_params)
 
-    @cached_property("wdm")
+    @cached_quantity
     def _unnormalised_power(self):
         """
         Normalised log power at :math:`z=0`
@@ -358,26 +360,26 @@ class MassFunctionWDM(_MF, TransferWDM):
         self.alter_dndm = alter_dndm
         self.alter_params = alter_params or {}
 
-    @parameter
+    @parameter("switch")
     def alter_dndm(self, val):
         """
         A model for empirical recalibration of the HMF.
 
         :type: None, str, or :class`WDMRecalibrateMF` subclass.
         """
-        if not np.issubclass_(val, WDMRecalibrateMF) and val is not None and not np.issubclass_(val, basestring):
+        if not np.issubclass_(val, WDMRecalibrateMF) and val is not None and not np.issubclass_(val, str):
             raise TypeError("alter_dndm must be a WDMRecalibrateMF subclass, string, or None")
         else:
             return val
 
-    @parameter
+    @parameter("param")
     def alter_params(self, val):
         """
         Model parameters for `alter_dndm`.
         """
         return val
 
-    @cached_property("alter_dndm", "M", "wdm", "alter_params")
+    @cached_quantity
     def dndm(self):
         """
         The number density of haloes in WDM, ``len=len(m)`` [units :math:`h^4 M_\odot^{-1} Mpc^{-3}`]
@@ -386,10 +388,10 @@ class MassFunctionWDM(_MF, TransferWDM):
 
         if self.alter_dndm is not None:
             if np.issubclass_(self.alter_dndm, WDMRecalibrateMF):
-                alter = self.alter_dndm(M=self.M, dndm0=dndm, wdm=self.wdm,
+                alter = self.alter_dndm(m=self.m, dndm0=dndm, wdm=self.wdm,
                                         **self.alter_params)
             else:
-                alter = get_model(self.alter_dndm, __name__, M=self.M,
+                alter = get_model(self.alter_dndm, __name__, m=self.m,
                                   dndm0=dndm, wdm=self.wdm, **self.alter_params)
             dndm = alter.dndm_alter()
 

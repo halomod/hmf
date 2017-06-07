@@ -35,12 +35,12 @@ class TestUpdate():
         self.c.update(cosmo_model=WMAP7)
 
         assert self.c.cosmo.Om0 == 0.272
-        print self.c.mean_density0
+        print((self.c.mean_density0))
         assert np.isclose(self.c.mean_density0, 75468972351.60081)
 
     def test_cosmo_params(self):
         self.c.update(cosmo_params={"H0":0.6})
-        print self.c.cosmo.H0.value
+        print((self.c.cosmo.H0.value))
         assert self.c.cosmo.H0.value == 0.6
         self.c.update(cosmo_params={"Om0":0.2})
         assert self.c.cosmo.Om0 == 0.2

@@ -14,6 +14,7 @@ sys.path.insert(0, LOCATION)
 from hmf import MassFunction
 from scipy.special import erfc
 
+
 class TestFcoll(object):
 
     def check_fcoll(self, pert, fit):
@@ -26,8 +27,8 @@ class TestFcoll(object):
             num = pert.rho_gtm / pert.mean_density0
 
         err = np.abs((num - anl) / anl)
-        print np.max(err)
-        print num / anl - 1
+        print(np.max(err))
+        print(num / anl - 1)
         assert np.max(err) < 0.05
 
     def test_fcolls(self):
@@ -60,7 +61,7 @@ class TestCumulants(object):
         num = hmf.rho_gtm / hmf.mean_density0
         err = np.abs((num - anl) / anl)[np.logical_and(hmf.m > 10 ** 10, hmf.m < 10 ** 15)]
         err = err[np.logical_not(np.isnan(err))]
-        print np.max(err)
+        print((np.max(err)))
         assert np.max(err) < TestCumulants.tol
 
     def test_ranges_not_cut(self):
@@ -79,8 +80,8 @@ class TestCumulants(object):
 
     def check_mgtm(self, hmf, maxm):
         hmf.update(Mmin=0, Mmax=maxm, dlog10m=0.01)
-        print "rhogtm: ", hmf.rho_gtm
-        print "rhomean:", hmf.mean_density0
+        print("rhogtm: ", hmf.rho_gtm)
+        print("rhomean:", hmf.mean_density0)
         assert np.abs(hmf.rho_gtm[0] / hmf.mean_density0 - 1) < 0.1  # THIS IS PRETTY BIG!
 
 
@@ -91,7 +92,7 @@ class TestCumulants(object):
 
     def check_mltm(self, hmf, maxm):
         hmf.update(Mmin=3, Mmax=maxm, dlog10m=0.01)
-        print np.abs(hmf.rho_ltm[-1] / hmf.mean_density0 - 1)
+        print(np.abs(hmf.rho_ltm[-1] / hmf.mean_density0 - 1))
         assert np.abs(hmf.rho_ltm[-1] / hmf.mean_density0 - 1) < 0.2
 
     def test_mltm(self):
