@@ -28,6 +28,6 @@ Documentation
 Attribution
 -----------
 Please cite `Murray, Power and Robotham (2013)
-<http://http://arxiv.org/abs/1306.6721>`_ if you find this code useful in your
+<https://arxiv.org/abs/1306.6721>`_ if you find this code useful in your
 research.
 
