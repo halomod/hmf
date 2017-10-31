@@ -18,7 +18,7 @@ from .integrate_hmf import hmf_integral_gtm as int_gtm
 from numpy import issubclass_
 logger = logging.getLogger('hmf')
 from .filters import TopHat, Filter
-from ._framework import get_model
+from ._framework import get_model, get_model_
 from scipy.optimize import minimize
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import warnings
@@ -121,11 +121,14 @@ class MassFunction(transfer.Transfer):
         """
         A model for the window/filter function.
 
-        :type: str or :class:`hmf.filters.Filter` subclass
+        :type: :class:`hmf.filters.Filter` subclass
         """
         if not issubclass_(val, Filter) and not isinstance(val, str):
             raise ValueError("filter must be a Filter or string, got %s" % type(val))
-        return val
+        elif isinstance(val, str):
+            return get_model_(val, "hmf.filters")
+        else:
+            return val
 
     @parameter("param")
     def filter_params(self, val):
@@ -164,7 +167,10 @@ class MassFunction(transfer.Transfer):
         """
         if not issubclass_(val, ff.FittingFunction) and not isinstance(val, str):
             raise ValueError("hmf_model must be a ff.FittingFunction or string, got %s" % type(val))
-        return val
+        elif isinstance(val, str):
+            return get_model_(val, "hmf.fitting_functions")
+        else:
+            return val
 
     @parameter("param")
     def hmf_params(self, val):
@@ -173,8 +179,6 @@ class MassFunction(transfer.Transfer):
 
         :type: dict
         """
-        if not isinstance(val, dict):
-            raise ValueError("hmf_params must be a dictionary")
         return val
 
     @parameter("param")
@@ -258,33 +262,24 @@ class MassFunction(transfer.Transfer):
         """
         return self.mean_density0 * (1 + self.z) ** 3
 
+
     @cached_quantity
     def hmf(self):
         """
         Instantiated model for the hmf fitting function.
         """
-        if issubclass_(self.hmf_model, ff.FittingFunction):
-            return self.hmf_model(m=self.m, nu2=self.nu, z=self.z,
+        return self.hmf_model(m=self.m, nu2=self.nu, z=self.z,
                               delta_halo=self.delta_halo, omegam_z=self.cosmo.Om(self.z),
                               delta_c=self.delta_c, n_eff=self.n_eff,
                               ** self.hmf_params)
-        elif isinstance(self.hmf_model, str):
-            return get_model(self.hmf_model, "hmf.fitting_functions",
-                            m=self.m, nu2=self.nu, z=self.z,
-                            delta_halo=self.delta_halo, omegam_z=self.cosmo.Om(self.z),
-                            delta_c=self.delta_c, n_eff=self.n_eff,
-                            ** self.hmf_params)
+
 
     @cached_quantity
     def filter(self):
         """
         Instantiated model for filter/window functions.
         """
-        if issubclass_(self.filter_model, Filter):
-            return self.filter_model(self.k,self._unnormalised_power, **self.filter_params)
-        elif isinstance(self.filter_model, str):
-            return get_model(self.filter_model, "hmf.filters", k=self.k,
-                                power=self._unnormalised_power, **self.filter_params)
+        return self.filter_model(self.k,self._unnormalised_power, **self.filter_params)
 
     @cached_quantity
     def m(self):
@@ -294,7 +289,7 @@ class MassFunction(transfer.Transfer):
     @cached_quantity
     def M(self):
         "Masses (alias of m, deprecated)"
-        return self.m
+        raise AttributeError("Use of M has been deprecated for a while, and is now removed. Use m.")
 
     @cached_quantity
     def delta_halo(self):
@@ -311,6 +306,7 @@ class MassFunction(transfer.Transfer):
         Unnormalised mass variance at z=0
         """
         return self.filter.sigma(self.radii)
+
 
     @cached_quantity
     def _sigma_0(self):

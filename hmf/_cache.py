@@ -47,8 +47,8 @@ def cached_quantity(f):
     value on all subsequent calls. If `a_param` is modified, the
     calculation of either `a_quantity` and `a_child_quantity` will be re-performed when requested.
     """
-
     name = f.__name__
+
 
     def _get_property(self):
         # Location of the property to be accessed
@@ -127,7 +127,6 @@ def cached_quantity(f):
 
     return property(_get_property, None, _del_property)
 
-
 def obj_eq(ob1, ob2):
     try:
         if ob1 == ob2:
@@ -182,6 +181,12 @@ def parameter(kind):
         name = f.__name__
 
         def _set_property(self, val):
+            # Here put any custom code that should be run, dependent on the type of parameter
+            if name.endswith("_params"):
+                if not isinstance(val, dict):
+                    raise ValueError("%s must be a dictionary"%name)
+
+
             prop = hidden_loc(self, name)
 
             # The following does any complex setting that is written into the code

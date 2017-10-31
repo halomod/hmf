@@ -1,6 +1,13 @@
 Releases
 ========
 
+v3.0.1 [31st Oct 2017]
+----------------------
+**Enhancement**
+
+- Normalised all <>_model properties to be actual classes, rather than either class or string.
+- Added consistent checking of dictionaries for <>_params parameters.
+
 v3.0.0 [7th June 2017]
 ----------------------
 **Features**
