@@ -181,16 +181,19 @@ def parameter(kind):
         name = f.__name__
 
         def _set_property(self, val):
-            # Here put any custom code that should be run, dependent on the type of parameter
-            if name.endswith("_params"):
-                if not isinstance(val, dict):
-                    raise ValueError("%s must be a dictionary"%name)
+
 
 
             prop = hidden_loc(self, name)
 
             # The following does any complex setting that is written into the code
             val = f(self, val)
+
+            # Here put any custom code that should be run, dependent on the type of parameter
+            if name.endswith("_params"):
+                if not (isinstance(val, dict) or val is None):
+                    raise ValueError("%s must be a dictionary"%name)
+
 
             # Locations of indexes
             recalc = hidden_loc(self, "recalc")
