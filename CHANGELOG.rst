@@ -1,6 +1,12 @@
 Releases
 ========
 
+v3.0.2 [3rd Nov]
+----------------
+**Bugfixes**
+
+- Changed parameter checks on instantiation to post-conversion.
+
 v3.0.1 [31st Oct 2017]
 ----------------------
 **Enhancement**
