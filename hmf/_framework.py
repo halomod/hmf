@@ -137,6 +137,28 @@ class Framework(object):
         for name in cls.get_all_parameter_names():
             yield name, getattr(cls,name)
 
+    def get_dependencies(self, *q):
+        """
+        Determine all parameter dependencies of the quantities in q.
+
+        Parameters
+        ----------
+        q : str
+            String(s) labelling a quantity
+
+        Returns
+        -------
+        deps : set
+            A set containing all parameters on which quantities in q are dependent.
+        """
+        deps = set()
+        for quant in q:
+            getattr(self, quant)
+
+            deps.update(getattr(self,"_"+self.__class__.__name__+"__recalc_prop_par_static")[quant])
+
+        return deps
+
     @classmethod
     def parameter_info(cls,names=None):
         """
