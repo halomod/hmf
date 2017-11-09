@@ -160,6 +160,7 @@ def ret_arg(ll,blobs):
         return ll
     else:
         return ll, blobs
+
 class Fit(object):
     """
     Parameters
@@ -328,7 +329,7 @@ class MCMC(Fit):
         else:
             # Note, sampler CANNOT be an attribute of self, since self is passed to emcee.
             sampler = EnsembleSampler(nwalkers, self.ndim, model,
-                                            args=[h, self], threads=nthreads)
+                                      args=[h, self], threads=nthreads)
 
         # Get initial positions
         if initial_pos is None:
@@ -344,36 +345,35 @@ class MCMC(Fit):
             blobs0 = None
 
         # Run the actual run
-        if chunks == 0 or chunks > nsamples:
+        if chunks == 0 or chunks > nsamples or chunks is None:
             chunks = nsamples
 
-        start = time.time()
         for i, result in enumerate(sampler.sample(initial_pos, iterations=nsamples,
                                                   lnprob0=lnprob, rstate0=rstate,
                                                   blobs0=blobs0)):
             if (i + 1) % chunks == 0 or i + 1 == nsamples:
                 yield sampler
+        #
+        # self.__sampler = sampler
 
-        self.__sampler = sampler
-
-    def get_and_del_sampler(self):
-        """
-        Returns the sampler object if it exists (ie. fit has been called) and deletes it.
-
-        This must be used to get the sampler if no chunks are being used. That is
-
-        ```
-        F = MCMC(...)
-        F.fit()
-        sampler = F.get_and_del_sampler()
-        ```
-
-        After being assigned, it is deleted since it cannot exist in the class
-        when `.fit()` is called.
-        """
-        sampler = self.__sampler
-        del self.__sampler
-        return sampler
+    # def get_and_del_sampler(self):
+    #     """
+    #     Returns the sampler object if it exists (ie. fit has been called) and deletes it.
+    #
+    #     This must be used to get the sampler if no chunks are being used. That is
+    #
+    #     ```
+    #     F = MCMC(...)
+    #     F.fit()
+    #     sampler = F.get_and_del_sampler()
+    #     ```
+    #
+    #     After being assigned, it is deleted since it cannot exist in the class
+    #     when `.fit()` is called.
+    #     """
+    #     sampler = self.__sampler
+    #     del self.__sampler
+    #     return sampler
 
     def get_initial_pos(self, nwalkers):
         # Get an initial value for all walkers, around a small ball near the initial guess
