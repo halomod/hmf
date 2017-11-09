@@ -1,6 +1,13 @@
 Releases
 ========
 
+dev
+----------------
+**Enhancement**
+
+- Added `get_dependencies` method to _Framework, to enable finding all parameters that a quantity depends on.
+
+
 v3.0.2 [3rd Nov]
 ----------------
 **Bugfixes**
