@@ -376,7 +376,7 @@ class MCMC(Fit):
             blobs0 = None
 
         # Run the actual run
-        if chunks == 0 or chunks > nsamples:
+        if chunks == 0 or chunks > nsamples or chunks is None:
             chunks = nsamples
 
         for i, result in enumerate(
@@ -390,27 +390,27 @@ class MCMC(Fit):
         ):
             if (i + 1) % chunks == 0 or i + 1 == nsamples:
                 yield sampler
+        #
+        # self.__sampler = sampler
 
-        self.__sampler = sampler
-
-    def get_and_del_sampler(self):
-        """
-        Returns the sampler object if it exists (ie. fit has been called) and deletes it.
-
-        This must be used to get the sampler if no chunks are being used. That is
-
-        ```
-        F = MCMC(...)
-        F.fit()
-        sampler = F.get_and_del_sampler()
-        ```
-
-        After being assigned, it is deleted since it cannot exist in the class
-        when `.fit()` is called.
-        """
-        sampler = self.__sampler
-        del self.__sampler
-        return sampler
+    # def get_and_del_sampler(self):
+    #     """
+    #     Returns the sampler object if it exists (ie. fit has been called) and deletes it.
+    #
+    #     This must be used to get the sampler if no chunks are being used. That is
+    #
+    #     ```
+    #     F = MCMC(...)
+    #     F.fit()
+    #     sampler = F.get_and_del_sampler()
+    #     ```
+    #
+    #     After being assigned, it is deleted since it cannot exist in the class
+    #     when `.fit()` is called.
+    #     """
+    #     sampler = self.__sampler
+    #     del self.__sampler
+    #     return sampler
 
     def get_initial_pos(self, nwalkers):
         # Get an initial value for all walkers, around a small ball near the initial guess
