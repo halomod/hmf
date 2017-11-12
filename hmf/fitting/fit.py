@@ -111,7 +111,7 @@ def model(parm, h, self):
 
     # Get the quantity to compare (if exceptions are raised, treat properly)
     try:
-        q = getattr(h, self.quantity)
+        q = [getattr(h, qq) for qq in self.quantities]
     except Exception as e:
         if self.relax:
             print(
@@ -127,24 +127,16 @@ def model(parm, h, self):
             print((traceback.format_exc()))
             raise e
 
-    # The logprob of the model
-    if self.cov:
-        ll += _lognormpdf(q, self.data, self.sigma)
-    else:
-        ll += np.sum(norm.logpdf(self.data, loc=q, scale=self.sigma))
+    ll += self.ll_func(q, self.data, **self.usr_kwargs)
 
-    # Add the likelihood of the contraints
-    for k, v in list(self.constraints.items()):
-        ll += norm.logpdf(getattr(h, k), loc=v[0], scale=v[1])
-        if self.verbose > 2:
-            print(("CONSTRAINT: ", k, getattr(h, k)))
+
 
     if self.verbose:
         print(("Likelihood: ", ll))
     if self.verbose > 1:
         print(("Update Dictionary: ", param_dict))
     if self.verbose > 2:
-        print(("Final Quantity: ", q))
+        print(("Final Quantities: ", q))
 
     # Get blobs to return as well.
     if self.blobs is not None:
@@ -159,7 +151,40 @@ def model(parm, h, self):
         return ll
 
 
-def ret_arg(ll, blobs):
+def chi_squared(q, data, sigma):
+    """
+    A simple log-likelihood function which takes a list of data, along with a list of models at that data, and an
+    uncertainty at each of those points, and does chi-squared likelihood
+
+    Parameters
+    ----------
+    q : list
+        A list of model values that correspond to the data
+
+    data : list
+        A list of data values that correspond to q
+
+    sigma : list
+        A list of uncertainties on the data. Each entry can be a single number, a 1d array, or a 2D array if the data
+        is covariant.
+
+    Returns
+    -------
+    ll : float
+        The log-likelihood of the model.
+
+    """
+
+    ll  = 0
+    for qq, dd, ss in zip(q,data,sigma):
+        if len(ss.shape)==2:
+            ll += _lognormpdf(qq, dd, ss)
+        else:
+            ll += np.sum(norm.logpdf(dd, loc=qq, scale=ss))
+
+    return ll
+
+def ret_arg(ll,blobs):
     if blobs is None:
         return ll
     else:
@@ -203,19 +228,10 @@ class Fit(object):
         This can be helpful if a flat prior is used on cosmology, for which extreme
         values can sometimes cause exceptions.
     """
-
-    def __init__(
-        self,
-        priors,
-        data,
-        quantity,
-        constraints,
-        sigma,
-        guess=[],
-        blobs=None,
-        verbose=0,
-        relax=False,
-    ):
+    def __init__(self, priors, data, quantities, ll_func = chi_squared,
+                 ll_kwargs = {},
+                 guess=[], blobs=None,
+                 verbose=0, relax=False):
         if len(priors) == 0:
             raise ValueError("priors must be at least length 1")
         else:
@@ -241,24 +257,13 @@ class Fit(object):
         if np.any(np.isnan(data)):
             raise ValueError("The data must contain no NaN values")
 
+        self.ll_func = ll_func
+        self.usr_kwargs = ll_kwargs
         self.data = data
-        self.quantity = quantity
-        self.sigma = sigma
+        self.quantities = quantities
         self.blobs = blobs
         self.verbose = verbose
         self.relax = relax
-        self.constraints = constraints
-
-        # Make sure sigma has right rank
-        if len(self.sigma.shape) == 2:
-            self.cov = True
-        elif len(self.sigma.shape) == 1:
-            self.cov = False
-        else:
-            raise ValueError(
-                "sigma must be an array of 1 or 2 dimensions, but has %s dim"
-                % len(sigma.shape)
-            )
 
     def get_guess(self, guess):
         # Set guess if not set
@@ -350,7 +355,7 @@ class MCMC(Fit):
             nthreads = cpu_count()
 
         # This just makes sure that the caching works
-        getattr(h, self.quantity)
+        [getattr(h, qq) for qq in self.quantities]
 
         initial_pos = None
         if sampler is not None:
