@@ -141,8 +141,7 @@ def model(parm, h, self):
 
     # Get the quantity to compare (if exceptions are raised, treat properly)
     try:
-        q = h if self.quantities is None else [getattr(h, qq) for qq in self.quantities]
-        ll += self.ll_func(q, self.data, **self.usr_kwargs)
+        q = [getattr(h, qq) for qq in self.quantities]
     except Exception as e:
         if self.relax:
             print(
@@ -163,12 +162,9 @@ def model(parm, h, self):
         ll += _lognormpdf(q, self.data, self.sigma)
     else:
         ll += np.sum(norm.logpdf(self.data, loc=q, scale=self.sigma))
+    ll += self.ll_func(q, self.data, **self.usr_kwargs)
 
-    # Add the likelihood of the contraints
-    for k, v in list(self.constraints.items()):
-        ll += norm.logpdf(getattr(h, k), loc=v[0], scale=v[1])
-        if self.verbose > 2:
-            print(("CONSTRAINT: ", k, getattr(h, k)))
+
 
     if self.verbose:
         print(("Likelihood: ", ll))
@@ -268,6 +264,10 @@ class Fit(object):
         This can be helpful if a flat prior is used on cosmology, for which extreme
         values can sometimes cause exceptions.
     """
+    def __init__(self, priors, data, quantities, ll_func = chi_squared,
+                 ll_kwargs = {},
+                 guess=[], blobs=None,
+                 verbose=0, relax=False):
 
     def __init__(
         self,
@@ -415,8 +415,7 @@ class MCMC(Fit):
             nthreads = cpu_count()
 
         # This just makes sure that the caching works
-        if self.quantities is not None:
-            [getattr(h, qq) for qq in self.quantities]
+        [getattr(h, qq) for qq in self.quantities]
 
         initial_pos = None
         if sampler is not None:
