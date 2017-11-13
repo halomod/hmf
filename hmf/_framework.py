@@ -68,10 +68,10 @@ class Framework(object):
 
     The specific subclasses of this class should be composed of methods that are
     decorated with either ``@_cache.parameter`` for things that are parameters,
-    or ``@_cache.cached_property`` for derived quantities.
+    or ``@_cache.cached_quantity`` for derived quantities.
 
     Other methods are permissable, but may complicate matters if a derived
-    quantity uses the non-``cached_property`` method. Reserve these for utility
+    quantity uses the non-``cached_quantity`` method. Reserve these for utility
     methods.
 
     Importantly, any parameter that may be passed to the constructor, *must* be
@@ -85,9 +85,14 @@ class Framework(object):
         Update parameters of the framework with kwargs.
         """
         for k, v in list(kwargs.items()):
+            # If key is just a parameter to the class, just update it.
             if hasattr(self, k):
                 setattr(self, k, v)
                 del kwargs[k]
+
+            # If key is a dictionary of parameters to a sub-framework, update the sub-framework
+            elif k.endswith("_params") and isinstance(getattr(self, k[:-7]), Framework):
+                getattr(self, k[:-7]).update(**v)
 
         if kwargs:
             raise ValueError("Invalid arguments: %s" % kwargs)

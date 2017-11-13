@@ -7,7 +7,7 @@ functionality of being automatically updated when a parent property is
 updated.
 """
 from functools import update_wrapper
-from copy import copy
+from copy import deepcopy
 
 
 def hidden_loc(obj, name):
@@ -17,6 +17,63 @@ def hidden_loc(obj, name):
     """
     return ("_" + obj.__class__.__name__ + "__" + name).replace("___", "__")
 
+
+def subframework(f):
+    """
+    A quantity that is essentially a sub-framework
+
+    Parameters
+    ----------
+    f
+
+    Returns
+    -------
+
+    """
+    name = f.__name__
+
+    def _get_property(self):
+        # Location of the property to be accessed
+        prop = hidden_loc(self, name)
+
+
+        # Locations of indexes [they are set up in the parameter decorator]
+        recalc_prpa = hidden_loc(self, "recalc_prop_par")
+
+        # Every time it's gotten, we update the overall papr and prpa dicts with the relavant sub-items
+        fmwork = getattr(self, prop)
+        fmwork_recalc_prpa = hidden_loc(fmwork, "recalc_prop_par")
+
+        # Create a link to the underlying prpa
+        for k,v in getattr(self, recalc_prpa).items():
+            v[name] = getattr(self, fmwork_recalc_prpa)
+
+        try:
+            return getattr(self, prop)
+        except AttributeError:
+            value = f(self)
+            setattr(self, prop, value)
+            cls = getattr(self, prop)
+
+            # Tag the subframework as a subframework
+            setattr(cls, hidden_loc(cls, "issubframework"), True)
+            try:
+                getattr(self, hidden_loc(self, "subframeworks")).add(name)
+            except AttributeError:
+                setattr(self, hidden_loc(self, "subframeworks"), set([name]))
+
+            return value
+
+    update_wrapper(_get_property, f)
+
+    def _del_property(self):
+        try:
+            prop = hidden_loc(self, name)
+            delattr(self, prop)
+        except AttributeError:
+            pass
+
+    return property(_get_property, None, _del_property)
 
 def cached_quantity(f):
     """
@@ -67,12 +124,32 @@ def cached_quantity(f):
             for pr, v in getattr(self, recalc_prpa).items():
                 v.update(getattr(self, recalc_prpa_static)[name])
 
+        # check all quantities for dependence on subframeworks and update their entries
+        sf = getattr(self, hidden_loc(self, "subframeworks"), set()) # just grabs all possible subframeworks
+        if len(sf)>0:
+            for q in getattr(self, recalc):
+                if not getattr(self, recalc)[q]:
+                    for s in sf:
+                        fmwork = getattr(self, hidden_loc(self, s))
+                        for up in getattr(fmwork, hidden_loc(fmwork, "updated_parameters"), set()):
+                            if up in getattr(self, recalc_prpa_static)[q].get(s,[]):
+                                getattr(self, recalc)[q] = True
+                                break
+
+                        if getattr(self, recalc)[q]:
+                            break
+
+            for s in sf:
+                fmwork = getattr(self, hidden_loc(self, s))
+                setattr(fmwork, hidden_loc(fmwork, "updated_parameters"), set())
+
+
         # If this property already in recalc and doesn't need updating, just return.
-        if not getattr(self, recalc).get(name, True):
+        if not getattr(self, recalc).get(name, True) and not any():
             return getattr(self, prop)
 
         # Otherwise, if its in recalc, and needs updating, just update it
-        elif name in getattr(self, recalc):
+        elif name in getattr(self, recalc) or any([s in getattr(self, recalc_prpa_static, {}).get(name, []) for s in sf]):
             value = f(self)
             setattr(self, prop, value)
 
@@ -86,18 +163,20 @@ def cached_quantity(f):
         if not supered:
             getattr(self, recalc_prpa)[name] = set()  # Empty set to which parameter names will be added
 
+
         # Go ahead and calculate the value -- each parameter accessed will add itself to the index.
         value = f(self)
         setattr(self, prop, value)
 
+
         # Invert the index
         for par in getattr(self, recalc_prpa)[name]:
-            getattr(self, recalc_papr)[par].add(name)
-
+            if not isinstance(par, dict):
+                getattr(self, recalc_papr)[par].add(name)
 
         # Copy index to static dict, and remove the index (so that parameters don't keep on trying to add themselves)
         if not supered: # If super, don't want to remove the name just yet.
-            getattr(self, recalc_prpa_static)[name] = copy(getattr(self, recalc_prpa)[name])
+            getattr(self, recalc_prpa_static)[name] = deepcopy(getattr(self, recalc_prpa)[name])
             del getattr(self, recalc_prpa)[name]
 
         # Add entry to master recalc list
@@ -225,6 +304,9 @@ def parameter(kind):
 
             # If either the new value is different from the old, or we never set it before
             if not obj_eq(val, old_val) or doset:
+                if getattr(self, hidden_loc(self, "issubframework"), False):
+                    getattr(self, hidden_loc(self, "updated_parameters")).add(name)
+
                 # Then if its a dict, we update it
                 if isinstance(val, dict) and hasattr(self, prop) and val:
                     getattr(self, prop).update(val)
