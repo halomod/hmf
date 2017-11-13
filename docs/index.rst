@@ -32,13 +32,12 @@ Features
 Installation
 ------------
 `hmf` is built on several other packages, most of which will be familiar to the
-scientific python programmer. All of these dependencies *should* be automatically
-installed when installing `hmf`, except for one. Explicitly, the dependencies are
-numpy, scipy, scitools, cosmolopy and emcee. 
+scientific python programmer. All of these dependencies should be automatically
+installed when installing `hmf`. Explicitly, the dependencies are
+numpy, scipy, astropy and camb.
 
 You will only need `emcee` if you are going to be using the fitting capabilities
-of `hmf`. The final, optional, library is `camb <https://github.com/cmbant/CAMB/pycamb>`_,
-for which you should consult the repository for install instructions.
+of `hmf`.
 
 Finally the `hmf` package needs to be installed: ``pip install hmf``. If you want
 to install the latest build (not necessarily stable), grab it `here 
