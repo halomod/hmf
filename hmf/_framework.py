@@ -93,6 +93,7 @@ class Framework(object):
             # If key is a dictionary of parameters to a sub-framework, update the sub-framework
             elif k.endswith("_params") and isinstance(getattr(self, k[:-7]), Framework):
                 getattr(self, k[:-7]).update(**v)
+                del kwargs[k]
 
         if kwargs:
             raise ValueError("Invalid arguments: %s" % kwargs)
@@ -160,7 +161,7 @@ class Framework(object):
         for quant in q:
             getattr(self, quant)
 
-            deps.update(getattr(self,"_"+self.__class__.__name__+"__recalc_prop_par_static")[quant])
+            deps.update(getattr(self,"_"+self.__class__.__name__+"__recalc_prop_par")[quant])
 
         return deps
 
