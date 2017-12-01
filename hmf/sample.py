@@ -9,7 +9,8 @@ from scipy.interpolate import InterpolatedUnivariateSpline as _spline
 
 def _prepare_mf(log_mmin, **mf_kwargs):
     h = hmf.MassFunction(Mmin=log_mmin, **mf_kwargs)
-    icdf = _spline((h.ngtm / h.ngtm[0])[::-1], np.log10(h.m[::-1]), k=3)
+    mask = h.ngtm>0
+    icdf = _spline((h.ngtm[mask] / h.ngtm[0])[::-1], np.log10(h.m[mask][::-1]), k=3)
 
     return icdf, h
 
@@ -50,12 +51,6 @@ def sample_mf(N,log_mmin,
 
     hmf : `hmf.MassFunction` instance
         The instance used to define the mass function.
-
-    Notes
-    -----
-    `Mmax` is a free parameter to be sent to `MassFunction`. However, if set
-    at or above 18, the routine will fail. It should be set so that dndm is
-    very small at Mmax, but not numerically 0.
 
     Examples
     --------
