@@ -8,6 +8,7 @@ sys.path.insert(0, LOCATION)
 from hmf.cosmo import Cosmology, WMAP7
 import numpy as np
 
+
 def eq(actual, expected):
     return abs(actual - expected) < 0.000001
 
@@ -23,9 +24,11 @@ def eq(actual, expected):
 #     for bit in bits:
 #         assert bit in c.pycamb_dict
 
+
 def test_string_cosmo():
     c = Cosmology(cosmo_model="WMAP7")
     assert c.cosmo.Ob0 > 0
+
 
 class TestUpdate():
     def __init__(self):
@@ -35,8 +38,8 @@ class TestUpdate():
         self.c.update(cosmo_model=WMAP7)
 
         assert self.c.cosmo.Om0 == 0.272
-        print((self.c.mean_density0))
-        assert np.isclose(self.c.mean_density0, 75468972351.60081)
+        print(self.c.mean_density0)
+        assert np.isclose(self.c.mean_density0, 75489962610.27452, atol=1e-3) # this number *can* change when updated constants are used.
 
     def test_cosmo_params(self):
         self.c.update(cosmo_params={"H0":0.6})

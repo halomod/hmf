@@ -23,6 +23,7 @@ def test_mmax_big():
     #raises ValueError because ngtm=0 exactly at m=18
     #due to hard limit of integration in integrate_hmf.
     np.random.seed(12345)
+    
     m,h = sample_mf(1e5,11,transfer_model="EH",Mmax=18)
     #centres,hist = dndm_from_sample(m,1e5/h.ngtm[0])
     #print centres,hist

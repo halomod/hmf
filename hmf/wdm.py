@@ -47,7 +47,7 @@ class WDM(Component):
     def __init__(self, mx, cosmo = Planck15, z =0, **model_params):
         self.mx = mx
         self.cosmo = cosmo
-        self.rho_mean = (1+z)**3 * (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2).to(u.MsolMass / u.Mpc ** 3).value * 1e6
+        self.rho_mean = (1+z)**3 * (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2).to(u.solMass / u.Mpc ** 3).value * 1e6
         self.Oc0 = cosmo.Om0 - cosmo.Ob0
 
         super(WDM, self).__init__(**model_params)
