@@ -8,8 +8,18 @@ dev
 - Added `get_dependencies` method to _Framework, to enable finding all parameters that a quantity depends on.
 
 
-v3.0.2 [3rd Nov]
-----------------
+v3.0.3 [1st Dec 2017]
+---------------------
+**Bugfixes**
+
+- Fixed usage of deprecated MsolMass in wdm
+- Fixed Bhattachrya fitting function (thanks to Benedikt Diemer!)
+- Fixed typo in Watson fitting function (thanks to Benedikt Diemer!)
+- Update cosmo test to use new Astropy constants.
+- Fixed issue with sampling function where zeros in ngtm would yield an error.
+
+v3.0.2 [3rd Nov 2017]
+---------------------
 **Bugfixes**
 
 - Changed parameter checks on instantiation to post-conversion.

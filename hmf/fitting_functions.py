@@ -558,7 +558,7 @@ class Peacock(FittingFunction):
 class Angulo(FittingFunction):
     req_mass = True
     _ref = """Angulo, R. E., et al., 2012. arXiv:1203.3216v1"""
-    _eq = r"$A \left(\frac{d}{\sigma}\right)^b \exp(-c/\sigma^2)$"
+    _eq = r"$A \left[\left(\frac{d}{\sigma}\right)^b + 1 \right] \exp(-c/\sigma^2)$"
     __doc__ = _makedoc(FittingFunction._pdocs, "Angulo", "Ang", _eq, _ref)
     _defaults = {"A": 0.201, "b": 1.7, "c": 1.172, "d": 2.08}
 
@@ -587,7 +587,7 @@ class Angulo(FittingFunction):
         c = self.params['c']
         d = self.params['d']
 
-        return 0.201 * ((d/self.sigma)**b+1) * np.exp(-c/self.sigma**2)
+        return A * ((d/self.sigma)**b+1) * np.exp(-c/self.sigma**2)
 
     @property
     def cutmask(self):
@@ -644,7 +644,7 @@ class Watson(FittingFunction):
     sim_definition.halo_overdensity = 178.0
 
     _defaults = {"C_a": 0.023, "d_a": 0.456, "d_b": 0.139, "p": 0.072, "q": 2.13,
-                 "A_0": 0.194, "alpha_0": 2.267, "beta_0": 1.805, "gamma_0": 1.287,
+                 "A_0": 0.194, "alpha_0": 1.805, "beta_0": 2.267, "gamma_0": 1.287,
                  "z_hi": 6, "A_hi": 0.563, "alpha_hi": 0.874, "beta_hi": 3.810, "gamma_hi": 1.453,
                  "A_a": 1.097, "A_b": 3.216, "A_c": 0.074,
                  "alpha_a": 3.136, "alpha_b": 3.058, "alpha_c": 2.349,
@@ -765,7 +765,7 @@ class Bhattacharya(SMT):
     req_z = True
     req_mass = True
 
-    _eq = r"f_{\rm SMT}(\sigma) (\nu\sqrt{a})^q"
+    _eq = r"f_{\rm SMT}(\sigma) (\nu\sqrt{a})^{q-1}"
     _ref = """Bhattacharya, S., et al., May 2011. ApJ 732 (2), 122. http://labs.adsabs.harvard.edu/ui/abs/2011ApJ...732..122B"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Bhattacharya", "Btc", _eq, _ref)
     _defaults = {"A_a": 0.333, "A_b": 0.11, "a_a": 0.788, "a_b": 0.01, "p": 0.807, "q": 1.795}
@@ -810,7 +810,7 @@ class Bhattacharya(SMT):
             The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
         """
         vfv = super(Bhattacharya, self).fsigma
-        return vfv*self.params['a']**(self.params['q']/2)*self.nu**(self.params['q'] - 1)
+        return vfv*(np.sqrt(self.params['a']) * self.nu)**(self.params['q'] - 1)
 
     @property
     def cutmask(self):
