@@ -43,6 +43,43 @@ try:
 except ImportError:
     HAVE_EMCEE = False
 
+
+def string_to_dict_struct(string, val, dct):
+    """
+    Takes a string with colons and converts to a dictionary structure.
+
+    Parameters
+    ----------
+    string : str
+        Defines the key(s) of the dict
+
+    val : anything
+        The value to write to the dictionary
+
+    dct :
+        The dictionary in which to write it.
+
+    Returns
+    -------
+    None. Updates dct in place.
+
+    Examples
+    --------
+    >>> string_to_dict_struct("hey:there", 1.0, {})
+    >>> {"hey":{"there":1.0}}
+
+    """
+    if ":" not in string:
+        dct[string] = val
+    else:
+        first_bit = string.split(":")[0]
+
+        if first_bit not in dct:
+            dct[first_bit] = {}
+
+        string_to_dict_struct(string[len(first_bit) + 1:], val, dct[first_bit])
+
+
 def model(parm, h, self):
     """
     Calculate the log probability of a model `h`
@@ -89,13 +126,7 @@ def model(parm, h, self):
     # Any attr starting with <name>: is put into a dictionary.
     param_dict = {}
     for attr, val in zip(self.attrs, p):
-        if ":" in attr:
-            if attr.split(":")[0] not in param_dict:
-                param_dict[attr.split(":")[0]] = {}
-
-            param_dict[attr.split(":")[0]][attr.split(":")[1]] = val
-        else:
-            param_dict[attr] = val
+        string_to_dict_struct(attr, val, param_dict)
 
     # Update the actual model
     try:  # This try: except: should capture poor parameter choices quickly.
@@ -112,7 +143,8 @@ def model(parm, h, self):
 
     # Get the quantity to compare (if exceptions are raised, treat properly)
     try:
-        q = [getattr(h, qq) for qq in self.quantities]
+        q = h if self.quantities is None else [getattr(h, qq) for qq in self.quantities]
+        ll += self.ll_func(q, self.data, **self.usr_kwargs)
     except Exception as e:
         if self.relax:
             print(("WARNING: PARAMETERS FAILED WHEN CALCULATING QUANTITY, RETURNING INF: ", list(zip(self.attrs, parm))))
@@ -122,10 +154,6 @@ def model(parm, h, self):
         else:
             print((traceback.format_exc()))
             raise e
-
-    ll += self.ll_func(q, self.data, **self.usr_kwargs)
-
-
 
     if self.verbose:
         print(("Likelihood: ", ll))
@@ -199,8 +227,9 @@ class Fit(object):
         The data to be compared to -- must be the same length as the intended
         quantity. Also must be free from NaN values or a ValueError will be raised.
 
-    quantity : str
-        The quantity to be compared (eg. ``"dndm"``)
+    quantities : list of str or None
+        The quantities to be compared (eg. ``["dndm", "m"]``). If None,
+        passes the entire framework to the log-likelihood function.
 
     constraints : dict
         A dictionary with keys being quantity names, and values being length 2
@@ -224,7 +253,7 @@ class Fit(object):
         This can be helpful if a flat prior is used on cosmology, for which extreme
         values can sometimes cause exceptions.
     """
-    def __init__(self, priors, data, quantities, ll_func = chi_squared,
+    def __init__(self, priors, data, quantities = None, ll_func = chi_squared,
                  ll_kwargs = {},
                  guess=[], blobs=None,
                  verbose=0, relax=False):
@@ -332,16 +361,17 @@ class MCMC(Fit):
             raise ValueError("Either sampler or h must be given")
 
         # If using CAMB, nthreads MUST BE 1
-        if (h.transfer_model == "CAMB" or h.transfer_model == tm.CAMB):
-            if any(p.startswith("cosmo_params:") for p in self.attrs):
-                nthreads = 1
+        # if (h.transfer_model == "CAMB" or h.transfer_model == tm.CAMB):
+        #     if any(p.startswith("cosmo_params:") for p in self.attrs):
+        #         nthreads = 1
 
         if not nthreads:
             # auto-calculate the number of threads to use if not set.
             nthreads = cpu_count()
 
         # This just makes sure that the caching works
-        [getattr(h, qq) for qq in self.quantities]
+        if self.quantities is not None:
+            [getattr(h, qq) for qq in self.quantities]
 
         initial_pos=None
         if sampler is not None:
