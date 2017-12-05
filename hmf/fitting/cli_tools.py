@@ -82,7 +82,7 @@ class CLIRunner(object):
         # ## Import observed data
         self.x, self.y, self.sigma = self.get_data()
 
-        # Get params that are part of a dict (eg. HOD)
+        # Get params that are part of a dict
         self.priors, self.keys, self.guess = self.param_setup(param_dict)
 
         if restart:
@@ -191,7 +191,7 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
         """
         Takes a dictionary of input parameters, with keys defining the parameters
         and the values defining various aspects of the priors, and converts them
-        to useable Prior() instances, along with keys and guesses.
+        to usable Prior() instances, along with keys and guesses.
 
         Note that here, *only* cosmological parameters are able to be set as
         multivariate normal priors (this is not true in general, but for the CLI
