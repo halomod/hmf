@@ -141,7 +141,8 @@ def model(parm, h, self):
 
     # Get the quantity to compare (if exceptions are raised, treat properly)
     try:
-        q = [getattr(h, qq) for qq in self.quantities]
+        q = h if self.quantities is None else [getattr(h, qq) for qq in self.quantities]
+        ll += self.ll_func(q, self.data, **self.usr_kwargs)
     except Exception as e:
         if self.relax:
             print(
@@ -264,7 +265,7 @@ class Fit(object):
         This can be helpful if a flat prior is used on cosmology, for which extreme
         values can sometimes cause exceptions.
     """
-    def __init__(self, priors, data, quantities, ll_func = chi_squared,
+    def __init__(self, priors, data, quantities = None, ll_func = chi_squared,
                  ll_kwargs = {},
                  guess=[], blobs=None,
                  verbose=0, relax=False):
@@ -406,6 +407,9 @@ class MCMC(Fit):
             raise ValueError("Either sampler or h must be given")
 
         # If using CAMB, nthreads MUST BE 1
+        # if (h.transfer_model == "CAMB" or h.transfer_model == tm.CAMB):
+        #     if any(p.startswith("cosmo_params:") for p in self.attrs):
+        #         nthreads = 1
         if h.transfer_model == "CAMB" or h.transfer_model == tm.CAMB:
             if any(p.startswith("cosmo_params:") for p in self.attrs):
                 nthreads = 1
@@ -415,7 +419,8 @@ class MCMC(Fit):
             nthreads = cpu_count()
 
         # This just makes sure that the caching works
-        [getattr(h, qq) for qq in self.quantities]
+        if self.quantities is not None:
+            [getattr(h, qq) for qq in self.quantities]
 
         initial_pos = None
         if sampler is not None:
