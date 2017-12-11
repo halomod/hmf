@@ -155,6 +155,10 @@ def model(parm, h, self):
             print((traceback.format_exc()))
             raise e
 
+    # Catch returns of NaN, which may happen for a variety of reasons.
+    if self.relax and np.isnan(ll):
+        return ret_arg(-np.inf, self.blobs)
+
     if self.verbose:
         print(("Likelihood: ", ll))
     if self.verbose > 1 :
