@@ -41,20 +41,24 @@ To be more explicit, the power spectrum in all cases is produced with the follow
          'transfer__k_per_logint': 0,
          'transfer__kmax':100.0
 '''
-#===============================================================================
+# ===============================================================================
 # Some Imports
-#===============================================================================
+# ===============================================================================
 import numpy as np
 from hmf import MassFunction
+from astropy.cosmology import LambdaCDM
+
 import inspect
 import os
-from astropy.cosmology import LambdaCDM
-LOCATION = "/".join(os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))).split("/")[:-1])
 import sys
+
+LOCATION = "/".join(os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))).split("/")[:-1])
 sys.path.insert(0, LOCATION)
-#=======================================================================
+
+
+# =======================================================================
 # Some general functions used in tests
-#=======================================================================
+# =======================================================================
 def rms_diff(vec1, vec2, tol):
     mask = np.logical_and(np.logical_not(np.isnan(vec1)), np.logical_not(np.isnan(vec2)))
     vec1 = vec1[mask]
@@ -62,6 +66,7 @@ def rms_diff(vec1, vec2, tol):
     err = np.sqrt(np.mean(((vec1 - vec2) / vec2) ** 2))
     print("RMS Error: ", err, "(> ", tol, ")")
     return err < tol
+
 
 def max_diff_rel(vec1, vec2, tol):
     mask = np.logical_and(np.logical_not(np.isnan(vec1)), np.logical_not(np.isnan(vec2)))
@@ -71,6 +76,7 @@ def max_diff_rel(vec1, vec2, tol):
     print("Max Diff: ", err, "(> ", tol, ")")
     return err < tol
 
+
 def max_diff(vec1, vec2, tol):
     mask = np.logical_and(np.logical_not(np.isnan(vec1)), np.logical_not(np.isnan(vec2)))
     vec1 = vec1[mask]
@@ -79,15 +85,17 @@ def max_diff(vec1, vec2, tol):
     print("Max Diff: ", err, "(> ", tol, ")")
     return err < tol
 
-#===============================================================================
+
+# ===============================================================================
 # The Test Classes
-#===============================================================================
+# ===============================================================================
 class TestGenMF(object):
-    def __init__(self):
+    def setup_method(self, test_method):
         self.hmf = MassFunction(Mmin=7, Mmax=15.001, dlog10m=0.01,
                                 sigma_8=0.8, n=1,
-                                cosmo_model=LambdaCDM(Ob0=0.05, Om0=0.3, Ode0=0.7, H0=70.0,Tcmb0=0),
-                                lnk_min=-11, lnk_max=11, dlnk=0.01, transfer_params={"fname":LOCATION + "/tests/data/transfer_for_hmf_tests.dat"},
+                                cosmo_model=LambdaCDM(Ob0=0.05, Om0=0.3, Ode0=0.7, H0=70.0, Tcmb0=0),
+                                lnk_min=-11, lnk_max=11, dlnk=0.01,
+                                transfer_params={"fname": LOCATION + "/tests/data/transfer_for_hmf_tests.dat"},
                                 hmf_model='ST', z=0.0, transfer_model="FromFile", growth_model="GenMFGrowth")
 
     def check_col(self, pert, fit, redshift, col):

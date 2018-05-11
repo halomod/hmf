@@ -7,15 +7,16 @@ import numpy as np
 from . import hmf
 from scipy.interpolate import InterpolatedUnivariateSpline as _spline
 
+
 def _prepare_mf(log_mmin, **mf_kwargs):
     h = hmf.MassFunction(Mmin=log_mmin, **mf_kwargs)
-    mask = h.ngtm>0
+    mask = h.ngtm > 0
     icdf = _spline((h.ngtm[mask] / h.ngtm[0])[::-1], np.log10(h.m[mask][::-1]), k=3)
 
     return icdf, h
 
-def _choose_halo_masses_num(N,icdf):
 
+def _choose_halo_masses_num(N, icdf):
     # Generate random variates from 0 to maxcum
     x = np.random.random(int(N))
 
@@ -24,7 +25,7 @@ def _choose_halo_masses_num(N,icdf):
     return m
 
 
-def sample_mf(N,log_mmin,
+def sample_mf(N, log_mmin,
               sort=False, **mf_kwargs):
     """
     Create a sample of halo masses from a theoretical mass function.
@@ -64,7 +65,7 @@ def sample_mf(N,log_mmin,
     """
     icdf, h = _prepare_mf(log_mmin, **mf_kwargs)
 
-    m = _choose_halo_masses_num(N,icdf)
+    m = _choose_halo_masses_num(N, icdf)
 
     if sort:
         m.sort()
@@ -72,7 +73,7 @@ def sample_mf(N,log_mmin,
     return m[::-1], h
 
 
-def dndm_from_sample(m,V,nm=None,  bins=50):
+def dndm_from_sample(m, V, nm=None, bins=50):
     """
     Generate a binned dn/dm from a sample of halo masses.
 
@@ -107,18 +108,18 @@ def dndm_from_sample(m,V,nm=None,  bins=50):
 
     If one does not have the volume, it can be calculated as N/n(>mmin).
     """
-    hist, edges = np.histogram(np.log10(m), bins,weights=nm)
+    hist, edges = np.histogram(np.log10(m), bins, weights=nm)
     centres = (edges[1:] + edges[:-1]) / 2
     dx = centres[1] - centres[0]
     hist = hist.astype("float") / (10 ** centres * float(V) * dx * np.log(10))
 
-    if hist[0]==0:
+    if hist[0] == 0:
         try:
             hist0 = np.where(hist != 0)[0][0]
             hist[hist0] = np.nan
         except IndexError:
             pass
-    if hist[-1]==0:
+    if hist[-1] == 0:
         try:
             histN = np.where(hist != 0)[0][-1]
             hist[histN] = np.nan

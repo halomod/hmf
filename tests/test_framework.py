@@ -1,24 +1,20 @@
-import inspect
-import os
-
-LOCATION = "/".join(os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))).split("/")[:-1])
-from nose.tools import raises
-import sys
-sys.path.insert(0, LOCATION)
+from pytest import raises
 from hmf import hmf
 
-@raises(TypeError)
-def test_incorrect_argument():
-    t = hmf.MassFunction(wrong_arg=3)
 
-@raises(ValueError)
+def test_incorrect_argument():
+    with raises(ValueError):
+        t = hmf.MassFunction(wrong_arg=3)
+
+
 def test_incorrect_update_arg():
-    t = hmf.MassFunction()
-    t.update(wrong_arg=3)
+    with raises(ValueError):
+        t = hmf.MassFunction()
+        t.update(wrong_arg=3)
 
 
 class TestIntrospection(object):
-    def __init__(self):
+    def setup_method(self, test_method):
         self.cls = hmf.MassFunction
         self.inst = self.cls(z=10)
 

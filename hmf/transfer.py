@@ -16,9 +16,11 @@ from . import filters
 
 try:
     import camb
+
     HAVE_PYCAMB = True
 except ImportError:
     HAVE_PYCAMB = False
+
 
 class Transfer(cosmo.Cosmology):
     '''
@@ -60,10 +62,9 @@ class Transfer(cosmo.Cosmology):
         self.transfer_params = transfer_params or {}
         self.takahashi = takahashi
 
-
-    #===========================================================================
+    # ===========================================================================
     # Parameters
-    #===========================================================================
+    # ===========================================================================
 
     @parameter("model")
     def growth_model(self, val):
@@ -189,12 +190,9 @@ class Transfer(cosmo.Cosmology):
 
         return val
 
-
-
-
-    #===========================================================================
+    # ===========================================================================
     # DERIVED PROPERTIES AND FUNCTIONS
-    #===========================================================================
+    # ===========================================================================
     @cached_quantity
     def k(self):
         "Wavenumbers, [h/Mpc]"
@@ -232,9 +230,9 @@ class Transfer(cosmo.Cosmology):
             lnk = np.arange(-8, 8, self.dlnk)
             t = self.transfer.lnt(lnk)
             p = np.exp(lnk) ** self.n * np.exp(t) ** 2
-            filt = filters.TopHat(np.exp(lnk),p)
+            filt = filters.TopHat(np.exp(lnk), p)
         else:
-            filt = filters.TopHat(self.k,self._unnormalised_power)
+            filt = filters.TopHat(self.k, self._unnormalised_power)
 
         return filt.sigma(8.0)[0]
 
@@ -302,4 +300,4 @@ class Transfer(cosmo.Cosmology):
         Dimensionless nonlinear power spectrum, :math:`\Delta_k = \frac{k^3 P_{\rm nl}(k)}{2\pi^2}`
         """
 
-        return _hfit(self.k,self.delta_k,self.sigma_8,self.z,self.cosmo,self.takahashi)
+        return _hfit(self.k, self.delta_k, self.sigma_8, self.z, self.cosmo, self.takahashi)

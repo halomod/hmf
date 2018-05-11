@@ -12,6 +12,7 @@ import copy
 from scipy.interpolate import InterpolatedUnivariateSpline as _spline
 from .cosmo import Cosmology as csm
 
+
 def _get_spec(k, delta_k, sigma_8):
     """
     Calculate nonlinear wavenumber, effective spectral index and curvature
@@ -81,7 +82,8 @@ def _get_spec(k, delta_k, sigma_8):
     try:
         dev1, dev2 = sig_of_r.derivatives(np.log(1.0 / rknl))[1:3]
     except Exception as e:
-        print("HALOFIT WARNING: Requiring extra iterations to find derivatives of sigma at 1/rknl (this often happens at high redshift).")
+        print(
+            "HALOFIT WARNING: Requiring extra iterations to find derivatives of sigma at 1/rknl (this often happens at high redshift).")
         lnr = np.linspace(np.log(0.2 / rknl), np.log(5 / rknl), 100)
         lnsig = np.empty(100)
 
@@ -103,7 +105,8 @@ def _get_spec(k, delta_k, sigma_8):
 
     return rknl, rneff, rncur
 
-def halofit(k, delta_k,sigma_8, z, cosmo = None, takahashi=True):
+
+def halofit(k, delta_k, sigma_8, z, cosmo=None, takahashi=True):
     """
     Implementation of HALOFIT (Smith+2003).
 
@@ -146,7 +149,6 @@ def halofit(k, delta_k,sigma_8, z, cosmo = None, takahashi=True):
     plin = delta_k[mask]
     k = k[mask]
 
-
     # Define the cosmology at redshift
     omegamz = cosmo.Om(z)
     omegavz = cosmo.Ode(z)
@@ -154,36 +156,34 @@ def halofit(k, delta_k,sigma_8, z, cosmo = None, takahashi=True):
     w = cosmo.w(z)
     fnu = cosmo.Onu0 / cosmo.Om0
 
-
     if takahashi:
         a = 10 ** (1.5222 + 2.8553 * neff + 2.3706 * neff ** 2 +
-                    0.9903 * neff ** 3 + 0.2250 * neff ** 4 +
-                    - 0.6038 * rncur + 0.1749 * omegavz * (1 + w))
+                   0.9903 * neff ** 3 + 0.2250 * neff ** 4 +
+                   - 0.6038 * rncur + 0.1749 * omegavz * (1 + w))
         b = 10 ** (-0.5642 + 0.5864 * neff + 0.5716 * neff ** 2 +
-                - 1.5474 * rncur + 0.2279 * omegavz * (1 + w))
+                   - 1.5474 * rncur + 0.2279 * omegavz * (1 + w))
         c = 10 ** (0.3698 + 2.0404 * neff + 0.8161 * neff ** 2 + 0.5869 * rncur)
         gam = 0.1971 - 0.0843 * neff + 0.8460 * rncur
         alpha = np.abs(6.0835 + 1.3373 * neff - 0.1959 * neff ** 2 +
-                - 5.5274 * rncur)
+                       - 5.5274 * rncur)
         beta = (2.0379 - 0.7354 * neff + 0.3157 * neff ** 2 +
-                  1.2490 * neff ** 3 + 0.3980 * neff ** 4 - 0.1682 * rncur +
-                  fnu * (1.081 + 0.395 * neff ** 2))
+                1.2490 * neff ** 3 + 0.3980 * neff ** 4 - 0.1682 * rncur +
+                fnu * (1.081 + 0.395 * neff ** 2))
         xmu = 0.0
         xnu = 10 ** (5.2105 + 3.6902 * neff)
 
     else:
         a = 10 ** (1.4861 + 1.8369 * neff + 1.6762 * neff ** 2 +
-                    0.7940 * neff ** 3 + 0.1670 * neff ** 4 +
-                    - 0.6206 * rncur)
+                   0.7940 * neff ** 3 + 0.1670 * neff ** 4 +
+                   - 0.6206 * rncur)
         b = 10 ** (0.9463 + 0.9466 * neff + 0.3084 * neff ** 2 +
-                - 0.94 * rncur)
+                   - 0.94 * rncur)
         c = 10 ** (-0.2807 + 0.6669 * neff + 0.3214 * neff ** 2 - 0.0793 * rncur)
         gam = 0.8649 + 0.2989 * neff + 0.1631 * rncur
         alpha = np.abs(1.3884 + 0.3700 * neff - 0.1452 * neff ** 2)
         beta = (0.8291 + 0.9854 * neff + 0.3401 * neff ** 2)
         xmu = 10 ** (-3.5442 + 0.1908 * neff)
         xnu = 10 ** (0.9589 + 1.2857 * neff)
-
 
     if np.abs(1 - omegamz) > 0.01:
         f1a = omegamz ** -0.0732
