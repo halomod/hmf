@@ -5,8 +5,6 @@ import sys
 import re
 import io
 
-test_suite = "nose.collector"
-
 def read(*names, **kwargs):
     with io.open(
         os.path.join(os.path.dirname(__file__), *names),

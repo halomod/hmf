@@ -39,9 +39,7 @@ numpy, scipy, astropy and camb.
 You will only need `emcee` if you are going to be using the fitting capabilities
 of `hmf`.
 
-Finally the `hmf` package needs to be installed: ``pip install hmf``. If you want
-to install the latest build (not necessarily stable), grab it `here 
-<https://github.com/steven-murray/hmf.git>`_.
+Finally the `hmf` package needs to be installed: ``pip install hmf``.
 
 To go really bleeding edge, install the develop branch using
 ``pip install git+git://github.com/steven-murray/hmf.git@develop``.

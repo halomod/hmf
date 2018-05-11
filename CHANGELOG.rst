@@ -10,6 +10,7 @@ dev
 **Internals**
 
 - Removed logging, which was redundant.
+- Moved from nose to pytest
 
 v3.0.3 [1st Dec 2017]
 ---------------------
