@@ -31,15 +31,23 @@ if sys.argv[-1] == "publish":
     os.system("twine upload dist/*")
     sys.exit()
 
+# Python version dependent requirements.
+if int(sys.version[0]) < 3:
+    install_requires = ["numpy>=1.6.2",
+                        "scipy>=0.12.0",
+                        "astropy>=1.1,<3.0",
+                        "camb>=0.1.6"],
+else:
+    install_requires = ["numpy>=1.6.2",
+                        "scipy>=0.12.0",
+                        "astropy>=1.1",
+                        "camb>=0.1.6"],
 
 setup(
     name="hmf",
     version=find_version("hmf", "__init__.py"),
     packages=find_packages(),
-    install_requires=["numpy>=1.6.2",
-                      "scipy>=0.12.0",
-                      "astropy>=1.1",
-                      "camb>=0.1.6"],
+    install_requires=install_requires,
     scripts=["scripts/hmf", "scripts/hmf-fit"],
     author="Steven Murray",
     author_email="steven.murray@curtin.edu.au",
