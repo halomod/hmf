@@ -27,36 +27,37 @@ addons:
     packages:
     - gfortran-6
 
-# Setup anaconda
 before_install:
-  - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
-      wget https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh;
-    else
-      wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
-    fi
-  - bash miniconda.sh -b -p $HOME/miniconda
-  - export PATH="$HOME/miniconda/bin:$PATH"
-  - hash -r
-  - conda config --set always_yes yes --set changeps1 no
-  - conda update -q conda
-  # Useful for debugging any issues with conda
-  - conda info -a
-
-install:
-  - conda install python=$TRAVIS_PYTHON_VERSION numpy scipy mpmath nose astropy libgfortran
-  - pip install python-coveralls
-  - pip install coverage
-  - pip install emcee
-  #- CAMBURL=http://camb.info/CAMB_Mar13.tar.gz pip install git+git://github.com/steven-murray/pycamb.git
   - sudo ln -s /usr/bin/gfortran-6 /usr/bin/gfortran
-  - pip install --egg camb
-  - pip install coveralls
 
+# command to install dependencies, e.g. pip install -r requirements.txt --use-mirrors
+install: pip install -U tox-travis coverage coveralls
+
+# command to run tests, e.g. python setup.py test
 script:
-  - coverage run --source=hmf --omit=hmf/fitting/* $(which nosetests)
+  - tox
+  - coverage report
+#  - coverage run --source pydftools -m py.test
+#  - coverage report -m
+
+after_success:
+  - coveralls
+
+#install:
+#  - conda install python=$TRAVIS_PYTHON_VERSION numpy scipy mpmath nose astropy libgfortran
+#  - pip install python-coveralls
+#  - pip install coverage
+#  - pip install emcee
+#  #- CAMBURL=http://camb.info/CAMB_Mar13.tar.gz pip install git+git://github.com/steven-murray/pycamb.git
+#
+#  - pip install --egg camb
+#  - pip install coveralls
+#
+#script:
+#  - coverage run --source=hmf --omit=hmf/fitting/* $(which nosetests)
 
 
 # Calculate coverage
-after_success:
-  - ls -a
-  - coveralls
+#after_success:
+#  - ls -a
+#  - coveralls
