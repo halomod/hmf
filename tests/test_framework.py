@@ -3,7 +3,7 @@ from hmf import hmf
 
 
 def test_incorrect_argument():
-    with raises(ValueError):
+    with raises(TypeError):
         t = hmf.MassFunction(wrong_arg=3)
 
 
