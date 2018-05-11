@@ -21,6 +21,7 @@ from scipy.optimize import minimize
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import warnings
 
+
 class MassFunction(transfer.Transfer):
     """
     An object containing all relevant quantities for the mass function.
@@ -61,9 +62,8 @@ class MassFunction(transfer.Transfer):
     >>> h.dndm
     """
 
-
     def __init__(self, Mmin=10, Mmax=15, dlog10m=0.01, hmf_model=ff.Tinker08, hmf_params=None,
-                 delta_h=200.0,delta_wrt='mean',
+                 delta_h=200.0, delta_wrt='mean',
                  delta_c=1.686, filter_model=TopHat, filter_params=None,
                  **transfer_kwargs):
         # # Call super init MUST BE DONE FIRST.
@@ -84,9 +84,9 @@ class MassFunction(transfer.Transfer):
         self.filter_model = filter_model
         self.filter_params = filter_params or {}
 
-    #===========================================================================
+    # ===========================================================================
     # PARAMETERS
-    #===========================================================================
+    # ===========================================================================
     @parameter("res")
     def Mmin(self, val):
         """
@@ -198,8 +198,6 @@ class MassFunction(transfer.Transfer):
 
         return val
 
-
-
     @parameter("switch")
     def delta_wrt(self, val):
         """
@@ -250,16 +248,13 @@ class MassFunction(transfer.Transfer):
     #         raise ValueError("cut_fit must be a bool, " + str(val))
     #     return val
 
-
-
-    #--------------------------------  PROPERTIES ------------------------------
+    # --------------------------------  PROPERTIES ------------------------------
     @cached_quantity
     def mean_density(self):
         """
         Mean density of universe at redshift z
         """
         return self.mean_density0 * (1 + self.z) ** 3
-
 
     @cached_quantity
     def hmf(self):
@@ -269,15 +264,14 @@ class MassFunction(transfer.Transfer):
         return self.hmf_model(m=self.m, nu2=self.nu, z=self.z,
                               delta_halo=self.delta_halo, omegam_z=self.cosmo.Om(self.z),
                               delta_c=self.delta_c, n_eff=self.n_eff,
-                              ** self.hmf_params)
-
+                              **self.hmf_params)
 
     @cached_quantity
     def filter(self):
         """
         Instantiated model for filter/window functions.
         """
-        return self.filter_model(self.k,self._unnormalised_power, **self.filter_params)
+        return self.filter_model(self.k, self._unnormalised_power, **self.filter_params)
 
     @cached_quantity
     def m(self):
@@ -305,7 +299,6 @@ class MassFunction(transfer.Transfer):
         """
         return self.filter.sigma(self.radii)
 
-
     @cached_quantity
     def _sigma_0(self):
         """
@@ -318,7 +311,7 @@ class MassFunction(transfer.Transfer):
         """
         The radii corresponding to the masses `m`.
         """
-        return self.filter.mass_to_radius(self.m,self.mean_density0)
+        return self.filter.mass_to_radius(self.m, self.mean_density0)
 
     @cached_quantity
     def _dlnsdlnm(self):
@@ -352,26 +345,26 @@ class MassFunction(transfer.Transfer):
         """
         The nonlinear mass, nu(Mstar) = 1.
         """
-        if self.nu.min() >1 or self.nu.max()<1:
+        if self.nu.min() > 1 or self.nu.max() < 1:
             warnings.warn("Nonlinear mass outside mass range")
             if self.nu.min() > 1:
                 startr = np.log(self.radii.min())
             else:
                 startr = np.log(self.radii.max())
 
-            model = lambda lnr : (self.filter.sigma(np.exp(lnr))*self._normalisation * self.growth_factor
-                                  - self.delta_c)**2
+            model = lambda lnr: (self.filter.sigma(np.exp(lnr)) * self._normalisation * self.growth_factor
+                                 - self.delta_c) ** 2
 
-            res = minimize(model,[startr,])
+            res = minimize(model, [startr, ])
 
             if res.success:
                 r = np.exp(res.x[0])
-                return self.filter.radius_to_mass(r,self.mean_density0)
+                return self.filter.radius_to_mass(r, self.mean_density0)
             else:
                 warnings.warn("Minimization failed :(")
                 return 0
         else:
-            nu = spline(self.nu,self.m,k=5)
+            nu = spline(self.nu, self.m, k=5)
             return nu(1)
 
     @cached_quantity
@@ -417,29 +410,29 @@ class MassFunction(transfer.Transfer):
 
         # else:  # #This is for a survey-volume weighted calculation
         #     raise NotImplementedError()
-#             if self.nz is None:
-#                 self.nz = 10
-#             zedges = np.linspace(self.z, self.z2, self.nz)
-#             zcentres = (zedges[:-1] + zedges[1:]) / 2
-#             dndm = np.zeros_like(zcentres)
-#             vol = np.zeros_like(zedges)
-#             vol[0] = cp.distance.comoving_volume(self.z,
-#                                         **self.cosmolopy_dict)
-#             for i, zz in enumerate(zcentres):
-#                 self.update(z=zz)
-#                 dndm[i] = self.fsigma * self.mean_dens * np.abs(self._dlnsdlnm) / self.m ** 2
-#                 if isinstance(self.hmf_model, "ff.Behroozi"):
-#                     ngtm_tinker = self._gtm(dndm[i])
-#                     dndm[i] = self.hmf_model._modify_dndm(self.m, dndm[i], self.z, ngtm_tinker)
-#
-#                 vol[i + 1] = cp.distance.comoving_volume(z=zedges[i + 1],
-#                                                 **self.cosmolopy_dict)
-#
-#             vol = vol[1:] - vol[:-1]  # Volume in shells
-#             integrand = vol * dndm[i]
-#             numerator = intg.simps(integrand, x=zcentres)
-#             denom = intg.simps(vol, zcentres)
-#             dndm = numerator / denom
+        #             if self.nz is None:
+        #                 self.nz = 10
+        #             zedges = np.linspace(self.z, self.z2, self.nz)
+        #             zcentres = (zedges[:-1] + zedges[1:]) / 2
+        #             dndm = np.zeros_like(zcentres)
+        #             vol = np.zeros_like(zedges)
+        #             vol[0] = cp.distance.comoving_volume(self.z,
+        #                                         **self.cosmolopy_dict)
+        #             for i, zz in enumerate(zcentres):
+        #                 self.update(z=zz)
+        #                 dndm[i] = self.fsigma * self.mean_dens * np.abs(self._dlnsdlnm) / self.m ** 2
+        #                 if isinstance(self.hmf_model, "ff.Behroozi"):
+        #                     ngtm_tinker = self._gtm(dndm[i])
+        #                     dndm[i] = self.hmf_model._modify_dndm(self.m, dndm[i], self.z, ngtm_tinker)
+        #
+        #                 vol[i + 1] = cp.distance.comoving_volume(z=zedges[i + 1],
+        #                                                 **self.cosmolopy_dict)
+        #
+        #             vol = vol[1:] - vol[:-1]  # Volume in shells
+        #             integrand = vol * dndm[i]
+        #             numerator = intg.simps(integrand, x=zcentres)
+        #             denom = intg.simps(vol, zcentres)
+        #             dndm = numerator / denom
 
         return dndm
 
@@ -479,7 +472,7 @@ class MassFunction(transfer.Transfer):
         # If the highest mass is very low, we try calculating it to higher masses
         # The dlog10m is NOT CHANGED, so the input needs to be finely spaced.
         # If the top value of dndm is NaN, don't try calculating higher masses.
-        if m[-1] < 10 ** 16.5 and not np.isnan(dndm[-1]) and not dndm[-1]==0:
+        if m[-1] < 10 ** 16.5 and not np.isnan(dndm[-1]) and not dndm[-1] == 0:
             # ff.Behroozi function won't work here.
             if not isinstance(self.hmf, ff.Behroozi):
                 new_mf = copy.deepcopy(self)
@@ -488,13 +481,13 @@ class MassFunction(transfer.Transfer):
 
                 m = np.concatenate((m, new_mf.m))
 
-        ngtm = int_gtm(m[dndm>0], dndm[dndm>0], mass_density)
+        ngtm = int_gtm(m[dndm > 0], dndm[dndm > 0], mass_density)
 
         # We need to set ngtm back in the original length vector with nans where they were originally
         if len(ngtm) < len(m):  # Will happen if some dndlnm are NaN
             ngtm_temp = np.zeros(len(dndm))
-            #ngtm_temp[:] = np.nan
-            ngtm_temp[dndm>0] = ngtm
+            # ngtm_temp[:] = np.nan
+            ngtm_temp[dndm > 0] = ngtm
             ngtm = ngtm_temp
 
         # Since ngtm may have been extended, we cut it back
@@ -528,7 +521,6 @@ class MassFunction(transfer.Transfer):
         """
         return self._gtm(self.dndm, mass_density=True)
 
-
     @cached_quantity
     def rho_ltm(self):
         """
@@ -549,7 +541,6 @@ class MassFunction(transfer.Transfer):
         appropriate mass ranges in this case.
         """
         return self.mean_density0 - self.rho_gtm
-
 
     @cached_quantity
     def how_big(self):

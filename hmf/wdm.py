@@ -16,9 +16,10 @@ from .cosmo import Planck15
 
 import astropy.units as u
 
-#===============================================================================
+
+# ===============================================================================
 # Model Components
-#===============================================================================
+# ===============================================================================
 class WDM(Component):
     """
     Base class for all WDM components.
@@ -44,10 +45,12 @@ class WDM(Component):
         To see the default values, check the :attr:`_defaults`
         class attribute.
     """
-    def __init__(self, mx, cosmo = Planck15, z =0, **model_params):
+
+    def __init__(self, mx, cosmo=Planck15, z=0, **model_params):
         self.mx = mx
         self.cosmo = cosmo
-        self.rho_mean = (1+z)**3 * (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2).to(u.solMass / u.Mpc ** 3).value * 1e6
+        self.rho_mean = (1 + z) ** 3 * (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2).to(
+            u.solMass / u.Mpc ** 3).value * 1e6
         self.Oc0 = cosmo.Om0 - cosmo.Ob0
 
         super(WDM, self).__init__(**model_params)
@@ -67,8 +70,8 @@ class WDM(Component):
             The WDM transfer function at `lnk`.
 
         """
-        raise NotImplementedError("You shouldn't call the WDM class, and any subclass should define the transfer method.")
-
+        raise NotImplementedError(
+            "You shouldn't call the WDM class, and any subclass should define the transfer method.")
 
 
 class Viel05(WDM):
@@ -98,8 +101,8 @@ class Viel05(WDM):
         :g_x:
     """
 
-    _defaults = {"mu":1.12,
-                 "g_x":1.5}
+    _defaults = {"mu": 1.12,
+                 "g_x": 1.5}
 
     def transfer(self, k):
         return (1 + (self.lam_eff_fs * k) ** (2 * self.params["mu"])) ** (-5.0 / self.params["mu"])
@@ -111,7 +114,8 @@ class Viel05(WDM):
 
         From Schneider+2013, Eq. 6
         """
-        return 0.049 * self.mx ** -1.11 * (self.Oc0 / 0.25) ** 0.11 * (self.cosmo.h / 0.7) ** 1.22 * (1.5 / self.params['g_x']) ** 0.29
+        return 0.049 * self.mx ** -1.11 * (self.Oc0 / 0.25) ** 0.11 * (self.cosmo.h / 0.7) ** 1.22 * (
+                    1.5 / self.params['g_x']) ** 0.29
 
     @property
     def m_fs(self):
@@ -140,9 +144,9 @@ class Viel05(WDM):
         """
         return (4.0 / 3.0) * np.pi * self.rho_mean * (self.lam_hm / 2) ** 3
 
+
 class Bode01(Viel05):
     pass
-
 
 
 class WDMRecalibrateMF(Component):
@@ -167,6 +171,7 @@ class WDMRecalibrateMF(Component):
         To see the default values, check the :attr:`_defaults`
         class attribute.
     """
+
     def __init__(self, m, dndm0, wdm=Viel05(mx=1.0), **model_parameters):
         self.m = m
         self.dndm0 = dndm0
@@ -175,6 +180,7 @@ class WDMRecalibrateMF(Component):
 
     def dndm_alter(self):
         pass
+
 
 class Schneider12_vCDM(WDMRecalibrateMF):
     """
@@ -196,10 +202,11 @@ class Schneider12_vCDM(WDMRecalibrateMF):
         To see the default values, check the :attr:`_defaults`
         class attribute.
     """
-    _defaults = {"beta":1.16}
+    _defaults = {"beta": 1.16}
 
     def dndm_alter(self):
-        return self.dndm0 *(1 + self.wdm.m_hm/self.m)**(-self.params["beta"])
+        return self.dndm0 * (1 + self.wdm.m_hm / self.m) ** (-self.params["beta"])
+
 
 class Schneider12(WDMRecalibrateMF):
     """
@@ -221,10 +228,11 @@ class Schneider12(WDMRecalibrateMF):
         To see the default values, check the :attr:`_defaults`
         class attribute.
     """
-    _defaults = {"alpha":0.6}
+    _defaults = {"alpha": 0.6}
 
     def dndm_alter(self):
-        return self.dndm0 *(1 + self.wdm.m_hm/self.m)**(-self.params["alpha"])
+        return self.dndm0 * (1 + self.wdm.m_hm / self.m) ** (-self.params["alpha"])
+
 
 class Lovell14(WDMRecalibrateMF):
     """
@@ -246,16 +254,15 @@ class Lovell14(WDMRecalibrateMF):
         To see the default values, check the :attr:`_defaults`
         class attribute.
     """
-    _defaults = {"beta":0.99, "gamma":2.7}
+    _defaults = {"beta": 0.99, "gamma": 2.7}
 
     def dndm_alter(self):
-        return self.dndm0 *(1 + self.params["gamma"]*self.wdm.m_hm/self.m)**(-self.params["beta"])
+        return self.dndm0 * (1 + self.params["gamma"] * self.wdm.m_hm / self.m) ** (-self.params["beta"])
 
 
-
-#===============================================================================
+# ===============================================================================
 # Frameworks
-#===============================================================================
+# ===============================================================================
 class TransferWDM(_Tr):
     """
     A subclass of :class:`hmf.transfer.Transfer` that mixes in WDM capabilities.
@@ -268,6 +275,7 @@ class TransferWDM(_Tr):
     use ``TransferWDM.get_all_parameters()``.To see the actual defaults for each parameter, use
     ``TransferWDM.get_all_parameter_defaults()``.
     """
+
     def __init__(self, wdm_mass=3.0, wdm_model=Viel05, wdm_params={},
                  **transfer_kwargs):
         # Call standard transfer
@@ -278,9 +286,9 @@ class TransferWDM(_Tr):
         self.wdm_model = wdm_model
         self.wdm_params = wdm_params
 
-    #===========================================================================
+    # ===========================================================================
     # Parameters
-    #===========================================================================
+    # ===========================================================================
     @parameter("model")
     def wdm_model(self, val):
         """
@@ -317,9 +325,9 @@ class TransferWDM(_Tr):
             raise ValueError("wdm_mass must be > 0 (", val, ")")
         return val
 
-    #===========================================================================
+    # ===========================================================================
     # Derived properties
-    #===========================================================================
+    # ===========================================================================
     @cached_quantity
     def wdm(self):
         """
@@ -328,11 +336,11 @@ class TransferWDM(_Tr):
         Contains quantities relevant to WDM.
         """
         if np.issubclass_(self.wdm_model, WDM):
-            return self.wdm_model(self.wdm_mass, self.cosmo,self.z,
-                                     **self.wdm_params)
+            return self.wdm_model(self.wdm_mass, self.cosmo, self.z,
+                                  **self.wdm_params)
         elif isinstance(self.wdm_transfer, str):
             return get_model(self.wdm_model, __name__, mx=self.wdm_mass, cosmo=self.cosmo,
-                             z=self.z,**self.wdm_params)
+                             z=self.z, **self.wdm_params)
 
     @cached_quantity
     def _unnormalised_power(self):
@@ -340,7 +348,8 @@ class TransferWDM(_Tr):
         Normalised log power at :math:`z=0`
         """
         powercdm = super(TransferWDM, self)._unnormalised_power
-        return self.wdm.transfer(self.k)**2*powercdm
+        return self.wdm.transfer(self.k) ** 2 * powercdm
+
 
 class MassFunctionWDM(_MF, TransferWDM):
     """
@@ -354,6 +363,7 @@ class MassFunctionWDM(_MF, TransferWDM):
     use ``MassFunctionWDM.get_all_parameters()``.To see the actual defaults for each parameter, use
     ``MassFunctionWDM.get_all_parameter_defaults()``.
     """
+
     def __init__(self, alter_dndm=None, alter_params=None, **kwargs):
         super(MassFunctionWDM, self).__init__(**kwargs)
 

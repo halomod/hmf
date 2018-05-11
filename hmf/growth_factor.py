@@ -39,7 +39,7 @@ class GrowthFactor(Cmpt):
     ----------
     .. [1] Lukic et. al., ApJ, 2007, http://adsabs.harvard.edu/abs/2007ApJ...671.1160L
     """
-    _defaults = {"dlna":0.01, "amin":1e-8}
+    _defaults = {"dlna": 0.01, "amin": 1e-8}
 
     def __init__(self, cosmo, **model_parameters):
         self.cosmo = cosmo
@@ -69,14 +69,14 @@ class GrowthFactor(Cmpt):
         a_upper = 1.0 / (1.0 + z)
 
         lna = np.arange(np.log(self.params["amin"]), np.log(a_upper), self.params['dlna'])
-        lna = np.hstack((lna,np.log(a_upper)))
+        lna = np.hstack((lna, np.log(a_upper)))
 
         self._zvec = 1.0 / np.exp(lna) - 1.0
 
         integrand = 1.0 / (np.exp(lna) * self.cosmo.efunc(self._zvec)) ** 3
 
         if not getvec:
-            integral = intg.simps(np.exp(lna) * integrand, x=lna,even="avg")
+            integral = intg.simps(np.exp(lna) * integrand, x=lna, even="avg")
             dplus = 5.0 * self.cosmo.Om0 * self.cosmo.efunc(z) * integral / 2.0
         else:
             integral = intg.cumtrapz(np.exp(lna) * integrand, x=lna, initial=0.0)
@@ -98,7 +98,7 @@ class GrowthFactor(Cmpt):
         float
             The normalised growth factor.
         """
-        growth = self._d_plus(z)/self._d_plus(0.0)
+        growth = self._d_plus(z) / self._d_plus(0.0)
         return growth
 
     def growth_factor_fn(self, zmin=0.0, inverse=False):
@@ -121,7 +121,7 @@ class GrowthFactor(Cmpt):
             The normalised growth factor as a function of redshift, or
             redshift as a function of growth factor if ``inverse`` is True.
         """
-        growth = self._d_plus(zmin, True)/self._d_plus(0.0)
+        growth = self._d_plus(zmin, True) / self._d_plus(0.0)
         if not inverse:
             s = _spline(self._zvec[::-1], growth[::-1])
         else:
@@ -139,7 +139,6 @@ class GrowthFactor(Cmpt):
         """
         return (-1 - self.cosmo.Om(z) / 2 + self.cosmo.Ode(z) +
                 5 * self.cosmo.Om(z) / (2 * self.growth_factor(z)))
-
 
     def growth_rate_fn(self, zmin=0):
         """
@@ -160,6 +159,7 @@ class GrowthFactor(Cmpt):
         return lambda z: (-1 - self.cosmo.Om(z) / 2 + self.cosmo.Ode(z) +
                           5 * self.cosmo.Om(z) / (2 * gfn(z)))
 
+
 @_inherit
 class GenMFGrowth(GrowthFactor):
     """
@@ -178,7 +178,7 @@ class GenMFGrowth(GrowthFactor):
         :dz: Step-size for redshift integration
         :zmax: Maximum redshift to integrate to. Only used for :meth:`growth_factor_fn`.
     """
-    _defaults = {"dz":0.01, "zmax":1000.0}
+    _defaults = {"dz": 0.01, "zmax": 1000.0}
 
     def _d_plus(self, z, getvec=False):
         """
@@ -191,9 +191,9 @@ class GenMFGrowth(GrowthFactor):
         x = np.atleast_1d(x)
         xn_vec = np.linspace(0, x.max(), 1000)
 
-        func = _spline(xn_vec,(xn_vec / (xn_vec ** 3 + 2)) ** 1.5)
+        func = _spline(xn_vec, (xn_vec / (xn_vec ** 3 + 2)) ** 1.5)
 
-        g = np.array([func.integral(0,y) for y in x])
+        g = np.array([func.integral(0, y) for y in x])
         return ((x ** 3.0 + 2.0) ** 0.5) * (g / x ** 1.5)
 
     def growth_factor(self, z):
@@ -260,7 +260,6 @@ class GenMFGrowth(GrowthFactor):
             return _spline(gf[::-1], self._zvec[::-1])
 
 
-
 @_inherit
 class Carroll1992(GrowthFactor):
     """
@@ -281,7 +280,7 @@ class Carroll1992(GrowthFactor):
         :dz: Step-size for redshift spline
         :zmax: Maximum redshift of spline. Only used for :meth:`growth_factor_fn`, when `inverse=True`.
     """
-    _defaults = {"dz":0.01, "zmax":1000.0}
+    _defaults = {"dz": 0.01, "zmax": 1000.0}
 
     def _d_plus(self, z, getvec=False):
         """
@@ -291,14 +290,14 @@ class Carroll1992(GrowthFactor):
         """
         a = 1 / (1 + z)
 
-        om = self.cosmo.Om0/a ** 3
+        om = self.cosmo.Om0 / a ** 3
         denom = self.cosmo.Ode0 + om
-        Omega_m = om/denom
-        Omega_L = self.cosmo.Ode0/denom
-        coeff = 5.*Omega_m/(2./a)
-        term1 = Omega_m**(4./7.)
-        term3 = (1. + 0.5*Omega_m)*(1. + Omega_L/70.)
-        return coeff/(term1 - Omega_L + term3)
+        Omega_m = om / denom
+        Omega_L = self.cosmo.Ode0 / denom
+        coeff = 5. * Omega_m / (2. / a)
+        term1 = Omega_m ** (4. / 7.)
+        term3 = (1. + 0.5 * Omega_m) * (1. + Omega_L / 70.)
+        return coeff / (term1 - Omega_L + term3)
 
     def growth_factor(self, z):
         """
@@ -315,7 +314,7 @@ class Carroll1992(GrowthFactor):
             The growth factor at `z`.
         """
 
-        return self._d_plus(z)/self._d_plus(0.0)
+        return self._d_plus(z) / self._d_plus(0.0)
 
     def growth_factor_fn(self, zmin=0.0, inverse=False):
         """

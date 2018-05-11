@@ -5,8 +5,10 @@ from scipy.interpolate import InterpolatedUnivariateSpline as _spline
 import numpy as np
 import scipy.integrate as intg
 
+
 class NaNException(Exception):
     pass
+
 
 def hmf_integral_gtm(M, dndm, mass_density=False):
     """
@@ -55,7 +57,8 @@ def hmf_integral_gtm(M, dndm, mass_density=False):
     dndlnm = m * dndm
 
     if len(m) < 4:
-        raise NaNException("There are too few real numbers in dndm: len(dndm) = %s, #NaN's = %s" % (len(M), len(M) - len(dndm)))
+        raise NaNException(
+            "There are too few real numbers in dndm: len(dndm) = %s, #NaN's = %s" % (len(M), len(M) - len(dndm)))
 
     # Calculate the mass function (and its integral) from the highest M up to 10**18
     if m[-1] < m[0] * 10 ** 18 / m[3]:
@@ -74,6 +77,7 @@ def hmf_integral_gtm(M, dndm, mass_density=False):
     if not mass_density:
         ngtm = np.concatenate((intg.cumtrapz(dndlnm[::-1], dx=np.log(m[1]) - np.log(m[0]))[::-1], np.zeros(1)))
     else:
-        ngtm = np.concatenate((intg.cumtrapz(m[::-1] * dndlnm[::-1], dx=np.log(m[1]) - np.log(m[0]))[::-1], np.zeros(1)))
+        ngtm = np.concatenate(
+            (intg.cumtrapz(m[::-1] * dndlnm[::-1], dx=np.log(m[1]) - np.log(m[0]))[::-1], np.zeros(1)))
 
     return (ngtm + int_upper)

@@ -49,7 +49,6 @@ def cached_quantity(f):
     """
     name = f.__name__
 
-
     def _get_property(self):
         # Location of the property to be accessed
         prop = hidden_loc(self, name)
@@ -82,7 +81,8 @@ def cached_quantity(f):
             return value
 
         # Otherwise, we need to create its index for caching.
-        supered = name in getattr(self, recalc_prpa) # if name is already there, can only be because the method has been supered.
+        supered = name in getattr(self,
+                                  recalc_prpa)  # if name is already there, can only be because the method has been supered.
         if not supered:
             getattr(self, recalc_prpa)[name] = set()  # Empty set to which parameter names will be added
 
@@ -94,9 +94,8 @@ def cached_quantity(f):
         for par in getattr(self, recalc_prpa)[name]:
             getattr(self, recalc_papr)[par].add(name)
 
-
         # Copy index to static dict, and remove the index (so that parameters don't keep on trying to add themselves)
-        if not supered: # If super, don't want to remove the name just yet.
+        if not supered:  # If super, don't want to remove the name just yet.
             getattr(self, recalc_prpa_static)[name] = copy(getattr(self, recalc_prpa)[name])
             del getattr(self, recalc_prpa)[name]
 
@@ -126,6 +125,7 @@ def cached_quantity(f):
             pass
 
     return property(_get_property, None, _del_property)
+
 
 def obj_eq(ob1, ob2):
     try:
@@ -182,8 +182,6 @@ def parameter(kind):
 
         def _set_property(self, val):
 
-
-
             prop = hidden_loc(self, name)
 
             # The following does any complex setting that is written into the code
@@ -192,8 +190,7 @@ def parameter(kind):
             # Here put any custom code that should be run, dependent on the type of parameter
             if name.endswith("_params"):
                 if not (isinstance(val, dict) or val is None):
-                    raise ValueError("%s must be a dictionary"%name)
-
+                    raise ValueError("%s must be a dictionary" % name)
 
             # Locations of indexes
             recalc = hidden_loc(self, "recalc")

@@ -1,7 +1,8 @@
 from inspect import getmembers, ismethod
 
+
 def inherit_docstrings(cls):
-    for name, func in getmembers(cls,ismethod):
+    for name, func in getmembers(cls, ismethod):
         if func.__doc__: continue
         if name.startswith("__"): continue
         for parent in cls.__mro__[1:]:

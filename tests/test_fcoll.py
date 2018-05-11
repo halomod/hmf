@@ -5,12 +5,6 @@ As such, it is the best test of all calculations after sigma.
 '''
 
 import numpy as np
-import inspect
-import os
-LOCATION = "/".join(os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))).split("/")[:-1])
-# from nose.tools import raises
-import sys
-sys.path.insert(0, LOCATION)
 from hmf import MassFunction
 from scipy.special import erfc
 
@@ -41,9 +35,9 @@ class TestFcoll(object):
             yield self.check_fcoll, pert, fit
 
 
-
 def fcoll_PS(nu):
     return erfc(nu / np.sqrt(2))
+
 
 def fcoll_Peacock(nu):
     a = 1.529
@@ -55,6 +49,7 @@ def fcoll_Peacock(nu):
 
 class TestCumulants(object):
     tol = 0.05
+
     def check(self, hmf, minm, maxm):
         hmf.update(Mmin=minm, Mmax=maxm)
         anl = fcoll_Peacock(np.sqrt(hmf.nu))
@@ -65,14 +60,14 @@ class TestCumulants(object):
         assert np.max(err) < TestCumulants.tol
 
     def test_ranges_not_cut(self):
-        hmf = MassFunction(hmf_model="Peacock",  dlog10m=0.01)
+        hmf = MassFunction(hmf_model="Peacock", dlog10m=0.01)
         TestCumulants.tol = 0.05
         for minm in [9, 10, 11]:  # below, equal and greater than peacock cut
             for maxm in [14, 15, 16, 18, 19]:  # below,equal,greater than peacock cut and integration limit
                 yield self.check, hmf, minm, maxm
 
     def test_ranges_cut(self):
-        hmf = MassFunction(hmf_model="Peacock",  dlog10m=0.01)
+        hmf = MassFunction(hmf_model="Peacock", dlog10m=0.01)
         TestCumulants.tol = 0.4
         for minm in [9, 10, 11]:  # below, equal and greater than peacock cut
             for maxm in [14, 15, 16, 18, 19]:  # below,equal,greater than peacock cut and integration limit
@@ -83,7 +78,6 @@ class TestCumulants(object):
         print("rhogtm: ", hmf.rho_gtm)
         print("rhomean:", hmf.mean_density0)
         assert np.abs(hmf.rho_gtm[0] / hmf.mean_density0 - 1) < 0.1  # THIS IS PRETTY BIG!
-
 
     def test_mgtm(self):
         hmf = MassFunction(hmf_model="Tinker08")
