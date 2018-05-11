@@ -10,13 +10,11 @@ functionality of :mod:`hmf` in an easy-to-use way.
 ###############################################################################
 import numpy as np
 import copy
-import logging
 from . import fitting_functions as ff
 from . import transfer
 from ._cache import parameter, cached_quantity
 from .integrate_hmf import hmf_integral_gtm as int_gtm
 from numpy import issubclass_
-logger = logging.getLogger('hmf')
 from .filters import TopHat, Filter
 from ._framework import get_model, get_model_
 from scipy.optimize import minimize
