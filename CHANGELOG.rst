@@ -3,9 +3,18 @@ Releases
 
 dev
 -------
+**Feature**
+- Added new ``CambGrowth`` growth factor model, which computes the growth using CAMB. This is useful especially when
+  using w > -1, for which the other growth factor models are inadequate. Solves issue #19 raised by @tijmen.
+
 **Enhancement**
 
 - Added `get_dependencies` method to _Framework, to enable finding all parameters that a quantity depends on.
+
+**Bugfixes**
+
+- When using camb for the transfer function, some cosmologies would lead to a segfault (i.e. when Ob0 or Tcmb0 are not
+  set explicitly). This now raises a helpful error.
 
 **Internals**
 

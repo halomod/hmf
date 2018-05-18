@@ -7,11 +7,13 @@ in :mod:`hmf.transfer`.
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from ._framework import Component
+from astropy import cosmology
 
 try:
     import camb
+    HAVE_CAMB = True
 except ImportError as e:
-    pass
+    HAVE_CAMB = False
 
 _allfits = ["CAMB", "FromFile", "EH_BAO", "EH_NoBAO", "BBKS", "BondEfs"]
 
@@ -129,67 +131,81 @@ class FromFile(TransferComponent):
             lnT = T[1, :]
         return spline(lnkout, lnT, k=1)(lnk)
 
-
-class CAMB(FromFile):
-    """
-    Transfer function computed by CAMB.
-
-    Parameters
-    ----------
-    cosmo : :class:`astropy.cosmology.FLRW` instance
-        The cosmology used in the calculation
-
-    \*\*model_parameters : unpack-dict
-        Parameters specific to this model.
-
-        **camb_params:** An instantiated ``CAMBparams`` object, pre-set with desired accuracy options etc.
-
-    """
-    _defaults = {"camb_params": None}
-
-    def __init__(self, *args, **kwargs):
-        super(CAMB, self).__init__(*args, **kwargs)
-
-        # Save the CAMB object properly for use
-        # Set the cosmology
-        if self.params['camb_params'] is None:
-            self.params['camb_params'] = camb.CAMBparams()
-
-        self.params['camb_params'].set_cosmology(H0=self.cosmo.H0.value,
-                                                 ombh2=self.cosmo.Ob0 * self.cosmo.h ** 2,
-                                                 omch2=(self.cosmo.Om0 - self.cosmo.Ob0) * self.cosmo.h ** 2,
-                                                 omk=self.cosmo.Ok0,
-                                                 nnu=self.cosmo.Neff,
-                                                 standard_neutrino_neff=self.cosmo.Neff,
-                                                 TCMB=self.cosmo.Tcmb0.value)
-        self.params['camb_params'].WantTransfer = True
-
-    def lnt(self, lnk):
+if HAVE_CAMB:
+    class CAMB(FromFile):
         """
-        Natural log of the transfer function
+        Transfer function computed by CAMB.
 
         Parameters
         ----------
-        lnk : array_like
-            Wavenumbers [Mpc/h]
+        cosmo : :class:`astropy.cosmology.FLRW` instance
+            The cosmology used in the calculation
 
-        Returns
-        -------
-        lnt : array_like
-            The log of the transfer function at lnk.
+        \*\*model_parameters : unpack-dict
+            Parameters specific to this model.
+
+            **camb_params:** An instantiated ``CAMBparams`` object, pre-set with desired accuracy options etc.
+            **dark_energy_params:** A dictionary of values passed to CAMB's ``set_dark_energy`` method. Values include
+                                    `sound_speed` and `dark_energy_model`.
         """
+        _defaults = {"camb_params": None, "dark_energy_params":{}}
 
-        camb_transfers = camb.get_transfer_functions(self.params['camb_params'])
-        T = camb_transfers.get_matter_transfer_data().transfer_data
-        T = np.log(T[[0, 6], :, 0])
+        def __init__(self, *args, **kwargs):
+            super(CAMB, self).__init__(*args, **kwargs)
 
-        if lnk[0] < T[0, 0]:
-            lnkout, lnT = self._check_low_k(T[0, :], T[1, :], lnk[0])
-        else:
-            lnkout = T[0, :]
-            lnT = T[1, :]
+            if not (isinstance(self.cosmo, cosmology.LambdaCDM) or isinstance(self.cosmo, cosmology.wCDM)):
+                raise ValueError("CAMB will only work with LCDM or wCDM cosmologies")
 
-        return spline(lnkout, lnT, k=1)(lnk)
+            # Save the CAMB object properly for use
+            # Set the cosmology
+            if self.params['camb_params'] is None:
+                self.params['camb_params'] = camb.CAMBparams()
+
+            if self.cosmo.Ob0 is None:
+                raise ValueError("To use CAMB, you must set the baryon density in the cosmology explicitly.")
+
+            if self.cosmo.Tcmb0.value == 0:
+                raise ValueError("If using CAMB, the CMB temperature must be set explicitly in the cosmology.")
+
+            self.params['camb_params'].set_cosmology(H0=self.cosmo.H0.value,
+                                                     ombh2=self.cosmo.Ob0* self.cosmo.h ** 2,
+                                                     omch2=(self.cosmo.Om0 - self.cosmo.Ob0) * self.cosmo.h ** 2,
+                                                     omk=self.cosmo.Ok0,
+                                                     nnu=self.cosmo.Neff,
+                                                     standard_neutrino_neff=self.cosmo.Neff,
+                                                     TCMB=self.cosmo.Tcmb0.value)
+            self.params['camb_params'].WantTransfer = True
+
+            # Set the DE equation of state. We only support constant w.
+            if isinstance(self.cosmo, cosmology.wCDM):
+                self.params['camb_params'].set_dark_energy(w=self.cosmo.w0)
+
+        def lnt(self, lnk):
+            """
+            Natural log of the transfer function
+
+            Parameters
+            ----------
+            lnk : array_like
+                Wavenumbers [Mpc/h]
+
+            Returns
+            -------
+            lnt : array_like
+                The log of the transfer function at lnk.
+            """
+
+            camb_transfers = camb.get_transfer_functions(self.params['camb_params'])
+            T = camb_transfers.get_matter_transfer_data().transfer_data
+            T = np.log(T[[0, 6], :, 0])
+
+            if lnk[0] < T[0, 0]:
+                lnkout, lnT = self._check_low_k(T[0, :], T[1, :], lnk[0])
+            else:
+                lnkout = T[0, :]
+                lnT = T[1, :]
+
+            return spline(lnkout, lnT, k=1)(lnk)
 
 
 class FromArray(FromFile):
