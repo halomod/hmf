@@ -1,9 +1,4 @@
 import numpy as np
-import inspect
-import os
-LOCATION = "/".join(os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))).split("/")[:-1])
-import sys
-sys.path.insert(0, LOCATION)
 from hmf import growth_factor as gf
 from hmf.cosmo import Planck13
 
@@ -13,7 +8,8 @@ class TestSimilarity(object):
     Simply test similarity between standard GrowthFunction and others (at this point, just GenMFGrowth)
     that should be similar.
     """
-    def __init__(self):
+
+    def setup_method(self, test_method):
         self.gf = gf.GrowthFactor(Planck13)
         self.genf = gf.GenMFGrowth(Planck13,zmax=10.0)
 

@@ -9,3 +9,8 @@ dist/
 *.pyc
 docs/_*/*
 .ipynb_checkpoints
+\.pytest_cache/v/cache/
+\.tox
+\.tox/flake8/
+
+\.tox/log/

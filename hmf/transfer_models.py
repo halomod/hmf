@@ -13,7 +13,6 @@ try:
 except ImportError as e:
     pass
 
-
 _allfits = ["CAMB", "FromFile", "EH_BAO", "EH_NoBAO", "BBKS", "BondEfs"]
 
 
@@ -33,6 +32,7 @@ class TransferComponent(Component):
         Any model-specific parameters.
     """
     _defaults = {}
+
     def __init__(self, cosmo, **model_parameters):
         self.cosmo = cosmo
         super(TransferComponent, self).__init__(**model_parameters)
@@ -52,7 +52,6 @@ class TransferComponent(Component):
             The log of the transfer function at lnk.
         """
         pass
-
 
 
 class FromFile(TransferComponent):
@@ -75,7 +74,7 @@ class FromFile(TransferComponent):
         :fname: str
             Location of the file to import.
     """
-    _defaults = {"fname":""}
+    _defaults = {"fname": ""}
 
     def _check_low_k(self, lnk, lnT, lnkmin):
         """
@@ -213,8 +212,8 @@ class FromArray(FromFile):
         :T: array
             Transfer function
     """
-    _defaults = {"k":None,
-                 "T":None}
+    _defaults = {"k": None,
+                 "T": None}
 
     def lnt(self, lnk):
         """
@@ -245,6 +244,7 @@ class FromArray(FromFile):
             lnT = np.log(T)
         return spline(lnkout, lnT, k=1)(lnk)
 
+
 class EH_BAO(TransferComponent):
     """
     Eisenstein & Hu (1998) fitting function with BAO wiggles
@@ -260,8 +260,9 @@ class EH_BAO(TransferComponent):
         Parameters specific to this model. In this case, there
         are no model parameters.
     """
-    def __init__(self,*args,**kwargs):
-        super(EH_BAO,self).__init__(*args,**kwargs)
+
+    def __init__(self, *args, **kwargs):
+        super(EH_BAO, self).__init__(*args, **kwargs)
         self._set_params()
 
     def _set_params(self):
@@ -272,53 +273,49 @@ class EH_BAO(TransferComponent):
         self.Omh2 = self.cosmo.Om0 * self.cosmo.h ** 2
         self.f_baryon = self.cosmo.Ob0 / self.cosmo.Om0
 
-
         self.theta_cmb = self.cosmo.Tcmb0.value / 2.7
 
-        self.z_eq = 2.5e4 * self.Omh2 * self.theta_cmb ** (-4) #really 1+z
-        self.k_eq = 7.46e-2 * self.Omh2 * self.theta_cmb ** (-2)  #units Mpc^-1 (no h!)
+        self.z_eq = 2.5e4 * self.Omh2 * self.theta_cmb ** (-4)  # really 1+z
+        self.k_eq = 7.46e-2 * self.Omh2 * self.theta_cmb ** (-2)  # units Mpc^-1 (no h!)
 
-        self.z_drag_b1 = 0.313 * self.Omh2**-0.419 * (1. + 0.607 * self.Omh2 ** 0.674)
+        self.z_drag_b1 = 0.313 * self.Omh2 ** -0.419 * (1. + 0.607 * self.Omh2 ** 0.674)
         self.z_drag_b2 = 0.238 * self.Omh2 ** 0.223
-        self.z_drag = (1291.*self.Omh2 ** 0.251 / (1. + 0.659 * self.Omh2 ** 0.828) *
+        self.z_drag = (1291. * self.Omh2 ** 0.251 / (1. + 0.659 * self.Omh2 ** 0.828) *
                        (1. + self.z_drag_b1 * self.Obh2 ** self.z_drag_b2))
 
-        self.r_drag = 31.5 * self.Obh2 * self.theta_cmb**-4 * (1000. / (1+self.z_drag))
-        self.r_eq = 31.5 * self.Obh2 * self.theta_cmb**-4 * (1000. / self.z_eq)
+        self.r_drag = 31.5 * self.Obh2 * self.theta_cmb ** -4 * (1000. / (1 + self.z_drag))
+        self.r_eq = 31.5 * self.Obh2 * self.theta_cmb ** -4 * (1000. / self.z_eq)
 
-
-        self.sound_horizon = (2. / (3.*self.k_eq)) * np.sqrt(6. / self.r_eq) * np.log(
+        self.sound_horizon = (2. / (3. * self.k_eq)) * np.sqrt(6. / self.r_eq) * np.log(
             (np.sqrt(1. + self.r_drag) + np.sqrt(self.r_drag + self.r_eq)) / (1. + np.sqrt(self.r_eq)))
 
         self.k_silk = 1.6 * self.Obh2 ** 0.52 * self.Omh2 ** 0.73 * (1. + (10.4 * self.Omh2) ** (-0.95))
 
         alpha_c_a1 = (46.9 * self.Omh2) ** 0.670 * (1. + (32.1 * self.Omh2) ** (-0.532))
-        alpha_c_a2 = (12.*self.Omh2) ** 0.424 * (1. + (45.*self.Omh2) ** (-0.582))
+        alpha_c_a2 = (12. * self.Omh2) ** 0.424 * (1. + (45. * self.Omh2) ** (-0.582))
         self.alpha_c = alpha_c_a1 ** (-self.f_baryon) * alpha_c_a2 ** (-self.f_baryon ** 3)
 
-        beta_c_b1 = 0.944 / (1. + (458.*self.Omh2) **-0.708)
+        beta_c_b1 = 0.944 / (1. + (458. * self.Omh2) ** -0.708)
         beta_c_b2 = (0.395 * self.Omh2) ** -0.0266
-        self.beta_c = 1. / (1. + beta_c_b1 * ((1-self.f_baryon) ** beta_c_b2 - 1))
+        self.beta_c = 1. / (1. + beta_c_b1 * ((1 - self.f_baryon) ** beta_c_b2 - 1))
 
-        y = self.z_eq/(1+self.z_drag)
-        alpha_b_G = y*(-6*np.sqrt(1+y)+(2+3*y)* np.log((np.sqrt(1+y)+1)/(np.sqrt(1+y)-1)))
-        self.alpha_b = 2.07 * self.k_eq * self.sound_horizon * (1. + self.r_drag)**-0.75 * alpha_b_G
+        y = self.z_eq / (1 + self.z_drag)
+        alpha_b_G = y * (-6 * np.sqrt(1 + y) + (2 + 3 * y) * np.log((np.sqrt(1 + y) + 1) / (np.sqrt(1 + y) - 1)))
+        self.alpha_b = 2.07 * self.k_eq * self.sound_horizon * (1. + self.r_drag) ** -0.75 * alpha_b_G
 
-        self.beta_node = 8.41*self.Omh2**0.435
-        self.beta_b = 0.5 + self.f_baryon + (3. - 2.*self.f_baryon) * np.sqrt((17.2 * self.Omh2) ** 2 + 1.)
+        self.beta_node = 8.41 * self.Omh2 ** 0.435
+        self.beta_b = 0.5 + self.f_baryon + (3. - 2. * self.f_baryon) * np.sqrt((17.2 * self.Omh2) ** 2 + 1.)
 
     @property
     def k_peak(self):
-        return 2.5 * np.pi * (1 + 0.217*self.Omh2)/self.sound_horizon
+        return 2.5 * np.pi * (1 + 0.217 * self.Omh2) / self.sound_horizon
 
     @property
     def sound_horizon_fit(self):
         """
         Sound horizon in Mpc/h
         """
-        return self.cosmo.h * 44.5 * np.log(9.83/self.Omh2)/np.sqrt(1+10*(self.Obh2**0.75))
-
-
+        return self.cosmo.h * 44.5 * np.log(9.83 / self.Omh2) / np.sqrt(1 + 10 * (self.Obh2 ** 0.75))
 
     def lnt(self, lnk):
         """
@@ -340,14 +337,14 @@ class EH_BAO(TransferComponent):
         q = k / (13.41 * self.k_eq)
         ks = k * self.sound_horizon
 
-        T_c_ln_beta = np.log(np.e + 1.8*self.beta_c*q)
-        T_c_ln_nobeta = np.log(np.e + 1.8*q)
+        T_c_ln_beta = np.log(np.e + 1.8 * self.beta_c * q)
+        T_c_ln_nobeta = np.log(np.e + 1.8 * q)
         T_c_C_alpha = (14.2 / self.alpha_c) + 386. / (1. + 69.9 * q ** 1.08)
         T_c_C_noalpha = 14.2 + 386. / (1. + 69.9 * q ** 1.08)
 
         T_c_f = 1. / (1. + (ks / 5.4) ** 4)
-        term = lambda a,b : a/(a+b*q**2)
-        T_c = T_c_f * term(T_c_ln_beta, T_c_C_noalpha) + (1-T_c_f)*term(T_c_ln_beta, T_c_C_alpha)
+        term = lambda a, b: a / (a + b * q ** 2)
+        T_c = T_c_f * term(T_c_ln_beta, T_c_C_noalpha) + (1 - T_c_f) * term(T_c_ln_beta, T_c_C_alpha)
 
         s_tilde = self.sound_horizon / (1. + (self.beta_node / ks) ** 3) ** (1. / 3.)
         ks_tilde = k * s_tilde
@@ -357,7 +354,8 @@ class EH_BAO(TransferComponent):
         Tb2 = (self.alpha_b / (1. + (self.beta_b / ks) ** 3)) * np.exp(-(k / self.k_silk) ** 1.4)
         T_b = np.sin(ks_tilde) / ks_tilde * (Tb1 + Tb2)
 
-        return np.log(self.f_baryon * T_b + (1-self.f_baryon) * T_c)
+        return np.log(self.f_baryon * T_b + (1 - self.f_baryon) * T_c)
+
 
 class EH_NoBAO(EH_BAO):
     """
@@ -377,7 +375,8 @@ class EH_NoBAO(EH_BAO):
 
     @property
     def alpha_gamma(self):
-        return 1 - 0.328 * np.log(431*self.Omh2)*self.f_baryon + 0.38*np.log(22.3*self.Omh2) * self.f_baryon**2
+        return 1 - 0.328 * np.log(431 * self.Omh2) * self.f_baryon + 0.38 * np.log(
+            22.3 * self.Omh2) * self.f_baryon ** 2
 
     def lnt(self, lnk):
         """
@@ -395,16 +394,17 @@ class EH_NoBAO(EH_BAO):
         """
         k = np.exp(lnk) * self.cosmo.h
 
-        ks = k * self.sound_horizon_fit / self.cosmo.h #need sound horizon in Mpc here
+        ks = k * self.sound_horizon_fit / self.cosmo.h  # need sound horizon in Mpc here
 
         gamma_eff = self.Omh2 * (self.alpha_gamma + (1 - self.alpha_gamma) / (1 + (0.43 * ks) ** 4))
-        q = k/(13.4*self.k_eq)
+        q = k / (13.4 * self.k_eq)
 
-        q_eff = q * self.Omh2/gamma_eff
+        q_eff = q * self.Omh2 / gamma_eff
 
         L0 = np.log(2 * np.e + 1.8 * q_eff)
         C0 = 14.2 + 731.0 / (1 + 62.5 * q_eff)
         return np.log(L0 / (L0 + C0 * q_eff * q_eff))
+
 
 class BBKS(TransferComponent):
     r"""
@@ -433,7 +433,8 @@ class BBKS(TransferComponent):
 
     and :math:`\Gamma = \Omega_{m,0} h`.
     """
-    _defaults = {"a":2.34,"b":3.89,"c":16.1,"d":5.47,"e":6.71}
+    _defaults = {"a": 2.34, "b": 3.89, "c": 16.1, "d": 5.47, "e": 6.71}
+
     def lnt(self, lnk):
         """
         Natural log of the transfer function
@@ -456,10 +457,11 @@ class BBKS(TransferComponent):
 
         Gamma = self.cosmo.Om0 * self.cosmo.h
         q = np.exp(lnk) / Gamma * np.exp(self.cosmo.Ob0 + np.sqrt(2 * self.cosmo.h) *
-                               self.cosmo.Ob0 / self.cosmo.Om0)
+                                         self.cosmo.Ob0 / self.cosmo.Om0)
         return np.log((np.log(1.0 + a * q) / (a * q) *
-                (1 + b * q + (c * q) ** 2 + (d * q) ** 3 +
-                 (e * q) ** 4) ** (-0.25)))
+                       (1 + b * q + (c * q) ** 2 + (d * q) ** 3 +
+                        (e * q) ** 4) ** (-0.25)))
+
 
 class BondEfs(TransferComponent):
     r"""
@@ -486,7 +488,7 @@ class BondEfs(TransferComponent):
 
     .. math:: \alpha = \frac{0.3\times 0.75^2}{\Omega_{m,0} h^2}.
     """
-    _defaults = {"a":37.1,"b":21.1,"c":10.8,"nu":1.12}
+    _defaults = {"a": 37.1, "b": 21.1, "c": 10.8, "nu": 1.12}
 
     def lnt(self, lnk):
         """
@@ -503,7 +505,7 @@ class BondEfs(TransferComponent):
             The log of the transfer function at lnk.
         """
 
-        scale = (0.3*0.75**2) / (self.cosmo.Om0 * self.cosmo.h ** 2)
+        scale = (0.3 * 0.75 ** 2) / (self.cosmo.Om0 * self.cosmo.h ** 2)
 
         a = self.params['a'] * scale
         b = self.params['b'] * scale
@@ -511,6 +513,7 @@ class BondEfs(TransferComponent):
         nu = self.params['nu']
         k = np.exp(lnk)
         return np.log((1 + (a * k + (b * k) ** 1.5 + (c * k) ** 2) ** nu) ** (-1 / nu))
+
 
 class EH(EH_BAO):
     "Alias of :class:`EH_BAO`"

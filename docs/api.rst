@@ -14,7 +14,6 @@ API Summary
    hmf.filters
    hmf.fitting_functions
    hmf.hmf
-   hmf.tools
    hmf.wdm
    hmf.integrate_hmf
    hmf.functional

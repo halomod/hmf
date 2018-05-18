@@ -34,7 +34,10 @@ extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.mathjax',
               'sphinx.ext.viewcode',
               'sphinx.ext.autosummary',
-              'numpydoc']
+              'numpydoc',
+              'nbsphinx',
+              'IPython.sphinxext.ipython_console_highlighting'
+              ]
 
 numpydoc_show_class_members = False
 autosummary_generate = True
@@ -284,29 +287,3 @@ mathjax_path = "http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-
 
 source_ipy_folder = "examples"
 output_ipy_folder = "_exampledoc"
-import shutil
-
-def nbconvert_files(app):
-    fin = app.config.source_ipy_folder
-    fout = app.config.output_ipy_folder
-
-    if os.path.exists(fout):
-        os.system("rm -rf %s"%fout)
-
-    os.mkdir(fout)
-
-    files = [f for f in os.listdir(fin) if f.endswith(".ipynb")]
-
-    for f in files:
-        os.system("jupyter nbconvert {0} --to rst".format(os.path.join(fin,f)))
-        os.rename(f.replace(".ipynb",".rst"),os.path.join(fout,f.replace(".ipynb",".rst")))
-        try:
-            shutil.move(f.replace(".ipynb","_files"),os.path.join(fout,f.replace(".ipynb","_files")))
-        except IOError:
-            pass
-
-def setup(app):
-    app.add_config_value("source_ipy_folder","examples","html")
-    app.add_config_value("output_ipy_folder","_exampledoc","html")
-
-    app.connect("builder-inited",nbconvert_files)

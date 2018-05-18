@@ -5,8 +5,6 @@ import sys
 import re
 import io
 
-test_suite = "nose.collector"
-
 def read(*names, **kwargs):
     with io.open(
         os.path.join(os.path.dirname(__file__), *names),
@@ -23,6 +21,7 @@ def find_version(*file_paths):
         return version_match.group(1)
     raise RuntimeError("Unable to find version string.")
 
+
 if sys.argv[-1] == "publish":
     os.system("rm dist/*")
     os.system("python setup.py sdist")
@@ -30,15 +29,23 @@ if sys.argv[-1] == "publish":
     os.system("twine upload dist/*")
     sys.exit()
 
+# Python version dependent requirements.
+if int(sys.version[0]) < 3:
+    install_requires = ["numpy>=1.6.2",
+                        "scipy>=0.12.0",
+                        "astropy>=1.1,<3.0",
+                        "camb>=0.1.6"],
+else:
+    install_requires = ["numpy>=1.6.2",
+                        "scipy>=0.12.0",
+                        "astropy>=1.1",
+                        "camb>=0.1.6"],
 
 setup(
     name="hmf",
     version=find_version("hmf", "__init__.py"),
     packages=find_packages(),
-    install_requires=["numpy>=1.6.2",
-                      "scipy>=0.12.0",
-                      "astropy>=1.1",
-                      "camb>=0.1.6"],
+    install_requires=install_requires,
     scripts=["scripts/hmf", "scripts/hmf-fit"],
     author="Steven Murray",
     author_email="steven.murray@curtin.edu.au",
