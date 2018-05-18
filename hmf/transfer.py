@@ -39,11 +39,14 @@ class Transfer(cosmo.Cosmology):
     use ``Transfer.parameter_info()``. If you want to just see the plain list of available parameters,
     use ``Transfer.get_all_parameters()``.To see the actual defaults for each parameter, use
     ``Transfer.get_all_parameter_defaults()``.
+
+    By default, the `growth_model` is :class:`~growth_factor.GrowthFactor`. However, if using a wCDM cosmology
+    and camb is installed, it will default to :class:`~growth_factor.CambGrowth`.
     '''
 
     def __init__(self, sigma_8=0.8159, n=0.9667, z=0.0, lnk_min=np.log(1e-8),
                  lnk_max=np.log(2e4), dlnk=0.05, transfer_model=tm.CAMB if HAVE_PYCAMB else tm.EH,
-                 transfer_params=None, takahashi=True, growth_model=gf.GrowthFactor,
+                 transfer_params=None, takahashi=True, growth_model=None,
                  growth_params=None, **kwargs):
 
         # Call Cosmology init
@@ -73,7 +76,7 @@ class Transfer(cosmo.Cosmology):
 
         :type: str or `hmf.growth_factor.GrowthFactor` subclass
         """
-        if not np.issubclass_(val, gf.GrowthFactor) and not isinstance(val, str):
+        if not np.issubclass_(val, gf.GrowthFactor) and not isinstance(val, str) and val is not None:
             raise ValueError("growth_model must be a GrowthFactor or string, got %s" % type(val))
         return val
 
@@ -258,10 +261,18 @@ class Transfer(cosmo.Cosmology):
     @cached_quantity
     def growth(self):
         "The instantiated growth model"
-        if np.issubclass_(self.growth_model, gf.GrowthFactor):
-            return self.growth_model(self.cosmo, **self.growth_params)
+        if self.growth_model is None:
+            if hasattr(self.cosmo, "w0") and HAVE_PYCAMB:
+                growth_model = "CambGrowth"
+            else:
+                growth_model = "GrowthFactor"
         else:
-            return get_model(self.growth_model, "hmf.growth_factor", cosmo=self.cosmo,
+            growth_model = self.growth_model
+            
+        if np.issubclass_(self.growth_model, gf.GrowthFactor):
+            return growth_model(self.cosmo, **self.growth_params)
+        else:
+            return get_model(growth_model, "hmf.growth_factor", cosmo=self.cosmo,
                              **self.growth_params)
 
     @cached_quantity

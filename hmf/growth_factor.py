@@ -12,14 +12,26 @@ from scipy import integrate as intg
 from ._framework import Component as Cmpt
 from scipy.interpolate import InterpolatedUnivariateSpline as _spline
 from ._utils import inherit_docstrings as _inherit
+import warnings
 
+try:
+    import camb
+    HAVE_CAMB = True
+except ImportError:
+    HAVE_CAMB = False
 
-class GrowthFactor(Cmpt):
+class _GrowthFactor(Cmpt):
     r"""
     General class for a growth factor calculation.
+    """
+    def __init__(self, cosmo, **model_parameters):
+        self.cosmo = cosmo
+        super(_GrowthFactor, self).__init__(**model_parameters)
 
-    Each of the methods in this class is defined using a numerical
-    integral, following [1]_.
+
+class GrowthFactor(_GrowthFactor):
+    r"""
+    Growth factor calculation, using a numerical integral, following [1]_.
 
     Parameters
     ----------
@@ -41,9 +53,11 @@ class GrowthFactor(Cmpt):
     """
     _defaults = {"dlna": 0.01, "amin": 1e-8}
 
-    def __init__(self, cosmo, **model_parameters):
-        self.cosmo = cosmo
-        super(GrowthFactor, self).__init__(**model_parameters)
+    def __init__(self, *args, **kwargs):
+        super(GrowthFactor, self).__init__(*args, **kwargs)
+
+        if hasattr(self.cosmo, 'w0'):
+            warnings.warn("Using this growth factor model in wCDM can lead to inaccuracy. Try using CambGrowth.")
 
     def _d_plus(self, z, getvec=False):
         """
@@ -341,3 +355,67 @@ class Carroll1992(GrowthFactor):
             self._zvec = np.arange(zmin, self.params['zmax'], self.params['dz'])
             gf = self.growth_factor(self._zvec)
             return _spline(gf[::-1], self._zvec[::-1])
+
+
+if HAVE_CAMB:
+    @_inherit
+    class CambGrowth(_GrowthFactor):
+        """
+        Uses CAMB to generate the growth factor, at k/h = 1.0. This class is recommended if the cosmology is not
+        LambdaCDM (but instead wCDM), as it correctly deals with the growth in this case. However, it standard
+        LCDM is used, other classes are preferred, as this class needs to re-calculate the transfer function.
+        """
+        def __init__(self, *args, **kwargs):
+            super(CambGrowth, self).__init__(*args, **kwargs)
+
+            # Save the CAMB object properly for use
+            # Set the cosmology
+            self.p = camb.CAMBparams()
+
+            if self.cosmo.Ob0 is None:
+                raise ValueError("If using CAMB, the baryon density must be set explicitly in the cosmology.")
+
+            if self.cosmo.Tcmb0.value == 0:
+                raise ValueError("If using CAMB, the CMB temperature must be set explicitly in the cosmology.")
+
+            self.p.set_cosmology(
+                H0=self.cosmo.H0.value,
+                ombh2=self.cosmo.Ob0 * self.cosmo.h ** 2,
+                omch2=(self.cosmo.Om0 - self.cosmo.Ob0) * self.cosmo.h ** 2,
+                omk=self.cosmo.Ok0,
+                nnu=self.cosmo.Neff,
+                standard_neutrino_neff=self.cosmo.Neff,
+                TCMB=self.cosmo.Tcmb0.value
+            )
+
+            self.p.WantTransfer = True
+
+            # Set the DE equation of state. We only support constant w.
+            if hasattr(self.cosmo, "w0"):
+                self.p.set_dark_energy(w=self.cosmo.w0)
+
+            # Now find the z=0 transfer
+            self._camb_transfers = camb.get_transfer_functions(self.p)
+            self._t0 = self._camb_transfers.get_redshift_evolution(1.0, 0.0, ['delta_tot'])[0][0]
+
+
+
+        def growth_factor(self, z):
+            """
+            Calculate :math:`d(a) = D^+(a)/D^+(a=1)`.
+
+            Parameters
+            ----------
+            z : float
+                The redshift
+
+            Returns
+            -------
+            float
+                The normalised growth factor.
+            """
+            growth = self._camb_transfers.get_redshift_evolution(1.0, z, ['delta_tot']).flatten()/self._t0
+            if len(growth) == 1:
+                return growth[0]
+            else:
+                return growth
