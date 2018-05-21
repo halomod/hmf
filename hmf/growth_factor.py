@@ -16,9 +16,11 @@ import warnings
 
 try:
     import camb
+    import sympy
     HAVE_CAMB = True
 except ImportError:
     HAVE_CAMB = False
+
 
 class _GrowthFactor(Cmpt):
     r"""

@@ -131,6 +131,7 @@ class FromFile(TransferComponent):
             lnT = T[1, :]
         return spline(lnkout, lnT, k=1)(lnk)
 
+
 if HAVE_CAMB:
     class CAMB(FromFile):
         """

@@ -16,10 +16,15 @@ from . import filters
 
 try:
     import camb
-
     HAVE_PYCAMB = True
 except ImportError:
     HAVE_PYCAMB = False
+
+try:
+    import sympy
+    HAVE_SYMPY = True
+except ImportError:
+    HAVE_SYMPY = False
 
 
 class Transfer(cosmo.Cosmology):
@@ -262,13 +267,13 @@ class Transfer(cosmo.Cosmology):
     def growth(self):
         "The instantiated growth model"
         if self.growth_model is None:
-            if hasattr(self.cosmo, "w0") and HAVE_PYCAMB:
+            if hasattr(self.cosmo, "w0") and HAVE_PYCAMB and HAVE_SYMPY:
                 growth_model = "CambGrowth"
             else:
                 growth_model = "GrowthFactor"
         else:
             growth_model = self.growth_model
-            
+
         if np.issubclass_(self.growth_model, gf.GrowthFactor):
             return growth_model(self.cosmo, **self.growth_params)
         else:
