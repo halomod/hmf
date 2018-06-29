@@ -1,6 +1,6 @@
 import numpy as np
-from hmf import growth_factor as gf
-from hmf.cosmo import Planck13
+from hmf.cosmology import growth_factor as gf
+from hmf.cosmology.cosmo import Planck13
 
 
 class TestSimilarity(object):

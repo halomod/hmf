@@ -10,16 +10,18 @@ functionality of :mod:`hmf` in an easy-to-use way.
 ###############################################################################
 import numpy as np
 import copy
-from . import fitting_functions as ff
-from . import transfer
-from ._cache import parameter, cached_quantity
-from .integrate_hmf import hmf_integral_gtm as int_gtm
-from numpy import issubclass_
-from .filters import TopHat, Filter
-from ._framework import get_model, get_model_
 from scipy.optimize import minimize
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import warnings
+from numpy import issubclass_
+
+from ..mass_function import fitting_functions as ff
+from ..density_field import transfer
+from .._internals._cache import parameter, cached_quantity
+from ..density_field.filters import TopHat, Filter
+from .._internals._framework import get_model_
+from .integrate_hmf import hmf_integral_gtm as int_gtm
+
 
 
 class MassFunction(transfer.Transfer):
@@ -124,7 +126,7 @@ class MassFunction(transfer.Transfer):
         if not issubclass_(val, Filter) and not isinstance(val, str):
             raise ValueError("filter must be a Filter or string, got %s" % type(val))
         elif isinstance(val, str):
-            return get_model_(val, "hmf.filters")
+            return get_model_(val, "hmf.density_field.filters")
         else:
             return val
 
@@ -166,7 +168,7 @@ class MassFunction(transfer.Transfer):
         if not issubclass_(val, ff.FittingFunction) and not isinstance(val, str):
             raise ValueError("hmf_model must be a ff.FittingFunction or string, got %s" % type(val))
         elif isinstance(val, str):
-            return get_model_(val, "hmf.fitting_functions")
+            return get_model_(val, "hmf.mass_function.fitting_functions")
         else:
             return val
 

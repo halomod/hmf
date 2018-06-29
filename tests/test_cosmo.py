@@ -1,4 +1,4 @@
-from hmf.cosmo import Cosmology, WMAP7
+from hmf.cosmology.cosmo import Cosmology, WMAP7
 import numpy as np
 
 

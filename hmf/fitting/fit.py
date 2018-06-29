@@ -15,11 +15,10 @@ from scipy.optimize import minimize
 from multiprocessing import cpu_count
 import time
 import warnings
-import pickle
 
 import copy
 import traceback
-import hmf.transfer_models as tm
+import ..density_field.transfer_models as tm
 
 
 try:

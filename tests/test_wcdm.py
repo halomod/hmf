@@ -1,6 +1,6 @@
-from hmf.transfer import Transfer
+from hmf.density_field.transfer import Transfer
 from astropy.cosmology import FlatwCDM, FlatLambdaCDM
-from hmf.growth_factor import CambGrowth
+from hmf.cosmology.growth_factor import CambGrowth
 import numpy as np
 
 

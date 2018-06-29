@@ -10,7 +10,7 @@ import numpy as np
 from scipy.integrate import simps as _simps
 import copy
 from scipy.interpolate import InterpolatedUnivariateSpline as _spline
-from .cosmo import Cosmology as csm
+from ..cosmology.cosmo import Cosmology as csm
 
 
 def _get_spec(k, delta_k, sigma_8):

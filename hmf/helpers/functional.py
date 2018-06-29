@@ -11,7 +11,7 @@ functions to determine that order, and indeed perform the loops.
 """
 
 import collections
-from . import hmf
+from ..mass_function import hmf
 import itertools
 
 

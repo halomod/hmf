@@ -2,7 +2,7 @@ import numpy as np
 
 from pytest import raises
 from hmf import MassFunction
-from hmf import fitting_functions as ff
+from hmf.mass_function import fitting_functions as ff
 import inspect
 
 allfits = [o for n, o in inspect.getmembers(ff, lambda member: inspect.isclass(member) and issubclass(member,
