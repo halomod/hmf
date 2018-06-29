@@ -32,6 +32,8 @@ class MassDefinition(_framework.Component):
 
         # Copy this from cosmology class to have it easily available here.
         self.mean_density0 = (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2).to(u.Msun / u.Mpc ** 3).value
+        self.mean_density = (self.cosmo.Om(z) * self.cosmo.critical_density(z) / self.cosmo.h ** 2).to(
+            u.Msun / u.Mpc ** 3).value
 
     @property
     def halo_density(self):
@@ -84,6 +86,10 @@ class MassDefinition(_framework.Component):
         except AttributeError:
             raise AttributeError("This Mass Definition has no way to convert radius to mass.")
 
+    def _duffy_concentration(self, m):
+        a, b, c, ms = 6.71, -0.091, 0.44, 2e12
+        return a / (1 + self.z) ** c * (m / ms) ** b
+
     def change_definition(self, m, mdef, profile=None, c=None):
         """
         Change the spherical overdensity mass definition.
@@ -133,8 +139,7 @@ class MassDefinition(_framework.Component):
         if profile is None:
             # Use an NFW profile.
             if c is None:
-                a, b, c, ms = 6.71, -0.091, 0.44, 2e12
-                c = a / (1 + self.z) ** c * (m / ms) ** b
+                c = self._duffy_concentration(m)
 
             rs = self.m_to_r(m) / c
             rhos = m / rs ** 3 / 4.0 / np.pi / (np.log(1.0 + c) - c / (1.0 + c))
@@ -153,6 +158,9 @@ class MassDefinition(_framework.Component):
             c_new = c_new[0]
 
         r_new = c_new * rs
+
+        if len(r_new) == 1:
+            r_new = r_new[0]
 
         return mdef.r_to_m(r_new), r_new, c_new
 
@@ -176,7 +184,7 @@ class SOBackground(SphericalOverdensity):
         """
         The density of haloes under this definition.
         """
-        return self.params['overdensity'] * self.mean_density0
+        return self.params['overdensity'] * self.mean_density
 
 
 class SOCritical(SphericalOverdensity):
@@ -189,7 +197,7 @@ class SOCritical(SphericalOverdensity):
         """
         The density of haloes under this definition.
         """
-        return self.params['overdensity'] * self.mean_density0/self.cosmo.Om0
+        return self.params['overdensity'] * self.mean_density/self.cosmo.Om(self.z)
 
 
 class SOVirial(SphericalOverdensity):
@@ -200,7 +208,7 @@ class SOVirial(SphericalOverdensity):
         """
         x = self.cosmo.Om(self.z) - 1
         overdensity = 18*np.pi**2 + 82*x - 39*x**2
-        return overdensity * self.mean_density0 / self.cosmo.Om0
+        return overdensity * self.mean_density / self.cosmo.Om(self.z)
 
 
 class FOF(MassDefinition):
