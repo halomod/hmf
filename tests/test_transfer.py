@@ -1,6 +1,6 @@
 import numpy as np
-from hmf.transfer import Transfer
-from hmf.transfer_models import EH_BAO
+from hmf.density_field.transfer import Transfer
+from hmf.density_field.transfer_models import EH_BAO
 import pytest
 
 # def rms(a):

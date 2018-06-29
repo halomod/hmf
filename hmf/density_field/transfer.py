@@ -6,13 +6,11 @@ calculate the transfer function, matter power spectrum and several other
 related quantities.
 """
 import numpy as np
-from . import cosmo
-from ._cache import cached_quantity, parameter
+from .._internals._cache import cached_quantity, parameter
 from .halofit import halofit as _hfit
-from . import growth_factor as gf
-from . import transfer_models as tm
-from ._framework import get_model
-from . import filters
+from ..cosmology import growth_factor as gf, cosmo
+from ..density_field import transfer_models as tm, filters
+from .._internals._framework import get_model
 
 try:
     import camb
@@ -209,7 +207,7 @@ class Transfer(cosmo.Cosmology):
         if np.issubclass_(self.transfer_model, tm.TransferComponent):
             return self.transfer_model(self.cosmo, **self.transfer_params)
         elif isinstance(self.transfer_model, str):
-            return get_model(self.transfer_model, "hmf.transfer_models", cosmo=self.cosmo,
+            return get_model(self.transfer_model, "hmf.density_field.transfer_models", cosmo=self.cosmo,
                              **self.transfer_params)
 
     @cached_quantity
@@ -272,7 +270,7 @@ class Transfer(cosmo.Cosmology):
         if np.issubclass_(self.growth_model, gf.GrowthFactor):
             return growth_model(self.cosmo, **self.growth_params)
         else:
-            return get_model(growth_model, "hmf.growth_factor", cosmo=self.cosmo,
+            return get_model(growth_model, "hmf.cosmology.growth_factor", cosmo=self.cosmo,
                              **self.growth_params)
 
     @cached_quantity

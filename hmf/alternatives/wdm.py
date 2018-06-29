@@ -8,11 +8,11 @@ other alternative cosmologies.
 '''
 
 import numpy as np
-from .transfer import Transfer as _Tr
-from .hmf import MassFunction as _MF
-from ._cache import parameter, cached_quantity
-from ._framework import Component, get_model
-from .cosmo import Planck15
+from ..density_field.transfer import Transfer as _Tr
+from ..mass_function.hmf import MassFunction as _MF
+from .._internals._cache import parameter, cached_quantity
+from .._internals._framework import Component, get_model
+from ..cosmology.cosmo import Planck15
 
 import astropy.units as u
 

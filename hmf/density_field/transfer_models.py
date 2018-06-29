@@ -6,7 +6,7 @@ in :mod:`hmf.transfer`.
 '''
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
-from ._framework import Component
+from .._internals._framework import Component
 from astropy import cosmology
 
 try:

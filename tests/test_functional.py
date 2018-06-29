@@ -1,5 +1,5 @@
 import numpy as np
-from hmf import functional as tf
+from hmf.helpers import functional as tf
 from hmf import MassFunction
 
 

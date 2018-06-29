@@ -1,5 +1,5 @@
 from pytest import raises
-from hmf import hmf
+from hmf.mass_function import hmf
 
 
 def test_incorrect_argument():

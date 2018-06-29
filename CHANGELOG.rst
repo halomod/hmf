@@ -20,6 +20,7 @@ dev
 
 - Removed logging, which was redundant.
 - Moved from nose to pytest
+- Significant overhaul of package structure to more modularised form.
 
 v3.0.3 [1st Dec 2017]
 ---------------------

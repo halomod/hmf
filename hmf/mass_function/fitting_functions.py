@@ -8,10 +8,9 @@ listed here, please advise via GitHub.
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as _spline
 import scipy.special as sp
-from . import cosmo as csm
-from . import _framework
+from ..cosmology import cosmo as csm
+from .._internals import _framework
 from copy import copy
-from . import _utils
 
 
 class SimDetails(object):
