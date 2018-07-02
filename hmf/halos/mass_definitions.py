@@ -7,16 +7,28 @@ from .._internals import _framework
 import numpy as np
 import scipy as sp
 import astropy.units as u
+from astropy.cosmology import Planck15
+
+__all__ = [
+    'FOF',
+    'MassDefinition',
+    'OptimizationException',
+    'SOCritical',
+    'SOMean',
+    'SOVirial',
+    'SphericalOverdensity',
+   ]
+
 
 class MassDefinition(_framework.Component):
 
-    def __init__(self, cosmo, z=0, **model_parameters):
+    def __init__(self, cosmo=Planck15, z=0, **model_parameters):
         """
         A base class for a Mass Definition.
 
         Parameters
         ----------
-        cosmo: :class:`astropy.cosmology.FLRW` instance
+        cosmo: :class:`astropy.cosmology.FLRW` instance, optional
             The cosmology within which the haloes will be embedded.
 
         z : float, optional
