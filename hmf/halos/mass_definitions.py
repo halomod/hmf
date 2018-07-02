@@ -216,6 +216,18 @@ class FOF(MassDefinition):
         "linking_length": 0.2
     }
 
+    @property
+    def halo_density(self):
+        """
+        The density of haloes under this mass definition.
+
+        Note that for FoF haloes, this is very approximate. We follow White et al. (2002)
+        (http://iopscience.iop.org/0067-0049/143/2/241) and define :math:`rho_{FOF} = 9/(2\pi b^3) \rho_m`, with
+        `b` the linking length. This assumes all groups are spherical and singular isothermal spheres.
+        """
+        overdensity = 9/(2*np.pi*self.params['linking_length']**3)
+        return overdensity * self.mean_density
+
 
 def _find_new_concentration(rho_s, halo_density, h=None, x_guess=5.0):
     """
