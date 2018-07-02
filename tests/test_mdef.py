@@ -12,8 +12,8 @@ setCosmology('planck15')
 
 
 def test_mean_to_mean_nfw():
-    mdef = md.SOBackground(Planck15, z=0, overdensity=200)
-    mdef2 = md.SOBackground(Planck15, z=0, overdensity=300)
+    mdef = md.SOMean(Planck15, z=0, overdensity=200)
+    mdef2 = md.SOMean(Planck15, z=0, overdensity=300)
     cduffy = mdef._duffy_concentration(1e12)
 
     mnew, rnew, cnew = mdef.change_definition(1e12, mdef2)
@@ -26,7 +26,7 @@ def test_mean_to_mean_nfw():
 
 
 def test_mean_to_crit_nfw():
-    mdef = md.SOBackground(Planck15, z=0, overdensity=200)
+    mdef = md.SOMean(Planck15, z=0, overdensity=200)
     mdef2 = md.SOCritical(Planck15, z=0, overdensity=300)
 
     cduffy = mdef._duffy_concentration(1e12)
@@ -40,7 +40,7 @@ def test_mean_to_crit_nfw():
 
 
 def test_mean_to_crit_z1_nfw():
-    mdef = md.SOBackground(Planck15, z=1, overdensity=200)
+    mdef = md.SOMean(Planck15, z=1, overdensity=200)
     mdef2 = md.SOCritical(Planck15, z=1, overdensity=300)
 
     cduffy = mdef._duffy_concentration(1e12)
@@ -54,7 +54,7 @@ def test_mean_to_crit_z1_nfw():
 
 
 def test_mean_to_vir_nfw():
-    mdef = md.SOBackground(Planck15, z=0)
+    mdef = md.SOMean(Planck15, z=0)
     mdef2 = md.SOVirial(Planck15, z=0)
 
     cduffy = mdef._duffy_concentration(1e12)
