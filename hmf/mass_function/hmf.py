@@ -15,11 +15,13 @@ from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import warnings
 from numpy import issubclass_
 
-from ..mass_function import fitting_functions as ff
+from . import fitting_functions as ff
 from ..density_field import transfer
 from .._internals._cache import parameter, cached_quantity
 from ..density_field.filters import TopHat, Filter
 from .._internals._framework import get_model_
+from ..halos.mass_definitions import MassDefinition as md
+
 from .integrate_hmf import hmf_integral_gtm as int_gtm
 
 
@@ -65,7 +67,7 @@ class MassFunction(transfer.Transfer):
     """
 
     def __init__(self, Mmin=10, Mmax=15, dlog10m=0.01, hmf_model=ff.Tinker08, hmf_params=None,
-                 delta_h=200.0, delta_wrt='mean',
+                 mdef_model=None, mdef_params=None,
                  delta_c=1.686, filter_model=TopHat, filter_params=None,
                  **transfer_kwargs):
         # # Call super init MUST BE DONE FIRST.
@@ -76,8 +78,8 @@ class MassFunction(transfer.Transfer):
         self.Mmin = Mmin
         self.Mmax = Mmax
         self.dlog10m = dlog10m
-        self.delta_h = delta_h
-        self.delta_wrt = delta_wrt
+        self.mdef_model = mdef_model
+        self.mdef_params = mdef_params or {}
         # self.cut_fit = cut_fit
         # self.z2 = z2
         # self.nz = nz
@@ -181,37 +183,59 @@ class MassFunction(transfer.Transfer):
         """
         return val
 
+    @parameter("model")
+    def mdef_model(self, val):
+        """
+        A model to use as the mass definition.
+
+        :type: str or :class:`hmf.halos.mass_definitions.MassDefinition` subclass
+        """
+        if not issubclass_(val, md) and not isinstance(val, str) and val is not None:
+            raise ValueError("mdef_model must be a MassDefinition or string, got %s" % type(val))
+        elif isinstance(val, str):
+            return get_model_(val, "hmf.halos.mass_definitions")
+        else:
+            return val
+
     @parameter("param")
-    def delta_h(self, val):
+    def mdef_params(self, val):
         """
-        The overdensity for the halo definition, with respect to :attr:`delta_wrt`
-
-        :type: float
+        Model parameters for `mdef_model`.
+        :type: dict
         """
-        try:
-            val = float(val)
-        except ValueError:
-            raise ValueError("delta_halo must be a number: ", val)
-
-        if val <= 0:
-            raise ValueError("delta_halo must be > 0 (", val, ")")
-        if val > 10000:
-            raise ValueError("delta_halo must be < 10,000 (", val, ")")
-
         return val
-
-    @parameter("switch")
-    def delta_wrt(self, val):
-        """
-        Defines what the overdensity of a halo is with respect to, mean density
-        of the universe, or critical density.
-
-        :type: str, {"mean", "crit"}
-        """
-        if val not in ['mean', 'crit']:
-            raise ValueError("delta_wrt must be either 'mean' or 'crit' (", val, ")")
-
-        return val
+    #
+    # @parameter("param")
+    # def delta_h(self, val):
+    #     """
+    #     The overdensity for the halo definition, with respect to :attr:`delta_wrt`
+    #
+    #     :type: float
+    #     """
+    #     try:
+    #         val = float(val)
+    #     except ValueError:
+    #         raise ValueError("delta_halo must be a number: ", val)
+    #
+    #     if val <= 0:
+    #         raise ValueError("delta_halo must be > 0 (", val, ")")
+    #     if val > 10000:
+    #         raise ValueError("delta_halo must be < 10,000 (", val, ")")
+    #
+    #     return val
+    #
+    # @parameter("switch")
+    # def delta_wrt(self, val):
+    #     """
+    #     Defines what the overdensity of a halo is with respect to, mean density
+    #     of the universe, or critical density.
+    #
+    #     :type: str, {"mean", "crit"}
+    #     """
+    #     if val not in ['mean', 'crit']:
+    #         raise ValueError("delta_wrt must be either 'mean' or 'crit' (", val, ")")
+    #
+    #     return val
 
     #
     # @parameter
@@ -259,12 +283,19 @@ class MassFunction(transfer.Transfer):
         return self.mean_density0 * (1 + self.z) ** 3
 
     @cached_quantity
+    def mdef(self):
+        if self.mdef_model is not None:
+            return self.mdef_model(self.cosmo, self.z, **self.mdef_params)
+        else:
+            return None
+
+    @cached_quantity
     def hmf(self):
         """
         Instantiated model for the hmf fitting function.
         """
         return self.hmf_model(m=self.m, nu2=self.nu, z=self.z,
-                              delta_halo=self.delta_halo, omegam_z=self.cosmo.Om(self.z),
+                              mass_definition=self.mdef, cosmo=self.cosmo,
                               delta_c=self.delta_c, n_eff=self.n_eff,
                               **self.hmf_params)
 
@@ -285,14 +316,14 @@ class MassFunction(transfer.Transfer):
         "Masses (alias of m, deprecated)"
         raise AttributeError("Use of M has been deprecated for a while, and is now removed. Use m.")
 
-    @cached_quantity
-    def delta_halo(self):
-        """ Overdensity of a halo w.r.t mean density"""
-        if self.delta_wrt == 'mean':
-            return self.delta_h
-
-        elif self.delta_wrt == 'crit':
-            return self.delta_h / self.cosmo.Om(self.z)
+    # @cached_quantity
+    # def delta_halo(self):
+    #     """ Overdensity of a halo w.r.t mean density"""
+    #     if self.delta_wrt == 'mean':
+    #         return self.delta_h
+    #
+    #     elif self.delta_wrt == 'crit':
+    #         return self.delta_h / self.cosmo.Om(self.z)
 
     @cached_quantity
     def _unn_sigma0(self):
@@ -409,6 +440,15 @@ class MassFunction(transfer.Transfer):
         if isinstance(self.hmf, ff.Behroozi):
             ngtm_tinker = self._gtm(dndm)
             dndm = self.hmf._modify_dndm(self.m, dndm, self.z, ngtm_tinker)
+
+        # Alter the mass definition
+        if self.hmf.measured_mass_definition is not None:
+            if self.mdef is not None:
+                mnew = self.hmf.measured_mass_definition.change_definition(self.m, self.mdef)[0] # this uses NFW, but we can change that in halomod.
+                spl = spline(np.log(mnew), np.log(dndm))
+                spl2 = spline(self.m, mnew)
+                dndm = np.exp(spl(np.log(self.m))) / spl2.derivative()(self.m)
+
 
         # else:  # #This is for a survey-volume weighted calculation
         #     raise NotImplementedError()
