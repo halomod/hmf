@@ -183,7 +183,7 @@ class SphericalOverdensity(MassDefinition):
     """
 
 
-class SOBackground(SphericalOverdensity):
+class SOMean(SphericalOverdensity):
     """
     A mass definition based on spherical overdensity with respect to mean background density.
     """
