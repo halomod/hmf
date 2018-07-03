@@ -21,23 +21,22 @@ __all__ = [
 
 
 class MassDefinition(_framework.Component):
+    """
+    A base class for a Mass Definition.
 
+    Parameters
+    ----------
+    cosmo: :class:`astropy.cosmology.FLRW` instance, optional
+        The cosmology within which the haloes will be embedded.
+
+    z : float, optional
+        The redshift at which the mass definition is defined.
+
+    model_parameters :
+        Any parameters that uniquely affect the chosen Mass Definition model. These
+        merge with `_defaults` to create the `.params` dictionary.
+    """
     def __init__(self, cosmo=Planck15, z=0, **model_parameters):
-        """
-        A base class for a Mass Definition.
-
-        Parameters
-        ----------
-        cosmo: :class:`astropy.cosmology.FLRW` instance, optional
-            The cosmology within which the haloes will be embedded.
-
-        z : float, optional
-            The redshift at which the mass definition is defined.
-
-        model_parameters :
-            Any parameters that uniquely affect the chosen Mass Definition model. These
-            merge with `_defaults` to create the `.params` dictionary.
-        """
         super(MassDefinition, self).__init__(**model_parameters)
         self.cosmo = cosmo
         self.z = z
@@ -49,15 +48,15 @@ class MassDefinition(_framework.Component):
 
     @property
     def halo_density(self):
-        """
+        r"""
         The density of haloes under this definition.
 
-        May not exist in some definitions. Has the same units as :attr:`mean_density0`, nominally :math:`M_\odot h^2/{\rm Mpc}^3`.
+        May not exist in some definitions. Units are :math:`M_\odot h^2/{\rm Mpc}^3`.
         """
         raise AttributeError("The overdensity attribute does not exist for this Mass Definition")
 
     def m_to_r(self, m):
-        """
+        r"""
         Return the radius corresponding to m for this mass definition
 
         Parameters
@@ -67,10 +66,8 @@ class MassDefinition(_framework.Component):
 
         Notes
         -----
-            Computed as
 
-            .. math:: \left(\frac{3m}{4\pi \rho_{\rm halo}\right)
-
+        Computed as :math:`\left(\frac{3m}{4\pi \rho_{\rm halo}\right)`.
         """
         try:
             return (3 * m / (4 * np.pi * self.halo_density)) ** (1. / 3.)
@@ -78,7 +75,7 @@ class MassDefinition(_framework.Component):
             raise AttributeError("This Mass Definition has no way to convert mass to radius.")
 
     def r_to_m(self, r):
-        """
+        r"""
         Return the mass corresponding to r for this mass definition
 
         Parameters
@@ -88,10 +85,8 @@ class MassDefinition(_framework.Component):
 
         Notes
         -----
-            Computed as
 
-            .. math:: \frac{4\pi r^3}{3} \rho_{\rm halo}
-
+        Computed as :math:`\frac{4\pi r^3}{3} \rho_{\rm halo}`.
         """
         try:
             return 4 * np.pi * r ** 3 * self.halo_density / 3
@@ -181,6 +176,7 @@ class SphericalOverdensity(MassDefinition):
     """
     An abstract base class for all spherical overdensity mass definitions.
     """
+    pass
 
 
 class SOMean(SphericalOverdensity):
@@ -200,6 +196,7 @@ class SOMean(SphericalOverdensity):
 
 
 class SOCritical(SphericalOverdensity):
+    "A mass definition based on spherical overdensity with respect to critical density."
     _defaults = {
         "overdensity": 200,
     }
@@ -213,6 +210,7 @@ class SOCritical(SphericalOverdensity):
 
 
 class SOVirial(SphericalOverdensity):
+    "A mass definition based on spherical overdensity, with the density threshold given by Bryan and Norman (1998)"
     @property
     def halo_density(self):
         """
@@ -224,25 +222,31 @@ class SOVirial(SphericalOverdensity):
 
 
 class FOF(MassDefinition):
+    "A mass definition based on Friends-of-Friends networks with a given linking length."
     _defaults = {
         "linking_length": 0.2
     }
 
     @property
     def halo_density(self):
-        """
+        r"""
         The density of haloes under this mass definition.
 
-        Note that for FoF haloes, this is very approximate. We follow White et al. (2002)
-        (http://iopscience.iop.org/0067-0049/143/2/241) and define :math:`rho_{FOF} = 9/(2\pi b^3) \rho_m`, with
-        `b` the linking length. This assumes all groups are spherical and singular isothermal spheres.
+        Note that for FoF haloes, this is very approximate. We follow [1]_ and define
+        :math:`rho_{FOF} = 9/(2\pi b^3) \rho_m`, with *b* the linking length. This assumes all groups are spherical
+        and singular isothermal spheres.
+
+        References
+        ----------
+        .. [1] White, Martin, Lars Hernquist, and Volker Springel. “The Halo Model and Numerical Simulations.”
+           The Astrophysical Journal 550, no. 2 (April 2001): L129–32. https://doi.org/10.1086/319644.
         """
         overdensity = 9/(2*np.pi*self.params['linking_length']**3)
         return overdensity * self.mean_density
 
 
 def _find_new_concentration(rho_s, halo_density, h=None, x_guess=5.0):
-    """
+    r"""
     Find :math:`x=r/r_{\\rm s}` where the enclosed density has a particular value.
 
     .. note :: This is almost exactly the same code as profileNFW.xDelta from COLOSSUS. It
@@ -263,7 +267,7 @@ def _find_new_concentration(rho_s, halo_density, h=None, x_guess=5.0):
         Return the enclosed density as function of r/r_s.
 
     Returns
-    -------------------------------------------------------------------------------------------
+    -------
     x: float
         The radius in units of the scale radius, :math:`x=r/r_{\\rm s}`, where the enclosed
         density reaches ``density_threshold``.
