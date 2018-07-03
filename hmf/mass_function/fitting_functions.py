@@ -193,19 +193,13 @@ class FittingFunction(_framework.Component):
     n_eff : array_like, optional
         The effective spectral index at `m`. Only required if :attr:`req_neff` is True.
         
-    delta_halo : float, optional
-        The overdensity of the halo w.r.t. the mean density of the universe.
-        Only required if :attr:`req_dhalo` is True, in which case the default is 200.0
-
-    cosmo : :class:`hmf.cosmo.Cosmology` instance, optional
-        A cosmology. Default is the default provided by the :class:`cosmo.Cosmology`
-        class. Either `omegam_z` or `cosmo` is required if :attr:`req_omz` is True.
-        If both are passed, omegam_z takes precedence.
-
-    omegam_z : float, optional
-        A value for the mean matter density at the given redshift `z`. Either
-        `omegam_z` or `cosmo` is required if :attr:`req_omz` is True.
-        If both are passed, omegam_z takes precedence.
+    mass_definition : :class:`hmf.halos.mass_definitions.MassDefinition` instance, optional
+        A halo mass definition. Only required for fits which explicitly include a parameterization
+        for halo definition.
+        
+    cosmo : :class:`astropy.cosmology.FLRW` instance, optional
+        A cosmology. Default is Planck15. Either `omegam_z` or `cosmo` is required if 
+        :attr:`req_omz` is True. If both are passed, omegam_z takes precedence.
 
     \*\*model_parameters : unpacked-dictionary
         These parameters are model-specific. For any model, list the available
@@ -216,16 +210,8 @@ class FittingFunction(_framework.Component):
     _defaults = {}
 
     # Subclass requirements
-    req_omz = False
-    "Whether `omegam_z` is required for this subclass"
     req_neff = False
     "Whether `n_eff` is required for this subclass"
-    req_sigma = True
-    "Whether `sigma` (via `delta_c`) is required for this subclass"
-    req_z = True
-    "Whether `z` is required for this subclass"
-#    req_dhalo = False
-#    "Whether `delta_halo` is required for this subclass"
     req_mass = False
     "Whether `m` is required for this subclass"
 
@@ -233,7 +219,7 @@ class FittingFunction(_framework.Component):
     "Details of the defining simulation, subclass of ``SimDetails``"
 
     def __init__(self, nu2, m=None, z=0, n_eff=None,
-                 mass_definition=None, cosmo=None, omegam_z=None, delta_c=1.686,
+                 mass_definition=None, cosmo=None, delta_c=1.686,
                  **model_parameters):
 
         super(FittingFunction, self).__init__(**model_parameters)
@@ -248,7 +234,7 @@ class FittingFunction(_framework.Component):
 
         # Simple Argument validation
         if self.req_mass and m is None:
-            raise ValueError("This fitting function requires m rather than sigma or nu")
+            raise ValueError("This fitting function requires m as well as nu")
 
         if self.req_neff and n_eff is None:
             raise ValueError("This fitting function requires n_eff")
@@ -262,13 +248,16 @@ class FittingFunction(_framework.Component):
             self.z = self.mass_definition.z
 
         # Set omegam_z --- probably should be fixed.
-        if self.req_omz:
-            if omegam_z is None:
-                if self.cosmo is None:
-                    self.cosmo = csm.Cosmology()
-                self.omegam_z = self.cosmo.cosmo.Om(self.z)
-            else:
-                self.omegam_z = omegam_z
+        # if self.req_omz:
+        #     if omegam_z is None:
+        #         if self.cosmo is None:
+        #             self.cosmo = csm.Planck15
+        #         self.omegam_z = self.cosmo.Om(self.z)
+        #     else:
+        #         self.omegam_z = omegam_z
+
+        if self.cosmo is None:
+            self.cosmo = csm.Planck15
 
         # Try to set the measured mass definition
         self.measured_mass_definition = None
@@ -291,11 +280,18 @@ class FittingFunction(_framework.Component):
                 warnings.warn("Unknown halo finder type in the sim_definition. Changing mass definitions will be impossible.")
 
     @property
+    def omegam_z(self):
+        "Normalised matter density at current redshift."
+        return self.cosmo.Om(self.z)
+
+    @property
     def nu(self):
+        "The peak height, sigma/delta_c"
         return np.sqrt(self.nu2)
 
     @property
     def sigma(self):
+        "The mass variance as a function of mass"
         return self.delta_c/self.nu
 
     @property

@@ -3,9 +3,12 @@ Releases
 
 dev
 -------
-**Feature**
+**Features**
+
 - Added new ``CambGrowth`` growth factor model, which computes the growth using CAMB. This is useful especially when
   using w > -1, for which the other growth factor models are inadequate. Solves issue #19 raised by @tijmen.
+- Added new module ``mass_definitions`` which more robustly deals with various halo mass definitions, and also includes
+  ability to convert mass functions between different definitions.
 
 **Enhancement**
 
@@ -84,14 +87,14 @@ v2.0.5 [12th January 2017]
 
 
 v2.0.4 [11th November, 2016]
-------
+----------------------------
 
 **Bugfixes**
 
 - **IMPORTANT**: Fixed a bug in which updating the cosmology after creation did not update the transfer function.
 
 v2.0.3 [22nd September, 2016]
-------
+-----------------------------
 **Bugfixes**
 
 - SharpK filter integrated over incorrect range of k, now fixed.
@@ -103,7 +106,7 @@ v2.0.3 [22nd September, 2016]
 
 
 v2.0.2 [2nd August, 2016]
-------
+-------------------------
 
 **Features**
 
@@ -124,7 +127,7 @@ v2.0.2 [2nd August, 2016]
 - fixed issue with ``nonlinear_mass`` raising exception when mass outside given mass range.
 
 v2.0.1 [2nd May, 2016]
-------
+----------------------
 
 **Bugfixes**
 
@@ -179,7 +182,7 @@ are buggy and untested. Don't use these until the next version unless you're cra
 - fixed simple bugs in BBKS and BondEfs transfer models.
 - fixes in _cache module
 - simple bug when updating sigma_8 fixed.
-- Made the EnsembleSampler object pickleable by setting __getstate__
+- Made the EnsembleSampler object pickleable by setting ``__getstate__``
 - Major bug fix for EH transfer function without BAO wiggles
 - @parameter properties now return docstrings
 
@@ -187,7 +190,7 @@ are buggy and untested. Don't use these until the next version unless you're cra
 
 
 v1.8.0 [February 2, 2015]
-------
+-------------------------
 
 **Features**
 
@@ -207,7 +210,7 @@ v1.8.0 [February 2, 2015]
 ----------------------
 
 1.7.1 [January 28, 2015]
------
+------------------------
 
 **Enhancments**
 
@@ -217,7 +220,7 @@ v1.8.0 [February 2, 2015]
 ----------------------
 
 1.7.0 [October 28, 2014]
------
+------------------------
 
 **Features**
 
@@ -233,7 +236,7 @@ v1.8.0 [February 2, 2015]
 
 
 1.6.2 [September 16, 2014]
------
+--------------------------
 
 **Features**
 
@@ -258,7 +261,7 @@ v1.8.0 [February 2, 2015]
 ----------------------
 
 1.6.1 [September 8, 2014]
------
+-------------------------
 
 **Enhancments**
 
@@ -277,7 +280,7 @@ v1.8.0 [February 2, 2015]
 ----------------------
 
 1.6.0 [August 19, 2014]
------
+-----------------------
 
 **Features**
 
@@ -296,7 +299,7 @@ v1.8.0 [February 2, 2015]
 ----------------------
 
 1.5.0 [May 08, 2014]
------
+--------------------
 
 **Features**
 
@@ -306,7 +309,7 @@ v1.8.0 [February 2, 2015]
 ----------------------
 
 1.4.5 [January 24, 2014]
------
+------------------------
 
 **Features**
 
@@ -316,7 +319,7 @@ v1.8.0 [February 2, 2015]
 **Enhancments**
 
 - Added Behroozi alias to fits
-- Changed kmax and k_per_logint back to have transfer__ prefix.
+- Changed kmax and k_per_logint back to have ``transfer__`` prefix.
 
 **Bugfixes**
 
@@ -328,7 +331,7 @@ v1.8.0 [February 2, 2015]
 
 
 1.4.4 [January 23, 2014]
------
+------------------------
 
 **Features**
 
@@ -348,7 +351,7 @@ v1.8.0 [February 2, 2015]
 ----------------------
 
 1.4.3 [January 10, 2014]
------
+------------------------
 
 **Bugfixes**
 
@@ -357,7 +360,7 @@ v1.8.0 [February 2, 2015]
 ----------------------
 
 1.4.2 [January 10, 2014]
------
+------------------------
 
 **Enhancments**
 
@@ -367,7 +370,7 @@ v1.8.0 [February 2, 2015]
 ----------------------
 
 1.4.1 [January 10,2014]
------
+-----------------------
 
 **Enhancments**
 
@@ -376,7 +379,7 @@ v1.8.0 [February 2, 2015]
 ----------------------
 
 1.4.0 [January 10, 2014]
------
+------------------------
 
 **Enhancments**
 
@@ -388,7 +391,7 @@ v1.8.0 [February 2, 2015]
 ----------------------
 
 1.3.1 [January 06, 2014]
------
+------------------------
 
 **Bugfixes**
 
@@ -397,7 +400,7 @@ v1.8.0 [February 2, 2015]
 ----------------------
 
 1.3.0 [January 03, 2014]
------
+------------------------
 
 **Enhancments**
 
@@ -420,7 +423,7 @@ v1.8.0 [February 2, 2015]
 ----------------------
 
 1.2.2 [December 10, 2013]
------
+-------------------------
 
 **Bugfixes**
 
@@ -429,7 +432,7 @@ v1.8.0 [February 2, 2015]
 ----------------------
 
 1.2.1 [December 6, 2013]
------
+------------------------
 
 **Bugfixes**
 
@@ -438,7 +441,7 @@ v1.8.0 [February 2, 2015]
 ----------------------
 
 1.2.0 [December 5, 2013]
------
+------------------------
 
 **Features**
 
@@ -452,10 +455,9 @@ v1.8.0 [February 2, 2015]
 ----------------------
 
 1.1.10 [October 29, 2013]
-------
+-------------------------
 
-Enhancement
-+++++++++++
+**Enhancements**
 - Better updating -- checks if update value is actually different.
 - Now performs a check to see if mass range is inside fit range.
 
@@ -466,7 +468,7 @@ Enhancement
 ----------------------
 
 1.1.9 [October 4, 2013]
------
+-----------------------
 
 **Bugfixes**
 
@@ -475,7 +477,7 @@ Enhancement
 ----------------------
 
 1.1.85 [October 2, 2013]
-------
+------------------------
 
 **Enhancments**
 
@@ -484,7 +486,7 @@ Enhancement
 ----------------------
 
 1.1.8 [September 19, 2013]
------
+--------------------------
 
 **Bugfixes**
 
@@ -493,7 +495,7 @@ Enhancement
 ----------------------
 
 1.1.7 [September 19, 2013]
------
+--------------------------
 
 **Enhancments**
 
@@ -503,7 +505,7 @@ Enhancement
 ----------------------
 
 1.1.6 [September 05, 2013]
------
+--------------------------
 
 **Enhancments**
 
@@ -517,7 +519,7 @@ Enhancement
 ----------------------
 
 1.1.5 [September 03, 2013]
------
+--------------------------
 
 **Enhancments**
 
@@ -534,7 +536,7 @@ Enhancement
 ----------------------
 
 1.1.4 [August 27, 2013]
------
+-----------------------
 
 **Features**
 
@@ -544,7 +546,7 @@ Enhancement
 ----------------------
 
 1.1.3 [August 7, 2013]
------
+----------------------
 
 **Features**
 
@@ -553,7 +555,7 @@ Enhancement
 ----------------------
 
 1.1.2 [July 02, 2013]
------
+---------------------
 
 **Features**
 
@@ -562,7 +564,7 @@ Enhancement
 ----------------------
 
 1.1.1 [July 02, 2013]
------
+---------------------
 
 **Features**
 
@@ -580,7 +582,7 @@ Enhancement
 ----------------------
 
 1.1.0 [June 27, 2013]
------
+---------------------
 
 **Enhancments**
 
@@ -589,7 +591,7 @@ Enhancement
 ----------------------
 
 1.0.10 [June 24, 2013]
-------
+----------------------
 
 **Enhancments**
 
@@ -598,7 +600,7 @@ Enhancement
 ----------------------
 
 1.0.9 [June 19, 2013]
------
+---------------------
 
 **Bugfixes**
 
@@ -607,7 +609,7 @@ Enhancement
 ----------------------
 
 1.0.8 [June 19, 2013]
------
+---------------------
 
 **Enhancments**
 
@@ -617,7 +619,7 @@ Enhancement
 ----------------------
 
 1.0.6 [June 19, 2013]
------
+---------------------
 
 **Bugfixes**
 
@@ -626,7 +628,7 @@ Enhancement
 ----------------------
 
 1.0.4 [June 6, 2013]
------
+--------------------
 
 **Features**
 
@@ -639,7 +641,7 @@ Enhancement
 ----------------------
 
 1.0.2 [May 21, 2013]
------
+--------------------
 
 **Bugfixes**
 
@@ -648,7 +650,7 @@ Enhancement
 ----------------------
 
 1.0.1 [May 20, 2013]
------
+--------------------
 
 **Enhancments**
 
@@ -658,7 +660,7 @@ Enhancement
 ----------------------
 
 0.9.99 [May 10, 2013]
-------
+---------------------
 
 **Enhancments**
 
@@ -672,7 +674,7 @@ Enhancement
 ----------------------
 
 0.9.97 [April 15, 2013]
-------
+-----------------------
 
 **Bugfixes**
 
@@ -681,9 +683,7 @@ Enhancement
 ----------------------
 
 0.9.96 [April 11, 2013]
-------
-
-----------------------
+-----------------------
 
 **Bugfixes**
 
@@ -692,7 +692,7 @@ Enhancement
 ----------------------
 
 0.9.95 [April 09, 2013]
-------
+-----------------------
 
 **Features**
 
@@ -703,7 +703,7 @@ Enhancement
 ----------------------
 
 0.9.9 [April 08, 2013]
------
+----------------------
 
 **Features**
 
@@ -718,7 +718,7 @@ Enhancement
 ----------------------
 
 0.9.7 [March 18, 2013]
------
+----------------------
 
 **Enhancments**
 
@@ -729,7 +729,7 @@ Enhancement
 ----------------------
 
 0.9.5 [March 10, 2013]
------
+----------------------
 
 **Features**
 

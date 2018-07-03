@@ -19,16 +19,6 @@ import warnings
 #     hmf = MassFunction(delta_wrt="the_moon")
 #     assert hmf.delta_wrt == "the_moon"
 
-def test_delta_halo_mean():
-    hmf = MassFunction(delta_h=180, delta_wrt="mean")
-    assert hmf.delta_halo == 180
-
-
-def test_delta_halo_crit():
-    hmf = MassFunction(delta_h=180, delta_wrt="crit", cosmo_params={"Om0": 0.3})
-    assert abs(hmf.delta_halo - 600.0) < 1e-3
-
-
 def test_wrong_filter():
     with raises(ValueError):
         h = MassFunction(filter_model=2)
@@ -57,26 +47,6 @@ def test_wrong_fit():
 def test_wrong_mf_par():
     with raises(ValueError):
         h = MassFunction(hmf_params=2)
-
-
-def test_wrong_dh():
-    with raises(ValueError):
-        h = MassFunction(delta_h="string")
-
-
-def test_neg_dh():
-    with raises(ValueError):
-        h = MassFunction(delta_h=0)
-
-
-def test_big_dh():
-    with raises(ValueError):
-        h = MassFunction(delta_h=1e5)
-
-
-def test_delta_wrt():
-    with raises(ValueError):
-        h = MassFunction(delta_wrt="this")
 
 
 def test_str_filter():
