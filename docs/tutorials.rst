@@ -10,3 +10,4 @@ with ``hmf``, and use it efficiently.
     :maxdepth: 2
 
     examples/deal_with_cosmology
+    examples/change_mass_definition

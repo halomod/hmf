@@ -6,20 +6,11 @@ API Summary
    :toctree: _autosummary
    :template: modules.rst
 
-   hmf.cosmo
-   hmf.transfer_models
-   hmf.transfer
-   hmf.halofit
-   hmf.growth_factor
-   hmf.filters
-   hmf.fitting_functions
-   hmf.hmf
-   hmf.wdm
-   hmf.integrate_hmf
-   hmf.functional
-   hmf.sample
-   hmf._framework
-   
-
+   hmf.cosmology
+   hmf.density_field
+   hmf.halos
+   hmf.mass_function
+   hmf.alternatives
+   hmf.helpers
    
 
