@@ -54,7 +54,7 @@ by opening an interpreter (e.g. IPython) and doing:
 >>> mass_func = hmf.dndlnm
 
 Note that all parameters have (what I consider reasonable) defaults. In particular,
-this will return a Sheth-Mo-Tormen (2001) mass function between
+this will return a Tinker (2008) mass function between
 :math:`10^{10}-10^{15} M_\odot`, at :math:`z=0` for the default PLANCK15 cosmology.
 Nevertheless, there are several parameters which can be input, either cosmological
 or otherwise. The best way to see these is to do
@@ -82,7 +82,7 @@ which are currently under construction, or the `API docs <api.html>`_.
 Contents
 --------
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    tutorials
    license
