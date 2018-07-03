@@ -62,6 +62,8 @@ copyright = u'%s, Steven Murray' % (time.localtime()[0])
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 
+exclude_patterns = ['_build', '**.ipynb_checkpoints']
+
 
 def read(*names, **kwargs):
     with io.open(
@@ -78,6 +80,7 @@ def find_version(*file_paths):
     if version_match:
         return version_match.group(1)
     raise RuntimeError("Unable to find version string.")
+
 
 # The short X.Y version.
 version = find_version("..","hmf", "__init__.py")
@@ -280,10 +283,10 @@ intersphinx_mapping = {'http://docs.python.org/': None}
 
 mathjax_path = "http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
 
-
-#===============================================================================
-# This does something naughty. It runs the nbconvert command on everything in the
-# given folder, and moves the results to another given folder on every make.
-
-source_ipy_folder = "examples"
-output_ipy_folder = "_exampledoc"
+#
+# #===============================================================================
+# # This does something naughty. It runs the nbconvert command on everything in the
+# # given folder, and moves the results to another given folder on every make.
+#
+# source_ipy_folder = "examples"
+# output_ipy_folder = "_exampledoc"
