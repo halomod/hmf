@@ -85,6 +85,13 @@ class MassFunction(transfer.Transfer):
         self.hmf_params = hmf_params or {}
         self.filter_model = filter_model
         self.filter_params = filter_params or {}
+        
+        self._default_masses = True
+        if (Mmin != 10) or (Mmax != 15):
+            self._default_masses = False
+            
+            if self.z >= 2:
+                print("Warning: High-z untested for non-default masses. See HMFCalc issue #6 for more info.")
 
     #===========================================================================
     # PARAMETERS
