@@ -400,8 +400,6 @@ if HAVE_CAMB:
             self._camb_transfers = camb.get_transfer_functions(self.p)
             self._t0 = self._camb_transfers.get_redshift_evolution(1.0, 0.0, ['delta_tot'])[0][0]
 
-
-
         def growth_factor(self, z):
             """
             Calculate :math:`d(a) = D^+(a)/D^+(a=1)`.
