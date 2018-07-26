@@ -87,8 +87,8 @@ class MassFunction(transfer.Transfer):
         self.hmf_params = hmf_params or {}
         self.filter_model = filter_model
         self.filter_params = filter_params or {}
-
-    # ===========================================================================
+        
+    #===========================================================================
     # PARAMETERS
     # ===========================================================================
     @parameter("res")
@@ -98,6 +98,10 @@ class MassFunction(transfer.Transfer):
 
         :type: float
         """
+                
+        if val<10 and self.z >= 2:
+            warnings.warn("hmf is un-tested for redshifts greater than 2 and extreme masses. See https://github.com/steven-murray/HMFcalc/issues/6 for details.")
+
         return val
 
     @parameter("res")
@@ -107,6 +111,9 @@ class MassFunction(transfer.Transfer):
 
         :type: float
         """
+        if val>15 and self.z >= 2:
+            warnings.warn("hmf is un-tested for redshifts greater than 2 and extreme masses. See https://github.com/steven-murray/HMFcalc/issues/6 for details.")
+        
         return val
 
     @parameter("res")
