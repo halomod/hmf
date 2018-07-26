@@ -86,13 +86,6 @@ class MassFunction(transfer.Transfer):
         self.filter_model = filter_model
         self.filter_params = filter_params or {}
         
-        self._default_masses = True
-        if (Mmin != 10) or (Mmax != 15):
-            self._default_masses = False
-            
-            if self.z >= 2:
-                print("Warning: High-z untested for non-default masses. See HMFCalc issue #6 for more info.")
-
     #===========================================================================
     # PARAMETERS
     #===========================================================================
@@ -103,6 +96,10 @@ class MassFunction(transfer.Transfer):
 
         :type: float
         """
+                
+        if val<10 and self.z >= 2:
+            warnings.warn("hmf is un-tested for redshifts greater than 2 and extreme masses. See https://github.com/steven-murray/HMFcalc/issues/6 for details.")
+
         return val
 
     @parameter("res")
@@ -112,6 +109,9 @@ class MassFunction(transfer.Transfer):
 
         :type: float
         """
+        if val>15 and self.z >= 2:
+            warnings.warn("hmf is un-tested for redshifts greater than 2 and extreme masses. See https://github.com/steven-murray/HMFcalc/issues/6 for details.")
+        
         return val
 
     @parameter("res")

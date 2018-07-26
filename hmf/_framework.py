@@ -85,17 +85,10 @@ class Framework(object):
         Update parameters of the framework with kwargs.
         """
         
-        # See issue #6 in HMFCalc        
-        if 'z' in kwargs:
-            if kwargs['z'] >= 2 and (not self._default_masses):
-                print("Warning: High-z untested for non-default masses. See HMFCalc issue #6 for more info.")
-        
         for k, v in list(kwargs.items()):
             if hasattr(self, k):
                 setattr(self, k, v)
                 del kwargs[k]
-
-        
 
         if kwargs:
             raise ValueError("Invalid arguments: %s" % kwargs)
