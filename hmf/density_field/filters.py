@@ -7,8 +7,7 @@ import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as _spline
 import scipy.integrate as intg
 import collections
-from . import _framework
-from . import _utils
+from .._internals import _framework, _utils
 import warnings
 
 

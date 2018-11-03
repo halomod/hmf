@@ -9,9 +9,9 @@ may be implemented.
 
 import numpy as np
 from scipy import integrate as intg
-from ._framework import Component as Cmpt
+from .._internals._framework import Component as Cmpt
 from scipy.interpolate import InterpolatedUnivariateSpline as _spline
-from ._utils import inherit_docstrings as _inherit
+from .._internals._utils import inherit_docstrings as _inherit
 import warnings
 
 try:
@@ -399,8 +399,6 @@ if HAVE_CAMB:
             # Now find the z=0 transfer
             self._camb_transfers = camb.get_transfer_functions(self.p)
             self._t0 = self._camb_transfers.get_redshift_evolution(1.0, 0.0, ['delta_tot'])[0][0]
-
-
 
         def growth_factor(self, z):
             """

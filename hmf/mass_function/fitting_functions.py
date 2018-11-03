@@ -8,11 +8,11 @@ listed here, please advise via GitHub.
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as _spline
 import scipy.special as sp
-from . import cosmo as csm
-from . import _framework
+from ..cosmology import cosmo as csm
+from .._internals import _framework
 from copy import copy
-from . import _utils
-
+from ..halos import mass_definitions as md
+import warnings
 
 class SimDetails(object):
     """
@@ -193,19 +193,13 @@ class FittingFunction(_framework.Component):
     n_eff : array_like, optional
         The effective spectral index at `m`. Only required if :attr:`req_neff` is True.
         
-    delta_halo : float, optional
-        The overdensity of the halo w.r.t. the mean density of the universe.
-        Only required if :attr:`req_dhalo` is True, in which case the default is 200.0
-
-    cosmo : :class:`hmf.cosmo.Cosmology` instance, optional
-        A cosmology. Default is the default provided by the :class:`cosmo.Cosmology`
-        class. Either `omegam_z` or `cosmo` is required if :attr:`req_omz` is True.
-        If both are passed, omegam_z takes precedence.
-
-    omegam_z : float, optional
-        A value for the mean matter density at the given redshift `z`. Either
-        `omegam_z` or `cosmo` is required if :attr:`req_omz` is True.
-        If both are passed, omegam_z takes precedence.
+    mass_definition : :class:`hmf.halos.mass_definitions.MassDefinition` instance, optional
+        A halo mass definition. Only required for fits which explicitly include a parameterization
+        for halo definition.
+        
+    cosmo : :class:`astropy.cosmology.FLRW` instance, optional
+        A cosmology. Default is Planck15. Either `omegam_z` or `cosmo` is required if 
+        :attr:`req_omz` is True. If both are passed, omegam_z takes precedence.
 
     \*\*model_parameters : unpacked-dictionary
         These parameters are model-specific. For any model, list the available
@@ -216,16 +210,8 @@ class FittingFunction(_framework.Component):
     _defaults = {}
 
     # Subclass requirements
-    req_omz = False
-    "Whether `omegam_z` is required for this subclass"
     req_neff = False
     "Whether `n_eff` is required for this subclass"
-    req_sigma = True
-    "Whether `sigma` (via `delta_c`) is required for this subclass"
-    req_z = True
-    "Whether `z` is required for this subclass"
-    req_dhalo = False
-    "Whether `delta_halo` is required for this subclass"
     req_mass = False
     "Whether `m` is required for this subclass"
 
@@ -233,41 +219,84 @@ class FittingFunction(_framework.Component):
     "Details of the defining simulation, subclass of ``SimDetails``"
 
     def __init__(self, nu2, m=None, z=0, n_eff=None,
-                 delta_halo=200, cosmo=None, omegam_z=None, delta_c=1.686,
+                 mass_definition=None, cosmo=None, delta_c=1.686,
                  **model_parameters):
 
         super(FittingFunction, self).__init__(**model_parameters)
 
-        # Save instance variables
         self.nu2 = nu2
+        self.z = z
+        self.n_eff = n_eff
+        self.mass_definition = mass_definition
+        self.m = m
+        self.delta_c = delta_c
+        self.cosmo = cosmo
 
-        if self.req_mass:
-            assert m is not None
-            self.m = m
+        # Simple Argument validation
+        if self.req_mass and m is None:
+            raise ValueError("This fitting function requires m as well as nu")
 
-        if self.req_dhalo:
-            self.delta_halo = delta_halo
+        if self.req_neff and n_eff is None:
+            raise ValueError("This fitting function requires n_eff")
 
-        if self.req_z:
-            self.z = z
+        # Complex argument validation
+        if self.mass_definition is not None and self.cosmo is None:
+            self.cosmo = self.mass_definition.cosmo
 
-        if self.req_neff:
-            assert n_eff is not None
-            self.n_eff = n_eff
+        if self.mass_definition is not None and self.mass_definition.z != self.z:
+            warnings.warn("The redshift in the mass definition differs from that passed, setting to the mass definition redshift.")
+            self.z = self.mass_definition.z
 
-        # Derived variables
-        self.nu = np.sqrt(nu2)
-        if self.req_sigma:
-            self.sigma = delta_c / self.nu
-            self.lnsigma = -np.log(self.sigma)
+        # Set omegam_z --- probably should be fixed.
+        # if self.req_omz:
+        #     if omegam_z is None:
+        #         if self.cosmo is None:
+        #             self.cosmo = csm.Planck15
+        #         self.omegam_z = self.cosmo.Om(self.z)
+        #     else:
+        #         self.omegam_z = omegam_z
 
-        if self.req_omz:
-            if omegam_z is None:
-                if cosmo is None:
-                    cosmo = csm.Cosmology()
-                self.omegam_z = cosmo.cosmo.Om(self.z)
+        if self.cosmo is None:
+            self.cosmo = csm.Planck15
+
+        # Try to set the measured mass definition
+        self.measured_mass_definition = None
+        if self.sim_definition is not None:
+            if self.sim_definition.halo_finder_type == "FoF":
+                self.measured_mass_definition = md.FOF(self.cosmo, self.z, linking_length=self.sim_definition.halo_overdensity)
+            elif self.sim_definition.halo_finder_type == "SO":
+                if self.sim_definition.halo_overdensity == "vir":
+                    self.measured_mass_definition = md.SOVirial(self.cosmo, self.z)
+                elif self.sim_definition.halo_overdensity.endswith('c'):
+                    self.measured_mass_definition = md.SOCritical(self.cosmo, self.z, overdensity=float(self.sim_definition.halo_overdensity[:-1]))
+                elif self.sim_definition.halo_overdensity.endswith('m'):
+                    self.measured_mass_definition = md.SOMean(self.cosmo, self.z, overdensity=float(
+                        self.sim_definition.halo_overdensity[:-1]))
+                elif self.sim_definition.halo_overdensity == "*":
+                    self.measured_mass_definition = None
+                else:
+                    warnings.warn("Unrecognized overdensity criterion format. Changing mass definitions will be impossible.")
             else:
-                self.omegam_z = omegam_z
+                warnings.warn("Unknown halo finder type in the sim_definition. Changing mass definitions will be impossible.")
+
+    @property
+    def omegam_z(self):
+        "Normalised matter density at current redshift."
+        return self.cosmo.Om(self.z)
+
+    @property
+    def nu(self):
+        "The peak height, sigma/delta_c"
+        return np.sqrt(self.nu2)
+
+    @property
+    def sigma(self):
+        "The mass variance as a function of mass"
+        return self.delta_c/self.nu
+
+    @property
+    def lnsigma(self):
+        return -np.log(self.sigma)
 
     @property
     def cutmask(self):
@@ -316,7 +345,7 @@ class SMT(FittingFunction):
                                 halo_finder_type="SO",
                                 omegam=0.3,
                                 sigma_8=0.9,
-                                halo_overdensity=178.0,
+                                halo_overdensity='vir',
                                 halo_finder=None,
                                 softening=30.0,
                                 transfer="BondEfs",
@@ -645,7 +674,7 @@ class Watson(FittingFunction):
     sim_definition = copy(Watson_FoF.sim_definition)
     sim_definition.halo_finder_type = "SO"
     sim_definition.halo_finder = "AHF"
-    sim_definition.halo_overdensity = 178.0
+    sim_definition.halo_overdensity = "*"
 
     _defaults = {"C_a": 0.023, "d_a": 0.456, "d_b": 0.139, "p": 0.072, "q": 2.13,
                  "A_0": 0.194, "alpha_0": 1.805, "beta_0": 2.267, "gamma_0": 1.287,
@@ -659,12 +688,23 @@ class Watson(FittingFunction):
         """
         Calculate :math:`\Gamma` for the Watson fit.
         """
-        C = np.exp(self.params["C_a"] * (self.delta_halo / 178 - 1))
+        if self.mass_definition is not None:
+            if not isinstance(self.mass_definition, md.SphericalOverdensity):
+                raise ValueError("The Watson fitting function is a spherical-overdensity function.")
+            else:
+                if isinstance(self.mass_definition, md.SOMean):
+                    delta_halo = self.mass_definition.params['overdensity']
+                else:
+                    delta_halo = self.mass_definition.params['overdensity'] / self.mass_definition.mean_density
+        else:
+            delta_halo = 178.0
+
+        C = np.exp(self.params["C_a"] * (delta_halo / 178 - 1))
         d = -self.params["d_a"] * self.omegam_z - self.params["d_b"]
         p = self.params["p"]
         q = self.params['q']
 
-        return C * (self.delta_halo / 178) ** d * np.exp(p * (1 - self.delta_halo / 178) / self.sigma ** q)
+        return C * (delta_halo / 178) ** d * np.exp(p * (1 - delta_halo / 178) / self.sigma ** q)
 
     @property
     def fsigma(self):
@@ -838,7 +878,7 @@ class Tinker08(FittingFunction):
         halo_finder_type="SO",
         omegam=[0.3, 0.3, 0.3, 0.3, 0.3, 0.27, 0.3, 0.3, 0.3, 0.3, 0.27, 0.24, 0.24, 0.24, 0.26, 0.2, 0.27, 0.23],
         sigma_8=[0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.79, 0.75, 0.75, 0.8, 0.75, 0.9, 0.79, 0.75],
-        halo_overdensity=200.0,
+        halo_overdensity="*",
         halo_finder=None,
         softening=[25, 14, 10, 4.9, 1.4, 120, 15, 7.6, 1.8, 1.2, 30, 15, 15, 15, 14, 14, 0.9, 1.2],
         transfer=None,
@@ -903,7 +943,18 @@ class Tinker08(FittingFunction):
     def __init__(self, **model_parameters):
         super(Tinker08, self).__init__(**model_parameters)
 
-        if self.delta_halo not in self.delta_virs:
+        if self.mass_definition is not None:
+            if not isinstance(self.mass_definition, md.SphericalOverdensity):
+                raise ValueError("The Watson fitting function is a spherical-overdensity function.")
+            else:
+                if isinstance(self.mass_definition, md.SOMean):
+                    delta_halo = self.mass_definition.params['overdensity']
+                else:
+                    delta_halo = self.mass_definition.params['overdensity'] / self.mass_definition.cosmo.Om(self.z)
+        else:
+            delta_halo = 200.0
+
+        if delta_halo not in self.delta_virs:
             A_array = np.array([self.params["A_%s" % d] for d in self.delta_virs])
             a_array = np.array([self.params["a_%s" % d] for d in self.delta_virs])
             b_array = np.array([self.params["b_%s" % d] for d in self.delta_virs])
@@ -914,19 +965,19 @@ class Tinker08(FittingFunction):
             b_func = _spline(self.delta_virs, b_array)
             c_func = _spline(self.delta_virs, c_array)
 
-            A_0 = A_func(self.delta_halo)
-            a_0 = a_func(self.delta_halo)
-            b_0 = b_func(self.delta_halo)
-            c_0 = c_func(self.delta_halo)
+            A_0 = A_func(delta_halo)
+            a_0 = a_func(delta_halo)
+            b_0 = b_func(delta_halo)
+            c_0 = c_func(delta_halo)
         else:
-            A_0 = self.params["A_%s" % (int(self.delta_halo))]
-            a_0 = self.params["a_%s" % (int(self.delta_halo))]
-            b_0 = self.params["b_%s" % (int(self.delta_halo))]
-            c_0 = self.params["c_%s" % (int(self.delta_halo))]
+            A_0 = self.params["A_%s" % (int(delta_halo))]
+            a_0 = self.params["a_%s" % (int(delta_halo))]
+            b_0 = self.params["b_%s" % (int(delta_halo))]
+            c_0 = self.params["c_%s" % (int(delta_halo))]
 
         self.A = A_0 * (1 + self.z) ** (-self.params["A_exp"])
         self.a = a_0 * (1 + self.z) ** (-self.params["a_exp"])
-        alpha = 10 ** (-(0.75 / np.log10(self.delta_halo / 75)) ** 1.2)
+        alpha = 10 ** (-(0.75 / np.log10(delta_halo / 75.)) ** 1.2)
         self.b = b_0 * (1 + self.z) ** (-alpha)
         self.c = c_0
 
@@ -985,7 +1036,20 @@ class Tinker10(FittingFunction):
     def __init__(self, **model_parameters):
         super(Tinker10, self).__init__(**model_parameters)
 
-        if self.delta_halo not in self.delta_virs:
+        if self.mass_definition is not None:
+            if not isinstance(self.mass_definition, md.SphericalOverdensity):
+                raise ValueError("The Watson fitting function is a spherical-overdensity function.")
+            else:
+                if isinstance(self.mass_definition, md.SOMean):
+                    delta_halo = self.mass_definition.params['overdensity']
+                else:
+                    delta_halo = self.mass_definition.params['overdensity'] / self.mass_definition.mean_density
+        else:
+            delta_halo = 200
+
+        self.delta_halo = delta_halo
+
+        if int(delta_halo) not in self.delta_virs:
             beta_array = np.array([self.params["beta_%s" % d] for d in self.delta_virs])
             gamma_array = np.array([self.params["gamma_%s" % d] for d in self.delta_virs])
             phi_array = np.array([self.params["phi_%s" % d] for d in self.delta_virs])
@@ -996,15 +1060,15 @@ class Tinker10(FittingFunction):
             phi_func = _spline(self.delta_virs, phi_array)
             eta_func = _spline(self.delta_virs, eta_array)
 
-            beta_0 = beta_func(self.delta_halo)
-            gamma_0 = gamma_func(self.delta_halo)
-            phi_0 = phi_func(self.delta_halo)
-            eta_0 = eta_func(self.delta_halo)
+            beta_0 = beta_func(delta_halo)
+            gamma_0 = gamma_func(delta_halo)
+            phi_0 = phi_func(delta_halo)
+            eta_0 = eta_func(delta_halo)
         else:
-            beta_0 = self.params['beta_%s' % (int(self.delta_halo))]
-            gamma_0 = self.params['gamma_%s' % (int(self.delta_halo))]
-            phi_0 = self.params['phi_%s' % (int(self.delta_halo))]
-            eta_0 = self.params['eta_%s' % (int(self.delta_halo))]
+            beta_0 = self.params['beta_%s' % (int(delta_halo))]
+            gamma_0 = self.params['gamma_%s' % (int(delta_halo))]
+            phi_0 = self.params['phi_%s' % (int(delta_halo))]
+            eta_0 = self.params['eta_%s' % (int(delta_halo))]
 
         self.beta = beta_0 * (1 + min(self.z, self.params["max_z"])) ** self.params["beta_exp"]
         self.phi = phi_0 * (1 + min(self.z, self.params["max_z"])) ** self.params['phi_exp']
@@ -1038,7 +1102,7 @@ class Tinker10(FittingFunction):
 
     @property
     def normalise(self):
-        if self.delta_halo in self.delta_virs and self.z == 0:
+        if int(self.delta_halo) in self.delta_virs and self.z == 0:
             return self.params['alpha_%s' % (int(self.delta_halo))]
         else:
             return 1 / (2 ** (self.eta - self.phi - 0.5) * self.beta ** (-2 * self.phi) \
@@ -1084,7 +1148,7 @@ class Behroozi(Tinker10):
                                 halo_finder_type="SO",
                                 omegam=0.27,
                                 sigma_8=0.82,
-                                halo_overdensity=178,
+                                halo_overdensity="vir",
                                 halo_finder="Rockstar",
                                 softening=[1, 7, 8],
                                 transfer="CAMB",

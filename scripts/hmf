@@ -118,7 +118,7 @@ USAGE
         transferargs.add_argument("--lnk", nargs=3, type=float, help="the wavenumber range and intervals, min max step [default: %s %s %s]" %
                                   (h.transfer.lnk[0], h.transfer.lnk[-1], h.transfer.lnk[1] - h.transfer.lnk[0]))
         transferargs.add_argument("--wdm-mass", nargs="*", type=float, help="warm dark matter mass (0 is CDM)")
-        transferargs.add_argument("--transfer-fit", nargs="*", choices=hmf.transfer.Transfer.fits + ['all'],
+        transferargs.add_argument("--transfer-fit", nargs="*", choices=cosmology.transfer.Transfer.fits + ['all'],
                                   help="which fit for the transfer function to use ('all' uses all of them) [default: %s]" % h.transfer.transfer_fit)
 
         cambargs = parser.add_argument_group("CAMB", "CAMB-specific arguments")

@@ -2,7 +2,7 @@ import numpy as np
 
 from pytest import raises
 from hmf import MassFunction
-from hmf import fitting_functions as ff
+from hmf.mass_function import fitting_functions as ff
 import inspect
 
 allfits = [o for n, o in inspect.getmembers(ff, lambda member: inspect.isclass(member) and issubclass(member,
@@ -48,15 +48,15 @@ class TestFitsCloseness(object):
 
 
 def test_tinker08_dh():
-    h = MassFunction(hmf_model="Tinker08", delta_h=200)
-    h1 = MassFunction(hmf_model="Tinker08", delta_h=200.1)
+    h = MassFunction(hmf_model="Tinker08", mdef_model="SOMean", mdef_params={"overdensity":200})
+    h1 = MassFunction(hmf_model="Tinker08", mdef_model="SOMean", mdef_params={"overdensity":200.1})
 
     assert np.allclose(h.fsigma, h1.fsigma, rtol=1e-2)
 
 
 def test_tinker10_dh():
-    h = MassFunction(hmf_model="Tinker10", delta_h=200)
-    h1 = MassFunction(hmf_model="Tinker10", delta_h=200.1)
+    h = MassFunction(hmf_model="Tinker10")
+    h1 = MassFunction(hmf_model="Tinker10", mdef_model="SOMean", mdef_params={"overdensity":200.1})
 
     assert np.allclose(h.fsigma, h1.fsigma, rtol=1e-2)
 

@@ -1,5 +1,6 @@
 from pytest import raises
-from hmf import wdm, hmf
+from hmf.alternatives import wdm
+from hmf.mass_function import hmf
 import numpy as np
 
 def test_null():
