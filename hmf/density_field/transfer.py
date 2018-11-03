@@ -10,7 +10,7 @@ from .._internals._cache import cached_quantity, parameter
 from .halofit import halofit as _hfit
 from ..cosmology import growth_factor as gf, cosmo
 from ..density_field import transfer_models as tm, filters
-from .._internals._framework import get_model
+from .._internals._framework import get_model, get_model_
 
 try:
     import camb
@@ -53,7 +53,6 @@ class Transfer(cosmo.Cosmology):
         # Set all given parameters
         self.n = n
         self.sigma_8 = sigma_8
-        self.growth_model = growth_model
         self.growth_params = growth_params or {}
         self.lnk_min = lnk_min
         self.lnk_max = lnk_max
@@ -63,6 +62,16 @@ class Transfer(cosmo.Cosmology):
         self.transfer_params = transfer_params or {}
         self.takahashi = takahashi
 
+        # Growth model has a more complicated default.
+        # We set it here so that "None" is not a relevant option for self.growth_model (and it can't be explicitly
+        # updated to None).
+        if growth_model is None:
+            if hasattr(self.cosmo, "w0") and HAVE_PYCAMB:
+                self.growth_model = "CambGrowth"
+            else:
+                self.growth_model = "GrowthFactor"
+        else:
+            self.growth_model = growth_model
     # ===========================================================================
     # Parameters
     # ===========================================================================
@@ -72,11 +81,14 @@ class Transfer(cosmo.Cosmology):
         """
         The model to use to calculate the growth function/growth rate.
 
-        :type: str or `hmf.growth_factor.GrowthFactor` subclass
+        :type: `hmf.growth_factor.GrowthFactor` subclass
         """
-        if not np.issubclass_(val, gf.GrowthFactor) and not isinstance(val, str) and val is not None:
+        if np.issubclass_(val, gf.GrowthFactor):
+            return val
+        elif isinstance(val, str):
+            return get_model_(val, "hmf.cosmology.growth_factor")
+        else:
             raise ValueError("growth_model must be a GrowthFactor or string, got %s" % type(val))
-        return val
 
     @parameter("param")
     def growth_params(self, val):
@@ -99,9 +111,12 @@ class Transfer(cosmo.Cosmology):
         """
         if not HAVE_PYCAMB and (val == "CAMB" or val == tm.CAMB):
             raise ValueError("You cannot use the CAMB transfer since pycamb isn't installed")
-        if not (np.issubclass_(val, tm.TransferComponent) or isinstance(val, str)):
+        if np.issubclass_(val, tm.TransferComponent):
+            return val
+        elif isinstance(val, str):
+            return get_model_(val, 'hmf.density_field.transfer_models')
+        else:
             raise ValueError("transfer_model must be string or Transfer subclass")
-        return val
 
     @parameter("param")
     def transfer_params(self, val):
@@ -204,11 +219,7 @@ class Transfer(cosmo.Cosmology):
         """
         The instantiated transfer model
         """
-        if np.issubclass_(self.transfer_model, tm.TransferComponent):
-            return self.transfer_model(self.cosmo, **self.transfer_params)
-        elif isinstance(self.transfer_model, str):
-            return get_model(self.transfer_model, "hmf.density_field.transfer_models", cosmo=self.cosmo,
-                             **self.transfer_params)
+        return self.transfer_model(self.cosmo, **self.transfer_params)
 
     @cached_quantity
     def _unnormalised_lnT(self):
@@ -259,19 +270,7 @@ class Transfer(cosmo.Cosmology):
     @cached_quantity
     def growth(self):
         "The instantiated growth model"
-        if self.growth_model is None:
-            if hasattr(self.cosmo, "w0") and HAVE_PYCAMB:
-                growth_model = "CambGrowth"
-            else:
-                growth_model = "GrowthFactor"
-        else:
-            growth_model = self.growth_model
-            
-        if np.issubclass_(self.growth_model, gf.GrowthFactor):
-            return growth_model(self.cosmo, **self.growth_params)
-        else:
-            return get_model(growth_model, "hmf.cosmology.growth_factor", cosmo=self.cosmo,
-                             **self.growth_params)
+        return self.growth_model(self.cosmo, **self.growth_params)
 
     @cached_quantity
     def growth_factor(self):
