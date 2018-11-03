@@ -1,11 +1,14 @@
 Author
 ------
-* `Steven Murray <https://github.com/steven-murray>`_
+Steven Murray: `@steven-murray <https://github.com/steven-murray>`_
+
+Contributors
+------------
+Jordan Mirocha (UCLA): `@mirochaj <https://github.com/mirochaj>`_
 
 Comments, corrections and suggestions
 -------------------------------------
-* Jordan Mirocha (UCLA)
-* Chris Power (UWA)
-* `Aaron Robotham (UWA) <https://github.com/asgr>`_
-* Alexander Knebe (UAMadrid)
-* Peter Behroozi (UC Berkeley)
+Chris Power (UWA)
+Aaron Robotham (UWA): `@asgr <https://github.com/asgr>`_
+Alexander Knebe (UAMadrid)
+Peter Behroozi (UC Berkeley)
