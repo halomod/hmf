@@ -32,7 +32,7 @@ v3.0.5 [23rd April 2019]
 - Moved from nose to pytest
 - Significant overhaul of package structure to more modularised form.
 
-v3.0.4 [23rd April 2019]
+v3.0.5 [23rd April 2019]
 ------------------------
 **Bugfixes**
 
