@@ -76,8 +76,8 @@ class TestTransfer(object):
 
 class TestMassFunction(object):
 
-    def setup_method(self, test_method):
-        self.wdm = wdm.MassFunctionWDM(alter_dndm=None, wdm_mass=3.0, wdm_model=wdm.Viel05)
+    def __init__(self):
+        self.wdm = wdm.MassFunctionWDM(alter_model=None, wdm_mass=3.0, wdm_model=wdm.Viel05)
         self.cdm = hmf.MassFunction()
 
     def test_dndm(self):
@@ -87,5 +87,5 @@ class TestMassFunction(object):
 
 class TestMassFunctionAlter(TestMassFunction):
     def __init__(self):
-        self.wdm = wdm.MassFunctionWDM(alter_dndm=wdm.Schneider12_vCDM, wdm_mass=3.0, wdm_model=wdm.Viel05)
+        self.wdm = wdm.MassFunctionWDM(alter_model=wdm.Schneider12_vCDM, wdm_mass=3.0, wdm_model=wdm.Viel05)
         self.cdm = hmf.MassFunction()
