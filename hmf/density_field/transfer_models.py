@@ -6,8 +6,10 @@ in :mod:`hmf.transfer`.
 '''
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
-from .._internals._framework import Component
-from astropy import cosmology
+from ._framework import Component
+import pickle
+import warnings
+from copy import deepcopy
 
 try:
     import camb
@@ -196,17 +198,56 @@ if HAVE_CAMB:
                 The log of the transfer function at lnk.
             """
 
-            camb_transfers = camb.get_transfer_functions(self.params['camb_params'])
-            T = camb_transfers.get_matter_transfer_data().transfer_data
-            T = np.log(T[[0, 6], :, 0])
+    def __getstate__(self):
+        # We need to get rid of the CAMBparams() object, as it cannot be pickled.
+        p = self.params['camb_params']
 
-            if lnk[0] < T[0, 0]:
-                lnkout, lnT = self._check_low_k(T[0, :], T[1, :], lnk[0])
-            else:
-                lnkout = T[0, :]
-                lnT = T[1, :]
+        potential_keys = [ # From https://camb.readthedocs.io/en/latest/model.html
+            'WantCls', "WantTransfer", "WantScalars", "WantTensors", "WantVectors",
+            "WantDerivedParameters", "Want_cl_2D_array", "Want_CMB", "Want_CMB_lensing",
+            "DoLensing", "NonLinear", "Transfer", "want_zstar", "want_zdrag",
+            "min_l", "max_l", "max_l_tensor", "max_eta_k", "max_eta_k_tensor",
+            "ombh2", "omch2", 'omk', 'omnuh2', 'H0', "TCMB", "YHe", "num_nu_massless",
+            "num_nu_massive", "nu_mass_eigenstates", "share_delta_neff", "InitPower", "Recomb", "Reion",
+            "DarkEnergy", "NonLinearModel", "Accuracy", "SourceTerms", "z_outputs",
+            "scalar_initial_condition", "InitialConditionVector", "OutputNormalization",
+            "Alens", "MassiveNuMethod", "DoLateRadTruncation", "Evolve_baryon_cs", "Evolve_delta_xe",
+            "Evolve_delta_Ts", "Do21cm", "transfer_21cm_cl", "Log_lvalues", "use_cl_spline_template",
+            "SourceWindows"
+        ]
 
-            return spline(lnkout, lnT, k=1)(lnk)
+        # Unsaveable parameters:
+        #"nu_mass_degeneracies", "nu_mass_fractions", "nu_mass_numbers", "CustomSources"
+
+        dct = {}
+        for pk in potential_keys:
+            try:
+                pickle.dumps(getattr(p, pk))
+
+                dct[pk] = getattr(p, pk)
+            except AttributeError:
+                warnings.warn("""
+                CAMB key {pk} is not an attribute. 
+                If you provided a custom CAMBparams, results may be inconsistent.
+                """.format(pk=pk))
+
+            except:
+                warnings.warn("CAMB key {pk} is not saveable".format(pk=pk))
+
+        # Deepcopy self
+        this = {}
+        for key, val in self.__dict__.items():
+            if key != "params":
+                this[key] = deepcopy(val)
+
+        this['params'] = {"camb_params": dct}
+
+        return this
+
+    def __setstate__(self, state):
+        self.__dict__ = state
+
+        self.params['camb_params'] = camb.CAMBparams(**self.params['camb_params'])
 
 
 class FromArray(FromFile):
