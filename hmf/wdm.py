@@ -70,7 +70,6 @@ class WDM(Component):
         raise NotImplementedError("You shouldn't call the WDM class, and any subclass should define the transfer method.")
 
 
-
 class Viel05(WDM):
     """
     Transfer function from Viel 2005 (which is exactly the same as Bode et al.
@@ -354,28 +353,28 @@ class MassFunctionWDM(_MF, TransferWDM):
     use ``MassFunctionWDM.get_all_parameters()``.To see the actual defaults for each parameter, use
     ``MassFunctionWDM.get_all_parameter_defaults()``.
     """
-    def __init__(self, alter_dndm=None, alter_params=None, **kwargs):
+    def __init__(self, alter_model=None, alter_params=None, **kwargs):
         super(MassFunctionWDM, self).__init__(**kwargs)
 
-        self.alter_dndm = alter_dndm
+        self.alter_model = alter_model
         self.alter_params = alter_params or {}
 
     @parameter("switch")
-    def alter_dndm(self, val):
+    def alter_model(self, val):
         """
         A model for empirical recalibration of the HMF.
 
         :type: None, str, or :class`WDMRecalibrateMF` subclass.
         """
         if not np.issubclass_(val, WDMRecalibrateMF) and val is not None and not np.issubclass_(val, str):
-            raise TypeError("alter_dndm must be a WDMRecalibrateMF subclass, string, or None")
+            raise TypeError("alter_model must be a WDMRecalibrateMF subclass, string, or None")
         else:
             return val
 
     @parameter("param")
     def alter_params(self, val):
         """
-        Model parameters for `alter_dndm`.
+        Model parameters for `alter_model`.
         """
         return val
 
@@ -386,12 +385,12 @@ class MassFunctionWDM(_MF, TransferWDM):
         """
         dndm = super(MassFunctionWDM, self).dndm
 
-        if self.alter_dndm is not None:
-            if np.issubclass_(self.alter_dndm, WDMRecalibrateMF):
-                alter = self.alter_dndm(m=self.m, dndm0=dndm, wdm=self.wdm,
-                                        **self.alter_params)
+        if self.alter_model is not None:
+            if np.issubclass_(self.alter_model, WDMRecalibrateMF):
+                alter = self.alter_model(m=self.m, dndm0=dndm, wdm=self.wdm,
+                                         **self.alter_params)
             else:
-                alter = get_model(self.alter_dndm, __name__, m=self.m,
+                alter = get_model(self.alter_model, __name__, m=self.m,
                                   dndm0=dndm, wdm=self.wdm, **self.alter_params)
             dndm = alter.dndm_alter()
 
