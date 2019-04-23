@@ -14,16 +14,26 @@ dev
 
 - Added `get_dependencies` method to _Framework, to enable finding all parameters that a quantity depends on.
 
+
+v3.0.4 [23rd April 2019]
+------------------------
 **Bugfixes**
 
 - When using camb for the transfer function, some cosmologies would lead to a segfault (i.e. when Ob0 or Tcmb0 are not
   set explicitly). This now raises a helpful error.
-
+- Fixed bug which made CAMB transfer function not pickleable or copyable.
+  NOTE: the fix is not perfect -- if you provide a custom CAMBparams class
+        to `transfer_params`, it is not certain that results will be consistent,
+        as a few of the attributes of this object are not pickleable, and thus
+        are ignored.
+        
 **Internals**
 
 - Removed logging, which was redundant.
 - Moved from nose to pytest
 - Significant overhaul of package structure to more modularised form.
+
+
 
 v3.0.3 [1st Dec 2017]
 ---------------------
