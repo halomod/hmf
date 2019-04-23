@@ -14,7 +14,6 @@ dev
 
 - Added `get_dependencies` method to _Framework, to enable finding all parameters that a quantity depends on.
 
-v3.0.5 [23rd April 2019]
 **Bugfixes**
 
 - When using camb for the transfer function, some cosmologies would lead to a segfault (i.e. when Ob0 or Tcmb0 are not
@@ -26,7 +25,7 @@ v3.0.5 [23rd April 2019]
 - Moved from nose to pytest
 - Significant overhaul of package structure to more modularised form.
 
-v3.0.4 [23rd April 2019]
+v3.0.5 [23rd April 2019]
 ------------------------
 **Bugfixes**
 
