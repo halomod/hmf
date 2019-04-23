@@ -90,6 +90,7 @@ class Framework(object):
         """
         Update parameters of the framework with kwargs.
         """
+        
         for k, v in list(kwargs.items()):
             if hasattr(self, k):
                 setattr(self, k, v)
