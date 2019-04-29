@@ -514,7 +514,7 @@ class SharpKEllipsoid(SharpK):
     def dlnss_dlnr(self, r):
         a3 = self.a3(r)
         sigma = self.sigma(a3)
-        power = np.exp(_spline(self.lnk, self.lnp)(np.log(1 / a3)))
+        power = _spline(self.k, self.power)(1 / a3)
         return -power / (2 * np.pi ** 2 * sigma ** 2 * a3 ** 3)
 
     def dlnr_dlnm(self, r):
