@@ -3,13 +3,16 @@ A module containing various smoothing filter Component models,
 including the popular top-hat in real space.
 '''
 
-import numpy as np
-from scipy.interpolate import InterpolatedUnivariateSpline as _spline
-import scipy.integrate as intg
 import collections
+import warnings
+
+import numpy as np
+import scipy.integrate as intg
+from scipy.interpolate import InterpolatedUnivariateSpline as _spline
+
 from . import _framework
 from . import _utils
-import warnings
+
 
 class Filter(_framework.Component):
     r"""
@@ -56,7 +59,8 @@ class Filter(_framework.Component):
     The factor :math:`\frac{d\ln R}{d\ln m}` is typically 1/3, but this is not necessarily the
     case for window functions of arbitrary shape.
     """
-    def __init__(self,  k, power, **model_parameters):
+
+    def __init__(self, k, power, **model_parameters):
         self.k = k
         self.power = power
 
@@ -92,7 +96,7 @@ class Filter(_framework.Component):
         """
         pass
 
-    def mass_to_radius(self, m,rho_mean):
+    def mass_to_radius(self, m, rho_mean):
         r"""
         Return radius of a region of space given its mass.
 
@@ -115,7 +119,7 @@ class Filter(_framework.Component):
         """
         pass
 
-    def radius_to_mass(self, r,rho_mean):
+    def radius_to_mass(self, r, rho_mean):
         r"""
         Return mass of a region of space given its radius
 
@@ -182,13 +186,13 @@ class Filter(_framework.Component):
         """
         dlnk = np.log(self.k[1] / self.k[0])
         s = self.sigma(r)
-        rk = np.outer(r,self.k)
+        rk = np.outer(r, self.k)
 
         rest = self.power * self.k ** 3
         w = self.k_space(rk)
         dw = self.dw_dlnkr(rk)
-        integ = w*dw*rest
-        return intg.simps(integ, dx=dlnk,axis=-1) / (np.pi ** 2 * s ** 2)
+        integ = w * dw * rest
+        return intg.simps(integ, dx=dlnk, axis=-1) / (np.pi ** 2 * s ** 2)
 
     def dlnr_dlnm(self, r):
         r"""
@@ -243,17 +247,17 @@ class Filter(_framework.Component):
         .. math:: \sigma^2_n(R) = \frac{1}{2\pi^2} \int_0^\infty dk\ k^{2(1+n)} P(k) W^2(kR)
         """
         if rk is None:
-            rk = np.outer(r,self.k)
+            rk = np.outer(r, self.k)
 
         dlnk = np.log(self.k[1] / self.k[0])
 
         # we multiply by k because our steps are in logk.
         rest = self.power * self.k ** (3 + order * 2)
-        integ = rest*self.k_space(rk)**2
-        sigma = (0.5/np.pi**2) * intg.simps(integ,dx=dlnk,axis=-1)
+        integ = rest * self.k_space(rk) ** 2
+        sigma = (0.5 / np.pi ** 2) * intg.simps(integ, dx=dlnk, axis=-1)
         return np.sqrt(sigma)
 
-    def nu(self, r,delta_c=1.686):
+    def nu(self, r, delta_c=1.686):
         r"""
         Peak height, :math:`\frac{\delta_c^2}{\sigma^2(r)}`.
 
@@ -266,6 +270,7 @@ class Filter(_framework.Component):
             Critical overdensity for collapse.
         """
         return (delta_c / self.sigma(r)) ** 2
+
 
 @_utils.inherit_docstrings
 class TopHat(Filter):
@@ -297,20 +302,21 @@ class TopHat(Filter):
     """
 
     def real_space(self, R, r):
-        a = np.where(r<R,1,0)
-        return np.where(r==R,0.5,a)
+        a = np.where(r < R, 1, 0)
+        return np.where(r == R, 0.5, a)
 
-    def k_space(self,kr):
-        return np.where(kr>1.4e-6,(3 / kr ** 3) * (np.sin(kr) - kr * np.cos(kr)),1)
+    def k_space(self, kr):
+        return np.where(kr > 1.4e-6, (3 / kr ** 3) * (np.sin(kr) - kr * np.cos(kr)), 1)
 
-    def mass_to_radius(self, m,rho_mean):
-        return (3.*m / (4.*np.pi * rho_mean)) ** (1. / 3.)
+    def mass_to_radius(self, m, rho_mean):
+        return (3. * m / (4. * np.pi * rho_mean)) ** (1. / 3.)
 
-    def radius_to_mass(self, r,rho_mean):
+    def radius_to_mass(self, r, rho_mean):
         return 4 * np.pi * r ** 3 * rho_mean / 3
 
     def dw_dlnkr(self, kr):
-        return np.where(kr>1e-3,(9 * kr * np.cos(kr) + 3 * (kr ** 2 - 3) * np.sin(kr)) / kr ** 3,0)
+        return np.where(kr > 1e-3, (9 * kr * np.cos(kr) + 3 * (kr ** 2 - 3) * np.sin(kr)) / kr ** 3, 0)
+
 
 @_utils.inherit_docstrings
 class Gaussian(Filter):
@@ -342,19 +348,20 @@ class Gaussian(Filter):
     """
 
     def real_space(self, R, r):
-        return np.exp(-r**2/2/R**2)/(2*np.pi)**1.5/R**3
+        return np.exp(-r ** 2 / 2 / R ** 2) / (2 * np.pi) ** 1.5 / R ** 3
 
     def k_space(self, kr):
-        return np.exp(-kr**2/2.0)
+        return np.exp(-kr ** 2 / 2.0)
 
-    def mass_to_radius(self, m,rho_mean):
-        return (m/rho_mean)**(1./3.)/np.sqrt(2*np.pi)
+    def mass_to_radius(self, m, rho_mean):
+        return (m / rho_mean) ** (1. / 3.) / np.sqrt(2 * np.pi)
 
-    def radius_to_mass(self, r,rho_mean):
-        return (2*np.pi)**1.5 * r**3 * rho_mean
+    def radius_to_mass(self, r, rho_mean):
+        return (2 * np.pi) ** 1.5 * r ** 3 * rho_mean
 
     def dw_dlnkr(self, kr):
-        return -kr**2 * self.k_space(kr)
+        return -kr ** 2 * self.k_space(kr)
+
 
 @_utils.inherit_docstrings
 class SharpK(Filter):
@@ -389,34 +396,34 @@ class SharpK(Filter):
 
     .. math:: \frac{d\ln \sigma^2}{d \ln R} = -\frac{P(1/R)}{2\pi^2\sigma^2(R)R^3}.
     """
-    _defaults = {"c":2.5}
+    _defaults = {"c": 2.5}
 
     def k_space(self, kr):
-        a = np.where(kr>1,0,1)
-        return np.where(kr==1,0.5,a)
+        a = np.where(kr > 1, 0, 1)
+        return np.where(kr == 1, 0.5, a)
 
     def real_space(self, R, r):
-        return (np.sin(r/R ) - (r/R)*np.cos(r/R))/(2*np.pi**2 * r**3)
+        return (np.sin(r / R) - (r / R) * np.cos(r / R)) / (2 * np.pi ** 2 * r ** 3)
 
     def dw_dlnkr(self, kr):
-        return np.where(kr==1,1.0,0.0)
+        return np.where(kr == 1, 1.0, 0.0)
 
     def dlnss_dlnr(self, r):
         sigma = self.sigma(r)
         power = _spline(self.k, self.power)(1 / r)
         return -power / (2 * np.pi ** 2 * sigma ** 2 * r ** 3)
 
-    def mass_to_radius(self, m,rho_mean):
-        return (1. / self.params['c']) * (3.*m / (4.*np.pi * rho_mean)) ** (1. / 3.)
+    def mass_to_radius(self, m, rho_mean):
+        return (1. / self.params['c']) * (3. * m / (4. * np.pi * rho_mean)) ** (1. / 3.)
 
-    def radius_to_mass(self, r,rho_mean):
+    def radius_to_mass(self, r, rho_mean):
         return 4 * np.pi * (self.params['c'] * r) ** 3 * rho_mean / 3
 
     def sigma(self, r, order=0):
         if not isinstance(r, collections.Iterable):
             r = np.atleast_1d(r)
 
-        if self.k.max() < 1/r.min():
+        if self.k.max() < 1 / r.min():
             warnings.warn("Warning: Maximum r*k less than 1!")
 
         # # Need to re-define this because the integral needs to go exactly kr=1
@@ -424,7 +431,8 @@ class SharpK(Filter):
         sigma = np.zeros(len(r))
         power = _spline(self.k, self.power)
         for i, rr in enumerate(r):
-            k = np.logspace(np.log10(self.k[0]), min(np.log10(self.k.max()),np.log10(1.0 / rr)), max(100,len(self.k)-i))
+            k = np.logspace(np.log10(self.k[0]), min(np.log10(self.k.max()), np.log10(1.0 / rr)),
+                            max(100, len(self.k) - i))
 
             p = power(k)
             dlnk = np.log(k[1] / k[0])
@@ -433,6 +441,7 @@ class SharpK(Filter):
 
         return np.sqrt(sigma)
 
+
 @_utils.inherit_docstrings
 class SharpKEllipsoid(SharpK):
     """
@@ -440,7 +449,7 @@ class SharpKEllipsoid(SharpK):
 
     Refer to :class:`~Filter` for more details.
     """
-    _defaults = {"c":2.0}
+    _defaults = {"c": 2.0}
 
     def xm(self, g, v):
         """
@@ -508,7 +517,7 @@ class SharpKEllipsoid(SharpK):
     def dlnss_dlnr(self, r):
         a3 = self.a3(r)
         sigma = self.sigma(a3)
-        power = np.exp(_spline(self.lnk, self.lnp)(np.log(1 / a3)))
+        power = _spline(self.k, self.power)(1 / a3)
         return -power / (2 * np.pi ** 2 * sigma ** 2 * a3 ** 3)
 
     def dlnr_dlnm(self, r):
