@@ -14,6 +14,12 @@ dev
 
 - Added `get_dependencies` method to _Framework, to enable finding all parameters that a quantity depends on.
 
+v3.0.6 [29th April 2019]
+------------------------
+**Bugfixes**
+
+- Fixed bug in SharpK Ellipsoid filter following previous API change.
+
 v3.0.5 [23rd April 2019]
 --------------------------
 **Bugfixes**

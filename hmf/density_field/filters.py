@@ -3,7 +3,11 @@ A module containing various smoothing filter Component models,
 including the popular top-hat in real space.
 '''
 
+import collections
+import warnings
+
 import numpy as np
+import scipy.integrate as intg
 from scipy.interpolate import InterpolatedUnivariateSpline as _spline
 import scipy.integrate as intg
 import collections
@@ -514,7 +518,7 @@ class SharpKEllipsoid(SharpK):
     def dlnss_dlnr(self, r):
         a3 = self.a3(r)
         sigma = self.sigma(a3)
-        power = np.exp(_spline(self.lnk, self.lnp)(np.log(1 / a3)))
+        power = _spline(self.k, self.power)(1 / a3)
         return -power / (2 * np.pi ** 2 * sigma ** 2 * a3 ** 3)
 
     def dlnr_dlnm(self, r):
