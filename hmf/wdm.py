@@ -347,14 +347,6 @@ class TransferWDM(_Tr):
     def _unnormalised_lnT(self):
         return super(TransferWDM, self)._unnormalised_lnT + np.log(self.wdm.transfer(self.k))
 
-    # @cached_quantity
-    # def _unnormalised_power(self):
-    #     """
-    #     Normalised log power at :math:`z=0`
-    #     """
-    #     powercdm = super(TransferWDM, self)._unnormalised_power
-    #     return self.wdm.transfer(self.k) ** 2 * powercdm
-
 
 class MassFunctionWDM(_MF, TransferWDM):
     """
