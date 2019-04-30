@@ -25,10 +25,11 @@ dev
 - Moved from nose to pytest
 - Significant overhaul of package structure to more modularised form.
 
-v3.0.6 [29th April 2019]
+v3.0.7 [29th April 2019]
 ------------------------
 **Bugfixes**
 
+- Fixed bugs in WDM models that remained from previous versions.
 - Fixed bug in SharpK Ellipsoid filter following previous API change.
 
 v3.0.5 [23rd April 2019]
