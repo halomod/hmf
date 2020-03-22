@@ -267,11 +267,18 @@ class Transfer(cosmo.Cosmology):
                              **self.growth_params)
 
     @cached_quantity
+    def _growth_factor_fn(self):
+        """
+            Function that efficiently returns the growth factor.
+        """
+        return self.growth.growth_factor_fn()
+
+    @cached_quantity
     def growth_factor(self):
         r"""
         The growth factor
         """
-        return self.growth.growth_factor(self.z)
+        return self._growth_factor_fn(self.z)
 
     @cached_quantity
     def power(self):
