@@ -10,7 +10,7 @@ python:
 notifications:
   email:
     recipients:
-    - steven.murray@curtin.edu.au
+    - steven.g.murray@asu.edu
 
 deploy:
   user: stevenjeanette
@@ -43,11 +43,10 @@ before_install:
   - conda info -a
 
 install:
-  - conda install python=$TRAVIS_PYTHON_VERSION numpy scipy mpmath nose astropy libgfortran
+  - conda install python=$TRAVIS_PYTHON_VERSION numpy scipy mpmath nose astropy
   - pip install python-coveralls
   - pip install coverage
   - pip install emcee
-  #- CAMBURL=http://camb.info/CAMB_Mar13.tar.gz pip install git+git://github.com/steven-murray/pycamb.git
   - sudo ln -s /usr/bin/gfortran-6 /usr/bin/gfortran
   - pip install camb
   - pip install coveralls
