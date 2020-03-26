@@ -121,7 +121,8 @@ class GrowthFactor(Cmpt):
             The normalised growth factor as a function of redshift, or
             redshift as a function of growth factor if ``inverse`` is True.
         """
-        growth = self._d_plus(zmin, True)/self._d_plus(0.0)
+        dp = self._d_plus(0.0, True)
+        growth = dp / dp[-1]
         if not inverse:
             s = _spline(self._zvec[::-1], growth[::-1])
         else:
