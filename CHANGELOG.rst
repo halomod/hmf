@@ -1,11 +1,18 @@
 Releases
 ========
 
-dev
-----------------
+v3.0.8 [26th March 2020]
+------------------------
+**Bugfixes**
+
+- Some documentation and CI fixes.
+
 **Enhancement**
 
 - Added `get_dependencies` method to _Framework, to enable finding all parameters that a quantity depends on.
+- Growth factor speed-up (thanks to @jlashner)
+- Added use_splined_growth argument (thanks to @jlashner)
+
 
 v3.0.7 [29th April 2019]
 ------------------------

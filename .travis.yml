@@ -1,16 +1,18 @@
 language: python
+dist: bionic
 sudo: required
 
 
 python:
   - 2.7
-  - 3.5
   - 3.6
+  - 3.7
+  - 3.8
 
 notifications:
   email:
     recipients:
-    - steven.murray@curtin.edu.au
+    - steven.g.murray@asu.edu
 
 deploy:
   user: stevenjeanette
@@ -20,12 +22,12 @@ deploy:
   password:
     secure: lAM0ScaCdOTbixtJf908INAKIpVCIPLSu4ZpqSxdp0zzMsTJJoTLo00wlmzzjeQDsxqgpiUIvjnwlpdur7Q+IPmwFa9hkg4VX4Mqe0keoDaoUQaUzpypZqYF0w4egVgc62NnXCGg3B/JuqUFuyM692uvmjvokGmadXLevXvPaxM=
 
-addons:
-  apt:
-    sources:
-    - ubuntu-toolchain-r-test
-    packages:
-    - gfortran-6
+#addons:
+#  apt:
+#    sources:
+#    - ubuntu-toolchain-r-test
+#    packages:
+#    - gfortran-6
 
 # Setup anaconda
 before_install:
@@ -43,13 +45,13 @@ before_install:
   - conda info -a
 
 install:
-  - conda install python=$TRAVIS_PYTHON_VERSION numpy scipy mpmath nose astropy libgfortran
+  - conda install python=$TRAVIS_PYTHON_VERSION numpy scipy mpmath nose astropy
+  - conda install -c conda-forge camb
   - pip install python-coveralls
   - pip install coverage
-  - pip install emcee
-  #- CAMBURL=http://camb.info/CAMB_Mar13.tar.gz pip install git+git://github.com/steven-murray/pycamb.git
-  - sudo ln -s /usr/bin/gfortran-6 /usr/bin/gfortran
-  - pip install --egg camb
+#  - pip install emcee
+#  - sudo ln -s /usr/bin/gfortran-6 /usr/bin/gfortran
+#  - pip install camb
   - pip install coveralls
 
 script:

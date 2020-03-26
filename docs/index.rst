@@ -71,7 +71,7 @@ To change the parameters (cosmological or otherwise), one should use the
 `update()` method, if a MassFunction() object already exists. For example
 
 >>> hmf = MassFunction()
->>> hmf.update(Ob0 = 0.05, z=10) #update baryon density and redshift
+>>> hmf.update(cosmo_params={"Ob0": 0.05}, z=10) #update baryon density and redshift
 >>> cumulative_mass_func = hmf.ngtm
 
 For a more involved introduction to `hmf`, check out the `tutorials <tutorials.html>`_,
