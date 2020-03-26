@@ -1,18 +1,18 @@
 Releases
 ========
 
-dev
--------
-**Features**
+v3.0.8 [26th March 2020]
+------------------------
+**Bugfixes**
 
-- Added new ``CambGrowth`` growth factor model, which computes the growth using CAMB. This is useful especially when
-  using w > -1, for which the other growth factor models are inadequate. Solves issue #19 raised by @tijmen.
-- Added new module ``mass_definitions`` which more robustly deals with various halo mass definitions, and also includes
-  ability to convert mass functions between different definitions.
+- Some documentation and CI fixes.
 
 **Enhancement**
 
 - Added `get_dependencies` method to _Framework, to enable finding all parameters that a quantity depends on.
+- Growth factor speed-up (thanks to @jlashner)
+- Added use_splined_growth argument (thanks to @jlashner)
+
 
 v3.0.7 [29th April 2019]
 ------------------------
