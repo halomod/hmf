@@ -49,8 +49,8 @@ class Transfer(cosmo.Cosmology):
 
     def __init__(self, sigma_8=0.8159, n=0.9667, z=0.0, lnk_min=np.log(1e-8),
                  lnk_max=np.log(2e4), dlnk=0.05, transfer_model=tm.CAMB if HAVE_PYCAMB else tm.EH,
-                 transfer_params=None, takahashi=True, growth_model=None,
-                 growth_params=None, **kwargs):
+                 transfer_params=None, takahashi=True, growth_model=gf.GrowthFactor,
+                 growth_params=None, use_splined_growth=False, **kwargs):
 
         # Call Cosmology init
         super(Transfer, self).__init__(**kwargs)
@@ -59,6 +59,7 @@ class Transfer(cosmo.Cosmology):
         self.n = n
         self.sigma_8 = sigma_8
         self.growth_params = growth_params or {}
+        self.use_splined_growth = use_splined_growth
         self.lnk_min = lnk_min
         self.lnk_max = lnk_max
         self.dlnk = dlnk
@@ -290,11 +291,21 @@ class Transfer(cosmo.Cosmology):
                              **self.growth_params)
 
     @cached_quantity
+    def _growth_factor_fn(self):
+        """
+        Function that efficiently returns the growth factor.
+        """
+        return self.growth.growth_factor_fn()
+
+    @cached_quantity
     def growth_factor(self):
         r"""
         The growth factor
         """
-        return self.growth.growth_factor(self.z)
+        if self.use_splined_growth:
+            return self._growth_factor_fn(self.z)
+        else:
+            return self.growth.growth_factor(self.z)
 
     @cached_quantity
     def power(self):
