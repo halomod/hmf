@@ -69,8 +69,8 @@ class Transfer(cosmo.Cosmology):
         self.takahashi = takahashi
 
         # Growth model has a more complicated default.
-        # We set it here so that "None" is not a relevant option for self.growth_model (and it can't be explicitly
-        # updated to None).
+        # We set it here so that "None" is not a relevant option for self.growth_model
+        # (and it can't be explicitly updated to None).
         if growth_model is None:
             if hasattr(self.cosmo, "w0") and HAVE_PYCAMB:
                 self.growth_model = "CambGrowth"
