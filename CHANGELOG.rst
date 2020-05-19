@@ -26,7 +26,7 @@ of this.
 - Moved from nose to pytest
 - Significant overhaul of package structure to more modularised form.
 - Added flake8 checks and black formatting
-
+- Moved away from git-flow as it is not easy to use with GitHub.
 
 
 v3.0.8 [26th March 2020]
