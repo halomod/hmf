@@ -41,7 +41,7 @@ before_install:
 install:
   - conda install python=$TRAVIS_PYTHON_VERSION numpy scipy mpmath nose astropy
   - conda install -c conda-forge camb
-  - pip install -U tox-travis coverage coveralls
+  - pip install -U tox-travis coverage coveralls pytest-cov
   - pip install .
 
 # command to run tests, e.g. python setup.py test
