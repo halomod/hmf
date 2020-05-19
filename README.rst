@@ -19,8 +19,9 @@ hmf
 Halo Mass Function for a range of varying parameters. It is also the backend to
 `HMFcalc <http://hmf.icrar.org>`_, the online HMF calculator.
 
-.. warning:: From v3.1, ``hmf`` supports Python 3.6+, and has dropped support for
-             Python 2.
+Note
+~~~~
+From v3.1, ``hmf`` supports Python 3.6+, and has dropped support for Python 2.
 
 Documentation
 -------------
