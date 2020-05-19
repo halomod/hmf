@@ -40,7 +40,6 @@ class GrowthFactor(_GrowthFactor):
     ----------
     cosmo : ``astropy.cosmology.FLRW`` instance
         Cosmological model.
-
     \*\*model_parameters : unpack-dict
         Parameters specific to this model. In this case, available
         parameters are as follows.To see their default values, check
@@ -72,7 +71,6 @@ class GrowthFactor(_GrowthFactor):
         ----------
         z : float
             The redshift
-
         getvec : bool, optional
             Whether to treat `z` as a maximum redshift and return a whole vector
             of values up to `z`. In this case, the minimum scale factor and the
@@ -131,7 +129,6 @@ class GrowthFactor(_GrowthFactor):
         ----------
         zmin : float, optional
             The minimum redshift of the function. Default 0.0
-
         inverse: bool, optional
             Whether to return the inverse relationship [z(g)]. Default False.
 
@@ -198,7 +195,6 @@ class GenMFGrowth(GrowthFactor):
     ----------
     cosmo : ``astropy.cosmology.FLRW`` instance
         Cosmological model.
-
     \*\*model_parameters : unpack-dict
         Parameters specific to this model. In this case, available
         parameters are as follows.To see their default values, check
@@ -310,7 +306,6 @@ class Carroll1992(GrowthFactor):
     ----------
     cosmo : ``astropy.cosmology.FLRW`` instance
         Cosmological model.
-
     \*\*model_parameters : unpack-dict
         Parameters specific to this model. In this case, available
         parameters are as follows.To see their default values, check
@@ -364,7 +359,6 @@ class Carroll1992(GrowthFactor):
         ----------
         zmin : float, optional
             The minimum redshift of the function. Default 0.0
-
         inverse: bool, optional
             Whether to return the inverse relationship [z(g)]. Default False.
 
@@ -388,9 +382,10 @@ if HAVE_CAMB:
     @_inherit
     class CambGrowth(_GrowthFactor):
         """
-        Uses CAMB to generate the growth factor, at k/h = 1.0. This class is recommended if the cosmology is not
-        LambdaCDM (but instead wCDM), as it correctly deals with the growth in this case. However, it standard
-        LCDM is used, other classes are preferred, as this class needs to re-calculate the transfer function.
+        Uses CAMB to generate the growth factor, at k/h = 1.0. This class is recommended
+        if the cosmology is not LambdaCDM (but instead wCDM), as it correctly deals with
+        the growth in this case. However, it standard LCDM is used, other classes are
+        preferred, as this class needs to re-calculate the transfer function.
         """
 
         def __init__(self, *args, **kwargs):

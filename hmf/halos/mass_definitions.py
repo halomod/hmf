@@ -28,10 +28,8 @@ class MassDefinition(_framework.Component):
     ----------
     cosmo: :class:`astropy.cosmology.FLRW` instance, optional
         The cosmology within which the haloes will be embedded.
-
     z : float, optional
         The redshift at which the mass definition is defined.
-
     model_parameters :
         Any parameters that uniquely affect the chosen Mass Definition model. These
         merge with `_defaults` to create the `.params` dictionary.
@@ -76,7 +74,6 @@ class MassDefinition(_framework.Component):
 
         Notes
         -----
-
         Computed as :math:`\left(\frac{3m}{4\pi \rho_{\rm halo}\right)`.
         """
         try:
@@ -97,7 +94,6 @@ class MassDefinition(_framework.Component):
 
         Notes
         -----
-
         Computed as :math:`\frac{4\pi r^3}{3} \rho_{\rm halo}`.
         """
         try:
@@ -125,14 +121,11 @@ class MassDefinition(_framework.Component):
         m : float or array_like
             The halo mass to be changed, in :math:`M_\odot/h`. Must be
             broadcastable with `c`, if provided.
-
         mdef : :class:`MassDefinition` subclass instance
             The mass definition to which to change.
-
         profile : :class:`halomod.profiles.Profile` instance, optional
             An instantiated profile object from which to calculate the expected
             definition change. If not provided, a mocked NFW profile is used.
-
         c : float or array_like, optional
             The concentration(s) of the halos given. If not given, the concentrations
             will be automatically calculated using the profile object.
@@ -216,9 +209,7 @@ class SOMean(SphericalOverdensity):
 
     @property
     def halo_density(self):
-        """
-        The density of haloes under this definition.
-        """
+        """The density of haloes under this definition."""
         return self.params["overdensity"] * self.mean_density
 
 
@@ -283,12 +274,10 @@ def _find_new_concentration(rho_s, halo_density, h=None, x_guess=5.0):
     ----------
     rho_s: float
         The central density in physical :math:`M_{\odot} h^2 / {\\rm kpc}^3`.
-
     halo_density: float
         The desired enclosed density threshold in physical :math:`M_{\odot} h^2 / {\\rm kpc}^3`.
         This number can be generated from a mass definition and redshift using the
         :func:`~halo.mass_so.densityThreshold` function.
-
     h : callable
         Return the enclosed density as function of r/r_s.
 

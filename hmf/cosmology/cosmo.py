@@ -48,9 +48,6 @@ class Cosmology(_framework.Framework):
         self.cosmo_model = cosmo_model
         self.cosmo_params = cosmo_params or {}
 
-    # ===========================================================================
-    # Parameters
-    # ===========================================================================
     @_cache.parameter("model")
     def cosmo_model(self, val):
         """
@@ -60,8 +57,7 @@ class Cosmology(_framework.Framework):
         :type: instance of `astropy.cosmology.FLRW` subclass
         """
         if isinstance(val, str):
-            cosmo = get_cosmo(val)
-            return cosmo
+            return get_cosmo(val)
 
         if not isinstance(val, FLRW):
             raise ValueError(

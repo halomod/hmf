@@ -18,10 +18,8 @@ def hmf_integral_gtm(M, dndm, mass_density=False):
     ----------
     M : array_like
         Array of masses.
-
     dndm : array_like
         Array of dn/dm (corresponding to M)
-
     mass_density : bool, `False`
         Whether to calculate mass density (or number density).
 

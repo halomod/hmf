@@ -304,21 +304,22 @@ class FittingFunction(_framework.Component):
 
     @property
     def omegam_z(self):
-        "Normalised matter density at current redshift."
+        """Normalised matter density at current redshift."""
         return self.cosmo.Om(self.z)
 
     @property
     def nu(self):
-        "The peak height, sigma/delta_c"
+        """The peak height, sigma/delta_c."""
         return np.sqrt(self.nu2)
 
     @property
     def sigma(self):
-        "The mass variance as a function of mass"
+        """The sqrt of mass variance as a function of mass."""
         return self.delta_c / self.nu
 
     @property
     def lnsigma(self):
+        """Negative log of sigma."""
         return -np.log(self.sigma)
 
     @property
@@ -331,9 +332,7 @@ class FittingFunction(_framework.Component):
 
     @property
     def fsigma(self):
-        r"""
-        The function :math:`f(\sigma)\equiv\nu f(\nu)`.
-        """
+        r"""The function :math:`f(\sigma)\equiv\nu f(\nu)`."""
         pass
 
 
@@ -387,15 +386,13 @@ class SMT(FittingFunction):
         a = self.params["a"]
         p = self.params["p"]
 
-        vfv = (
+        return (
             A
             * np.sqrt(2.0 * a / np.pi)
             * self.nu
             * np.exp(-(a * self.nu2) / 2.0)
             * (1 + (1.0 / (a * self.nu2)) ** p)
         )
-
-        return vfv
 
     def norm(self):
         if self.params["A"] is not None:

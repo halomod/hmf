@@ -11,7 +11,7 @@ import numpy as np
 from ..density_field.transfer import Transfer as _Tr
 from ..mass_function.hmf import MassFunction as _MF
 from .._internals._cache import parameter, cached_quantity
-from .._internals._framework import Component, get_model, get_model_
+from .._internals._framework import Component, get_model_
 from ..cosmology.cosmo import Planck15
 
 import astropy.units as u
@@ -91,13 +91,10 @@ class Viel05(WDM):
     ----------
     mx : float
         Mass of the particle in keV
-
     cosmo : `hmf.cosmo.Cosmology` instance
         A cosmology.
-
     z : float
         Redshift.
-
     \*\*model_parameters : unpack-dict
         Parameters specific to a model. Available parameters are as follows.
         To see the default values, check the :attr:`_defaults`
@@ -176,13 +173,10 @@ class WDMRecalibrateMF(Component):
     ----------
     m : array_like
         Masses at which the HMF is calculated.
-
     dndm0 : array_like
         The original HMF at `m`.
-
     wdm : :class:`WDM` subclass instance
         An instance of :class:`WDM` providing a Warm Dark Matter model.
-
     \*\*model_parameters : unpack-dict
         Parameters specific to a model.
         To see the default values, check the :attr:`_defaults`
@@ -207,13 +201,10 @@ class Schneider12_vCDM(WDMRecalibrateMF):
     ----------
     m : array_like
         Masses at which the HMF is calculated.
-
     dndm0 : array_like
         The CDM HMF at `m`.
-
     wdm : :class:`WDM` subclass instance
         An instance of :class:`WDM` providing a Warm Dark Matter model.
-
     \*\*model_parameters : unpack-dict
         Parameters specific to this model: **beta**.
         To see the default values, check the :attr:`_defaults`
@@ -234,13 +225,10 @@ class Schneider12(WDMRecalibrateMF):
     ----------
     m : array_like
         Masses at which the HMF is calculated.
-
     dndm0 : array_like
         The original WDM HMF at `m`.
-
     wdm : :class:`WDM` subclass instance
         An instance of :class:`WDM` providing a Warm Dark Matter model.
-
     \*\*model_parameters : unpack-dict
         Parameters specific to this model: **alpha**.
         To see the default values, check the :attr:`_defaults`
@@ -261,13 +249,10 @@ class Lovell14(WDMRecalibrateMF):
     ----------
     m : array_like
         Masses at which the HMF is calculated.
-
     dndm0 : array_like
         The original HMF at `m`.
-
     wdm : :class:`WDM` subclass instance
         An instance of :class:`WDM` providing a Warm Dark Matter model.
-
     \*\*model_parameters : unpack-dict
         Parameters specific to this model: **beta**.
         To see the default values, check the :attr:`_defaults`
@@ -309,9 +294,6 @@ class TransferWDM(_Tr):
         self.wdm_model = wdm_model
         self.wdm_params = wdm_params
 
-    # ===========================================================================
-    # Parameters
-    # ===========================================================================
     @parameter("model")
     def wdm_model(self, val):
         """
@@ -353,9 +335,6 @@ class TransferWDM(_Tr):
             raise ValueError("wdm_mass must be > 0 (", val, ")")
         return val
 
-    # ===========================================================================
-    # Derived properties
-    # ===========================================================================
     @cached_quantity
     def wdm(self):
         """
@@ -422,7 +401,9 @@ class MassFunctionWDM(_MF, TransferWDM):
     @cached_quantity
     def dndm(self):
         r"""
-        The number density of haloes in WDM, ``len=len(m)`` [units :math:`h^4 M_\odot^{-1} Mpc^{-3}`]
+        The number density of haloes in WDM, ``len=len(m)``.
+
+        Units of :math:`h^4 M_\odot^{-1} Mpc^{-3}`
         """
         dndm = super(MassFunctionWDM, self).dndm
 

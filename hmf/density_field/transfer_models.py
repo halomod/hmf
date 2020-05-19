@@ -34,7 +34,6 @@ class TransferComponent(Component):
     ----------
     cosmo : :class:`astropy.cosmology.FLRW` instance
         The cosmology used in the calculation
-
     \*\*model_parameters :
         Any model-specific parameters.
     """
@@ -73,7 +72,6 @@ class FromFile(TransferComponent):
     ----------
     cosmo : :class:`astropy.cosmology.FLRW` instance
         The cosmology used in the calculation
-
     \*\*model_parameters : unpack-dict
         Parameters specific to this model. In this case, available
         parameters are the following. To see their default values,
@@ -96,7 +94,6 @@ class FromFile(TransferComponent):
         ----------
         lnk : array_like
             Value of log(k)
-
         lnT : array_like
             Value of log(transfer)
         """
@@ -149,7 +146,6 @@ if HAVE_CAMB:
         ----------
         cosmo : :class:`astropy.cosmology.FLRW` instance
             The cosmology used in the calculation
-
         \*\*model_parameters : unpack-dict
             Parameters specific to this model.
 
@@ -335,7 +331,6 @@ class FromArray(FromFile):
     ----------
     cosmo : :class:`astropy.cosmology.FLRW` instance
         The cosmology used in the calculation
-
     \*\*model_parameters : unpack-dict
         Parameters specific to this model. In this case, available
         parameters are the following. To see their default values,
@@ -392,7 +387,6 @@ class EH_BAO(TransferComponent):
     ----------
     cosmo : :class:`astropy.cosmology.FLRW` instance
         The cosmology used in the calculation
-
     \*\*model_parameters : unpack-dict
         Parameters specific to this model. In this case, there
         are no model parameters.
@@ -554,7 +548,6 @@ class EH_NoBAO(EH_BAO):
     ----------
     cosmo : :class:`astropy.cosmology.FLRW` instance
         The cosmology used in the calculation
-
     \*\*model_parameters : unpack-dict
         Parameters specific to this model. In this case, there are
         no model parameters.
@@ -673,7 +666,6 @@ class BondEfs(TransferComponent):
     ----------
     cosmo : :class:`astropy.cosmology.FLRW` instance
         The cosmology used in the calculation
-
     \*\*model_parameters : unpack-dict
         Parameters specific to this model. In this case, available
         parameters are the following: **a, b, c, nu**.
