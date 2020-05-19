@@ -1,0 +1,14 @@
+name: tests
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - astropy>=4.0
+  - coverage
+  - numpy>=1.15
+  - pip
+  - pytest
+  - pytest-cov
+  - scipy
+  - setuptools_scm
+  - camb
