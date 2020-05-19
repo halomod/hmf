@@ -33,13 +33,14 @@ class Transfer(cosmo.Cosmology):
     (but stored after first calculation for quick access).
 
     In addition to the parameters directly passed to this class, others are available
-    which are passed on to its superclass. To read a standard documented list of (all) parameters,
-    use ``Transfer.parameter_info()``. If you want to just see the plain list of available parameters,
-    use ``Transfer.get_all_parameters()``.To see the actual defaults for each parameter, use
-    ``Transfer.get_all_parameter_defaults()``.
+    which are passed on to its superclass. To read a standard documented list of (all)
+    parameters, use ``Transfer.parameter_info()``. If you want to just see the plain
+    list of available parameters, use ``Transfer.get_all_parameters()``.To see the
+    actual defaults for each parameter, use ``Transfer.get_all_parameter_defaults()``.
 
-    By default, the `growth_model` is :class:`~growth_factor.GrowthFactor`. However, if using a wCDM cosmology
-    and camb is installed, it will default to :class:`~growth_factor.CambGrowth`.
+    By default, the `growth_model` is :class:`~growth_factor.GrowthFactor`. However, if
+    using a wCDM cosmology and camb is installed, it will default to
+    :class:`~growth_factor.CambGrowth`.
     """
 
     def __init__(
@@ -125,7 +126,7 @@ class Transfer(cosmo.Cosmology):
 
         :type: str or :class:`hmf.transfer_models.TransferComponent` subclass, optional
         """
-        if not HAVE_PYCAMB and (val == "CAMB" or val == tm.CAMB):
+        if not HAVE_PYCAMB and val in ["CAMB", tm.CAMB]:
             raise ValueError(
                 "You cannot use the CAMB transfer since pycamb isn't installed"
             )
@@ -148,7 +149,7 @@ class Transfer(cosmo.Cosmology):
     @parameter("param")
     def sigma_8(self, val):
         """
-        RMS linear density fluctations in spheres of radius 8 Mpc/h
+        RMS linear density fluctuations in spheres of radius 8 Mpc/h
 
         :type: float
         """
@@ -159,7 +160,7 @@ class Transfer(cosmo.Cosmology):
     @parameter("param")
     def n(self, val):
         """
-        Spectral index of fluctations
+        Spectral index of fluctuations
 
         Must be greater than -3 and less than 4.
 
@@ -172,7 +173,7 @@ class Transfer(cosmo.Cosmology):
     @parameter("res")
     def lnk_min(self, val):
         """
-        Minimum (natural) log wavenumber, :attr:`k` [h/Mpc].
+        Minimum (natural) log wave-number, :attr:`k` [h/Mpc].
 
         :type: float
         """
@@ -181,7 +182,7 @@ class Transfer(cosmo.Cosmology):
     @parameter("res")
     def lnk_max(self, val):
         """
-        Maximum (natural) log wavenumber, :attr:`k` [h/Mpc].
+        Maximum (natural) log wave-number, :attr:`k` [h/Mpc].
 
         :type: float
         """
@@ -190,7 +191,7 @@ class Transfer(cosmo.Cosmology):
     @parameter("res")
     def dlnk(self, val):
         """
-        Step-size of log wavenumbers
+        Step-size of log wave-numbers
 
         :type: float
         """
@@ -280,28 +281,22 @@ class Transfer(cosmo.Cosmology):
 
     @cached_quantity
     def transfer_function(self):
-        """
-        Normalised CDM log transfer function
-        """
+        """Normalised CDM log transfer function."""
         return self._normalisation * np.exp(self._unnormalised_lnT)
 
     @cached_quantity
     def growth(self):
-        "The instantiated growth model"
+        """The instantiated growth model."""
         return self.growth_model(self.cosmo, **self.growth_params)
 
     @cached_quantity
     def _growth_factor_fn(self):
-        """
-        Function that efficiently returns the growth factor.
-        """
+        """Function that efficiently returns the growth factor."""
         return self.growth.growth_factor_fn()
 
     @cached_quantity
     def growth_factor(self):
-        r"""
-        The growth factor
-        """
+        r"""The growth factor."""
         if self.use_splined_growth:
             return self._growth_factor_fn(self.z)
         else:
@@ -309,22 +304,20 @@ class Transfer(cosmo.Cosmology):
 
     @cached_quantity
     def power(self):
-        """
-        Normalised log power spectrum [units :math:`Mpc^3/h^3`]
-        """
+        """Normalised log power spectrum [units :math:`Mpc^3/h^3`]."""
         return self.growth_factor ** 2 * self._power0
 
     @cached_quantity
     def delta_k(self):
         r"""
-        Dimensionless power spectrum, :math:`\Delta_k = \frac{k^3 P(k)}{2\pi^2}`
+        Dimensionless power spectrum, :math:`\Delta_k = \frac{k^3 P(k)}{2\pi^2}`.
         """
         return self.k ** 3 * self.power / (2 * np.pi ** 2)
 
     @cached_quantity
     def nonlinear_power(self):
         """
-        Non-linear log power [units :math:`Mpc^3/h^3`]
+        Non-linear log power [units :math:`Mpc^3/h^3`].
 
         Non-linear corrections come from HALOFIT.
         """
@@ -333,7 +326,9 @@ class Transfer(cosmo.Cosmology):
     @cached_quantity
     def nonlinear_delta_k(self):
         r"""
-        Dimensionless nonlinear power spectrum, :math:`\Delta_k = \frac{k^3 P_{\rm nl}(k)}{2\pi^2}`
+        Dimensionless nonlinear power spectrum.
+
+        .. math:: \Delta_k = \frac{k^3 P_{\rm nl}(k)}{2\pi^2}
         """
 
         return _hfit(

@@ -5,9 +5,6 @@ The module contains a single class, `MassFunction`, which wraps almost all the
 functionality of :mod:`hmf` in an easy-to-use way.
 """
 
-###############################################################################
-# Some Imports
-###############################################################################
 import numpy as np
 import copy
 from scipy.optimize import minimize
@@ -42,9 +39,10 @@ class MassFunction(transfer.Transfer):
     (but stored after first calculation for quick access).
 
     In addition to the parameters directly passed to this class, others are available
-    which are passed on to its superclass. To read a standard documented list of (all) parameters,
-    use ``MassFunction.parameter_info()``. If you want to just see the plain list of available parameters,
-    use ``MassFunction.get_all_parameters()``.To see the actual defaults for each parameter, use
+    which are passed on to its superclass. To read a standard documented list of (all)
+    parameters, use ``MassFunction.parameter_info()``. If you want to just see the plain
+    list of available parameters, use ``MassFunction.get_all_parameters()``. To see the
+    actual defaults for each parameter, use
     ``MassFunction.get_all_parameter_defaults()``.
 
     Examples
@@ -54,12 +52,14 @@ class MassFunction(transfer.Transfer):
     >>> h = MassFunction()
     >>> h.dndm
 
-    Many different parameters may be passed, both models and parameters of those models. For instance:
+    Many different parameters may be passed, both models and parameters of those models.
+    For instance:
 
     >>> h = MassFunction(z=1.0,Mmin=8,hmf_model="SMT")
     >>> h.dndm
 
-    Once instantiated, changing parameters should be done through the :meth:`update` method:
+    Once instantiated, changing parameters should be done through the :meth:`update`
+    method:
 
     >>> h.update(z=2)
     >>> h.dndm
@@ -89,9 +89,6 @@ class MassFunction(transfer.Transfer):
         self.dlog10m = dlog10m
         self.mdef_model = mdef_model
         self.mdef_params = mdef_params or {}
-        # self.cut_fit = cut_fit
-        # self.z2 = z2
-        # self.nz = nz
         self.delta_c = delta_c
         self.hmf_params = hmf_params or {}
         self.filter_model = filter_model
@@ -218,86 +215,15 @@ class MassFunction(transfer.Transfer):
         """
         return val
 
-    #
-    # @parameter("param")
-    # def delta_h(self, val):
-    #     """
-    #     The overdensity for the halo definition, with respect to :attr:`delta_wrt`
-    #
-    #     :type: float
-    #     """
-    #     try:
-    #         val = float(val)
-    #     except ValueError:
-    #         raise ValueError("delta_halo must be a number: ", val)
-    #
-    #     if val <= 0:
-    #         raise ValueError("delta_halo must be > 0 (", val, ")")
-    #     if val > 10000:
-    #         raise ValueError("delta_halo must be < 10,000 (", val, ")")
-    #
-    #     return val
-    #
-    # @parameter("switch")
-    # def delta_wrt(self, val):
-    #     """
-    #     Defines what the overdensity of a halo is with respect to, mean density
-    #     of the universe, or critical density.
-    #
-    #     :type: str, {"mean", "crit"}
-    #     """
-    #     if val not in ['mean', 'crit']:
-    #         raise ValueError("delta_wrt must be either 'mean' or 'crit' (", val, ")")
-    #
-    #     return val
-
-    #
-    # @parameter
-    # def z2(self, val):
-    #     if val is None:
-    #         return val
-    #
-    #     try:
-    #         val = float(val)
-    #     except ValueError:
-    #         raise ValueError("z must be a number (", val, ")")
-    #
-    #     if val <= self.z:
-    #         raise ValueError("z2 must be larger than z")
-    #     else:
-    #         return val
-    #
-    # @parameter
-    # def nz(self, val):
-    #     if val is None:
-    #         return val
-    #
-    #     try:
-    #         val = int(val)
-    #     except ValueError:
-    #         raise ValueError("nz must be an integer")
-    #
-    #     if val < 1:
-    #         raise ValueError("nz must be >= 1")
-    #     else:
-    #         return val
-
-    # @parameter
-    # def cut_fit(self, val):
-    #     if not isinstance(val, bool):
-    #         raise ValueError("cut_fit must be a bool, " + str(val))
-    #     return val
-
     # --------------------------------  PROPERTIES ------------------------------
     @cached_quantity
     def mean_density(self):
-        """
-        Mean density of universe at redshift z
-        """
+        """Mean density of universe at redshift z."""
         return self.mean_density0 * (1 + self.z) ** 3
 
     @cached_quantity
     def mdef(self):
+        """The halo mass-definition model instance, if set."""
         if self.mdef_model is not None:
             return self.mdef_model(self.cosmo, self.z, **self.mdef_params)
         else:
@@ -305,9 +231,7 @@ class MassFunction(transfer.Transfer):
 
     @cached_quantity
     def hmf(self):
-        """
-        Instantiated model for the hmf fitting function.
-        """
+        """Instantiated model for the hmf fitting function."""
         return self.hmf_model(
             m=self.m,
             nu2=self.nu,
@@ -321,37 +245,17 @@ class MassFunction(transfer.Transfer):
 
     @cached_quantity
     def filter(self):
-        """
-        Instantiated model for filter/window functions.
-        """
+        """Instantiated model for filter/window functions."""
         return self.filter_model(self.k, self._unnormalised_power, **self.filter_params)
 
     @cached_quantity
     def m(self):
-        """Masses"""
+        """Masses."""
         return 10 ** np.arange(self.Mmin, self.Mmax, self.dlog10m)
 
     @cached_quantity
-    def M(self):
-        "Masses (alias of m, deprecated)"
-        raise AttributeError(
-            "Use of M has been deprecated for a while, and is now removed. Use m."
-        )
-
-    # @cached_quantity
-    # def delta_halo(self):
-    #     """ Overdensity of a halo w.r.t mean density"""
-    #     if self.delta_wrt == 'mean':
-    #         return self.delta_h
-    #
-    #     elif self.delta_wrt == 'crit':
-    #         return self.delta_h / self.cosmo.Om(self.z)
-
-    @cached_quantity
     def _unn_sigma0(self):
-        """
-        Unnormalised mass variance at z=0
-        """
+        """Un-normalised mass variance at z=0."""
         return self.filter.sigma(self.radii)
 
     @cached_quantity
@@ -379,9 +283,7 @@ class MassFunction(transfer.Transfer):
 
     @cached_quantity
     def sigma(self):
-        """
-        The mass variance at `z`, ``len=len(m)``
-        """
+        """The sqrt of the mass variance at `z`, ``len=len(m)``."""
         return self._sigma_0 * self.growth_factor
 
     @cached_quantity
@@ -393,9 +295,7 @@ class MassFunction(transfer.Transfer):
 
     @cached_quantity
     def mass_nonlinear(self):
-        """
-        The nonlinear mass, nu(Mstar) = 1.
-        """
+        """The nonlinear mass, nu(Mstar) = 1."""
         if self.nu.min() > 1 or self.nu.max() < 1:
             warnings.warn("Nonlinear mass outside mass range")
             if self.nu.min() > 1:
@@ -427,9 +327,7 @@ class MassFunction(transfer.Transfer):
 
     @cached_quantity
     def lnsigma(self):
-        """
-        Natural log of inverse mass variance, ``len=len(m)``
-        """
+        """Natural log of inverse mass variance, ``len=len(m)``."""
         return np.log(1 / self.sigma)
 
     @cached_quantity

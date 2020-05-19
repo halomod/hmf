@@ -23,10 +23,8 @@ def _get_spec(k, delta_k, sigma_8):
     ----------
     k : array_like
         Wavenumbers
-
     delta_k : array_like
         Dimensionless power spectrum at `k`
-
     sigma_8 : scalar
         RMS linear density fluctuations in spheres of radius 8 Mpc/h at z=0.
 
@@ -34,10 +32,8 @@ def _get_spec(k, delta_k, sigma_8):
     -------
     rknl : float
         Non-linear wavenumber
-
     rneff : float
         Effective spectral index
-
     rncur : float
         Curvature of the spectrum
     """
@@ -115,21 +111,16 @@ def halofit(k, delta_k, sigma_8, z, cosmo=None, takahashi=True):
     ----------
     k : array_like
         Wavenumbers [h/Mpc].
-
     delta_k : array_like
         Dimensionless power (linear) at `k`.
-
     sigma_8 : float
         RMS linear density fluctuations in spheres of radius 8 Mpc/h at z=0.
-
     z : float
         Redshift
-
     cosmo : :class:`hmf.cosmo.Cosmology` instance, optional
         An instance of either the `Cosmology` class provided in the `hmf` package, or
         any subclass of `FLRW` from `astropy`. Defualt is the default cosmology from
         the :mod:`hmf.cosmo` module.
-
     takahashi : bool, optional
         Whether to use updated parameters from Takahashi+2012. Otherwise use
         original from Smith+2003.

@@ -33,13 +33,10 @@ def sample_mf(N, log_mmin, sort=False, **mf_kwargs):
     ----------
     N : int
         Number of samples to draw
-
     log_mmin : float
         Log10 of the minimum mass to sample [Msun/h]
-
     sort : bool, optional
         Whether to sort (in descending order of mass) the output masses.
-
     mf_kwargs : keywords
         Anything passed to :class:`hmf.MassFunction` to create the mass function
         which is sampled.
@@ -48,7 +45,6 @@ def sample_mf(N, log_mmin, sort=False, **mf_kwargs):
     -------
     m : array_like
         The masses
-
     hmf : `hmf.MassFunction` instance
         The instance used to define the mass function.
 
@@ -80,15 +76,12 @@ def dndm_from_sample(m, V, nm=None, bins=50):
     ----------
     m : array_like
         A sample of masses
-
     V : float
         Physical volume of the sample
-
     nm : array_like
         A multiplicity of each of the masses -- useful for
         samples from simulations in which the number of unique masses
         is much smaller than the total sample.
-
     bins : int or array
         Specifies bins (in log10-space!) for the sample.
         See `numpy.histogram` for more details.
@@ -97,7 +90,6 @@ def dndm_from_sample(m, V, nm=None, bins=50):
     -------
     centres : array_like
         The centres of the bins.
-
     hist : array_like
         The value of dn/dm in each bin.
 

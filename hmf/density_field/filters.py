@@ -30,10 +30,8 @@ class Filter(_framework.Component):
     ----------
     k : array_like
         Wavenumbers at which the power spectrum is defined.
-
     power : array_like
         The power spectrum at `k`.
-
     \*\*model_parameters : unpacked-dict
         As for any :class:`hmf._framework.Component` subclass, any particular
         parameters of the model may be passed to the constructor. Allowed
@@ -42,19 +40,20 @@ class Filter(_framework.Component):
     Notes
     -----
     Besides the raw filter function itself, two quantities are of primary interest:
-    firstly the mass variance (see :meth:`sigma`), which appears in many cosmological applications, and
-    secondly its logarithmic derivative with mass, which appears in the Press-Schechter
-    formalism for the halo mass function.
+    firstly the mass variance (see :meth:`sigma`), which appears in many cosmological
+    applications, and secondly its logarithmic derivative with mass, which appears in
+    the Press-Schechter formalism for the halo mass function.
 
     To remain extensible and general, the methodology in this class is to calculate the
     latter quantity as
 
     .. math:: \frac{d\ln\sigma}{d\ln m} = \frac{1}{2} \frac{d \ln \sigma^2}{d\ln R}\frac{d\ln R}{d\ln m}.
 
-    Each of the quantities on the right can be separately calculated, improving extensibility.
+    Each of the quantities on the right can be separately calculated, improving
+    extensibility.
 
-    The factor :math:`\frac{d\ln R}{d\ln m}` is typically 1/3, but this is not necessarily the
-    case for window functions of arbitrary shape.
+    The factor :math:`\frac{d\ln R}{d\ln m}` is typically 1/3, but this is not
+    necessarily the case for window functions of arbitrary shape.
     """
 
     def __init__(self, k, power, **model_parameters):
@@ -208,7 +207,8 @@ class Filter(_framework.Component):
         r"""
         The logarithmic slope of mass variance with mass.
 
-        This is an important quantity, and is used directly to calculate :math:`\frac{dn}{dm}`.
+        This is an important quantity, and is used directly to calculate
+        :math:`\frac{dn}{dm}`.
 
         Parameters
         ----------
@@ -451,7 +451,9 @@ class SharpK(Filter):
 @_utils.inherit_docstrings
 class SharpKEllipsoid(SharpK):
     """
-    Fourier-space top-hat window function with ellipsoidal correction (see Schneider, Smith, Reed 2013).
+    Fourier-space top-hat window function with ellipsoidal correction
+
+    See Schneider, Smith, Reed 2013.
 
     Refer to :class:`~Filter` for more details.
     """

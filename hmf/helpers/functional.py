@@ -15,9 +15,6 @@ from ..mass_function import hmf
 import itertools
 
 
-# ===============================================================================
-# Functions for simple dynamic getting of properties
-# ===============================================================================
 def get_best_param_order(kls, q="dndm", **kwargs):
     """
     Get an optimal parameter order for nested loops.
@@ -115,20 +112,16 @@ def get_hmf(
         A string defining the quantities that should be pre-cached in the output
         instances. It is advisable that *any* required quantities for a given
         application be provided here, to ensure proper optimization.
-
     get_label : bool, optional
         Whether to return a list of string labels designating each combination
         of parameters.
-
     framework : :class:`hmf._framework.Framework` class, optional
         A framework for which to perform the optimization.
-
     fast_kwargs : dict, optional
         Parameters to be used in the initial run to determine optimal order.
         These should be set to provide very quick calculation, and do not affect
         the final result. This will need to be over-ridden for frameworks other
         than :class:`hmf.MassFunction`.
-
     kwargs : unpacked-dict
         Any of the parameters to the initialiser of `framework` which should be
         calculated. These may be scalar or lists. The total number of calculations
@@ -138,10 +131,8 @@ def get_hmf(
     ------
     quantities : list
         A list of quantities, specified by the `req_quantities` arguments
-
     x : Framework instance
         An instance of `framework`, with the requisitie quantities pre-cached.
-
     label : optional
         If `get_label` is True, also returns a string label uniquely specifying
         the current parameter combination.
