@@ -30,7 +30,6 @@ if sys.argv[-1] == "publish":
     sys.exit()
 
 test_req = [
-    "tox>=3.0.0",
     "coverage>=4.5.1",
     "pytest>=3.5.1",
     "pytest-cov>=2.5.1",
@@ -61,7 +60,7 @@ setup(
     description="A halo mass function calculator",
     long_description=read("README.rst"),
     license="MIT",
-    keywords="halo mass function",
+    keywords="halo mass function; cosmology",
     url="https://github.com/steven-murray/hmf",
     classifiers=[
         "Programming Language :: Python :: 3.6",

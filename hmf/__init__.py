@@ -1,13 +1,17 @@
-__version__ = "3.0.8"
+try:
+    from importlib.metadata import version, PackageNotFoundError
+except ImportError:
+    from importlib_metadata import version, PackageNotFoundError
 
-from .mass_function.hmf import MassFunction
+try:
+    __version__ = version(__name__)
+except PackageNotFoundError:
+    # package is not installed
+    pass
 
-# To patch the transition to modularised form, import modules here.
-# Perhaps I should deprecate this for some version.
-from .alternatives import *
-from .cosmology import *
-from .density_field import *
-from .fitting import *
-from .halos import *
-from .helpers import *
-from .mass_function import *
+from .alternatives import wdm
+from .cosmology import cosmo, growth_factor, Cosmology, GrowthFactor
+from .density_field import filters, halofit, transfer, transfer_models, Transfer, CAMB
+from .halos import mass_definitions
+from .helpers import functional, sample, get_hmf, get_best_param_order
+from .mass_function import fitting_functions, hmf, integrate_hmf, MassFunction
