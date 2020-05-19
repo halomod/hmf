@@ -63,5 +63,9 @@ setup(
     license="MIT",
     keywords="halo mass function",
     url="https://github.com/steven-murray/hmf",
-    classifiers=["Programming Language :: Python :: 3.6",],
+    classifiers=[
+        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+    ],
 )
