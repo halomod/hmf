@@ -1,9 +1,10 @@
 Releases
 ========
 
-dev
--------
+3.1.0dev
+--------
 **Notes**
+
 New versions of CAMB (1.0.0+) seem to run significantly slower by default than previous
 versions. This could just be a setting in CAMB that has changed its default. Be aware
 of this.
