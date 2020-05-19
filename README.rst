@@ -4,7 +4,7 @@ hmf
 
 **The halo mass function calculator.**
 
-.. image:: https://github.com/steven-murray/hmf/workflows/Tests/badge.
+.. image:: https://github.com/steven-murray/hmf/workflows/Tests/badge.svg
     :target: https://github.com/steven-murray/hmf
 .. image:: https://badge.fury.io/py/hmf.svg
     :target: https://badge.fury.io/py/hmf
