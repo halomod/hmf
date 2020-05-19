@@ -61,6 +61,7 @@ jobs:
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
           source activate ${ENV_NAME}
+          conda install -c conda-forge camb
           pip install .[dev]
       - name: Run Tests
         run: |
