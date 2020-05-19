@@ -1,8 +1,8 @@
-<!-- 
-Thank you for creating a PR on hmf! 
+<!--
+Thank you for creating a PR on hmf!
 
-Please read through the following and check the boxes to ensure 
-your PR meets our coding standards and that it follows the 
+Please read through the following and check the boxes to ensure
+your PR meets our coding standards and that it follows the
 correct pathways for testing and deployment.
 -->
 
