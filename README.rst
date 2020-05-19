@@ -19,13 +19,70 @@ hmf
 Halo Mass Function for a range of varying parameters. It is also the backend to
 `HMFcalc <http://hmf.icrar.org>`_, the online HMF calculator.
 
+Full Documentation
+------------------
+`Read the docs. <http://hmf.readthedocs.org>`_
+
+Features
+--------
+* Calculate mass functions and related quantities extremely easily.
+* Very simple to start using, but wide-ranging flexibility.
+* Caching system for optimal parameter updates, for efficient iteration over parameter space.
+* Support for all LambdaCDM cosmologies.
+* Focus on flexibility in models. Each "Component", such as fitting functions, filter functions,
+  growth factor models and transfer function fits are implemented as generic classes that
+  can easily be altered by the user without touching the source code.
+* Focus on simplicity in frameworks. Each "Framework" mixes available "Components" to derive
+  useful quantities -- all given as attributes of the Framework.
+* Comprehensive in terms of output quantities: access differential and cumulative mass functions,
+  mass variance, effective spectral index, growth rate, cosmographic functions and more.
+* Comprehensive in terms of implemented Component models:
+
+  * 5+ models of transfer functions including directly from CAMB
+  * 4 filter functions
+  * 20 hmf fitting functions
+
+* Includes models for Warm Dark Matter
+* Nonlinear power spectra via HALOFIT
+* Functions for sampling the mass function.
+* CLI scripts both for producing any quantity included, or fitting any quantity.
+* Python 2 and 3 compatible
+
 Note
 ~~~~
 From v3.1, ``hmf`` supports Python 3.6+, and has dropped support for Python 2.
 
-Documentation
--------------
-`Read the docs. <http://hmf.readthedocs.org>`_
+
+Quickstart
+----------
+Once you have `hmf` installed, you can quickly generate a mass function
+by opening an interpreter (e.g. IPython/Jupyter) and doing::
+
+    >>> from hmf import MassFunction
+    >>> hmf = MassFunction()
+    >>> mass_func = hmf.dndlnm
+
+Note that all parameters have (what I consider reasonable) defaults. In particular,
+this will return a Tinker (2008) mass function between
+:math:`10^{10}-10^{15} M_\odot`, at :math:`z=0` for the default PLANCK15 cosmology.
+Nevertheless, there are several parameters which can be input, either cosmological
+or otherwise. The best way to see these is to do::
+
+    >>> MassFunction.parameter_info()
+
+We can also check which parameters have been set in our "default" instance::
+
+    >>> hmf.parameter_values
+
+To change the parameters (cosmological or otherwise), one should use the
+`update()` method, if a MassFunction() object already exists. For example::
+
+    >>> hmf = MassFunction()
+    >>> hmf.update(cosmo_params={"Ob0": 0.05}, z=10) #update baryon density and redshift
+    >>> cumulative_mass_func = hmf.ngtm
+
+For a more involved introduction to `hmf`, check out the `tutorials <tutorials.html>`_,
+which are currently under construction, or the `API docs <api.html>`_.
 
 Versioning
 ----------

@@ -38,7 +38,7 @@ If you intend to develop ``hmf``, clone the repository (or your fork of it)::
 
     git clone https://github.com/<your-username>/hmf.git
 
-Move to the directory and install with
+Move to the directory and install with::
 
     pip install -e ".[dev]"
 
