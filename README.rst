@@ -4,12 +4,11 @@ hmf
 
 **The halo mass function calculator.**
 
-.. image:: https://travis-ci.org/steven-murray/hmf.png?branch=master
-    :target: https://travis-ci.org/steven-murray/hmf
+.. image:: https://github.com/steven-murray/hmf/workflows/Tests/badge.svg
 .. image:: https://badge.fury.io/py/hmf.svg
     :target: https://badge.fury.io/py/hmf
-.. image:: https://coveralls.io/repos/github/steven-murray/hmf/badge.svg?branch=master
-    :target: https://coveralls.io/github/steven-murray/hmf?branch=master
+.. image:: https://codecov.io/gh/steven-murray/hmf/branch/master/graph/badge.svg
+    :target: https://codecov.io/gh/steven-murray/hmf
 .. image:: https://img.shields.io/pypi/pyversions/hmf.svg
 
 `hmf` is a python application that provides a flexible and simple way to calculate the
