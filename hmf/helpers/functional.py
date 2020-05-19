@@ -11,7 +11,7 @@ functions to determine that order, and indeed perform the loops.
 """
 
 import collections
-from . import hmf
+from ..mass_function import hmf
 import itertools
 
 
@@ -68,10 +68,10 @@ def get_best_param_order(kls, q="dndm", **kwargs):
 
     final_list = []
     final_num = []
-    for k, v in getattr(a,"_"+a.__class__.__name__+"__recalc_par_prop").items():
+    for k, v in getattr(a, "_" + a.__class__.__name__ + "__recalc_par_prop").items():
         num = len(v)
-        for i, l in enumerate(final_num):
-            if l >= num:
+        for i, ln in enumerate(final_num):
+            if ln >= num:
                 break
         else:
             final_list += [k]
@@ -82,15 +82,21 @@ def get_best_param_order(kls, q="dndm", **kwargs):
     return final_list
 
 
-def get_hmf(req_qauntities, get_label=True, framework=hmf.MassFunction,
-            fast_kwargs={"transfer_model": "BBKS",
-                         "lnk_min": -1,
-                         "lnk_max": 1,
-                         "dlnk": 1,
-                         "Mmin": 10,
-                         "Mmax": 11.5,
-                         "dlog10m": 0.5},
-            **kwargs):
+def get_hmf(
+    req_qauntities,
+    get_label=True,
+    framework=hmf.MassFunction,
+    fast_kwargs={
+        "transfer_model": "BBKS",
+        "lnk_min": -1,
+        "lnk_max": 1,
+        "dlnk": 1,
+        "Mmin": 10,
+        "Mmax": 11.5,
+        "dlog10m": 0.5,
+    },
+    **kwargs
+):
     """
     Yield framework instances for all combinations of parameters supplied.
 
@@ -188,13 +194,14 @@ def get_hmf(req_qauntities, get_label=True, framework=hmf.MassFunction,
             for vv in v:
                 x.update(**{k: vv})
                 if get_label:
-                    yield [getattr(x, a) for a in req_qauntities], x, _make_label({k: vv})
+                    yield [getattr(x, a) for a in req_qauntities], x, _make_label(
+                        {k: vv}
+                    )
                 else:
                     yield [getattr(x, a) for a in req_qauntities], x
     elif len(lists) > 1:
         # should be really fast.
-        order = get_best_param_order(framework, req_qauntities,
-                                     **fast_kwargs)
+        order = get_best_param_order(framework, req_qauntities, **fast_kwargs)
 
         ordered_kwargs = collections.OrderedDict([])
         for item in order:
@@ -210,7 +217,10 @@ def get_hmf(req_qauntities, get_label=True, framework=hmf.MassFunction,
                 ordered_kwargs[k] = lists.pop(k)
 
         ordered_list = [ordered_kwargs[k] for k in ordered_kwargs]
-        final_list = [collections.OrderedDict(list(zip(list(ordered_kwargs.keys()), v))) for v in itertools.product(*ordered_list)]
+        final_list = [
+            collections.OrderedDict(list(zip(list(ordered_kwargs.keys()), v)))
+            for v in itertools.product(*ordered_list)
+        ]
 
         for vals in final_list:
             x.update(**vals)
@@ -228,9 +238,9 @@ def _make_label(d):
             label += val + ", "
         elif isinstance(val, dict):
             for k, v in val.items():
-                label += "%s: %s, "%(k, v)
+                label += "%s: %s, " % (k, v)
         else:
-            label += "%s: %s, "%(key, val)
+            label += "%s: %s, " % (key, val)
 
     # Some post-formatting to make it look nicer
     label = label[:-2]

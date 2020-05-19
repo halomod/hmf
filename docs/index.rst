@@ -39,9 +39,7 @@ numpy, scipy, astropy and camb.
 You will only need `emcee` if you are going to be using the fitting capabilities
 of `hmf`.
 
-Finally the `hmf` package needs to be installed: ``pip install hmf``. If you want
-to install the latest build (not necessarily stable), grab it `here 
-<https://github.com/steven-murray/hmf.git>`_.
+Finally the `hmf` package needs to be installed: ``pip install hmf``.
 
 To go really bleeding edge, install the develop branch using
 ``pip install git+git://github.com/steven-murray/hmf.git@develop``.
@@ -56,7 +54,7 @@ by opening an interpreter (e.g. IPython) and doing:
 >>> mass_func = hmf.dndlnm
 
 Note that all parameters have (what I consider reasonable) defaults. In particular,
-this will return a Sheth-Mo-Tormen (2001) mass function between
+this will return a Tinker (2008) mass function between
 :math:`10^{10}-10^{15} M_\odot`, at :math:`z=0` for the default PLANCK15 cosmology.
 Nevertheless, there are several parameters which can be input, either cosmological
 or otherwise. The best way to see these is to do
@@ -67,7 +65,7 @@ We can also check which parameters have been set in our "default" instance:
 
 >>> hmf.parameter_values
 
-To change the parameters (cosmological or otherwise), one should use the 
+To change the parameters (cosmological or otherwise), one should use the
 `update()` method, if a MassFunction() object already exists. For example
 
 >>> hmf = MassFunction()
@@ -84,7 +82,7 @@ which are currently under construction, or the `API docs <api.html>`_.
 Contents
 --------
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    tutorials
    license
@@ -97,4 +95,3 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
-

@@ -4,7 +4,6 @@ sudo: required
 
 
 python:
-  - 2.7
   - 3.6
   - 3.7
   - 3.8
@@ -29,13 +28,8 @@ deploy:
 #    packages:
 #    - gfortran-6
 
-# Setup anaconda
 before_install:
-  - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
-      wget https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh;
-    else
-      wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
-    fi
+  - wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
   - bash miniconda.sh -b -p $HOME/miniconda
   - export PATH="$HOME/miniconda/bin:$PATH"
   - hash -r
@@ -47,18 +41,20 @@ before_install:
 install:
   - conda install python=$TRAVIS_PYTHON_VERSION numpy scipy mpmath nose astropy
   - conda install -c conda-forge camb
-  - pip install python-coveralls
-  - pip install coverage
-#  - pip install emcee
-#  - sudo ln -s /usr/bin/gfortran-6 /usr/bin/gfortran
-#  - pip install camb
-  - pip install coveralls
+  - pip install -U tox-travis coverage coveralls pytest-cov colossus
+  - pip install .
 
+# command to run tests, e.g. python setup.py test
 script:
-  - coverage run --source=hmf --omit=hmf/fitting/* $(which nosetests)
+  - py.test --durations=25 --cov hmf
+  - coverage report
 
-
-# Calculate coverage
 after_success:
-  - ls -a
   - coveralls
+
+jobs:
+  include:
+    - name: "Lint"
+      python: 3.8
+      install: pip install pre-commit
+      script: pre-commit run -a

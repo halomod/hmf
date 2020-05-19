@@ -1,27 +1,27 @@
-'''
+"""
 Module containing Warm Dark Matter models.
 
 This module contains both WDM Components (basic WDM models and also recalibrators for the
 HMF) and Frameworks (Transfer and MassFunction). The latter inject WDM modelling into
 the standard CDM Frameworks, and provide an example of how one would go about this for
 other alternative cosmologies.
-'''
+"""
+
+import numpy as np
+from ..density_field.transfer import Transfer as _Tr
+from ..mass_function.hmf import MassFunction as _MF
+from .._internals._cache import parameter, cached_quantity
+from .._internals._framework import Component, get_model, get_model_
+from ..cosmology.cosmo import Planck15
 
 import astropy.units as u
-import numpy as np
-
-from ._cache import parameter, cached_quantity
-from ._framework import Component, get_model, get_model_
-from .cosmo import Planck15
-from .hmf import MassFunction as _MF
-from .transfer import Transfer as _Tr
 
 
 # ===============================================================================
 # Model Components
 # ===============================================================================
 class WDM(Component):
-    """
+    r"""
     Base class for all WDM components.
 
     Do not use this class directly. The primary purpose of the WDM Component is
@@ -49,8 +49,13 @@ class WDM(Component):
     def __init__(self, mx, cosmo=Planck15, z=0, **model_params):
         self.mx = mx
         self.cosmo = cosmo
-        self.rho_mean = (1 + z) ** 3 * (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2).to(
-            u.solMass / u.Mpc ** 3).value * 1e6
+        self.rho_mean = (
+            (1 + z) ** 3
+            * (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2)
+            .to(u.solMass / u.Mpc ** 3)
+            .value
+            * 1e6
+        )
         self.Oc0 = cosmo.Om0 - cosmo.Ob0
 
         super(WDM, self).__init__(**model_params)
@@ -71,11 +76,12 @@ class WDM(Component):
 
         """
         raise NotImplementedError(
-            "You shouldn't call the WDM class, and any subclass should define the transfer method.")
+            "You shouldn't call the WDM class, and any subclass should define the transfer method."
+        )
 
 
 class Viel05(WDM):
-    """
+    r"""
     Transfer function from Viel 2005 (which is exactly the same as Bode et al.
     2001).
 
@@ -101,11 +107,12 @@ class Viel05(WDM):
         :g_x:
     """
 
-    _defaults = {"mu": 1.12,
-                 "g_x": 1.5}
+    _defaults = {"mu": 1.12, "g_x": 1.5}
 
     def transfer(self, k):
-        return (1 + (self.lam_eff_fs * k) ** (2 * self.params["mu"])) ** (-5.0 / self.params["mu"])
+        return (1 + (self.lam_eff_fs * k) ** (2 * self.params["mu"])) ** (
+            -5.0 / self.params["mu"]
+        )
 
     @property
     def lam_eff_fs(self):
@@ -114,8 +121,13 @@ class Viel05(WDM):
 
         From Schneider+2013, Eq. 6
         """
-        return 0.049 * self.mx ** -1.11 * (self.Oc0 / 0.25) ** 0.11 * (self.cosmo.h / 0.7) ** 1.22 * (
-                    1.5 / self.params['g_x']) ** 0.29
+        return (
+            0.049
+            * self.mx ** -1.11
+            * (self.Oc0 / 0.25) ** 0.11
+            * (self.cosmo.h / 0.7) ** 1.22
+            * (1.5 / self.params["g_x"]) ** 0.29
+        )
 
     @property
     def m_fs(self):
@@ -133,7 +145,12 @@ class Viel05(WDM):
 
         From Schneider+2012, Eq. 8.
         """
-        return 2 * np.pi * self.lam_eff_fs * (2 ** (self.params['mu'] / 5) - 1) ** (-0.5 / self.params['mu'])
+        return (
+            2
+            * np.pi
+            * self.lam_eff_fs
+            * (2 ** (self.params["mu"] / 5) - 1) ** (-0.5 / self.params["mu"])
+        )
 
     @property
     def m_hm(self):
@@ -150,7 +167,7 @@ class Bode01(Viel05):
 
 
 class WDMRecalibrateMF(Component):
-    """
+    r"""
     Base class for Components that emulate the effect of WDM on the HMF empirically.
 
     Required method is :meth:`dndm_alter`.
@@ -183,7 +200,7 @@ class WDMRecalibrateMF(Component):
 
 
 class Schneider12_vCDM(WDMRecalibrateMF):
-    """
+    r"""
     Schneider+2012 recalibration of the CDM HMF.
 
     Parameters
@@ -202,6 +219,7 @@ class Schneider12_vCDM(WDMRecalibrateMF):
         To see the default values, check the :attr:`_defaults`
         class attribute.
     """
+
     _defaults = {"beta": 1.16}
 
     def dndm_alter(self):
@@ -209,7 +227,7 @@ class Schneider12_vCDM(WDMRecalibrateMF):
 
 
 class Schneider12(WDMRecalibrateMF):
-    """
+    r"""
     Schneider+2012 recalibration of the WDM HMF.
 
     Parameters
@@ -228,6 +246,7 @@ class Schneider12(WDMRecalibrateMF):
         To see the default values, check the :attr:`_defaults`
         class attribute.
     """
+
     _defaults = {"alpha": 0.6}
 
     def dndm_alter(self):
@@ -235,7 +254,7 @@ class Schneider12(WDMRecalibrateMF):
 
 
 class Lovell14(WDMRecalibrateMF):
-    """
+    r"""
     Lovell+2014 recalibration of the WDM HMF.
 
     Parameters
@@ -254,10 +273,13 @@ class Lovell14(WDMRecalibrateMF):
         To see the default values, check the :attr:`_defaults`
         class attribute.
     """
+
     _defaults = {"beta": 0.99, "gamma": 2.7}
 
     def dndm_alter(self):
-        return self.dndm0 * (1 + self.params["gamma"] * self.wdm.m_hm / self.m) ** (-self.params["beta"])
+        return self.dndm0 * (1 + self.params["gamma"] * self.wdm.m_hm / self.m) ** (
+            -self.params["beta"]
+        )
 
 
 # ===============================================================================
@@ -270,14 +292,15 @@ class TransferWDM(_Tr):
     This replaces the standard CDM quantities with WDM-derived ones, where relevant.
 
     In addition to the parameters directly passed to this class, others are available
-    which are passed on to its superclass. To read a standard documented list of (all) parameters,
-    use ``TransferWDM.parameter_info()``. If you want to just see the plain list of available parameters,
-    use ``TransferWDM.get_all_parameters()``.To see the actual defaults for each parameter, use
-    ``TransferWDM.get_all_parameter_defaults()``.
+    which are passed on to its superclass. To read a standard documented list of (all)
+    parameters, use ``TransferWDM.parameter_info()``. If you want to just see the plain
+    list of available parameters, use ``TransferWDM.get_all_parameters()``.To see the
+    actual defaults for each parameter, use ``TransferWDM.get_all_parameter_defaults()``.
     """
 
-    def __init__(self, wdm_mass=3.0, wdm_model=Viel05, wdm_params={},
-                 **transfer_kwargs):
+    def __init__(
+        self, wdm_mass=3.0, wdm_model=Viel05, wdm_params={}, **transfer_kwargs
+    ):
         # Call standard transfer
         super(TransferWDM, self).__init__(**transfer_kwargs)
 
@@ -301,7 +324,9 @@ class TransferWDM(_Tr):
         elif isinstance(val, str):
             return get_model_(val, "hmf.wdm")
         else:
-            raise ValueError("wdm_model must be a WDM subclass or string, got %s" % type(val))
+            raise ValueError(
+                "wdm_model must be a WDM subclass or string, got %s" % type(val)
+            )
 
     @parameter("param")
     def wdm_params(self, val):
@@ -339,13 +364,14 @@ class TransferWDM(_Tr):
         Contains quantities relevant to WDM.
         """
         return self.wdm_model(
-            mx=self.wdm_mass, cosmo=self.cosmo,
-            z=self.z, **self.wdm_params
+            mx=self.wdm_mass, cosmo=self.cosmo, z=self.z, **self.wdm_params
         )
 
     @cached_quantity
     def _unnormalised_lnT(self):
-        return super(TransferWDM, self)._unnormalised_lnT + np.log(self.wdm.transfer(self.k))
+        return super(TransferWDM, self)._unnormalised_lnT + np.log(
+            self.wdm.transfer(self.k)
+        )
 
 
 class MassFunctionWDM(_MF, TransferWDM):
@@ -355,9 +381,10 @@ class MassFunctionWDM(_MF, TransferWDM):
     This replaces the standard CDM quantities with WDM-derived ones, where relevant.
 
     In addition to the parameters directly passed to this class, others are available
-    which are passed on to its superclass. To read a standard documented list of (all) parameters,
-    use ``MassFunctionWDM.parameter_info()``. If you want to just see the plain list of available parameters,
-    use ``MassFunctionWDM.get_all_parameters()``.To see the actual defaults for each parameter, use
+    which are passed on to its superclass. To read a standard documented list of (all)
+    parameters, use ``MassFunctionWDM.parameter_info()``. If you want to just see the
+    plain list of available parameters, use ``MassFunctionWDM.get_all_parameters()``. To
+    see the actual defaults for each parameter, use
     ``MassFunctionWDM.get_all_parameter_defaults()``.
     """
 
@@ -381,7 +408,9 @@ class MassFunctionWDM(_MF, TransferWDM):
         elif isinstance(val, str):
             return get_model_(val, __name__)
         else:
-            raise TypeError("alter_model must be a WDMRecalibrateMF subclass, string, or None")
+            raise TypeError(
+                "alter_model must be a WDMRecalibrateMF subclass, string, or None"
+            )
 
     @parameter("param")
     def alter_params(self, val):
@@ -392,14 +421,15 @@ class MassFunctionWDM(_MF, TransferWDM):
 
     @cached_quantity
     def dndm(self):
-        """
+        r"""
         The number density of haloes in WDM, ``len=len(m)`` [units :math:`h^4 M_\odot^{-1} Mpc^{-3}`]
         """
         dndm = super(MassFunctionWDM, self).dndm
 
         if self.alter_model is not None:
-            alter = self.alter_model(m=self.m, dndm0=dndm, wdm=self.wdm,
-                                     **self.alter_params)
+            alter = self.alter_model(
+                m=self.m, dndm0=dndm, wdm=self.wdm, **self.alter_params
+            )
             dndm = alter.dndm_alter()
 
         return dndm

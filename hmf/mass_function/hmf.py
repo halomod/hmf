@@ -1,27 +1,29 @@
-'''
+"""
 The primary module for user-interaction with the :mod:`hmf` package.
 
 The module contains a single class, `MassFunction`, which wraps almost all the
 functionality of :mod:`hmf` in an easy-to-use way.
-'''
+"""
 
 ###############################################################################
 # Some Imports
 ###############################################################################
 import numpy as np
 import copy
-import logging
-from . import fitting_functions as ff
-from . import transfer
-from ._cache import parameter, cached_quantity
-from .integrate_hmf import hmf_integral_gtm as int_gtm
-from numpy import issubclass_
-logger = logging.getLogger('hmf')
-from .filters import TopHat, Filter
-from ._framework import get_model, get_model_
 from scipy.optimize import minimize
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import warnings
+from numpy import issubclass_
+
+from . import fitting_functions as ff
+from ..density_field import transfer
+from .._internals._cache import parameter, cached_quantity
+from ..density_field.filters import TopHat, Filter
+from .._internals._framework import get_model_
+from ..halos.mass_definitions import MassDefinition as md
+
+from .integrate_hmf import hmf_integral_gtm as int_gtm
+
 
 class MassFunction(transfer.Transfer):
     """
@@ -63,11 +65,20 @@ class MassFunction(transfer.Transfer):
     >>> h.dndm
     """
 
-
-    def __init__(self, Mmin=10, Mmax=15, dlog10m=0.01, hmf_model=ff.Tinker08, hmf_params=None,
-                 delta_h=200.0,delta_wrt='mean',
-                 delta_c=1.686, filter_model=TopHat, filter_params=None,
-                 **transfer_kwargs):
+    def __init__(
+        self,
+        Mmin=10,
+        Mmax=15,
+        dlog10m=0.01,
+        hmf_model=ff.Tinker08,
+        hmf_params=None,
+        mdef_model=None,
+        mdef_params=None,
+        delta_c=1.686,
+        filter_model=TopHat,
+        filter_params=None,
+        **transfer_kwargs
+    ):
         # # Call super init MUST BE DONE FIRST.
         super(MassFunction, self).__init__(**transfer_kwargs)
 
@@ -76,8 +87,8 @@ class MassFunction(transfer.Transfer):
         self.Mmin = Mmin
         self.Mmax = Mmax
         self.dlog10m = dlog10m
-        self.delta_h = delta_h
-        self.delta_wrt = delta_wrt
+        self.mdef_model = mdef_model
+        self.mdef_params = mdef_params or {}
         # self.cut_fit = cut_fit
         # self.z2 = z2
         # self.nz = nz
@@ -85,33 +96,26 @@ class MassFunction(transfer.Transfer):
         self.hmf_params = hmf_params or {}
         self.filter_model = filter_model
         self.filter_params = filter_params or {}
-        
-    #===========================================================================
+
+    # ===========================================================================
     # PARAMETERS
-    #===========================================================================
+    # ===========================================================================
     @parameter("res")
     def Mmin(self, val):
-        """
+        r"""
         Minimum mass at which to perform analysis [units :math:`\log_{10}M_\odot h^{-1}`].
 
         :type: float
         """
-                
-        if val<10 and self.z >= 2:
-            warnings.warn("hmf is un-tested for redshifts greater than 2 and extreme masses. See https://github.com/steven-murray/HMFcalc/issues/6 for details.")
-
         return val
 
     @parameter("res")
     def Mmax(self, val):
-        """
+        r"""
         Maximum mass at which to perform analysis [units :math:`\log_{10}M_\odot h^{-1}`].
 
         :type: float
         """
-        if val>15 and self.z >= 2:
-            warnings.warn("hmf is un-tested for redshifts greater than 2 and extreme masses. See https://github.com/steven-murray/HMFcalc/issues/6 for details.")
-        
         return val
 
     @parameter("res")
@@ -130,10 +134,10 @@ class MassFunction(transfer.Transfer):
 
         :type: :class:`hmf.filters.Filter` subclass
         """
-        if not issubclass_(val, Filter) and not isinstance(val, str):
+        if not (issubclass_(val, Filter) or isinstance(val, str)):
             raise ValueError("filter must be a Filter or string, got %s" % type(val))
         elif isinstance(val, str):
-            return get_model_(val, "hmf.filters")
+            return get_model_(val, "hmf.density_field.filters")
         else:
             return val
 
@@ -148,7 +152,7 @@ class MassFunction(transfer.Transfer):
 
     @parameter("param")
     def delta_c(self, val):
-        """
+        r"""
         The critical overdensity for collapse, :math:`\delta_c`.
 
         :type: float
@@ -167,15 +171,17 @@ class MassFunction(transfer.Transfer):
 
     @parameter("model")
     def hmf_model(self, val):
-        """
+        r"""
         A model to use as the fitting function :math:`f(\sigma)`
 
         :type: str or `hmf.fitting_functions.FittingFunction` subclass
         """
-        if not issubclass_(val, ff.FittingFunction) and not isinstance(val, str):
-            raise ValueError("hmf_model must be a ff.FittingFunction or string, got %s" % type(val))
+        if not (issubclass_(val, ff.FittingFunction) or isinstance(val, str)):
+            raise ValueError(
+                "hmf_model must be a ff.FittingFunction or string, got %s" % type(val)
+            )
         elif isinstance(val, str):
-            return get_model_(val, "hmf.fitting_functions")
+            return get_model_(val, "hmf.mass_function.fitting_functions")
         else:
             return val
 
@@ -188,39 +194,62 @@ class MassFunction(transfer.Transfer):
         """
         return val
 
+    @parameter("model")
+    def mdef_model(self, val):
+        """
+        A model to use as the mass definition.
+
+        :type: str or :class:`hmf.halos.mass_definitions.MassDefinition` subclass
+        """
+        if not (issubclass_(val, md) or isinstance(val, str) or val is None):
+            raise ValueError(
+                "mdef_model must be a MassDefinition or string, got %s" % type(val)
+            )
+        elif isinstance(val, str):
+            return get_model_(val, "hmf.halos.mass_definitions")
+        else:
+            return val
+
     @parameter("param")
-    def delta_h(self, val):
+    def mdef_params(self, val):
         """
-        The overdensity for the halo definition, with respect to :attr:`delta_wrt`
-
-        :type: float
+        Model parameters for `mdef_model`.
+        :type: dict
         """
-        try:
-            val = float(val)
-        except ValueError:
-            raise ValueError("delta_halo must be a number: ", val)
-
-        if val <= 0:
-            raise ValueError("delta_halo must be > 0 (", val, ")")
-        if val > 10000:
-            raise ValueError("delta_halo must be < 10,000 (", val, ")")
-
         return val
 
-
-
-    @parameter("switch")
-    def delta_wrt(self, val):
-        """
-        Defines what the overdensity of a halo is with respect to, mean density
-        of the universe, or critical density.
-
-        :type: str, {"mean", "crit"}
-        """
-        if val not in ['mean', 'crit']:
-            raise ValueError("delta_wrt must be either 'mean' or 'crit' (", val, ")")
-
-        return val
+    #
+    # @parameter("param")
+    # def delta_h(self, val):
+    #     """
+    #     The overdensity for the halo definition, with respect to :attr:`delta_wrt`
+    #
+    #     :type: float
+    #     """
+    #     try:
+    #         val = float(val)
+    #     except ValueError:
+    #         raise ValueError("delta_halo must be a number: ", val)
+    #
+    #     if val <= 0:
+    #         raise ValueError("delta_halo must be > 0 (", val, ")")
+    #     if val > 10000:
+    #         raise ValueError("delta_halo must be < 10,000 (", val, ")")
+    #
+    #     return val
+    #
+    # @parameter("switch")
+    # def delta_wrt(self, val):
+    #     """
+    #     Defines what the overdensity of a halo is with respect to, mean density
+    #     of the universe, or critical density.
+    #
+    #     :type: str, {"mean", "crit"}
+    #     """
+    #     if val not in ['mean', 'crit']:
+    #         raise ValueError("delta_wrt must be either 'mean' or 'crit' (", val, ")")
+    #
+    #     return val
 
     #
     # @parameter
@@ -259,9 +288,7 @@ class MassFunction(transfer.Transfer):
     #         raise ValueError("cut_fit must be a bool, " + str(val))
     #     return val
 
-
-
-    #--------------------------------  PROPERTIES ------------------------------
+    # --------------------------------  PROPERTIES ------------------------------
     @cached_quantity
     def mean_density(self):
         """
@@ -269,24 +296,35 @@ class MassFunction(transfer.Transfer):
         """
         return self.mean_density0 * (1 + self.z) ** 3
 
+    @cached_quantity
+    def mdef(self):
+        if self.mdef_model is not None:
+            return self.mdef_model(self.cosmo, self.z, **self.mdef_params)
+        else:
+            return None
 
     @cached_quantity
     def hmf(self):
         """
         Instantiated model for the hmf fitting function.
         """
-        return self.hmf_model(m=self.m, nu2=self.nu, z=self.z,
-                              delta_halo=self.delta_halo, omegam_z=self.cosmo.Om(self.z),
-                              delta_c=self.delta_c, n_eff=self.n_eff,
-                              ** self.hmf_params)
-
+        return self.hmf_model(
+            m=self.m,
+            nu2=self.nu,
+            z=self.z,
+            mass_definition=self.mdef,
+            cosmo=self.cosmo,
+            delta_c=self.delta_c,
+            n_eff=self.n_eff,
+            **self.hmf_params
+        )
 
     @cached_quantity
     def filter(self):
         """
         Instantiated model for filter/window functions.
         """
-        return self.filter_model(self.k,self._unnormalised_power, **self.filter_params)
+        return self.filter_model(self.k, self._unnormalised_power, **self.filter_params)
 
     @cached_quantity
     def m(self):
@@ -296,16 +334,18 @@ class MassFunction(transfer.Transfer):
     @cached_quantity
     def M(self):
         "Masses (alias of m, deprecated)"
-        raise AttributeError("Use of M has been deprecated for a while, and is now removed. Use m.")
+        raise AttributeError(
+            "Use of M has been deprecated for a while, and is now removed. Use m."
+        )
 
-    @cached_quantity
-    def delta_halo(self):
-        """ Overdensity of a halo w.r.t mean density"""
-        if self.delta_wrt == 'mean':
-            return self.delta_h
-
-        elif self.delta_wrt == 'crit':
-            return self.delta_h / self.cosmo.Om(self.z)
+    # @cached_quantity
+    # def delta_halo(self):
+    #     """ Overdensity of a halo w.r.t mean density"""
+    #     if self.delta_wrt == 'mean':
+    #         return self.delta_h
+    #
+    #     elif self.delta_wrt == 'crit':
+    #         return self.delta_h / self.cosmo.Om(self.z)
 
     @cached_quantity
     def _unn_sigma0(self):
@@ -314,24 +354,19 @@ class MassFunction(transfer.Transfer):
         """
         return self.filter.sigma(self.radii)
 
-
     @cached_quantity
     def _sigma_0(self):
-        """
-        The normalised mass variance at z=0 :math:`\sigma`
-        """
+        r"""The normalised mass variance at z=0 :math:`\sigma`."""
         return self._normalisation * self._unn_sigma0
 
     @cached_quantity
     def radii(self):
-        """
-        The radii corresponding to the masses `m`.
-        """
-        return self.filter.mass_to_radius(self.m,self.mean_density0)
+        """The radii corresponding to the masses `m`."""
+        return self.filter.mass_to_radius(self.m, self.mean_density0)
 
     @cached_quantity
     def _dlnsdlnm(self):
-        """
+        r"""
         The value of :math:`\left|\frac{\d \ln \sigma}{\d \ln m}\right|`, ``len=len(m)``
 
         Notes
@@ -361,26 +396,33 @@ class MassFunction(transfer.Transfer):
         """
         The nonlinear mass, nu(Mstar) = 1.
         """
-        if self.nu.min() >1 or self.nu.max()<1:
+        if self.nu.min() > 1 or self.nu.max() < 1:
             warnings.warn("Nonlinear mass outside mass range")
             if self.nu.min() > 1:
                 startr = np.log(self.radii.min())
             else:
                 startr = np.log(self.radii.max())
 
-            model = lambda lnr : (self.filter.sigma(np.exp(lnr))*self._normalisation * self.growth_factor
-                                  - self.delta_c)**2
+            model = (
+                lambda lnr: (
+                    self.filter.sigma(np.exp(lnr))
+                    * self._normalisation
+                    * self.growth_factor
+                    - self.delta_c
+                )
+                ** 2
+            )
 
-            res = minimize(model,[startr,])
+            res = minimize(model, [startr,])
 
             if res.success:
                 r = np.exp(res.x[0])
-                return self.filter.radius_to_mass(r,self.mean_density0)
+                return self.filter.radius_to_mass(r, self.mean_density0)
             else:
                 warnings.warn("Minimization failed :(")
                 return 0
         else:
-            nu = spline(self.nu,self.m,k=5)
+            nu = spline(self.nu, self.m, k=5)
             return nu(1)
 
     @cached_quantity
@@ -408,14 +450,14 @@ class MassFunction(transfer.Transfer):
 
     @cached_quantity
     def fsigma(self):
-        """
+        r"""
         The multiplicity function, :math:`f(\sigma)`, for `hmf_model`. ``len=len(m)``
         """
         return self.hmf.fsigma
 
     @cached_quantity
     def dndm(self):
-        """
+        r"""
         The number density of haloes, ``len=len(m)`` [units :math:`h^4 M_\odot^{-1} Mpc^{-3}`]
         """
         # if self.z2 is None:  # #This is normally the case
@@ -424,44 +466,56 @@ class MassFunction(transfer.Transfer):
             ngtm_tinker = self._gtm(dndm)
             dndm = self.hmf._modify_dndm(self.m, dndm, self.z, ngtm_tinker)
 
+        # Alter the mass definition
+        if self.hmf.measured_mass_definition is not None:
+            if self.mdef is not None:
+                mnew = self.hmf.measured_mass_definition.change_definition(
+                    self.m, self.mdef
+                )[
+                    0
+                ]  # this uses NFW, but we can change that in halomod.
+                spl = spline(np.log(mnew), np.log(dndm))
+                spl2 = spline(self.m, mnew)
+                dndm = np.exp(spl(np.log(self.m))) / spl2.derivative()(self.m)
+
         # else:  # #This is for a survey-volume weighted calculation
         #     raise NotImplementedError()
-#             if self.nz is None:
-#                 self.nz = 10
-#             zedges = np.linspace(self.z, self.z2, self.nz)
-#             zcentres = (zedges[:-1] + zedges[1:]) / 2
-#             dndm = np.zeros_like(zcentres)
-#             vol = np.zeros_like(zedges)
-#             vol[0] = cp.distance.comoving_volume(self.z,
-#                                         **self.cosmolopy_dict)
-#             for i, zz in enumerate(zcentres):
-#                 self.update(z=zz)
-#                 dndm[i] = self.fsigma * self.mean_dens * np.abs(self._dlnsdlnm) / self.m ** 2
-#                 if isinstance(self.hmf_model, "ff.Behroozi"):
-#                     ngtm_tinker = self._gtm(dndm[i])
-#                     dndm[i] = self.hmf_model._modify_dndm(self.m, dndm[i], self.z, ngtm_tinker)
-#
-#                 vol[i + 1] = cp.distance.comoving_volume(z=zedges[i + 1],
-#                                                 **self.cosmolopy_dict)
-#
-#             vol = vol[1:] - vol[:-1]  # Volume in shells
-#             integrand = vol * dndm[i]
-#             numerator = intg.simps(integrand, x=zcentres)
-#             denom = intg.simps(vol, zcentres)
-#             dndm = numerator / denom
+        #             if self.nz is None:
+        #                 self.nz = 10
+        #             zedges = np.linspace(self.z, self.z2, self.nz)
+        #             zcentres = (zedges[:-1] + zedges[1:]) / 2
+        #             dndm = np.zeros_like(zcentres)
+        #             vol = np.zeros_like(zedges)
+        #             vol[0] = cp.distance.comoving_volume(self.z,
+        #                                         **self.cosmolopy_dict)
+        #             for i, zz in enumerate(zcentres):
+        #                 self.update(z=zz)
+        #                 dndm[i] = self.fsigma * self.mean_dens * np.abs(self._dlnsdlnm) / self.m ** 2
+        #                 if isinstance(self.hmf_model, "ff.Behroozi"):
+        #                     ngtm_tinker = self._gtm(dndm[i])
+        #                     dndm[i] = self.hmf_model._modify_dndm(self.m, dndm[i], self.z, ngtm_tinker)
+        #
+        #                 vol[i + 1] = cp.distance.comoving_volume(z=zedges[i + 1],
+        #                                                 **self.cosmolopy_dict)
+        #
+        #             vol = vol[1:] - vol[:-1]  # Volume in shells
+        #             integrand = vol * dndm[i]
+        #             numerator = intg.simps(integrand, x=zcentres)
+        #             denom = intg.simps(vol, zcentres)
+        #             dndm = numerator / denom
 
         return dndm
 
     @cached_quantity
     def dndlnm(self):
-        """
+        r"""
         The differential mass function in terms of natural log of `m`, ``len=len(m)`` [units :math:`h^3 Mpc^{-3}`]
         """
         return self.m * self.dndm
 
     @cached_quantity
     def dndlog10m(self):
-        """
+        r"""
         The differential mass function in terms of log of `m`, ``len=len(m)`` [units :math:`h^3 Mpc^{-3}`]
         """
         return self.m * self.dndm * np.log(10)
@@ -471,8 +525,8 @@ class MassFunction(transfer.Transfer):
         Calculate number or mass density above mass thresholds in `m`
 
         This function is here, separate from the properties, due to its need
-        of being passed ``dndm` in the case of the ff.Behroozi fit only, in which
-        case an infinite recursion would occur otherwise.
+        of being passed ``dndm` in the case of the :class:`~fitting_functions.Behroozi`
+        fit only, in which case an infinite recursion would occur otherwise.
 
         Parameters
         ----------
@@ -488,7 +542,7 @@ class MassFunction(transfer.Transfer):
         # If the highest mass is very low, we try calculating it to higher masses
         # The dlog10m is NOT CHANGED, so the input needs to be finely spaced.
         # If the top value of dndm is NaN, don't try calculating higher masses.
-        if m[-1] < 10 ** 16.5 and not np.isnan(dndm[-1]) and not dndm[-1]==0:
+        if m[-1] < 10 ** 16.5 and not np.isnan(dndm[-1]) and not dndm[-1] == 0:
             # ff.Behroozi function won't work here.
             if not isinstance(self.hmf, ff.Behroozi):
                 new_mf = copy.deepcopy(self)
@@ -497,13 +551,14 @@ class MassFunction(transfer.Transfer):
 
                 m = np.concatenate((m, new_mf.m))
 
-        ngtm = int_gtm(m[dndm>0], dndm[dndm>0], mass_density)
+        ngtm = int_gtm(m[dndm > 0], dndm[dndm > 0], mass_density)
 
-        # We need to set ngtm back in the original length vector with nans where they were originally
+        # We need to set ngtm back in the original length vector with nans where
+        # they were originally
         if len(ngtm) < len(m):  # Will happen if some dndlnm are NaN
             ngtm_temp = np.zeros(len(dndm))
-            #ngtm_temp[:] = np.nan
-            ngtm_temp[dndm>0] = ngtm
+            # ngtm_temp[:] = np.nan
+            ngtm_temp[dndm > 0] = ngtm
             ngtm = ngtm_temp
 
         # Since ngtm may have been extended, we cut it back
@@ -511,7 +566,7 @@ class MassFunction(transfer.Transfer):
 
     @cached_quantity
     def ngtm(self):
-        """
+        r"""
         The cumulative mass function above `m`, ``len=len(m)`` [units :math:`h^3 Mpc^{-3}`]
 
         In the case that `m` does not extend to sufficiently high masses, this
@@ -525,7 +580,7 @@ class MassFunction(transfer.Transfer):
 
     @cached_quantity
     def rho_gtm(self):
-        """
+        r"""
         Mass density in haloes `>m`, ``len=len(m)`` [units :math:`M_\odot h^2 Mpc^{-3}`]
 
         In the case that `m` does not extend to sufficiently high masses, this
@@ -537,10 +592,9 @@ class MassFunction(transfer.Transfer):
         """
         return self._gtm(self.dndm, mass_density=True)
 
-
     @cached_quantity
     def rho_ltm(self):
-        """
+        r"""
         Mass density in haloes `<m`, ``len=len(m)`` [units :math:`M_\odot h^2 Mpc^{-3}`]
 
         .. note :: As of v1.6.2, this assumes that the entire mass density of
@@ -559,10 +613,10 @@ class MassFunction(transfer.Transfer):
         """
         return self.mean_density0 - self.rho_gtm
 
-
     @cached_quantity
     def how_big(self):
+        r"""
+        Size of simulation volume in which to expect one halo of mass m (with 95% probability), `
+        `len=len(m)`` [units :math:`Mpch^{-1}`]
         """
-        Size of simulation volume in which to expect one halo of mass m (with 95% probability), ``len=len(m)`` [units :math:`Mpch^{-1}`]
-        """
-        return (0.366362 / self.ngtm) ** (1. / 3.)
+        return (0.366362 / self.ngtm) ** (1.0 / 3.0)

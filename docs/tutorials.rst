@@ -9,4 +9,5 @@ with ``hmf``, and use it efficiently.
 .. toctree::
     :maxdepth: 2
 
-    _exampledoc/deal_with_cosmology
+    examples/deal_with_cosmology
+    examples/change_mass_definition

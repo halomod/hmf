@@ -11,11 +11,11 @@ Cosmology framework. All custom subclasses of :class:`astropy.cosmology.FLRW`
 may be used as inputs.
 """
 
-from . import _cache
-from astropy.cosmology import Planck13, FLRW, WMAP5, WMAP7, WMAP9, Planck15
-from . import _framework
+from astropy.cosmology import FLRW, Planck15, WMAP5, WMAP7, WMAP9, Planck13
+from .._internals import _framework, _cache
 import sys
 import astropy.units as u
+
 
 class Cosmology(_framework.Framework):
     """
@@ -39,6 +39,7 @@ class Cosmology(_framework.Framework):
     If you want to just see the plain list of available parameters, use ``Cosmology.get_all_parameters()``.
     To see the actual defaults for each parameter, use ``Cosmology.get_all_parameter_defaults()``.
     """
+
     def __init__(self, cosmo_model=Planck15, cosmo_params=None):
         # Call Framework init
         super(Cosmology, self).__init__()
@@ -47,9 +48,9 @@ class Cosmology(_framework.Framework):
         self.cosmo_model = cosmo_model
         self.cosmo_params = cosmo_params or {}
 
-    #===========================================================================
+    # ===========================================================================
     # Parameters
-    #===========================================================================
+    # ===========================================================================
     @_cache.parameter("model")
     def cosmo_model(self, val):
         """
@@ -63,7 +64,9 @@ class Cosmology(_framework.Framework):
             return cosmo
 
         if not isinstance(val, FLRW):
-                raise ValueError("cosmo_model must be an instance of astropy.cosmology.FLRW")
+            raise ValueError(
+                "cosmo_model must be an instance of astropy.cosmology.FLRW"
+            )
         else:
             return val
 
@@ -85,9 +88,9 @@ class Cosmology(_framework.Framework):
         """
         return val
 
-    #===========================================================================
+    # ===========================================================================
     # DERIVED PROPERTIES AND FUNCTIONS
-    #===========================================================================
+    # ===========================================================================
     @_cache.cached_quantity
     def cosmo(self):
         """
@@ -101,7 +104,12 @@ class Cosmology(_framework.Framework):
         """
         Mean density of universe at z=0, [Msun h^2 / Mpc**3]
         """
-        return (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2).to(u.Msun/u.Mpc**3).value
+        return (
+            (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2)
+            .to(u.Msun / u.Mpc ** 3)
+            .value
+        )
+
 
 def get_cosmo(name):
     """

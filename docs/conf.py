@@ -34,7 +34,10 @@ extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.mathjax',
               'sphinx.ext.viewcode',
               'sphinx.ext.autosummary',
-              'numpydoc']
+              'numpydoc',
+              'nbsphinx',
+              'IPython.sphinxext.ipython_console_highlighting'
+              ]
 
 numpydoc_show_class_members = False
 autosummary_generate = True
@@ -59,6 +62,8 @@ copyright = u'%s, Steven Murray' % (time.localtime()[0])
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 
+exclude_patterns = ['_build', '**.ipynb_checkpoints']
+
 
 def read(*names, **kwargs):
     with io.open(
@@ -75,6 +80,7 @@ def find_version(*file_paths):
     if version_match:
         return version_match.group(1)
     raise RuntimeError("Unable to find version string.")
+
 
 # The short X.Y version.
 version = find_version("..","hmf", "__init__.py")
@@ -277,36 +283,10 @@ intersphinx_mapping = {'http://docs.python.org/': None}
 
 mathjax_path = "http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
 
-
-#===============================================================================
-# This does something naughty. It runs the nbconvert command on everything in the
-# given folder, and moves the results to another given folder on every make.
-
-source_ipy_folder = "examples"
-output_ipy_folder = "_exampledoc"
-import shutil
-
-def nbconvert_files(app):
-    fin = app.config.source_ipy_folder
-    fout = app.config.output_ipy_folder
-
-    if os.path.exists(fout):
-        os.system("rm -rf %s"%fout)
-
-    os.mkdir(fout)
-
-    files = [f for f in os.listdir(fin) if f.endswith(".ipynb")]
-
-    for f in files:
-        os.system("jupyter nbconvert {0} --to rst".format(os.path.join(fin,f)))
-        os.rename(f.replace(".ipynb",".rst"),os.path.join(fout,f.replace(".ipynb",".rst")))
-        try:
-            shutil.move(f.replace(".ipynb","_files"),os.path.join(fout,f.replace(".ipynb","_files")))
-        except IOError:
-            pass
-
-def setup(app):
-    app.add_config_value("source_ipy_folder","examples","html")
-    app.add_config_value("output_ipy_folder","_exampledoc","html")
-
-    app.connect("builder-inited",nbconvert_files)
+#
+# #===============================================================================
+# # This does something naughty. It runs the nbconvert command on everything in the
+# # given folder, and moves the results to another given folder on every make.
+#
+# source_ipy_folder = "examples"
+# output_ipy_folder = "_exampledoc"

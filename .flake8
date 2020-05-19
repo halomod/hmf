@@ -1,0 +1,19 @@
+[flake8]
+ignore =
+    E203
+    E266
+    E501
+    W503
+    F403
+    F401
+    E231
+max-line-length = 88
+# Should be 18.
+max-complexity = 25
+exclude =
+    development/*
+# Not ready for this yet.
+per-file-ignores =
+    scripts/hmf: F821
+    scripts/hmf-fit: F821
+select = B,C,E,F,W,T4,B9

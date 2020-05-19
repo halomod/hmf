@@ -3,10 +3,10 @@
 '''
 hmf-fit -- fit a MassFunction model to data
 
-hmf-fit is a script for fitting arbitrary MassFunction quantities (actually, 
+hmf-fit is a script for fitting arbitrary MassFunction quantities (actually,
 any quantity which is a part of a ``hmf._framework.Framework``) to given
-data. For instance, it makes performing an MCMC fit to the cumulative halo mass 
-function a simple procedure. A config file is necessary to run the application. 
+data. For instance, it makes performing an MCMC fit to the cumulative halo mass
+function a simple procedure. A config file is necessary to run the application.
 '''
 
 import sys
@@ -110,5 +110,3 @@ if __name__ == "__main__":
         statsfile.close()
         sys.exit(0)
     sys.exit(main())
-
-
