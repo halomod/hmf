@@ -17,9 +17,14 @@ jobs:
           wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O $HOME/miniconda.sh;
           bash $HOME/miniconda.sh -b -p $HOME/miniconda
       - name: Setup Environment
-        run: pip install pre-commit
+        run: |
+          export PATH="$HOME/miniconda/bin:$PATH"
+          pip install pre-commit
       - name: Linting
-        run: pre-commit run -a
+        run: |
+          export PATH="$HOME/miniconda/bin:$PATH"
+          pre-commit run -a
+
   tests:
     env:
       ENV_NAME: tests
