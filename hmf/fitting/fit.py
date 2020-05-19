@@ -129,8 +129,6 @@ def model(parm, h, self):
 
     ll += self.ll_func(q, self.data, **self.usr_kwargs)
 
-
-
     if self.verbose:
         print(("Likelihood: ", ll))
     if self.verbose > 1:
@@ -175,16 +173,17 @@ def chi_squared(q, data, sigma):
 
     """
 
-    ll  = 0
-    for qq, dd, ss in zip(q,data,sigma):
-        if len(ss.shape)==2:
+    ll = 0
+    for qq, dd, ss in zip(q, data, sigma):
+        if len(ss.shape) == 2:
             ll += _lognormpdf(qq, dd, ss)
         else:
             ll += np.sum(norm.logpdf(dd, loc=qq, scale=ss))
 
     return ll
 
-def ret_arg(ll,blobs):
+
+def ret_arg(ll, blobs):
     if blobs is None:
         return ll
     else:
@@ -228,10 +227,19 @@ class Fit(object):
         This can be helpful if a flat prior is used on cosmology, for which extreme
         values can sometimes cause exceptions.
     """
-    def __init__(self, priors, data, quantities, ll_func = chi_squared,
-                 ll_kwargs = {},
-                 guess=[], blobs=None,
-                 verbose=0, relax=False):
+
+    def __init__(
+        self,
+        priors,
+        data,
+        quantities,
+        ll_func=chi_squared,
+        ll_kwargs={},
+        guess=[],
+        blobs=None,
+        verbose=0,
+        relax=False,
+    ):
         if len(priors) == 0:
             raise ValueError("priors must be at least length 1")
         else:
