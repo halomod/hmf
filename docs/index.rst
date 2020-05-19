@@ -65,7 +65,7 @@ We can also check which parameters have been set in our "default" instance:
 
 >>> hmf.parameter_values
 
-To change the parameters (cosmological or otherwise), one should use the 
+To change the parameters (cosmological or otherwise), one should use the
 `update()` method, if a MassFunction() object already exists. For example
 
 >>> hmf = MassFunction()
@@ -95,4 +95,3 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
-

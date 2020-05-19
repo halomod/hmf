@@ -1,7 +1,7 @@
-'''
+"""
 A module containing various smoothing filter Component models,
 including the popular top-hat in real space.
-'''
+"""
 
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as _spline
@@ -202,7 +202,7 @@ class Filter(_framework.Component):
         r : array_like
             Radii.
         """
-        return 1. / 3.
+        return 1.0 / 3.0
 
     def dlnss_dlnm(self, r):
         r"""
@@ -306,13 +306,17 @@ class TopHat(Filter):
         return np.where(kr > 1.4e-6, (3 / kr ** 3) * (np.sin(kr) - kr * np.cos(kr)), 1)
 
     def mass_to_radius(self, m, rho_mean):
-        return (3. * m / (4. * np.pi * rho_mean)) ** (1. / 3.)
+        return (3.0 * m / (4.0 * np.pi * rho_mean)) ** (1.0 / 3.0)
 
     def radius_to_mass(self, r, rho_mean):
         return 4 * np.pi * r ** 3 * rho_mean / 3
 
     def dw_dlnkr(self, kr):
-        return np.where(kr > 1e-3, (9 * kr * np.cos(kr) + 3 * (kr ** 2 - 3) * np.sin(kr)) / kr ** 3, 0)
+        return np.where(
+            kr > 1e-3,
+            (9 * kr * np.cos(kr) + 3 * (kr ** 2 - 3) * np.sin(kr)) / kr ** 3,
+            0,
+        )
 
 
 @_utils.inherit_docstrings
@@ -345,19 +349,19 @@ class Gaussian(Filter):
     """
 
     def real_space(self, R, r):
-        return np.exp(-r ** 2 / 2 / R ** 2) / (2 * np.pi) ** 1.5 / R ** 3
+        return np.exp(-(r ** 2) / 2 / R ** 2) / (2 * np.pi) ** 1.5 / R ** 3
 
     def k_space(self, kr):
-        return np.exp(-kr ** 2 / 2.0)
+        return np.exp(-(kr ** 2) / 2.0)
 
     def mass_to_radius(self, m, rho_mean):
-        return (m / rho_mean) ** (1. / 3.) / np.sqrt(2 * np.pi)
+        return (m / rho_mean) ** (1.0 / 3.0) / np.sqrt(2 * np.pi)
 
     def radius_to_mass(self, r, rho_mean):
         return (2 * np.pi) ** 1.5 * r ** 3 * rho_mean
 
     def dw_dlnkr(self, kr):
-        return -kr ** 2 * self.k_space(kr)
+        return -(kr ** 2) * self.k_space(kr)
 
 
 @_utils.inherit_docstrings
@@ -411,10 +415,12 @@ class SharpK(Filter):
         return -power / (2 * np.pi ** 2 * sigma ** 2 * r ** 3)
 
     def mass_to_radius(self, m, rho_mean):
-        return (1. / self.params['c']) * (3. * m / (4. * np.pi * rho_mean)) ** (1. / 3.)
+        return (1.0 / self.params["c"]) * (3.0 * m / (4.0 * np.pi * rho_mean)) ** (
+            1.0 / 3.0
+        )
 
     def radius_to_mass(self, r, rho_mean):
-        return 4 * np.pi * (self.params['c'] * r) ** 3 * rho_mean / 3
+        return 4 * np.pi * (self.params["c"] * r) ** 3 * rho_mean / 3
 
     def sigma(self, r, order=0):
         if not isinstance(r, collections.Iterable):
@@ -428,8 +434,11 @@ class SharpK(Filter):
         sigma = np.zeros(len(r))
         power = _spline(self.k, self.power)
         for i, rr in enumerate(r):
-            k = np.logspace(np.log10(self.k[0]), min(np.log10(self.k.max()), np.log10(1.0 / rr)),
-                            max(100, len(self.k) - i))
+            k = np.logspace(
+                np.log10(self.k[0]),
+                min(np.log10(self.k.max()), np.log10(1.0 / rr)),
+                max(100, len(self.k) - i),
+            )
 
             p = power(k)
             dlnk = np.log(k[1] / k[0])
@@ -446,6 +455,7 @@ class SharpKEllipsoid(SharpK):
 
     Refer to :class:`~Filter` for more details.
     """
+
     _defaults = {"c": 2.0}
 
     def xm(self, g, v):
@@ -456,7 +466,9 @@ class SharpKEllipsoid(SharpK):
 
         Equation A6. in Schneider et al. 2013
         """
-        top = 3 * (1 - g ** 2) + (1.1 - 0.9 * g ** 4) * np.exp(-g * (1 - g ** 2) * (g * v / 2) ** 2)
+        top = 3 * (1 - g ** 2) + (1.1 - 0.9 * g ** 4) * np.exp(
+            -g * (1 - g ** 2) * (g * v / 2) ** 2
+        )
         bot = (3 * (1 - g ** 2) + 0.45 + (g * v / 2) ** 2) ** 0.5 + g * v / 2
         return g * v + top / bot
 
@@ -496,7 +508,7 @@ class SharpKEllipsoid(SharpK):
         return sig_1 ** 2 / (sig_0 * sig_2)
 
     def xi(self, pm, em):
-        return ((1 + 4 * pm) ** 2 / (1 - 3 * em + pm) / (1 - 2 * pm)) ** (1. / 6.)
+        return ((1 + 4 * pm) ** 2 / (1 - 3 * em + pm) / (1 - 2 * pm)) ** (1.0 / 6.0)
 
     def a3(self, r):
         g = self.gamma(r)

@@ -64,7 +64,9 @@ class Cosmology(_framework.Framework):
             return cosmo
 
         if not isinstance(val, FLRW):
-            raise ValueError("cosmo_model must be an instance of astropy.cosmology.FLRW")
+            raise ValueError(
+                "cosmo_model must be an instance of astropy.cosmology.FLRW"
+            )
         else:
             return val
 
@@ -102,7 +104,11 @@ class Cosmology(_framework.Framework):
         """
         Mean density of universe at z=0, [Msun h^2 / Mpc**3]
         """
-        return (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2).to(u.Msun / u.Mpc ** 3).value
+        return (
+            (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2)
+            .to(u.Msun / u.Mpc ** 3)
+            .value
+        )
 
 
 def get_cosmo(name):

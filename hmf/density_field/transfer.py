@@ -21,7 +21,7 @@ except ImportError:
 
 
 class Transfer(cosmo.Cosmology):
-    '''
+    """
     A transfer function framework.
 
     The purpose of this :class:`hmf._frameworks.Framework` is to calculate
@@ -40,12 +40,24 @@ class Transfer(cosmo.Cosmology):
 
     By default, the `growth_model` is :class:`~growth_factor.GrowthFactor`. However, if using a wCDM cosmology
     and camb is installed, it will default to :class:`~growth_factor.CambGrowth`.
-    '''
+    """
 
-    def __init__(self, sigma_8=0.8159, n=0.9667, z=0.0, lnk_min=np.log(1e-8),
-                 lnk_max=np.log(2e4), dlnk=0.05, transfer_model=tm.CAMB if HAVE_PYCAMB else tm.EH,
-                 transfer_params=None, takahashi=True, growth_model=None,
-                 growth_params=None, use_splined_growth=False, **kwargs):
+    def __init__(
+        self,
+        sigma_8=0.8159,
+        n=0.9667,
+        z=0.0,
+        lnk_min=np.log(1e-8),
+        lnk_max=np.log(2e4),
+        dlnk=0.05,
+        transfer_model=tm.CAMB if HAVE_PYCAMB else tm.EH,
+        transfer_params=None,
+        takahashi=True,
+        growth_model=None,
+        growth_params=None,
+        use_splined_growth=False,
+        **kwargs
+    ):
 
         # Call Cosmology init
         super(Transfer, self).__init__(**kwargs)
@@ -73,6 +85,7 @@ class Transfer(cosmo.Cosmology):
                 self.growth_model = "GrowthFactor"
         else:
             self.growth_model = growth_model
+
     # ===========================================================================
     # Parameters
     # ===========================================================================
@@ -89,7 +102,9 @@ class Transfer(cosmo.Cosmology):
         elif isinstance(val, str):
             return get_model_(val, "hmf.cosmology.growth_factor")
         else:
-            raise ValueError("growth_model must be a GrowthFactor or string, got %s" % type(val))
+            raise ValueError(
+                "growth_model must be a GrowthFactor or string, got %s" % type(val)
+            )
 
     @parameter("param")
     def growth_params(self, val):
@@ -111,11 +126,13 @@ class Transfer(cosmo.Cosmology):
         :type: str or :class:`hmf.transfer_models.TransferComponent` subclass, optional
         """
         if not HAVE_PYCAMB and (val == "CAMB" or val == tm.CAMB):
-            raise ValueError("You cannot use the CAMB transfer since pycamb isn't installed")
+            raise ValueError(
+                "You cannot use the CAMB transfer since pycamb isn't installed"
+            )
         if np.issubclass_(val, tm.TransferComponent):
             return val
         elif isinstance(val, str):
-            return get_model_(val, 'hmf.density_field.transfer_models')
+            return get_model_(val, "hmf.density_field.transfer_models")
         else:
             raise ValueError("transfer_model must be string or Transfer subclass")
 
@@ -170,7 +187,7 @@ class Transfer(cosmo.Cosmology):
         """
         return val
 
-    @parameter('res')
+    @parameter("res")
     def dlnk(self, val):
         """
         Step-size of log wavenumbers
@@ -319,4 +336,6 @@ class Transfer(cosmo.Cosmology):
         Dimensionless nonlinear power spectrum, :math:`\Delta_k = \frac{k^3 P_{\rm nl}(k)}{2\pi^2}`
         """
 
-        return _hfit(self.k, self.delta_k, self.sigma_8, self.z, self.cosmo, self.takahashi)
+        return _hfit(
+            self.k, self.delta_k, self.sigma_8, self.z, self.cosmo, self.takahashi
+        )

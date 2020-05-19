@@ -19,13 +19,17 @@ def transfers():
     return Transfer(), Transfer()
 
 
-@pytest.mark.parametrize(['name','val', ],
-                         [("z", 0.1), ("sigma_8", 0.82), ("n", 0.95), ("cosmo_params", {"H0": 68.0})])
+@pytest.mark.parametrize(
+    ["name", "val",],
+    [("z", 0.1), ("sigma_8", 0.82), ("n", 0.95), ("cosmo_params", {"H0": 68.0})],
+)
 def test_updates(transfers, name, val):
     t, t2 = transfers
     t.update(**{name: val})
-    assert np.mean(np.abs((t.power - t2.power) / t.power)) < 1 and np.mean(
-        np.abs((t.power - t2.power) / t.power)) > 1e-6
+    assert (
+        np.mean(np.abs((t.power - t2.power) / t.power)) < 1
+        and np.mean(np.abs((t.power - t2.power) / t.power)) > 1e-6
+    )
 
 
 def test_halofit():
@@ -47,17 +51,22 @@ def test_bondefs():
     print(np.exp(t._unnormalised_lnT))
     assert np.isclose(np.exp(t._unnormalised_lnT[0]), 1, rtol=1e-5)
 
-# Following test is too slow... and would need to be updated whenever CAMB is updated...
 
-# def test_data():
-#     cp = camb.CAMBparams()
-#     cp.set_matter_power(kmax=100.)
-#     t = Transfer(cosmo_model=LambdaCDM(Om0=0.3, Ode0=0.7, H0=70.0, Ob0=0.05), sigma_8=0.8,
-#             n=1, transfer_params={"camb_params":cp},
-#             lnk_min=np.log(1e-11), lnk_max=np.log(1e11))
-#     tdata = np.genfromtxt(LOCATION + "/data/transfer_for_hmf_tests.dat")
-#     pdata = np.genfromtxt(LOCATION + "/data/power_for_hmf_tests.dat")
-#     #assert rms(t._unnormalised_lnT - np.log(tdata[:, 1])) < 0.05  # Does better than 0.001 on my system...
-#     diff = t.power - pdata[:, 1]
-#     #print(t._unnormalised_lnT[400], t._unnormalised_power[400], t._power0[400])
-#     assert rms(t.power - pdata[:, 1]) < 0.001
+@pytest.mark.skip("Too slow and needs to be constantly updated.")
+def test_data(datadir):
+    import camb
+    from astropy.cosmology import LambdaCDM
+
+    cp = camb.CAMBparams()
+    cp.set_matter_power(kmax=100.0)
+    t = Transfer(
+        cosmo_model=LambdaCDM(Om0=0.3, Ode0=0.7, H0=70.0, Ob0=0.05),
+        sigma_8=0.8,
+        n=1,
+        transfer_params={"camb_params": cp},
+        lnk_min=np.log(1e-11),
+        lnk_max=np.log(1e11),
+    )
+    pdata = np.genfromtxt(datadir / "power_for_hmf_tests.dat")
+
+    assert np.sqrt(np.mean(np.square(t.power - pdata[:, 1]))) < 0.001

@@ -1,8 +1,8 @@
-'''
+"""
 Module for dealing with sampled mass functions.
 
 Provides routines for sampling theoretical functions, and for binning sampled data.
-'''
+"""
 import numpy as np
 from ..mass_function import hmf
 from scipy.interpolate import InterpolatedUnivariateSpline as _spline
@@ -25,11 +25,10 @@ def _choose_halo_masses_num(N, icdf):
     return m
 
 
-def sample_mf(N, log_mmin,
-              sort=False, **mf_kwargs):
+def sample_mf(N, log_mmin, sort=False, **mf_kwargs):
     """
     Create a sample of halo masses from a theoretical mass function.
-    
+
     Parameters
     ----------
     N : int

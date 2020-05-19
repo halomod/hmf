@@ -14,7 +14,8 @@ from copy import copy
 from ..halos import mass_definitions as md
 import warnings
 
-class SimDetails(object):
+
+class SimDetails:
     """
     A description of a suite of simulations used to define a mass function.
 
@@ -30,56 +31,55 @@ class SimDetails(object):
     ----------
     L : list of floats
         The boxsizes of the simulations [Mpc/h]
-
     N : list of ints
         The number of particles in the simulations
-
     halo_finder_type : str
         Either "FoF" or "SO"
-
     omegam : float or list of floats
         Matter density used.
-
     sigma_8 : float or list of floats
         Normalisation used.
-
     halo_overdensity : float
         Halo overdensity used (linking length in case of FoF definition)
-
     halo_finder : str, optional
         Name of halo finding code.
-
     softening : list of floats, optional
         Softening length [kpc/h]
-
     transfer : str or list of str, optional
         An identifier for the transfer function calculator used.
-
     z_start : float or list of floats, optional
         The starting redshift of the simulation
-
     z_meas : float or 2-tuple, optional
         Either the redshift of HMF measurement, or (min,max).
-
     ICS : str or list of str, optional
         How the ICS were generated, either "1LPT" or "2LPT"
-
     nmin : int, optional
         The minimum number of particles per halo for haloes used in the fit.
-
     hmf_analysis_notes : str, optional
         A description of any pertinent details about how the HMF was
         analysed in the study.
-
     other_cosmo : dict, optional
         Other cosmological parameters of interest.
     """
 
-    def __init__(self, L, N, halo_finder_type,
-                 omegam, sigma_8, halo_overdensity, halo_finder=None,
-                 softening=None, transfer=None, z_start=None,
-                 z_meas=None, ICS=None, nmin=None,
-                 hmf_analysis_notes="", other_cosmo={}):
+    def __init__(
+        self,
+        L,
+        N,
+        halo_finder_type,
+        omegam,
+        sigma_8,
+        halo_overdensity,
+        halo_finder=None,
+        softening=None,
+        transfer=None,
+        z_start=None,
+        z_meas=None,
+        ICS=None,
+        nmin=None,
+        hmf_analysis_notes="",
+        other_cosmo={},
+    ):
 
         # Possible multi-sims
         self.L = np.atleast_1d(L)
@@ -104,22 +104,22 @@ class SimDetails(object):
         self.V = self.L ** 3
         try:
             self.mp = self.omegam * 2.7755e11 * self.V / self.N
-        except:
-            self.mp = None
-        try:
             self.mmin = self.mp * self.nmin
-        except:
+        except TypeError:
+            self.mp = None
             self.mmin = None
 
 
 def _makedoc(pdocs, lname, sname, eq, ref):
-    return \
+    return (
         r"""
     %s mass function fit.
 
     For details on attributes, see documentation for :class:`FittingFunction`.
-    """ % lname + pdocs + \
-        r"""
+    """
+        % lname
+        + pdocs
+        + r"""
     Notes
     -----
     The %s [1]_ form is:
@@ -129,7 +129,9 @@ def _makedoc(pdocs, lname, sname, eq, ref):
     References
     ----------
     .. [1] %s
-    """ % (lname, sname, eq, ref)
+    """
+        % (lname, sname, eq, ref)
+    )
 
 
 class FittingFunction(_framework.Component):
@@ -173,34 +175,27 @@ class FittingFunction(_framework.Component):
 
     In that example, we did not specify :attr:`cutmask`.
     """
-    _pdocs = \
-        """
+    _pdocs = r"""
 
     Parameters
     ----------
     nu2  : array_like
         A vector of peak-heights, :math:`\delta_c^2/\sigma^2` corresponding to `m`
-
     m   : array_like, optional
         A vector of halo masses [units M_sun/h]. Only necessary if :attr:`req_mass`
         is True. Typically provides limits of applicability. Must correspond to
         `nu2`.
-
     z   : float, optional
         The redshift. Only required if :attr:`req_z` is True, in which case the default
         is 0.
-
     n_eff : array_like, optional
         The effective spectral index at `m`. Only required if :attr:`req_neff` is True.
-        
     mass_definition : :class:`hmf.halos.mass_definitions.MassDefinition` instance, optional
         A halo mass definition. Only required for fits which explicitly include a parameterization
         for halo definition.
-        
     cosmo : :class:`astropy.cosmology.FLRW` instance, optional
-        A cosmology. Default is Planck15. Either `omegam_z` or `cosmo` is required if 
+        A cosmology. Default is Planck15. Either `omegam_z` or `cosmo` is required if
         :attr:`req_omz` is True. If both are passed, omegam_z takes precedence.
-
     \*\*model_parameters : unpacked-dictionary
         These parameters are model-specific. For any model, list the available
         parameters (and their defaults) using ``<model>._defaults``
@@ -218,9 +213,17 @@ class FittingFunction(_framework.Component):
     sim_definition = None
     "Details of the defining simulation, subclass of ``SimDetails``"
 
-    def __init__(self, nu2, m=None, z=0, n_eff=None,
-                 mass_definition=None, cosmo=None, delta_c=1.686,
-                 **model_parameters):
+    def __init__(
+        self,
+        nu2,
+        m=None,
+        z=0,
+        n_eff=None,
+        mass_definition=None,
+        cosmo=None,
+        delta_c=1.686,
+        **model_parameters
+    ):
 
         super(FittingFunction, self).__init__(**model_parameters)
 
@@ -244,7 +247,10 @@ class FittingFunction(_framework.Component):
             self.cosmo = self.mass_definition.cosmo
 
         if self.mass_definition is not None and self.mass_definition.z != self.z:
-            warnings.warn("The redshift in the mass definition differs from that passed, setting to the mass definition redshift.")
+            warnings.warn(
+                "The redshift in the mass definition differs from that passed, "
+                "setting to the mass definition redshift."
+            )
             self.z = self.mass_definition.z
 
         # Set omegam_z --- probably should be fixed.
@@ -263,21 +269,38 @@ class FittingFunction(_framework.Component):
         self.measured_mass_definition = None
         if self.sim_definition is not None:
             if self.sim_definition.halo_finder_type == "FoF":
-                self.measured_mass_definition = md.FOF(self.cosmo, self.z, linking_length=self.sim_definition.halo_overdensity)
+                self.measured_mass_definition = md.FOF(
+                    self.cosmo,
+                    self.z,
+                    linking_length=self.sim_definition.halo_overdensity,
+                )
             elif self.sim_definition.halo_finder_type == "SO":
                 if self.sim_definition.halo_overdensity == "vir":
                     self.measured_mass_definition = md.SOVirial(self.cosmo, self.z)
-                elif self.sim_definition.halo_overdensity.endswith('c'):
-                    self.measured_mass_definition = md.SOCritical(self.cosmo, self.z, overdensity=float(self.sim_definition.halo_overdensity[:-1]))
-                elif self.sim_definition.halo_overdensity.endswith('m'):
-                    self.measured_mass_definition = md.SOMean(self.cosmo, self.z, overdensity=float(
-                        self.sim_definition.halo_overdensity[:-1]))
+                elif self.sim_definition.halo_overdensity.endswith("c"):
+                    self.measured_mass_definition = md.SOCritical(
+                        self.cosmo,
+                        self.z,
+                        overdensity=float(self.sim_definition.halo_overdensity[:-1]),
+                    )
+                elif self.sim_definition.halo_overdensity.endswith("m"):
+                    self.measured_mass_definition = md.SOMean(
+                        self.cosmo,
+                        self.z,
+                        overdensity=float(self.sim_definition.halo_overdensity[:-1]),
+                    )
                 elif self.sim_definition.halo_overdensity == "*":
                     self.measured_mass_definition = None
                 else:
-                    warnings.warn("Unrecognized overdensity criterion format. Changing mass definitions will be impossible.")
+                    warnings.warn(
+                        "Unrecognized overdensity criterion format. "
+                        "Changing mass definitions will be impossible."
+                    )
             else:
-                warnings.warn("Unknown halo finder type in the sim_definition. Changing mass definitions will be impossible.")
+                warnings.warn(
+                    "Unknown halo finder type in the sim_definition. "
+                    "Changing mass definitions will be impossible."
+                )
 
     @property
     def omegam_z(self):
@@ -292,7 +315,7 @@ class FittingFunction(_framework.Component):
     @property
     def sigma(self):
         "The mass variance as a function of mass"
-        return self.delta_c/self.nu
+        return self.delta_c / self.nu
 
     @property
     def lnsigma(self):
@@ -340,47 +363,53 @@ class SMT(FittingFunction):
 
     _defaults = {"a": 0.707, "p": 0.3, "A": 0.3222}
 
-    sim_definition = SimDetails(L=[84.5, 141.3],
-                                N=[256 ** 3, 256 ** 3],
-                                halo_finder_type="SO",
-                                omegam=0.3,
-                                sigma_8=0.9,
-                                halo_overdensity='vir',
-                                halo_finder=None,
-                                softening=30.0,
-                                transfer="BondEfs",
-                                z_start=30.0,
-                                z_meas=0.0,
-                                ICS=None,
-                                nmin=None,
-                                hmf_analysis_notes="No details are given about measurement of HMF. ",
-                                other_cosmo={"omegav": 0.7,
-                                             "h": 0.7,
-                                             "n": 1})
+    sim_definition = SimDetails(
+        L=[84.5, 141.3],
+        N=[256 ** 3, 256 ** 3],
+        halo_finder_type="SO",
+        omegam=0.3,
+        sigma_8=0.9,
+        halo_overdensity="vir",
+        halo_finder=None,
+        softening=30.0,
+        transfer="BondEfs",
+        z_start=30.0,
+        z_meas=0.0,
+        ICS=None,
+        nmin=None,
+        hmf_analysis_notes="No details are given about measurement of HMF. ",
+        other_cosmo={"omegav": 0.7, "h": 0.7, "n": 1},
+    )
 
     @property
     def fsigma(self):
         A = self.norm()
         a = self.params["a"]
-        p = self.params['p']
+        p = self.params["p"]
 
-        vfv = A * np.sqrt(2.0 * a / np.pi) * self.nu * np.exp(-(a * self.nu2) / 2.0) \
-              * (1 + (1.0 / (a * self.nu2)) ** p)
+        vfv = (
+            A
+            * np.sqrt(2.0 * a / np.pi)
+            * self.nu
+            * np.exp(-(a * self.nu2) / 2.0)
+            * (1 + (1.0 / (a * self.nu2)) ** p)
+        )
 
         return vfv
 
     def norm(self):
         if self.params["A"] is not None:
-            return self.params['A']
+            return self.params["A"]
         else:
-            p = self.params['p']
-            return 1. / (1 + 2 ** -p * sp.gamma(0.5 - p) / sp.gamma(0.5))
+            p = self.params["p"]
+            return 1.0 / (1 + 2 ** -p * sp.gamma(0.5 - p) / sp.gamma(0.5))
 
 
 class ST(SMT):
     """
     Alias of :class:`SMT`
     """
+
     pass
 
 
@@ -393,25 +422,25 @@ class Jenkins(FittingFunction):
     __doc__ = _makedoc(FittingFunction._pdocs, "Jenkins", "Jenkins", _eq, _ref)
     _defaults = {"A": 0.315, "b": 0.61, "c": 3.8}
 
-    sim_definition = SimDetails(L=[84.5, 141.3, 479, 3000],
-                                N=[256 ** 3, 256 ** 3, 134217728, 1000 ** 3],
-                                halo_finder_type="FoF",
-                                omegam=0.3,
-                                sigma_8=0.9,
-                                halo_overdensity=0.2,
-                                halo_finder=None,
-                                softening=30.0,
-                                transfer="BondEfs",
-                                z_start=30.0,
-                                z_meas=(0.0, 5.0),
-                                ICS=None,
-                                nmin=20,
-                                hmf_analysis_notes="""
+    sim_definition = SimDetails(
+        L=[84.5, 141.3, 479, 3000],
+        N=[256 ** 3, 256 ** 3, 134217728, 1000 ** 3],
+        halo_finder_type="FoF",
+        omegam=0.3,
+        sigma_8=0.9,
+        halo_overdensity=0.2,
+        halo_finder=None,
+        softening=30.0,
+        transfer="BondEfs",
+        z_start=30.0,
+        z_meas=(0.0, 5.0),
+        ICS=None,
+        nmin=20,
+        hmf_analysis_notes="""
                                 Many cosmologies used. Preferentially listed LCDM here.
                                 Fit involves "smoothing" and deconvolving HMF.""",
-                                other_cosmo={"omegav": 0.7,
-                                             "h": 0.7,
-                                             "n": 1})
+        other_cosmo={"omegav": 0.7, "h": 0.7, "n": 1},
+    )
 
     @property
     def cutmask(self):
@@ -421,7 +450,7 @@ class Jenkins(FittingFunction):
     def fsigma(self):
         A = self.params["A"]
         b = self.params["b"]
-        c = self.params['c']
+        c = self.params["c"]
         return A * np.exp(-np.abs(self.lnsigma + b) ** c)
 
 
@@ -437,33 +466,44 @@ class Warren(FittingFunction):
     _defaults = {"A": 0.7234, "b": 1.625, "c": 0.2538, "d": 1.1982, "e": 1}
 
     uncertainties = {"A": 0.0073, "a": 0.028, "b": 0.0051, "c": 0.0075}
-    sim_definition = SimDetails(L=[96, 135, 192, 272, 384, 543, 768, 1086, 1536, 2172, 2583, 3072],
-                                N=1024 ** 3,
-                                halo_finder_type="FoF",
-                                omegam=0.3,
-                                sigma_8=0.9,
-                                halo_overdensity=0.2,
-                                halo_finder=None,
-                                softening=[2.1, 134.0 / 31., 192 / 31., 272 / 31., 384 / 31., 543 / 31.,
-                                           768 / 31., 1086 / 31., 1536 / 31., 2172 / 31., 2583 / 31., 98],
-                                transfer="CMBFAST",
-                                z_start=None,
-                                z_meas=(0.0, 5.0),
-                                ICS="1LPT",
-                                nmin=400,
-                                hmf_analysis_notes="FOF N-Correction applied. Fit uses ML of Poisson counts.",
-                                other_cosmo={"omegav": 0.7,
-                                             "omegab": 0.04,
-                                             "h": 0.7,
-                                             "n": 1})
+    sim_definition = SimDetails(
+        L=[96, 135, 192, 272, 384, 543, 768, 1086, 1536, 2172, 2583, 3072],
+        N=1024 ** 3,
+        halo_finder_type="FoF",
+        omegam=0.3,
+        sigma_8=0.9,
+        halo_overdensity=0.2,
+        halo_finder=None,
+        softening=[
+            2.1,
+            134.0 / 31.0,
+            192 / 31.0,
+            272 / 31.0,
+            384 / 31.0,
+            543 / 31.0,
+            768 / 31.0,
+            1086 / 31.0,
+            1536 / 31.0,
+            2172 / 31.0,
+            2583 / 31.0,
+            98,
+        ],
+        transfer="CMBFAST",
+        z_start=None,
+        z_meas=(0.0, 5.0),
+        ICS="1LPT",
+        nmin=400,
+        hmf_analysis_notes="FOF N-Correction applied. Fit uses ML of Poisson counts.",
+        other_cosmo={"omegav": 0.7, "omegab": 0.04, "h": 0.7, "n": 1},
+    )
 
     @property
     def fsigma(self):
         A = self.params["A"]
         b = self.params["b"]
-        c = self.params['c']
-        d = self.params['d']
-        e = self.params['e']
+        c = self.params["c"]
+        d = self.params["d"]
+        e = self.params["e"]
 
         return A * ((e / self.sigma) ** b + c) * np.exp(-d / self.sigma ** 2)
 
@@ -482,29 +522,30 @@ class Reed03(SMT):
 
     _defaults = {"a": 0.707, "p": 0.3, "A": 0.3222, "c": 0.7}
 
-    sim_definition = SimDetails(L=50.0,
-                                N=432 ** 3,
-                                halo_finder_type="FoF",
-                                omegam=0.3,
-                                sigma_8=1.0,
-                                halo_overdensity=0.2,
-                                halo_finder=None,
-                                softening=5.0,
-                                transfer="BBKS",
-                                z_start=[69, 139],
-                                z_meas=(0.0, 15.0),
-                                ICS="1LPT",
-                                nmin=64,
-                                hmf_analysis_notes="HMF seems to be purely binned.",
-                                other_cosmo={"omegav": 0.7,
-                                             "omegab": 0.04,
-                                             "h": None,
-                                             "n": None})
+    sim_definition = SimDetails(
+        L=50.0,
+        N=432 ** 3,
+        halo_finder_type="FoF",
+        omegam=0.3,
+        sigma_8=1.0,
+        halo_overdensity=0.2,
+        halo_finder=None,
+        softening=5.0,
+        transfer="BBKS",
+        z_start=[69, 139],
+        z_meas=(0.0, 15.0),
+        ICS="1LPT",
+        nmin=64,
+        hmf_analysis_notes="HMF seems to be purely binned.",
+        other_cosmo={"omegav": 0.7, "omegab": 0.04, "h": None, "n": None},
+    )
 
     @property
     def fsigma(self):
         vfv = super(Reed03, self).fsigma
-        return vfv * np.exp(-self.params['c'] / (self.sigma * np.cosh(2.0 * self.sigma) ** 5))
+        return vfv * np.exp(
+            -self.params["c"] / (self.sigma * np.cosh(2.0 * self.sigma) ** 5)
+        )
 
     @property
     def cutmask(self):
@@ -521,39 +562,72 @@ class Reed07(FittingFunction):
 
     _defaults = {"A": 0.3222, "p": 0.3, "c": 1.08, "a": 0.764}
 
-    sim_definition = SimDetails(L=[1.0, 2.5, 2.5, 2.5, 2.5, 4.64, 11.6, 20, 50, 100, 500, 1340, 3000],
-                                N=[400 ** 3, 1000 ** 3, 1000 ** 3, 500 ** 3, 200 ** 3, 400 ** 3, 1000 ** 3, 400 ** 3,
-                                   1000 ** 3, 900 ** 3, 2160 ** 3, 1448 ** 3, 1000 ** 3],
-                                halo_finder_type="FoF",
-                                omegam=0.3,
-                                sigma_8=0.9,
-                                halo_overdensity=0.2,
-                                halo_finder=None,
-                                softening=[0.125, 0.125, 0.125, 0.25, 0.625, 0.58, 0.58, 2.5, 2.4, 2.4, 5.0, 20, 100],
-                                transfer="CMBFAST",
-                                z_start=[299, 299, 299, 299, 299, 249, 249, 249, 299, 149, 127, 63, 35],
-                                z_meas=[10, 10, 30, 10, 10, 10, 10, 10, 10, 10, 0, 0, 0],
-                                ICS="1LPT",
-                                nmin=100,
-                                hmf_analysis_notes="Finite volume corrections applied.",
-                                other_cosmo={"omegav": 0.7,
-                                             "omegab": None,
-                                             "h": 0.7,
-                                             "n": 1.0})
+    sim_definition = SimDetails(
+        L=[1.0, 2.5, 2.5, 2.5, 2.5, 4.64, 11.6, 20, 50, 100, 500, 1340, 3000],
+        N=[
+            400 ** 3,
+            1000 ** 3,
+            1000 ** 3,
+            500 ** 3,
+            200 ** 3,
+            400 ** 3,
+            1000 ** 3,
+            400 ** 3,
+            1000 ** 3,
+            900 ** 3,
+            2160 ** 3,
+            1448 ** 3,
+            1000 ** 3,
+        ],
+        halo_finder_type="FoF",
+        omegam=0.3,
+        sigma_8=0.9,
+        halo_overdensity=0.2,
+        halo_finder=None,
+        softening=[
+            0.125,
+            0.125,
+            0.125,
+            0.25,
+            0.625,
+            0.58,
+            0.58,
+            2.5,
+            2.4,
+            2.4,
+            5.0,
+            20,
+            100,
+        ],
+        transfer="CMBFAST",
+        z_start=[299, 299, 299, 299, 299, 249, 249, 249, 299, 149, 127, 63, 35],
+        z_meas=[10, 10, 30, 10, 10, 10, 10, 10, 10, 10, 0, 0, 0],
+        ICS="1LPT",
+        nmin=100,
+        hmf_analysis_notes="Finite volume corrections applied.",
+        other_cosmo={"omegav": 0.7, "omegab": None, "h": 0.7, "n": 1.0},
+    )
 
     @property
     def fsigma(self):
-        G_1 = np.exp(-(self.lnsigma - 0.4) ** 2 / (2 * 0.6 ** 2))
-        G_2 = np.exp(-(self.lnsigma - 0.75) ** 2 / (2 * 0.2 ** 2))
+        G_1 = np.exp(-((self.lnsigma - 0.4) ** 2) / (2 * 0.6 ** 2))
+        G_2 = np.exp(-((self.lnsigma - 0.75) ** 2) / (2 * 0.2 ** 2))
 
-        c = self.params['c']
-        a = self.params['a'] / self.params['c']
-        A = self.params['A']
-        p = self.params['p']
+        c = self.params["c"]
+        a = self.params["a"] / self.params["c"]
+        A = self.params["A"]
+        p = self.params["p"]
 
-        return A * np.sqrt(2.0 * a / np.pi) * \
-               (1.0 + (1.0 / (a * self.nu ** 2)) ** p + 0.6 * G_1 + 0.4 * G_2) * self.nu * \
-               np.exp(-c * a * self.nu ** 2 / 2.0 - 0.03 * self.nu ** 0.6 / (self.n_eff + 3) ** 2)
+        return (
+            A
+            * np.sqrt(2.0 * a / np.pi)
+            * (1.0 + (1.0 / (a * self.nu ** 2)) ** p + 0.6 * G_1 + 0.4 * G_2)
+            * self.nu
+            * np.exp(
+                -c * a * self.nu ** 2 / 2.0
+                - 0.03 * self.nu ** 0.6 / (self.n_eff + 3) ** 2
+            )
+        )
 
     @property
     def cutmask(self):
@@ -567,19 +641,24 @@ class Peacock(FittingFunction):
     _eq = r"\nu\exp(-c\nu^2)(2cd\nu+ba\nu^{b-1})/d^2"
     _ref = """Peacock, J. A., Aug. 2007. MNRAS 379 (3), 1067-1074. http://adsabs.harvard.edu/abs/2007MNRAS.379.1067P"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Peacock", "Pck", _eq, _ref)
-    _defaults = {"a": 1.529, "b": 0.704, 'c': 0.412}
+    _defaults = {"a": 1.529, "b": 0.704, "c": 0.412}
 
     sim_definition = copy(Warren.sim_definition)
     sim_definition.hmf_analysis_notes = "Fit directly to Warren+2006 fit."
 
     @property
     def fsigma(self):
-        a = self.params['a']
-        b = self.params['b']
-        c = self.params['c']
+        a = self.params["a"]
+        b = self.params["b"]
+        c = self.params["c"]
 
         d = 1 + a * self.nu ** b
-        return self.nu * np.exp(-c * self.nu2) * (2 * c * d * self.nu + b * a * self.nu ** (b - 1)) / d ** 2
+        return (
+            self.nu
+            * np.exp(-c * self.nu2)
+            * (2 * c * d * self.nu + b * a * self.nu ** (b - 1))
+            / d ** 2
+        )
 
     @property
     def cutmask(self):
@@ -593,31 +672,30 @@ class Angulo(FittingFunction):
     __doc__ = _makedoc(FittingFunction._pdocs, "Angulo", "Ang", _eq, _ref)
     _defaults = {"A": 0.201, "b": 1.7, "c": 1.172, "d": 2.08}
 
-    sim_definition = SimDetails(L=3000.0,
-                                N=6720 ** 3,
-                                halo_finder_type="FoF",
-                                omegam=0.25,
-                                sigma_8=0.9,
-                                halo_overdensity=0.2,
-                                halo_finder=None,
-                                softening=13.79,
-                                transfer="CAMB",
-                                z_start=63,
-                                z_meas=0,
-                                ICS="2LPT",
-                                nmin=20,
-                                hmf_analysis_notes="No corrections seem to be applied; no special techniques.",
-                                other_cosmo={"omegav": 0.75,
-                                             "omegab": 0.045,
-                                             "h": 0.73,
-                                             "n": 1.0})
+    sim_definition = SimDetails(
+        L=3000.0,
+        N=6720 ** 3,
+        halo_finder_type="FoF",
+        omegam=0.25,
+        sigma_8=0.9,
+        halo_overdensity=0.2,
+        halo_finder=None,
+        softening=13.79,
+        transfer="CAMB",
+        z_start=63,
+        z_meas=0,
+        ICS="2LPT",
+        nmin=20,
+        hmf_analysis_notes="No corrections seem to be applied; no special techniques.",
+        other_cosmo={"omegav": 0.75, "omegab": 0.045, "h": 0.73, "n": 1.0},
+    )
 
     @property
     def fsigma(self):
-        A = self.params['A']
-        b = self.params['b']
-        c = self.params['c']
-        d = self.params['d']
+        A = self.params["A"]
+        b = self.params["b"]
+        c = self.params["c"]
+        d = self.params["d"]
 
         return A * ((d / self.sigma) ** b + 1) * np.exp(-c / self.sigma ** 2)
 
@@ -638,24 +716,23 @@ class Watson_FoF(Warren):
     __doc__ = _makedoc(FittingFunction._pdocs, "Watson FoF", "WatF", Warren._eq, _ref)
     _defaults = {"A": 0.282, "b": 2.163, "c": 1, "d": 1.21, "e": 1.406}
 
-    sim_definition = SimDetails(L=[11.4, 20, 114, 425, 1000, 3200, 6000],
-                                N=[3072 ** 3, 5488 ** 3, 3072 ** 3, 5488 ** 3, 3456 ** 3, 4000 ** 3, 6000 ** 3],
-                                halo_finder_type="FoF",
-                                omegam=0.27,
-                                sigma_8=0.8,
-                                halo_overdensity=0.2,
-                                halo_finder="GADGET3",
-                                softening=[0.18, 0.18, 1.86, 3.87, 14.47, 40.0, 50.0],
-                                transfer="CAMB",
-                                z_start=[300, 300, 300, 300, 150, 120, 100],
-                                z_meas=(0, 30),
-                                ICS="1LPT",
-                                nmin=1000,
-                                hmf_analysis_notes="Warren FOF correction applied. Finite-box correction applied.",
-                                other_cosmo={"omegav": 0.73,
-                                             "omegab": 0.044,
-                                             "h": 0.7,
-                                             "n": 0.96})
+    sim_definition = SimDetails(
+        L=[11.4, 20, 114, 425, 1000, 3200, 6000],
+        N=[3072 ** 3, 5488 ** 3, 3072 ** 3, 5488 ** 3, 3456 ** 3, 4000 ** 3, 6000 ** 3],
+        halo_finder_type="FoF",
+        omegam=0.27,
+        sigma_8=0.8,
+        halo_overdensity=0.2,
+        halo_finder="GADGET3",
+        softening=[0.18, 0.18, 1.86, 3.87, 14.47, 40.0, 50.0],
+        transfer="CAMB",
+        z_start=[300, 300, 300, 300, 150, 120, 100],
+        z_meas=(0, 30),
+        ICS="1LPT",
+        nmin=1000,
+        hmf_analysis_notes="Warren FOF correction applied. Finite-box correction applied.",
+        other_cosmo={"omegav": 0.73, "omegab": 0.044, "h": 0.7, "n": 0.96},
+    )
 
     @property
     def cutmask(self):
@@ -676,35 +753,61 @@ class Watson(FittingFunction):
     sim_definition.halo_finder = "AHF"
     sim_definition.halo_overdensity = "*"
 
-    _defaults = {"C_a": 0.023, "d_a": 0.456, "d_b": 0.139, "p": 0.072, "q": 2.13,
-                 "A_0": 0.194, "alpha_0": 1.805, "beta_0": 2.267, "gamma_0": 1.287,
-                 "z_hi": 6, "A_hi": 0.563, "alpha_hi": 0.874, "beta_hi": 3.810, "gamma_hi": 1.453,
-                 "A_a": 1.097, "A_b": 3.216, "A_c": 0.074,
-                 "alpha_a": 3.136, "alpha_b": 3.058, "alpha_c": 2.349,
-                 "beta_a": 5.907, "beta_b": 3.599, "beta_c": 2.344,
-                 "gamma_z": 1.318}
+    _defaults = {
+        "C_a": 0.023,
+        "d_a": 0.456,
+        "d_b": 0.139,
+        "p": 0.072,
+        "q": 2.13,
+        "A_0": 0.194,
+        "alpha_0": 1.805,
+        "beta_0": 2.267,
+        "gamma_0": 1.287,
+        "z_hi": 6,
+        "A_hi": 0.563,
+        "alpha_hi": 0.874,
+        "beta_hi": 3.810,
+        "gamma_hi": 1.453,
+        "A_a": 1.097,
+        "A_b": 3.216,
+        "A_c": 0.074,
+        "alpha_a": 3.136,
+        "alpha_b": 3.058,
+        "alpha_c": 2.349,
+        "beta_a": 5.907,
+        "beta_b": 3.599,
+        "beta_c": 2.344,
+        "gamma_z": 1.318,
+    }
 
     def gamma(self):
-        """
-        Calculate :math:`\Gamma` for the Watson fit.
-        """
+        r"""Calculate :math:`\Gamma` for the Watson fit."""
         if self.mass_definition is not None:
             if not isinstance(self.mass_definition, md.SphericalOverdensity):
-                raise ValueError("The Watson fitting function is a spherical-overdensity function.")
+                raise ValueError(
+                    "The Watson fitting function is a spherical-overdensity function."
+                )
             else:
                 if isinstance(self.mass_definition, md.SOMean):
-                    delta_halo = self.mass_definition.params['overdensity']
+                    delta_halo = self.mass_definition.params["overdensity"]
                 else:
-                    delta_halo = self.mass_definition.params['overdensity'] / self.mass_definition.mean_density
+                    delta_halo = (
+                        self.mass_definition.params["overdensity"]
+                        / self.mass_definition.mean_density
+                    )
         else:
             delta_halo = 178.0
 
         C = np.exp(self.params["C_a"] * (delta_halo / 178 - 1))
         d = -self.params["d_a"] * self.omegam_z - self.params["d_b"]
         p = self.params["p"]
-        q = self.params['q']
+        q = self.params["q"]
 
-        return C * (delta_halo / 178) ** d * np.exp(p * (1 - delta_halo / 178) / self.sigma ** q)
+        return (
+            C
+            * (delta_halo / 178) ** d
+            * np.exp(p * (1 - delta_halo / 178) / self.sigma ** q)
+        )
 
     @property
     def fsigma(self):
@@ -713,20 +816,33 @@ class Watson(FittingFunction):
             alpha = self.params["alpha_0"]
             beta = self.params["beta_0"]
             gamma = self.params["gamma_0"]
-        elif self.z >= self.params['z_hi']:
+        elif self.z >= self.params["z_hi"]:
             A = self.params["A_hi"]
             alpha = self.params["alpha_hi"]
             beta = self.params["beta_hi"]
             gamma = self.params["gamma_hi"]
         else:
             omz = self.omegam_z
-            A = omz * (self.params["A_a"] * (1 + self.z) ** (-self.params["A_b"]) + self.params["A_c"])
-            alpha = omz * (self.params["alpha_a"] * (1 + self.z) ** (-self.params["alpha_b"]) + self.params["alpha_c"])
-            beta = omz * (self.params["beta_a"] * (1 + self.z) ** (-self.params["beta_b"]) + self.params["beta_c"])
+            A = omz * (
+                self.params["A_a"] * (1 + self.z) ** (-self.params["A_b"])
+                + self.params["A_c"]
+            )
+            alpha = omz * (
+                self.params["alpha_a"] * (1 + self.z) ** (-self.params["alpha_b"])
+                + self.params["alpha_c"]
+            )
+            beta = omz * (
+                self.params["beta_a"] * (1 + self.z) ** (-self.params["beta_b"])
+                + self.params["beta_c"]
+            )
             gamma = self.params["gamma_z"]
 
-        return self.gamma() * A * ((beta / self.sigma) ** alpha + 1) * \
-               np.exp(-gamma / self.sigma ** 2)
+        return (
+            self.gamma()
+            * A
+            * ((beta / self.sigma) ** alpha + 1)
+            * np.exp(-gamma / self.sigma ** 2)
+        )
 
     @property
     def cutmask(self):
@@ -738,38 +854,43 @@ class Crocce(Warren):
 
     _ref = """Crocce, M., et al. MNRAS 403 (3), 1353-1367. http://doi.wiley.com/10.1111/j.1365-2966.2009.16194.x"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Crocce", "Cro", Warren._eq, _ref)
-    _defaults = {"A_a": 0.58, "A_b": 0.13,
-                 "b_a": 1.37, "b_b": 0.15,
-                 "c_a": 0.3, "c_b": 0.084,
-                 "d_a": 1.036, "d_b": 0.024,
-                 "e": 1}
+    _defaults = {
+        "A_a": 0.58,
+        "A_b": 0.13,
+        "b_a": 1.37,
+        "b_b": 0.15,
+        "c_a": 0.3,
+        "c_b": 0.084,
+        "d_a": 1.036,
+        "d_b": 0.024,
+        "e": 1,
+    }
 
-    sim_definition = SimDetails(L=[7680, 3072, 4500, 768, 384, 179],
-                                N=[2048 ** 3, 2048 ** 3, 1200 ** 3, 1024 ** 3, 1024 ** 3, 1024 ** 3],
-                                halo_finder_type="FoF",
-                                omegam=0.25,
-                                sigma_8=0.8,
-                                halo_overdensity=0.2,
-                                halo_finder=None,
-                                softening=[50, 50, 100, 50, 50, 50],
-                                transfer="CAMB",
-                                z_start=[150, 50, 50, 50, 50, 50],
-                                z_meas=(0, 1),
-                                ICS=["1LPT", "1LPT", "2LPT", "2LPT", "2LPT", "2LPT"],
-                                nmin=200,
-                                hmf_analysis_notes="Warren FOF correction applied.",
-                                other_cosmo={"omegav": 0.75,
-                                             "omegab": 0.044,
-                                             "h": 0.7,
-                                             "n": 0.95})
+    sim_definition = SimDetails(
+        L=[7680, 3072, 4500, 768, 384, 179],
+        N=[2048 ** 3, 2048 ** 3, 1200 ** 3, 1024 ** 3, 1024 ** 3, 1024 ** 3],
+        halo_finder_type="FoF",
+        omegam=0.25,
+        sigma_8=0.8,
+        halo_overdensity=0.2,
+        halo_finder=None,
+        softening=[50, 50, 100, 50, 50, 50],
+        transfer="CAMB",
+        z_start=[150, 50, 50, 50, 50, 50],
+        z_meas=(0, 1),
+        ICS=["1LPT", "1LPT", "2LPT", "2LPT", "2LPT", "2LPT"],
+        nmin=200,
+        hmf_analysis_notes="Warren FOF correction applied.",
+        other_cosmo={"omegav": 0.75, "omegab": 0.044, "h": 0.7, "n": 0.95},
+    )
 
     def __init__(self, *args, **kwargs):
         super(Crocce, self).__init__(*args, **kwargs)
 
         self.params["A"] = self.params["A_a"] * (1 + self.z) ** (-self.params["A_b"])
-        self.params['b'] = self.params["b_a"] * (1 + self.z) ** (-self.params["b_b"])
-        self.params['c'] = self.params["c_a"] * (1 + self.z) ** (-self.params["c_b"])
-        self.params['d'] = self.params["d_a"] * (1 + self.z) ** (-self.params["d_b"])
+        self.params["b"] = self.params["b_a"] * (1 + self.z) ** (-self.params["b_b"])
+        self.params["c"] = self.params["c_a"] * (1 + self.z) ** (-self.params["c_b"])
+        self.params["d"] = self.params["d_a"] * (1 + self.z) ** (-self.params["d_b"])
 
     @property
     def cutmask(self):
@@ -782,24 +903,23 @@ class Courtin(SMT):
     __doc__ = _makedoc(FittingFunction._pdocs, "Courtin", "Ctn", SMT._eq, _ref)
     _defaults = {"A": 0.348, "a": 0.695, "p": 0.1}
 
-    sim_definition = SimDetails(L=[162, 648, 1296],
-                                N=[512 ** 3, 512 ** 3, 512 ** 3],
-                                halo_finder_type="FoF",
-                                omegam=0.26,
-                                sigma_8=0.79,
-                                halo_overdensity=0.2,
-                                halo_finder=None,
-                                softening=[2.47, 19.78, 39.55],
-                                transfer="CAMB",
-                                z_start=[93, 56, 41],
-                                z_meas=0,
-                                ICS="1LPT",
-                                nmin=200,
-                                hmf_analysis_notes="Many systematic effects tested but not applied.",
-                                other_cosmo={"omegav": 0.74,
-                                             "omegab": 0.044,
-                                             "h": 0.72,
-                                             "n": 0.963})
+    sim_definition = SimDetails(
+        L=[162, 648, 1296],
+        N=[512 ** 3, 512 ** 3, 512 ** 3],
+        halo_finder_type="FoF",
+        omegam=0.26,
+        sigma_8=0.79,
+        halo_overdensity=0.2,
+        halo_finder=None,
+        softening=[2.47, 19.78, 39.55],
+        transfer="CAMB",
+        z_start=[93, 56, 41],
+        z_meas=0,
+        ICS="1LPT",
+        nmin=200,
+        hmf_analysis_notes="Many systematic effects tested but not applied.",
+        other_cosmo={"omegav": 0.74, "omegab": 0.044, "h": 0.72, "n": 0.963},
+    )
 
     @property
     def cutmask(self):
@@ -813,26 +933,37 @@ class Bhattacharya(SMT):
     _eq = r"f_{\rm SMT}(\sigma) (\nu\sqrt{a})^{q-1}"
     _ref = """Bhattacharya, S., et al., May 2011. ApJ 732 (2), 122. http://labs.adsabs.harvard.edu/ui/abs/2011ApJ...732..122B"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Bhattacharya", "Btc", _eq, _ref)
-    _defaults = {"A_a": 0.333, "A_b": 0.11, "a_a": 0.788, "a_b": 0.01, "p": 0.807, "q": 1.795}
+    _defaults = {
+        "A_a": 0.333,
+        "A_b": 0.11,
+        "a_a": 0.788,
+        "a_b": 0.01,
+        "p": 0.807,
+        "q": 1.795,
+    }
 
-    sim_definition = SimDetails(L=[1000 * 0.72, 1736 * 0.72, 2778 * 0.72, 178 * 0.72, 1300 * 0.72],
-                                N=[1500 ** 3, 1200 ** 3, 1024 ** 3, 512 ** 3, 1024 ** 3],
-                                halo_finder_type="FoF",
-                                omegam=None,  # what is lower case omega??
-                                sigma_8=0.8,
-                                halo_overdensity=0.2,
-                                halo_finder=None,
-                                softening=[24, 51, 97, 14, 50],
-                                transfer="CAMB",
-                                z_start=[75, 100, 100, 211, 211],
-                                z_meas=(0, 2),
-                                ICS=["2LPT", "2LPT", "2LPT", "1LPT", "1LPT"],
-                                nmin=400,
-                                hmf_analysis_notes="Finite force correction. FOF Correction. Finite volume correction.",
-                                other_cosmo={"omegav": 0.74,
-                                             "omegab": None,  ## uses lower case omega without definition
-                                             "h": 0.72,
-                                             "n": 0.97})
+    sim_definition = SimDetails(
+        L=[1000 * 0.72, 1736 * 0.72, 2778 * 0.72, 178 * 0.72, 1300 * 0.72],
+        N=[1500 ** 3, 1200 ** 3, 1024 ** 3, 512 ** 3, 1024 ** 3],
+        halo_finder_type="FoF",
+        omegam=None,  # what is lower case omega??
+        sigma_8=0.8,
+        halo_overdensity=0.2,
+        halo_finder=None,
+        softening=[24, 51, 97, 14, 50],
+        transfer="CAMB",
+        z_start=[75, 100, 100, 211, 211],
+        z_meas=(0, 2),
+        ICS=["2LPT", "2LPT", "2LPT", "1LPT", "1LPT"],
+        nmin=400,
+        hmf_analysis_notes="Finite force correction. FOF Correction. Finite volume correction.",
+        other_cosmo={
+            "omegav": 0.74,
+            "omegab": None,  # uses lower case omega without definition
+            "h": 0.72,
+            "n": 0.97,
+        },
+    )
 
     def __init__(self, **kwargs):
         super(Bhattacharya, self).__init__(**kwargs)
@@ -841,7 +972,7 @@ class Bhattacharya(SMT):
 
     @property
     def fsigma(self):
-        """
+        r"""
         Calculate :math:`f(\sigma)` for Bhattacharya form.
 
         Bhattacharya, S., et al., May 2011. ApJ 732 (2), 122.
@@ -852,15 +983,14 @@ class Bhattacharya(SMT):
         Returns
         -------
         vfv : array_like, len=len(pert.M)
-            The function :math:`f(\sigma)\equiv\nu f(\nu)` defined on ``pert.M``
+            The function :math:`f(\sigma)\equiv\nu f(\nu)`.
         """
         vfv = super(Bhattacharya, self).fsigma
-        return vfv * (np.sqrt(self.params['a']) * self.nu) ** (self.params['q'] - 1)
+        return vfv * (np.sqrt(self.params["a"]) * self.nu) ** (self.params["q"] - 1)
 
     @property
     def cutmask(self):
-        return np.logical_and(self.m > 6 * 10 ** 11,
-                              self.m < 3 * 10 ** 15)
+        return np.logical_and(self.m > 6 * 10 ** 11, self.m < 3 * 10 ** 15)
 
 
 class Tinker08(FittingFunction):
@@ -868,32 +998,222 @@ class Tinker08(FittingFunction):
     req_dhalo = True
 
     _eq = r"A\left(\frac{\sigma}{b}^{-a}+1\right)\exp(-c/\sigma^2)"
-    _ref = """Tinker, J., et al., 2008. ApJ 688, 709-728. http://iopscience.iop.org/0004-637X/688/2/709"""
+    _ref = r"""Tinker, J., et al., 2008. ApJ 688, 709-728. http://iopscience.iop.org/0004-637X/688/2/709"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Tinker08", "Tkr", _eq, _ref)
 
     sim_definition = SimDetails(
-        L=[768, 384, 271, 192, 96, 1280, 500, 250, 120, 80, 1000, 500, 500, 500, 384, 384, 120, 80],
-        N=[1024 ** 3, 1024 ** 3, 1024 ** 3, 1024 ** 3, 1024 ** 3, 640 ** 3, 1024 ** 3, 512 ** 3, 512 ** 3, 512 ** 3,
-           1024 ** 3, 512 ** 3, 512 ** 3, 512 ** 3, 1024 ** 3, 1024 ** 3, 1024 ** 3, 512 ** 3],
+        L=[
+            768,
+            384,
+            271,
+            192,
+            96,
+            1280,
+            500,
+            250,
+            120,
+            80,
+            1000,
+            500,
+            500,
+            500,
+            384,
+            384,
+            120,
+            80,
+        ],
+        N=[
+            1024 ** 3,
+            1024 ** 3,
+            1024 ** 3,
+            1024 ** 3,
+            1024 ** 3,
+            640 ** 3,
+            1024 ** 3,
+            512 ** 3,
+            512 ** 3,
+            512 ** 3,
+            1024 ** 3,
+            512 ** 3,
+            512 ** 3,
+            512 ** 3,
+            1024 ** 3,
+            1024 ** 3,
+            1024 ** 3,
+            512 ** 3,
+        ],
         halo_finder_type="SO",
-        omegam=[0.3, 0.3, 0.3, 0.3, 0.3, 0.27, 0.3, 0.3, 0.3, 0.3, 0.27, 0.24, 0.24, 0.24, 0.26, 0.2, 0.27, 0.23],
-        sigma_8=[0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.79, 0.75, 0.75, 0.8, 0.75, 0.9, 0.79, 0.75],
+        omegam=[
+            0.3,
+            0.3,
+            0.3,
+            0.3,
+            0.3,
+            0.27,
+            0.3,
+            0.3,
+            0.3,
+            0.3,
+            0.27,
+            0.24,
+            0.24,
+            0.24,
+            0.26,
+            0.2,
+            0.27,
+            0.23,
+        ],
+        sigma_8=[
+            0.9,
+            0.9,
+            0.9,
+            0.9,
+            0.9,
+            0.9,
+            0.9,
+            0.9,
+            0.9,
+            0.9,
+            0.79,
+            0.75,
+            0.75,
+            0.8,
+            0.75,
+            0.9,
+            0.79,
+            0.75,
+        ],
         halo_overdensity="*",
         halo_finder=None,
-        softening=[25, 14, 10, 4.9, 1.4, 120, 15, 7.6, 1.8, 1.2, 30, 15, 15, 15, 14, 14, 0.9, 1.2],
+        softening=[
+            25,
+            14,
+            10,
+            4.9,
+            1.4,
+            120,
+            15,
+            7.6,
+            1.8,
+            1.2,
+            30,
+            15,
+            15,
+            15,
+            14,
+            14,
+            0.9,
+            1.2,
+        ],
         transfer=None,
-        z_start=[40, 48, 51, 54, 65, 49, 40, 49, 49, 49, 60, 40, 40, 40, 35, 42, 100, 49],
+        z_start=[
+            40,
+            48,
+            51,
+            54,
+            65,
+            49,
+            40,
+            49,
+            49,
+            49,
+            60,
+            40,
+            40,
+            40,
+            35,
+            42,
+            100,
+            49,
+        ],
         z_meas=(0, 2.5),
         ICS="1LPT",
         nmin=None,
         hmf_analysis_notes="No corrections applied.",
         other_cosmo={
-            "omegav": [0.7, 0.7, 0.7, 0.7, 0.7, 0.73, 0.7, 0.7, 0.7, 0.7, 0.73, 0.76, 0.76, 0.76, 0.74, 0.8, 0.73,
-                       0.77],
-            "omegab": [0.04, 0.04, 0.04, 0.04, 0.04, 0.04, 0.045, 0.04, 0.04, 0.04, 0.044, 0.042, 0.042, 0.042, 0.042,
-                       0.044, 0.04, 0.044, 0.04],
-            "h": [0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.73, 0.73, 0.73, 0.71, 0.7, 0.7, 0.73],
-            "n": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.95, 0.95, 0.95, 0.95, 0.94, 1, 0.95, 0.95]})
+            "omegav": [
+                0.7,
+                0.7,
+                0.7,
+                0.7,
+                0.7,
+                0.73,
+                0.7,
+                0.7,
+                0.7,
+                0.7,
+                0.73,
+                0.76,
+                0.76,
+                0.76,
+                0.74,
+                0.8,
+                0.73,
+                0.77,
+            ],
+            "omegab": [
+                0.04,
+                0.04,
+                0.04,
+                0.04,
+                0.04,
+                0.04,
+                0.045,
+                0.04,
+                0.04,
+                0.04,
+                0.044,
+                0.042,
+                0.042,
+                0.042,
+                0.042,
+                0.044,
+                0.04,
+                0.044,
+                0.04,
+            ],
+            "h": [
+                0.7,
+                0.7,
+                0.7,
+                0.7,
+                0.7,
+                0.7,
+                0.7,
+                0.7,
+                0.7,
+                0.7,
+                0.7,
+                0.73,
+                0.73,
+                0.73,
+                0.71,
+                0.7,
+                0.7,
+                0.73,
+            ],
+            "n": [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                0.95,
+                0.95,
+                0.95,
+                0.95,
+                0.94,
+                1,
+                0.95,
+                0.95,
+            ],
+        },
+    )
 
     _defaults = {  # -- A
         "A_200": 1.858659e-01,
@@ -936,7 +1256,9 @@ class Tinker08(FittingFunction):
         "c_2400": 2.237466,
         "c_3200": 2.439729,
         # -- others
-        "A_exp": 0.14, "a_exp": 0.06}
+        "A_exp": 0.14,
+        "a_exp": 0.06,
+    }
 
     delta_virs = np.array([200, 300, 400, 600, 800, 1200, 1600, 2400, 3200])
 
@@ -945,12 +1267,16 @@ class Tinker08(FittingFunction):
 
         if self.mass_definition is not None:
             if not isinstance(self.mass_definition, md.SphericalOverdensity):
-                raise ValueError("The Watson fitting function is a spherical-overdensity function.")
+                raise ValueError(
+                    "The Watson fitting function is a spherical-overdensity function."
+                )
             else:
                 if isinstance(self.mass_definition, md.SOMean):
-                    delta_halo = self.mass_definition.params['overdensity']
+                    delta_halo = self.mass_definition.params["overdensity"]
                 else:
-                    delta_halo = self.mass_definition.params['overdensity'] / self.mass_definition.cosmo.Om(self.z)
+                    delta_halo = self.mass_definition.params[
+                        "overdensity"
+                    ] / self.mass_definition.cosmo.Om(self.z)
         else:
             delta_halo = 200.0
 
@@ -977,22 +1303,28 @@ class Tinker08(FittingFunction):
 
         self.A = A_0 * (1 + self.z) ** (-self.params["A_exp"])
         self.a = a_0 * (1 + self.z) ** (-self.params["a_exp"])
-        alpha = 10 ** (-(0.75 / np.log10(delta_halo / 75.)) ** 1.2)
+        alpha = 10 ** (-((0.75 / np.log10(delta_halo / 75.0)) ** 1.2))
         self.b = b_0 * (1 + self.z) ** (-alpha)
         self.c = c_0
 
     @property
     def fsigma(self):
-        return self.A * ((self.sigma / self.b) ** (-self.a) + 1) * np.exp(-self.c / self.sigma ** 2)
+        return (
+            self.A
+            * ((self.sigma / self.b) ** (-self.a) + 1)
+            * np.exp(-self.c / self.sigma ** 2)
+        )
 
     @property
     def cutmask(self):
         if self.z == 0.0:
-            return np.logical_and(self.lnsigma / np.log(10) > -0.6,
-                                  self.lnsigma / np.log(10) < 0.4)
+            return np.logical_and(
+                self.lnsigma / np.log(10) > -0.6, self.lnsigma / np.log(10) < 0.4
+            )
         else:
-            return np.logical_and(self.lnsigma / np.log(10) > -0.2,
-                                  self.lnsigma / np.log(10) < 0.4)
+            return np.logical_and(
+                self.lnsigma / np.log(10) > -0.2, self.lnsigma / np.log(10) < 0.4
+            )
 
 
 class Tinker10(FittingFunction):
@@ -1006,28 +1338,61 @@ class Tinker10(FittingFunction):
     sim_definition = copy(Tinker08.sim_definition)
 
     _defaults = {  # --- alpha
-        "alpha_200": 0.368, "alpha_300": 0.363, "alpha_400": 0.385,
-        "alpha_600": 0.389, "alpha_800": 0.393, "alpha_1200": 0.365,
-        "alpha_1600": 0.379, "alpha_2400": 0.355, "alpha_3200": 0.327,
+        "alpha_200": 0.368,
+        "alpha_300": 0.363,
+        "alpha_400": 0.385,
+        "alpha_600": 0.389,
+        "alpha_800": 0.393,
+        "alpha_1200": 0.365,
+        "alpha_1600": 0.379,
+        "alpha_2400": 0.355,
+        "alpha_3200": 0.327,
         # --- beta
-        "beta_200": 0.589, "beta_300": 0.585, "beta_400": 0.544, "beta_600": 0.543,
-        "beta_800": 0.564, "beta_1200": 0.623, "beta_1600": 0.637, "beta_2400": 0.673,
+        "beta_200": 0.589,
+        "beta_300": 0.585,
+        "beta_400": 0.544,
+        "beta_600": 0.543,
+        "beta_800": 0.564,
+        "beta_1200": 0.623,
+        "beta_1600": 0.637,
+        "beta_2400": 0.673,
         "beta_3200": 0.702,
         # --- gamma
-        "gamma_200": 0.864, "gamma_300": 0.922, "gamma_400": 0.987,
-        "gamma_600": 1.09, "gamma_800": 1.2, "gamma_1200": 1.34,
-        "gamma_1600": 1.5, "gamma_2400": 1.68, "gamma_3200": 1.81,
+        "gamma_200": 0.864,
+        "gamma_300": 0.922,
+        "gamma_400": 0.987,
+        "gamma_600": 1.09,
+        "gamma_800": 1.2,
+        "gamma_1200": 1.34,
+        "gamma_1600": 1.5,
+        "gamma_2400": 1.68,
+        "gamma_3200": 1.81,
         # --- phi
-        "phi_200": -0.729, "phi_300": -0.789, "phi_400": -0.910,
-        "phi_600": -1.05, "phi_800": -1.2, "phi_1200": -1.26,
-        "phi_1600": -1.45, "phi_2400": -1.5, "phi_3200": -1.49,
+        "phi_200": -0.729,
+        "phi_300": -0.789,
+        "phi_400": -0.910,
+        "phi_600": -1.05,
+        "phi_800": -1.2,
+        "phi_1200": -1.26,
+        "phi_1600": -1.45,
+        "phi_2400": -1.5,
+        "phi_3200": -1.49,
         # -- eta
-        "eta_200": -0.243, "eta_300": -0.261, "eta_400": -0.261,
-        "eta_600": -0.273, "eta_800": -0.278, "eta_1200": -0.301,
-        "eta_1600": -0.301, "eta_2400": -0.319, "eta_3200": -0.336,
+        "eta_200": -0.243,
+        "eta_300": -0.261,
+        "eta_400": -0.261,
+        "eta_600": -0.273,
+        "eta_800": -0.278,
+        "eta_1200": -0.301,
+        "eta_1600": -0.301,
+        "eta_2400": -0.319,
+        "eta_3200": -0.336,
         # --others
-        "beta_exp": 0.2, "phi_exp": -0.08, "eta_exp": 0.27, "gamma_exp": -0.01,
-        "max_z": 3
+        "beta_exp": 0.2,
+        "phi_exp": -0.08,
+        "eta_exp": 0.27,
+        "gamma_exp": -0.01,
+        "max_z": 3,
     }
 
     delta_virs = np.array([200, 300, 400, 600, 800, 1200, 1600, 2400, 3200])
@@ -1038,12 +1403,17 @@ class Tinker10(FittingFunction):
 
         if self.mass_definition is not None:
             if not isinstance(self.mass_definition, md.SphericalOverdensity):
-                raise ValueError("The Watson fitting function is a spherical-overdensity function.")
+                raise ValueError(
+                    "The Watson fitting function is a spherical-overdensity function."
+                )
             else:
                 if isinstance(self.mass_definition, md.SOMean):
-                    delta_halo = self.mass_definition.params['overdensity']
+                    delta_halo = self.mass_definition.params["overdensity"]
                 else:
-                    delta_halo = self.mass_definition.params['overdensity'] / self.mass_definition.mean_density
+                    delta_halo = (
+                        self.mass_definition.params["overdensity"]
+                        / self.mass_definition.mean_density
+                    )
         else:
             delta_halo = 200
 
@@ -1051,7 +1421,9 @@ class Tinker10(FittingFunction):
 
         if int(delta_halo) not in self.delta_virs:
             beta_array = np.array([self.params["beta_%s" % d] for d in self.delta_virs])
-            gamma_array = np.array([self.params["gamma_%s" % d] for d in self.delta_virs])
+            gamma_array = np.array(
+                [self.params["gamma_%s" % d] for d in self.delta_virs]
+            )
             phi_array = np.array([self.params["phi_%s" % d] for d in self.delta_virs])
             eta_array = np.array([self.params["eta_%s" % d] for d in self.delta_virs])
 
@@ -1065,15 +1437,24 @@ class Tinker10(FittingFunction):
             phi_0 = phi_func(delta_halo)
             eta_0 = eta_func(delta_halo)
         else:
-            beta_0 = self.params['beta_%s' % (int(delta_halo))]
-            gamma_0 = self.params['gamma_%s' % (int(delta_halo))]
-            phi_0 = self.params['phi_%s' % (int(delta_halo))]
-            eta_0 = self.params['eta_%s' % (int(delta_halo))]
+            beta_0 = self.params["beta_%s" % (int(delta_halo))]
+            gamma_0 = self.params["gamma_%s" % (int(delta_halo))]
+            phi_0 = self.params["phi_%s" % (int(delta_halo))]
+            eta_0 = self.params["eta_%s" % (int(delta_halo))]
 
-        self.beta = beta_0 * (1 + min(self.z, self.params["max_z"])) ** self.params["beta_exp"]
-        self.phi = phi_0 * (1 + min(self.z, self.params["max_z"])) ** self.params['phi_exp']
-        self.eta = eta_0 * (1 + min(self.z, self.params["max_z"])) ** self.params['eta_exp']
-        self.gamma = gamma_0 * (1 + min(self.z, self.params["max_z"])) ** self.params['gamma_exp']
+        self.beta = (
+            beta_0 * (1 + min(self.z, self.params["max_z"])) ** self.params["beta_exp"]
+        )
+        self.phi = (
+            phi_0 * (1 + min(self.z, self.params["max_z"])) ** self.params["phi_exp"]
+        )
+        self.eta = (
+            eta_0 * (1 + min(self.z, self.params["max_z"])) ** self.params["eta_exp"]
+        )
+        self.gamma = (
+            gamma_0
+            * (1 + min(self.z, self.params["max_z"])) ** self.params["gamma_exp"]
+        )
 
         # # The normalisation only works with specific conditions
         # gamma > 0
@@ -1091,7 +1472,9 @@ class Tinker10(FittingFunction):
         # eta-phi >-0.5
         if self.eta - self.phi <= -0.5:
             if self.terminate:
-                raise ValueError("eta-phi must be >-0.5, got " + str(self.eta - self.phi))
+                raise ValueError(
+                    "eta-phi must be >-0.5, got " + str(self.eta - self.phi)
+                )
             else:
                 self.phi = self.eta + 0.499
         if self.beta <= 0:
@@ -1103,34 +1486,45 @@ class Tinker10(FittingFunction):
     @property
     def normalise(self):
         if int(self.delta_halo) in self.delta_virs and self.z == 0:
-            return self.params['alpha_%s' % (int(self.delta_halo))]
+            return self.params["alpha_%s" % (int(self.delta_halo))]
         else:
-            return 1 / (2 ** (self.eta - self.phi - 0.5) * self.beta ** (-2 * self.phi) \
-                        * self.gamma ** (-0.5 - self.eta) * (2 ** self.phi * self.beta ** (2 * self.phi) \
-                                                             * sp.gamma(
-                                self.eta + 0.5) + self.gamma ** self.phi * sp.gamma(
-                                0.5 + self.eta - self.phi)))
+            return 1 / (
+                2 ** (self.eta - self.phi - 0.5)
+                * self.beta ** (-2 * self.phi)
+                * self.gamma ** (-0.5 - self.eta)
+                * (
+                    2 ** self.phi
+                    * self.beta ** (2 * self.phi)
+                    * sp.gamma(self.eta + 0.5)
+                    + self.gamma ** self.phi * sp.gamma(0.5 + self.eta - self.phi)
+                )
+            )
 
     @property
     def fsigma(self):
-        fv = (1 + (self.beta * self.nu) ** (-2 * self.phi)) * \
-             self.nu ** (2 * self.eta) * np.exp(-self.gamma * (self.nu ** 2) / 2)
+        fv = (
+            (1 + (self.beta * self.nu) ** (-2 * self.phi))
+            * self.nu ** (2 * self.eta)
+            * np.exp(-self.gamma * (self.nu ** 2) / 2)
+        )
 
         return fv * self.normalise * self.nu
 
     @property
     def cutmask(self):
         if self.z == 0.0:
-            return np.logical_and(self.lnsigma / np.log(10) > -0.6,
-                                  self.lnsigma / np.log(10) < 0.4)
+            return np.logical_and(
+                self.lnsigma / np.log(10) > -0.6, self.lnsigma / np.log(10) < 0.4
+            )
         else:
-            return np.logical_and(self.lnsigma / np.log(10) > -0.2,
-                                  self.lnsigma / np.log(10) < 0.4)
+            return np.logical_and(
+                self.lnsigma / np.log(10) > -0.2, self.lnsigma / np.log(10) < 0.4
+            )
 
 
 class Behroozi(Tinker10):
     _ref = r"""Behroozi, P., Weschler, R. and Conroy, C., ApJ, 2013, http://arxiv.org/abs/1207.6105"""
-    __doc__ = """
+    __doc__ = r"""
     Behroozi mass function fit [1]_.
 
     This is an empirical modification to the :class:`Tinker08` fit, to improve
@@ -1141,34 +1535,49 @@ class Behroozi(Tinker10):
     References
     ----------
     .. [1] %s
-    """ % (FittingFunction._pdocs, _ref)
+    """ % (
+        FittingFunction._pdocs,
+        _ref,
+    )
 
-    sim_definition = SimDetails(L=[250, 1000, 420],
-                                N=[2048 ** 3, 2048 ** 3, 1400 ** 3],
-                                halo_finder_type="SO",
-                                omegam=0.27,
-                                sigma_8=0.82,
-                                halo_overdensity="vir",
-                                halo_finder="Rockstar",
-                                softening=[1, 7, 8],
-                                transfer="CAMB",
-                                z_start=None,
-                                z_meas=(0, 8),
-                                ICS=["1LPT", "1LPT", "2LPT"],
-                                nmin=None,
-                                hmf_analysis_notes="No corrections applied.",
-                                other_cosmo={"omegav": 0.73,
-                                             "omegab": None,  ## uses lower case omega without definition
-                                             "h": 0.7,
-                                             "n": 0.95})
+    sim_definition = SimDetails(
+        L=[250, 1000, 420],
+        N=[2048 ** 3, 2048 ** 3, 1400 ** 3],
+        halo_finder_type="SO",
+        omegam=0.27,
+        sigma_8=0.82,
+        halo_overdensity="vir",
+        halo_finder="Rockstar",
+        softening=[1, 7, 8],
+        transfer="CAMB",
+        z_start=None,
+        z_meas=(0, 8),
+        ICS=["1LPT", "1LPT", "2LPT"],
+        nmin=None,
+        hmf_analysis_notes="No corrections applied.",
+        other_cosmo={
+            "omegav": 0.73,
+            "omegab": None,  # uses lower case omega without definition
+            "h": 0.7,
+            "n": 0.95,
+        },
+    )
 
     def _modify_dndm(self, m, dndm, z, ngtm_tinker):
         a = 1 / (1 + z)
-        theta = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * (m / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)))
+        theta = (
+            0.144
+            / (1 + np.exp(14.79 * (a - 0.213)))
+            * (m / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)))
+        )
         ngtm_behroozi = 10 ** (theta + np.log10(ngtm_tinker))
-        dthetadM = 0.144 / (1 + np.exp(14.79 * (a - 0.213))) * \
-                   (0.5 / (1 + np.exp(6.5 * a))) * (m / 10 ** 11.5) ** \
-                   (0.5 / (1 + np.exp(6.5 * a)) - 1) / (10 ** 11.5)
+        dthetadM = (
+            0.144
+            / (1 + np.exp(14.79 * (a - 0.213)))
+            * (0.5 / (1 + np.exp(6.5 * a)))
+            * (m / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)) - 1)
+            / (10 ** 11.5)
+        )
         # if ngtm_tinker is very small (ie. 0), dthetadM will be nan.
         res = dndm * 10 ** theta - ngtm_behroozi * np.log(10) * dthetadM
         res[np.isnan(res)] = 0
@@ -1177,28 +1586,34 @@ class Behroozi(Tinker10):
 
 class Pillepich(Warren):
     _ref = r"""Pillepich, A., et al., 2010, arxiv:0811.4176"""
-    __doc__ = _makedoc(FittingFunction._pdocs, "Pillepich", "Pillepich", Warren._eq, _ref)
+    __doc__ = _makedoc(
+        FittingFunction._pdocs, "Pillepich", "Pillepich", Warren._eq, _ref
+    )
     _defaults = {"A": 0.6853, "b": 1.868, "c": 0.3324, "d": 1.2266, "e": 1}
 
-    sim_definition = SimDetails(L=[1200, 1200, 150],
-                                N=[1024 ** 3, 1024 ** 3, 1024 ** 3],
-                                halo_finder_type="FoF",
-                                omegam=[0.279, 0.24, 0.279],
-                                sigma_8=[0.817, 0.76, 0.817],
-                                halo_overdensity=0.2,
-                                halo_finder=None,
-                                softening=[20, 20, 3],
-                                transfer="LINGER",
-                                z_start=[50, 50, 70],
-                                z_meas=0,
-                                ICS="1LPT",
-                                nmin=100,
-                                hmf_analysis_notes="No corrections applied.",
-                                other_cosmo={"omegav": [0.721, 0.76, 0.721],
-                                             "omegab": [0.0462, 0.042, 0.0462],
-                                             ## uses lower case omega without definition
-                                             "h": [0.701, 0.73, 0.701],
-                                             "n": [0.96, 0.95, 0.96]})
+    sim_definition = SimDetails(
+        L=[1200, 1200, 150],
+        N=[1024 ** 3, 1024 ** 3, 1024 ** 3],
+        halo_finder_type="FoF",
+        omegam=[0.279, 0.24, 0.279],
+        sigma_8=[0.817, 0.76, 0.817],
+        halo_overdensity=0.2,
+        halo_finder=None,
+        softening=[20, 20, 3],
+        transfer="LINGER",
+        z_start=[50, 50, 70],
+        z_meas=0,
+        ICS="1LPT",
+        nmin=100,
+        hmf_analysis_notes="No corrections applied.",
+        other_cosmo={
+            "omegav": [0.721, 0.76, 0.721],
+            "omegab": [0.0462, 0.042, 0.0462],
+            ## uses lower case omega without definition
+            "h": [0.701, 0.73, 0.701],
+            "n": [0.96, 0.95, 0.96],
+        },
+    )
 
 
 class Manera(SMT):
@@ -1207,24 +1622,28 @@ class Manera(SMT):
     # These are for z=0, new ML method, l_linnk = 0.2
     _defaults = {"A": None, "a": 0.709, "p": 0.289}
 
-    sim_definition = SimDetails(L=1280.0,
-                                N=640 ** 3,
-                                halo_finder_type="FoF",
-                                omegam=0.27,
-                                sigma_8=0.9,
-                                halo_overdensity=0.2,
-                                halo_finder=None,
-                                softening=20,
-                                transfer="CMBFAST",
-                                z_start=50,
-                                z_meas=(0, 0.5),
-                                ICS="2LPT",
-                                nmin=105,
-                                hmf_analysis_notes="FOF Correction applied.",
-                                other_cosmo={"omegav": 0.73,
-                                             "omegab": 0.046,  ## uses lower case omega without definition
-                                             "h": 0.72,
-                                             "n": 1.0})
+    sim_definition = SimDetails(
+        L=1280.0,
+        N=640 ** 3,
+        halo_finder_type="FoF",
+        omegam=0.27,
+        sigma_8=0.9,
+        halo_overdensity=0.2,
+        halo_finder=None,
+        softening=20,
+        transfer="CMBFAST",
+        z_start=50,
+        z_meas=(0, 0.5),
+        ICS="2LPT",
+        nmin=105,
+        hmf_analysis_notes="FOF Correction applied.",
+        other_cosmo={
+            "omegav": 0.73,
+            "omegab": 0.046,  # uses lower case omega without definition
+            "h": 0.72,
+            "n": 1.0,
+        },
+    )
 
 
 class Ishiyama(Warren):
@@ -1234,24 +1653,28 @@ class Ishiyama(Warren):
 
     _defaults = {"A": 0.193, "b": 1.550, "c": 1, "d": 1.186, "e": 2.184}
 
-    sim_definition = SimDetails(L=[1120, 560, 280, 140, 70],
-                                N=[8192 ** 3, 4096 ** 3, 2048 ** 3, 2048 ** 3, 2048 ** 3],
-                                halo_finder_type="FoF",
-                                omegam=0.31,
-                                sigma_8=0.83,
-                                halo_overdensity=0.2,
-                                halo_finder=None,
-                                softening=[4.27, 4.27, 4.27, 2.14, 1.07],
-                                transfer="CAMB",
-                                z_start=None,
-                                z_meas=0,
-                                ICS=None,
-                                nmin=40,
-                                hmf_analysis_notes="No corrections applied.",
-                                other_cosmo={"omegav": 0.69,
-                                             "omegab": 0.048,  ## uses lower case omega without definition
-                                             "h": 0.68,
-                                             "n": 0.96})
+    sim_definition = SimDetails(
+        L=[1120, 560, 280, 140, 70],
+        N=[8192 ** 3, 4096 ** 3, 2048 ** 3, 2048 ** 3, 2048 ** 3],
+        halo_finder_type="FoF",
+        omegam=0.31,
+        sigma_8=0.83,
+        halo_overdensity=0.2,
+        halo_finder=None,
+        softening=[4.27, 4.27, 4.27, 2.14, 1.07],
+        transfer="CAMB",
+        z_start=None,
+        z_meas=0,
+        ICS=None,
+        nmin=40,
+        hmf_analysis_notes="No corrections applied.",
+        other_cosmo={
+            "omegav": 0.69,
+            "omegab": 0.048,  # uses lower case omega without definition
+            "h": 0.68,
+            "n": 0.96,
+        },
+    )
 
     @property
     def cutmask(self):
