@@ -1,14 +1,11 @@
-'''
+"""
 Created on Oct 14, 2013
 
 @author: Steven
 
 This module contains numerous functions for fitting HOD models to correlation
 function data. It uses MCMC techniques to do so.
-'''
-#===============================================================================
-# IMPORTS
-#===============================================================================
+"""
 import numpy as np
 from scipy.stats import norm
 from scipy.optimize import minimize
@@ -18,26 +15,23 @@ import warnings
 
 import copy
 import traceback
-import ..density_field.transfer_models as tm
+from ..density_field import transfer_models as tm
 
 
 try:
     from emcee import EnsembleSampler as es
+
     HAVE_EMCEE = True
 
     # The following redefines the EnsembleSampler so that the pool object is not
     # pickled along with it (it can't be).
     def should_pickle(k):
-        return k!="pool"
-        # try:
-        #     pickle.dumps(v)
-        #     return True
-        # except NotImplementedError:
-        #     return False
+        return k != "pool"
 
     class EnsembleSampler(es):
         def __getstate__(self):
-            return dict((k, v) for (k, v) in list(self.__dict__.items()) if should_pickle(k))
+            return {k: v for (k, v) in list(self.__dict__.items()) if should_pickle(k)}
+
 
 except ImportError:
     HAVE_EMCEE = False
@@ -132,7 +126,12 @@ def model(parm, h, self):
         h.update(**param_dict)
     except ValueError as e:
         if self.relax:
-            print(("WARNING: PARAMETERS FAILED ON UPDATE, RETURNING INF: ", list(zip(self.attrs, parm))))
+            print(
+                (
+                    "WARNING: PARAMETERS FAILED ON UPDATE, RETURNING INF: ",
+                    list(zip(self.attrs, parm)),
+                )
+            )
             print(e)
             print((traceback.format_exc()))
             return ret_arg(-np.inf, self.blobs)
@@ -146,7 +145,12 @@ def model(parm, h, self):
         ll += self.ll_func(q, self.data, **self.usr_kwargs)
     except Exception as e:
         if self.relax:
-            print(("WARNING: PARAMETERS FAILED WHEN CALCULATING QUANTITY, RETURNING INF: ", list(zip(self.attrs, parm))))
+            print(
+                (
+                    "WARNING: PARAMETERS FAILED WHEN CALCULATING QUANTITY, RETURNING INF: ",
+                    list(zip(self.attrs, parm)),
+                )
+            )
             print(e)
             print((traceback.format_exc()))
             return ret_arg(-np.inf, self.blobs)
@@ -154,13 +158,21 @@ def model(parm, h, self):
             print((traceback.format_exc()))
             raise e
 
-    # Catch returns of NaN, which may happen for a variety of reasons.
-    if self.relax and np.isnan(ll):
-        return ret_arg(-np.inf, self.blobs)
+    # The logprob of the model
+    if self.cov:
+        ll += _lognormpdf(q, self.data, self.sigma)
+    else:
+        ll += np.sum(norm.logpdf(self.data, loc=q, scale=self.sigma))
+
+    # Add the likelihood of the contraints
+    for k, v in list(self.constraints.items()):
+        ll += norm.logpdf(getattr(h, k), loc=v[0], scale=v[1])
+        if self.verbose > 2:
+            print(("CONSTRAINT: ", k, getattr(h, k)))
 
     if self.verbose:
         print(("Likelihood: ", ll))
-    if self.verbose > 1 :
+    if self.verbose > 1:
         print(("Update Dictionary: ", param_dict))
     if self.verbose > 2:
         print(("Final Quantities: ", q))
@@ -256,10 +268,19 @@ class Fit(object):
         This can be helpful if a flat prior is used on cosmology, for which extreme
         values can sometimes cause exceptions.
     """
-    def __init__(self, priors, data, quantities = None, ll_func = chi_squared,
-                 ll_kwargs = {},
-                 guess=[], blobs=None,
-                 verbose=0, relax=False):
+
+    def __init__(
+        self,
+        priors,
+        data,
+        quantity,
+        constraints,
+        sigma,
+        guess=[],
+        blobs=None,
+        verbose=0,
+        relax=False,
+    ):
         if len(priors) == 0:
             raise ValueError("priors must be at least length 1")
         else:
@@ -293,6 +314,17 @@ class Fit(object):
         self.verbose = verbose
         self.relax = relax
 
+        # Make sure sigma has right rank
+        if len(self.sigma.shape) == 2:
+            self.cov = True
+        elif len(self.sigma.shape) == 1:
+            self.cov = False
+        else:
+            raise ValueError(
+                "sigma must be an array of 1 or 2 dimensions, but has %s dim"
+                % len(sigma.shape)
+            )
+
     def get_guess(self, guess):
         # Set guess if not set
         if not guess:
@@ -312,12 +344,22 @@ class Fit(object):
 class MCMC(Fit):
     def __init__(self, *args, **kwargs):
         if not HAVE_EMCEE:
-            raise TypeError("You need emcee to use this class, aborting. ['pip install emcee']")
+            raise TypeError(
+                "You need emcee to use this class, aborting. ['pip install emcee']"
+            )
 
         super(MCMC, self).__init__(*args, **kwargs)
 
-    def fit(self, sampler=None,h=None, nwalkers=100, nsamples=100, burnin=0,
-            nthreads=0, chunks=None):
+    def fit(
+        self,
+        sampler=None,
+        h=None,
+        nwalkers=100,
+        nsamples=100,
+        burnin=0,
+        nthreads=0,
+        chunks=None,
+    ):
         """
         Estimate the parameters in :attr:`.priors` using AIES MCMC.
 
@@ -364,9 +406,9 @@ class MCMC(Fit):
             raise ValueError("Either sampler or h must be given")
 
         # If using CAMB, nthreads MUST BE 1
-        # if (h.transfer_model == "CAMB" or h.transfer_model == tm.CAMB):
-        #     if any(p.startswith("cosmo_params:") for p in self.attrs):
-        #         nthreads = 1
+        if h.transfer_model == "CAMB" or h.transfer_model == tm.CAMB:
+            if any(p.startswith("cosmo_params:") for p in self.attrs):
+                nthreads = 1
 
         if not nthreads:
             # auto-calculate the number of threads to use if not set.
@@ -376,14 +418,15 @@ class MCMC(Fit):
         if self.quantities is not None:
             [getattr(h, qq) for qq in self.quantities]
 
-        initial_pos=None
+        initial_pos = None
         if sampler is not None:
-            if sampler.iterations>0:
-                initial_pos = sampler.chain[:,-1,:]
+            if sampler.iterations > 0:
+                initial_pos = sampler.chain[:, -1, :]
         else:
             # Note, sampler CANNOT be an attribute of self, since self is passed to emcee.
-            sampler = EnsembleSampler(nwalkers, self.ndim, model,
-                                      args=[h, self], threads=nthreads)
+            sampler = EnsembleSampler(
+                nwalkers, self.ndim, model, args=[h, self], threads=nthreads
+            )
 
         # Get initial positions
         if initial_pos is None:
@@ -392,7 +435,7 @@ class MCMC(Fit):
         # Run a burn-in
         # If there are some samples already in the sampler, only run the difference.
         if burnin:
-            initial_pos, lnprob,rstate,blobs0 = self._run_burnin(burnin,initial_pos)
+            initial_pos, lnprob, rstate, blobs0 = self._run_burnin(burnin, initial_pos)
         else:
             lnprob = None
             rstate = None
@@ -402,9 +445,15 @@ class MCMC(Fit):
         if chunks == 0 or chunks > nsamples or chunks is None:
             chunks = nsamples
 
-        for i, result in enumerate(sampler.sample(initial_pos, iterations=nsamples,
-                                                  lnprob0=lnprob, rstate0=rstate,
-                                                  blobs0=blobs0)):
+        for i, result in enumerate(
+            sampler.sample(
+                initial_pos,
+                iterations=nsamples,
+                lnprob0=lnprob,
+                rstate0=rstate,
+                blobs0=blobs0,
+            )
+        ):
             if (i + 1) % chunks == 0 or i + 1 == nsamples:
                 yield sampler
         #
@@ -438,38 +487,50 @@ class MCMC(Fit):
         i = 0
         for prior in self.priors:
             if isinstance(prior, Uniform):
-                stacked_val[:, i] += np.random.normal(loc=0.0, scale=0.05 *
-                                                      min((self.guess[i] - prior.low),
-                                                          (prior.high - self.guess[i])),
-                                                      size=nwalkers)
+                stacked_val[:, i] += np.random.normal(
+                    loc=0.0,
+                    scale=0.05
+                    * min((self.guess[i] - prior.low), (prior.high - self.guess[i])),
+                    size=nwalkers,
+                )
                 i += 1
             elif isinstance(prior, Normal):
-                stacked_val[:, i] += np.random.normal(loc=0.0, scale=prior.sd,
-                                                      size=nwalkers)
+                stacked_val[:, i] += np.random.normal(
+                    loc=0.0, scale=prior.sd, size=nwalkers
+                )
                 i += 1
             elif isinstance(prior, MultiNorm):
                 for j in range(len(prior.name)):
-                    stacked_val[:, i] += np.random.normal(loc=0.0, scale=np.sqrt(prior.cov[j, j]),
-                                                          size=nwalkers)
+                    stacked_val[:, i] += np.random.normal(
+                        loc=0.0, scale=np.sqrt(prior.cov[j, j]), size=nwalkers
+                    )
                     i += 1
 
         return stacked_val
 
-    def _run_burnin(self,burnin,initial_pos):
+    def _run_burnin(self, burnin, initial_pos):
         if type(burnin) == int:
-            if burnin - self.sampler.iterations >0:
-                initial_pos, lnprob, rstate,blobs0 = self.sampler.run_mcmc(initial_pos, burnin-self.sampler.iterations)
+            if burnin - self.sampler.iterations > 0:
+                initial_pos, lnprob, rstate, blobs0 = self.sampler.run_mcmc(
+                    initial_pos, burnin - self.sampler.iterations
+                )
                 self.sampler.reset()
         else:
-            if burnin[0]-self.sampler.iterations > 0:
-                initial_pos, lnprob, rstate,blobs0 = self.sampler.run_mcmc(initial_pos, burnin[0]-self.sampler.iterations)
+            if burnin[0] - self.sampler.iterations > 0:
+                initial_pos, lnprob, rstate, blobs0 = self.sampler.run_mcmc(
+                    initial_pos, burnin[0] - self.sampler.iterations
+                )
             else:
-                return initial_pos,None,None,None
+                return initial_pos, None, None, None
 
-            it_needed = burnin[1]*np.max(self.sampler.acor)
-            while it_needed > self.sampler.iterations or it_needed<0: # if negative, probably ran fewer samples than lag.
-                initial_pos, lnprob, rstate, blobs0 = self.sampler.run_mcmc(initial_pos, burnin[0]/2)
-                it_needed = burnin[1]*np.max(self.sampler.acor)
+            it_needed = burnin[1] * np.max(self.sampler.acor)
+            while (
+                it_needed > self.sampler.iterations or it_needed < 0
+            ):  # if negative, probably ran fewer samples than lag.
+                initial_pos, lnprob, rstate, blobs0 = self.sampler.run_mcmc(
+                    initial_pos, burnin[0] / 2
+                )
+                it_needed = burnin[1] * np.max(self.sampler.acor)
                 if self.sampler.iterations > burnin[2]:
                     warnings.warn("Burnin FAILED... continuing (acor=%s)" % (it_needed))
 
@@ -477,20 +538,20 @@ class MCMC(Fit):
                 burnin = self.sampler.iterations
                 print(("Used %s samples for burnin" % self.sampler.iterations))
             self.sampler.reset()
-        return initial_pos, lnprob,rstate,blobs0
+        return initial_pos, lnprob, rstate, blobs0
 
 
-#===========================================================
+# ===========================================================
 # Minimize Fitting Routine
-#===========================================================
+# ===========================================================
 class Minimize(Fit):
-    def __init__(self,*args,**kwargs):
-        super(Minimize,self).__init__(*args,**kwargs)
-        self.original_blobs = self.blobs + [] #add [] to copy it
+    def __init__(self, *args, **kwargs):
+        super(Minimize, self).__init__(*args, **kwargs)
+        self.original_blobs = self.blobs + []  # add [] to copy it
         self.blobs = None
 
-    def fit(self, h, disp=False, maxiter=50,tol=None,**minimize_kwargs):
-        """
+    def fit(self, h, disp=False, maxiter=50, tol=None, **minimize_kwargs):
+        r"""
         Run an optimization procedure to fit a model to data.
 
         Parameters
@@ -511,7 +572,7 @@ class Minimize(Fit):
         tol : float, default None
             Tolerance for termination
 
-        \*\*kwargs :
+        kwargs :
             Arguments passed directly to :func:`scipy.optimize.minimize`.
 
         Returns
@@ -531,10 +592,15 @@ class Minimize(Fit):
             else:
                 bounds.append(p.bounds())
 
-        res = minimize(self.negmod, self.guess, (h,), tol=tol,
-                       options={"disp":disp, "maxiter":maxiter},
-                       **minimize_kwargs)
-        if hasattr(res,"hess_inv"):
+        res = minimize(
+            self.negmod,
+            self.guess,
+            (h,),
+            tol=tol,
+            options={"disp": disp, "maxiter": maxiter},
+            **minimize_kwargs
+        )
+        if hasattr(res, "hess_inv"):
             self.cov_matrix = res.hess_inv
 
         return res
@@ -546,23 +612,26 @@ class Minimize(Fit):
         else:
             return -ll
 
-#===============================================================================
+
+# ===============================================================================
 # Classes for different prior models
-#===============================================================================
+# ===============================================================================
 class Prior(object):
     def ll(self, param):
         """
         Returns the log-likelihood of the given parameter given the Prior
         """
         pass
+
     def guess(self, *p):
         """
         Returns an "initial guess" for the prior
         """
         pass
 
+
 class Uniform(Prior):
-    """
+    r"""
     A Uniform prior.
 
     Parameters
@@ -577,6 +646,7 @@ class Uniform(Prior):
         The upper bound of the parameter
 
     """
+
     def __init__(self, param, low, high):
         self.name = param
         self.low = low
@@ -592,13 +662,15 @@ class Uniform(Prior):
         return (self.low + self.high) / 2
 
     def bounds(self):
-        return (self.low,self.high)
+        return (self.low, self.high)
+
 
 class Log(Uniform):
     pass
 
+
 class Normal(Prior):
-    """
+    r"""
     A Gaussian prior.
 
     Parameters
@@ -612,6 +684,7 @@ class Normal(Prior):
     sd : float
         The standard deviation of the prior distribution
     """
+
     def __init__(self, param, mean, sd):
         self.name = param
         self.mean = mean
@@ -624,7 +697,8 @@ class Normal(Prior):
         return self.mean
 
     def bounds(self):
-        return (self.mean-5*self.sd,self.mean+5*self.sd)
+        return (self.mean - 5 * self.sd, self.mean + 5 * self.sd)
+
 
 class MultiNorm(Prior):
     """
@@ -641,6 +715,7 @@ class MultiNorm(Prior):
     cov : ndarray
         Covariance matrix of the prior distribution
     """
+
     def __init__(self, params, mean, cov):
         self.name = params
         self.mean = mean
@@ -650,7 +725,7 @@ class MultiNorm(Prior):
         """
         Here params should be a dict of key:values
         """
-        #params = np.array([params[k] for k in self.name])
+        # params = np.array([params[k] for k in self.name])
         return _lognormpdf(params, self.mean, self.cov)
 
     def guess(self, *p):
@@ -660,18 +735,23 @@ class MultiNorm(Prior):
         return self.mean[self.name.index(p[0])]
 
     def bounds(self):
-        return [(m+5*sd,m-5*sd) for m,sd in zip(self.mean,np.sqrt(np.diag(self.cov)))]
+        return [
+            (m + 5 * sd, m - 5 * sd)
+            for m, sd in zip(self.mean, np.sqrt(np.diag(self.cov)))
+        ]
+
 
 def _lognormpdf(x, mu, S):
     """ Log of Multinormal PDF at x, up to scale-factors."""
     err = x - mu
     return -0.5 * np.linalg.solve(S, err).T.dot(err)
 
-#===============================================================================
+
+# ===============================================================================
 # COVARIANCE DATA FROM CMB MISSIONS
-#===============================================================================
-# # Some data from CMB missions.
-# # All cov and mean data is in order of ["omegab_h2", "omegac_h2", "n", "sigma_8", "H0"]
+# ===============================================================================
+# Some data from CMB missions.
+# All cov and mean data is in order of ["omegab_h2", "omegac_h2", "n", "sigma_8", "H0"]
 class CosmoCovData(object):
     def __init__(self, cov, mean, params):
         self.cov = cov
@@ -682,7 +762,7 @@ class CosmoCovData(object):
         """
         Return covariance matrix of given parameters *p
         """
-        if not all([str(pp) in self.params for pp in p]):
+        if any(str(pp) not in self.params for pp in p):
             raise AttributeError("One or more parameters passed are not in the data")
 
         indices = [self.params.index(str(k)) for k in p]
@@ -699,8 +779,12 @@ class CosmoCovData(object):
     def get_normal_priors(self, *p):
         std = self.get_std(*p)
         mean = self.get_mean(*p)
-        return [Normal("cosmo_params:" + pp, m, s) if p not in ["sigma_8", "n"]
-                else Normal(pp, m, s) for pp, m, s in zip(p, mean, std)]
+        return [
+            Normal("cosmo_params:" + pp, m, s)
+            if p not in ["sigma_8", "n"]
+            else Normal(pp, m, s)
+            for pp, m, s in zip(p, mean, std)
+        ]
 
     def get_cov_prior(self, *p):
         cov = self.get_cov(*p)
@@ -708,50 +792,87 @@ class CosmoCovData(object):
         p = ["cosmo_params:" + pp if pp not in ["sigma_8", "n"] else pp for pp in p]
         return MultiNorm(p, mean, cov)
 
+
 class FlatCovData(CosmoCovData):
     def __init__(self, cov, mean):
-        params = ['Om0', 'Ob0', 'sigma_8', 'n', 'H0']
+        params = ["Om0", "Ob0", "sigma_8", "n", "H0"]
         super(FlatCovData, self).__init__(cov, mean, params)
 
 
-WMAP3 = FlatCovData(cov=np.array([[ 1.294e-03, 1.298e-04, 1.322e-03, -1.369e-04, -1.153e-01],
-                                  [1.298e-04, 1.361e-05, 1.403e-04, -7.666e-06, -1.140e-02],
-                                  [1.322e-03, 1.403e-04, 2.558e-03, 2.967e-04, -9.972e-02],
-                                  [-1.369e-04, -7.666e-06, 2.967e-04, 2.833e-04, 2.289e-02],
-                                  [-1.153e-01, -1.140e-02, -9.972e-02, 2.289e-02, 1.114e+01 ]]),
-                    mean=np.array([ 2.409e-01, 4.182e-02, 7.605e-01, 9.577e-01, 7.321e+01 ]))
+WMAP3 = FlatCovData(
+    cov=np.array(
+        [
+            [1.294e-03, 1.298e-04, 1.322e-03, -1.369e-04, -1.153e-01],
+            [1.298e-04, 1.361e-05, 1.403e-04, -7.666e-06, -1.140e-02],
+            [1.322e-03, 1.403e-04, 2.558e-03, 2.967e-04, -9.972e-02],
+            [-1.369e-04, -7.666e-06, 2.967e-04, 2.833e-04, 2.289e-02],
+            [-1.153e-01, -1.140e-02, -9.972e-02, 2.289e-02, 1.114e01],
+        ]
+    ),
+    mean=np.array([2.409e-01, 4.182e-02, 7.605e-01, 9.577e-01, 7.321e01]),
+)
 
-WMAP5 = FlatCovData(cov=np.array([[ 9.514e-04, 9.305e-05, 8.462e-04, -1.687e-04, -8.107e-02],
-                                  [9.305e-05, 9.517e-06, 8.724e-05, -1.160e-05, -7.810e-03],
-                                  [8.462e-04, 8.724e-05, 1.339e-03, 1.032e-04, -6.075e-02],
-                                  [-1.687e-04, -1.160e-05, 1.032e-04, 2.182e-04, 2.118e-02],
-                                  [-8.107e-02, -7.810e-03, -6.075e-02, 2.118e-02, 7.421e+00 ]]),
-                    mean=np.array([ 2.597e-01, 4.424e-02, 7.980e-01, 9.634e-01, 7.180e+01 ]))
+WMAP5 = FlatCovData(
+    cov=np.array(
+        [
+            [9.514e-04, 9.305e-05, 8.462e-04, -1.687e-04, -8.107e-02],
+            [9.305e-05, 9.517e-06, 8.724e-05, -1.160e-05, -7.810e-03],
+            [8.462e-04, 8.724e-05, 1.339e-03, 1.032e-04, -6.075e-02],
+            [-1.687e-04, -1.160e-05, 1.032e-04, 2.182e-04, 2.118e-02],
+            [-8.107e-02, -7.810e-03, -6.075e-02, 2.118e-02, 7.421e00],
+        ]
+    ),
+    mean=np.array([2.597e-01, 4.424e-02, 7.980e-01, 9.634e-01, 7.180e01]),
+)
 
-WMAP7 = FlatCovData(cov=np.array([[ 8.862e-04, 8.399e-05, 7.000e-04, -2.060e-04, -7.494e-02],
-                                  [8.399e-05, 8.361e-06, 7.000e-05, -1.500e-05, -7.003e-03],
-                                  [7.000e-04, 7.000e-05, 1.019e-03, 4.194e-05, -4.987e-02],
-                                  [-2.060e-04, -1.500e-05, 4.194e-05, 2.103e-04, 2.300e-02],
-                                  [-7.494e-02, -7.003e-03, -4.987e-02, 2.300e-02, 6.770e+00 ]]),
-                    mean=np.array([ 2.675e-01, 4.504e-02, 8.017e-01, 9.634e-01, 7.091e+01 ]))
+WMAP7 = FlatCovData(
+    cov=np.array(
+        [
+            [8.862e-04, 8.399e-05, 7.000e-04, -2.060e-04, -7.494e-02],
+            [8.399e-05, 8.361e-06, 7.000e-05, -1.500e-05, -7.003e-03],
+            [7.000e-04, 7.000e-05, 1.019e-03, 4.194e-05, -4.987e-02],
+            [-2.060e-04, -1.500e-05, 4.194e-05, 2.103e-04, 2.300e-02],
+            [-7.494e-02, -7.003e-03, -4.987e-02, 2.300e-02, 6.770e00],
+        ]
+    ),
+    mean=np.array([2.675e-01, 4.504e-02, 8.017e-01, 9.634e-01, 7.091e01]),
+)
 
-WMAP9 = FlatCovData(cov=np.array([[ 6.854e-04, 6.232e-05, 4.187e-04, -2.180e-04, -5.713e-02],
-                                  [6.232e-05, 5.964e-06, 4.048e-05, -1.643e-05, -5.134e-03],
-                                  [4.187e-04, 4.048e-05, 5.644e-04, -1.037e-05, -2.945e-02],
-                                  [-2.180e-04, -1.643e-05, -1.037e-05, 1.766e-04, 2.131e-02],
-                                  [-5.713e-02, -5.134e-03, -2.945e-02, 2.131e-02, 5.003e+00]]),
-                     mean=np.array([ 2.801e-01, 4.632e-02, 8.212e-01, 9.723e-01, 6.998e+01 ]))
+WMAP9 = FlatCovData(
+    cov=np.array(
+        [
+            [6.854e-04, 6.232e-05, 4.187e-04, -2.180e-04, -5.713e-02],
+            [6.232e-05, 5.964e-06, 4.048e-05, -1.643e-05, -5.134e-03],
+            [4.187e-04, 4.048e-05, 5.644e-04, -1.037e-05, -2.945e-02],
+            [-2.180e-04, -1.643e-05, -1.037e-05, 1.766e-04, 2.131e-02],
+            [-5.713e-02, -5.134e-03, -2.945e-02, 2.131e-02, 5.003e00],
+        ]
+    ),
+    mean=np.array([2.801e-01, 4.632e-02, 8.212e-01, 9.723e-01, 6.998e01]),
+)
 
-Planck13 = FlatCovData(cov=np.array([[ 3.884e-04, 3.017e-05, -1.508e-04, -1.619e-04, -2.834e-02],
-                                     [3.017e-05, 2.459e-06, -9.760e-06, -1.236e-05, -2.172e-03],
-                                     [-1.508e-04, -9.760e-06, 7.210e-04, 1.172e-04, 1.203e-02],
-                                     [-1.619e-04, -1.236e-05, 1.172e-04, 8.918e-05, 1.196e-02],
-                                     [-2.834e-02, -2.172e-03, 1.203e-02, 1.196e-02, 2.093e+00 ]]),
-                       mean=np.array([ 3.138e-01, 4.861e-02, 8.339e-01, 9.617e-01, 6.741e+01 ]))
+Planck13 = FlatCovData(
+    cov=np.array(
+        [
+            [3.884e-04, 3.017e-05, -1.508e-04, -1.619e-04, -2.834e-02],
+            [3.017e-05, 2.459e-06, -9.760e-06, -1.236e-05, -2.172e-03],
+            [-1.508e-04, -9.760e-06, 7.210e-04, 1.172e-04, 1.203e-02],
+            [-1.619e-04, -1.236e-05, 1.172e-04, 8.918e-05, 1.196e-02],
+            [-2.834e-02, -2.172e-03, 1.203e-02, 1.196e-02, 2.093e00],
+        ]
+    ),
+    mean=np.array([3.138e-01, 4.861e-02, 8.339e-01, 9.617e-01, 6.741e01]),
+)
 
-Planck15 = FlatCovData(cov=np.array([[ 1.021e-04, 8.034e-06, -5.538e-05, -4.492e-05, -7.479e-03],
-                                     [8.034e-06, 6.646e-07, -3.924e-06, -3.542e-06, -5.803e-04],
-                                     [-5.538e-05, -3.924e-06, 3.308e-04, 4.343e-05, 4.250e-03],
-                                     [-4.492e-05, -3.542e-06, 4.343e-05, 2.940e-05, 3.291e-03],
-                                     [-7.479e-03, -5.803e-04, 4.250e-03, 3.291e-03, 5.531e-01 ]]),
-                       mean=np.array([ 3.114e-01, 4.888e-02, 8.460e-01, 9.669e-01, 6.758e+01 ]))
+Planck15 = FlatCovData(
+    cov=np.array(
+        [
+            [1.021e-04, 8.034e-06, -5.538e-05, -4.492e-05, -7.479e-03],
+            [8.034e-06, 6.646e-07, -3.924e-06, -3.542e-06, -5.803e-04],
+            [-5.538e-05, -3.924e-06, 3.308e-04, 4.343e-05, 4.250e-03],
+            [-4.492e-05, -3.542e-06, 4.343e-05, 2.940e-05, 3.291e-03],
+            [-7.479e-03, -5.803e-04, 4.250e-03, 3.291e-03, 5.531e-01],
+        ]
+    ),
+    mean=np.array([3.114e-01, 4.888e-02, 8.460e-01, 9.669e-01, 6.758e01]),
+)

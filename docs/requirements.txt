@@ -1,4 +1,4 @@
-numpydoc
-nbsphinx
 ipykernel
+nbsphinx
+numpydoc
 pandoc

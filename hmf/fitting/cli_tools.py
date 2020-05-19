@@ -1,37 +1,38 @@
-'''
+"""
 Created on 27/02/2015
 
 @author: Steven Murray
-'''
+"""
 
 import sys
 import os
 from configparser import ConfigParser as cfg
 from functools import reduce
-
-cfg.optionxform = str
 import numpy as np
 from . import fit
 import json
 import time
 import errno
+from multiprocessing import cpu_count
 from os.path import join
 import warnings
-from emcee import autocorr
 import pickle
-from numbers import Number
 import copy
-import collections
+from emcee.interruptible_pool import InterruptiblePool
+
+from ..density_field import transfer_models as tm
+
+cfg.optionxform = str
 
 
 def secondsToStr(t):
-    return "%d:%02d:%02d.%03d" % \
-           reduce(lambda ll, b: divmod(ll[0], b) + ll[1:],
-                  [(t * 1000,), 1000, 60, 60])
+    return "%d:%02d:%02d.%03d" % reduce(
+        lambda ll, b: divmod(ll[0], b) + ll[1:], [(t * 1000,), 1000, 60, 60]
+    )
 
 
 class CLIError(Exception):
-    '''Generic exception to raise and log different fatal errors.'''
+    """Generic exception to raise and log different fatal errors."""
 
     def __init__(self, msg):
         super(CLIError).__init__(type(self))
@@ -46,7 +47,7 @@ class CLIError(Exception):
 
 def import_class(cl):
     d = cl.rfind(".")
-    classname = cl[d + 1:len(cl)]
+    classname = cl[d + 1 : len(cl)]
     m = __import__(cl[0:d], globals(), locals(), [classname])
     return getattr(m, classname)
 
@@ -61,11 +62,10 @@ class CLIRunner(object):
         self.verbose = verbose
 
         self.prefix = prefix
-        if self.prefix:
-            if not self.prefix.endswith("."):
-                self.prefix += "."
+        if self.prefix and not self.prefix.endswith("."):
+            self.prefix += "."
 
-        ### READ CONFIG FILE ###
+        # READ CONFIG FILE
         # NOTE param_dict just contains variables of the actual fit.
         param_dict = self.read_config(config)
 
@@ -85,10 +85,7 @@ class CLIRunner(object):
         # Get params that are part of a dict
         self.priors, self.keys, self.guess = self.param_setup(param_dict)
 
-        if restart:
-            self.sampler = self._get_previous_sampler()
-        else:
-            self.sampler = None
+        self.sampler = self._get_previous_sampler() if restart else None
 
     def read_config(self, fname):
         config = cfg()
@@ -99,7 +96,7 @@ class CLIRunner(object):
         if "outdir" not in res["IO"]:
             res["IO"]["outdir"] = ""
         if "covar_data" not in res["cosmo_paramsParams"]:
-            res["cosmo_paramsParams"]['covar_data'] = ''
+            res["cosmo_paramsParams"]["covar_data"] = ""
 
         # Run Options
         self.quantity = res["RunOptions"].pop("quantity")
@@ -116,7 +113,7 @@ class CLIRunner(object):
         self.blobs = dparams + dquants
 
         # Fit-options
-        self.fit_type = res['FitOptions'].pop("fit_type")
+        self.fit_type = res["FitOptions"].pop("fit_type")
 
         # MCMC-specific
         self.nwalkers = int(res["MCMC"].pop("nwalkers"))
@@ -124,7 +121,9 @@ class CLIRunner(object):
         self.burnin = json.loads(res["MCMC"].pop("burnin"))
 
         # Downhill-specific
-        self.downhill_kwargs = {k: json.loads(v) for k, v in list(res['Downhill'].items())}
+        self.downhill_kwargs = {
+            k: json.loads(v) for k, v in list(res["Downhill"].items())
+        }
         del res["Downhill"]
 
         # IO-specific
@@ -139,15 +138,13 @@ class CLIRunner(object):
         self.model = res.pop("Model")
         self.model_pickle = self.model.pop("model_file", None)
         for k in self.model:
-            try:
-                self.model[k] = json.loads(self.model[k])
-            except:
-                pass
+            self.model[k] = json.loads(self.model[k])
 
-        self.constraints = {k: json.loads(v) for k, v in list(res["Constraints"].items())}
+        self.constraints = {
+            k: json.loads(v) for k, v in list(res["Constraints"].items())
+        }
 
-        param_dict = {k: res.pop(k) for k in list(res.keys()) if k.endswith("Params")}
-        return param_dict
+        return {k: res.pop(k) for k in list(res.keys()) if k.endswith("Params")}
 
     def get_data(self):
         """
@@ -172,18 +169,16 @@ class CLIRunner(object):
         x = data[:, 0]
         y = data[:, 1]
 
-        if self.cov_file:
-            sigma = np.genfromtxt(self.cov_file)
-        else:
-            sigma = None
-
+        sigma = np.genfromtxt(self.cov_file) if self.cov_file else None
         if sigma is None:
             try:
                 sigma = data[:, 2]
             except IndexError:
-                raise ValueError("""
+                raise ValueError(
+                    """
 Either a univariate standard deviation, or multivariate cov matrix must be provided.
-        """)
+        """
+                )
 
         return x, y, sigma
 
@@ -226,11 +221,17 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
                 raise
 
         # Deal specifically with cosmology priors, separating types
-        original_cpars = copy.copy(params['cosmo_paramsParams'])
-        cosmo_priors = {k: json.loads(v) for k, v in list(params["cosmo_paramsParams"].items())}
+        original_cpars = copy.copy(params["cosmo_paramsParams"])
+        cosmo_priors = {
+            k: json.loads(v) for k, v in list(params["cosmo_paramsParams"].items())
+        }
         # the following rely on covdata
         cov_vars = {k: v for k, v in list(cosmo_priors.items()) if v[0] == "cov"}
-        norm_vars = {k: v for k, v in list(cosmo_priors.items()) if (v[0] == "norm" and len(v) == 2)}
+        norm_vars = {
+            k: v
+            for k, v in list(cosmo_priors.items())
+            if (v[0] == "norm" and len(v) == 2)
+        }
 
         # remove these to be left with normal stuff
         for k in list(cov_vars.keys()) + list(norm_vars.keys()):
@@ -238,12 +239,14 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
 
         # sigma_8 and n are special cosmology parameters that don't nest
         if "sigma_8" in params["cosmo_paramsParams"]:
-            params["OtherParams"]["sigma_8"] = params["cosmo_paramsParams"].pop("sigma_8")
+            params["OtherParams"]["sigma_8"] = params["cosmo_paramsParams"].pop(
+                "sigma_8"
+            )
         if "n" in params["cosmo_paramsParams"]:
             params["OtherParams"]["n"] = params["cosmo_paramsParams"].pop("n")
 
-        ### Now we should have all actual cosmo_params labelled as such in the
-        ### `params` dict, with sigma_8 and n in OtherParams as necessary.
+        # Now we should have all actual cosmo_params labelled as such in the
+        # `params` dict, with sigma_8 and n in OtherParams as necessary.
 
         if cov_vars:
             priors += [cosmo_cov.get_cov_prior(*cov_vars)]
@@ -270,7 +273,7 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
         keys = [k.split(":")[-1] for k in keys]
 
         # for guessing, we need all keys back in params
-        params['cosmo_paramsParams'] = original_cpars
+        params["cosmo_paramsParams"] = original_cpars
         guess = self.get_guess(params, keys, priors)
 
         print(("KEY NAMES: ", keys))
@@ -304,20 +307,13 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
                 else:
                     guess.append(val[-1])
 
-        # else:
-        # for i, k in enumerate(keys):
-        #     val = json.loads(allparams[k])
-        #     if val[-1] is None or len(val) == 1:
-        #         guess.append(priors[i].guess(k))
-        #     else:
-        #         guess.append(val[-1])
         return guess
 
     def set_prior(self, param, val):
         val = json.loads(val)
-        if val[0] == 'unif':
+        if val[0] == "unif":
             x = fit.Uniform(param, val[1], val[2])
-        elif val[0] == 'norm':
+        elif val[0] == "norm":
             x = fit.Normal(param, val[1], val[2])
         elif val[0] == "log":
             x = fit.Log(param, val[1], val[2])
@@ -333,15 +329,18 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
                 h = pickle.load(f)
             # check that it lines up with current Parameters
             if h.k != self.nwalkers:
-                warnings.warn("Imported previous chain had different number of walkers (%s) than specified (%s)" % (
-                h.k, self.nwalkers))
+                warnings.warn(
+                    f"Imported previous chain had different number of walkers {h.k} "
+                    f"than specified {self.nwalkers}"
+                )
                 return None
             else:
-                ## WE DO THE FOLLOWING IN FIT.PY, BUT HAVE TO DO IT HERE TO update
-                ## THE PICKLED OBJECT, SINCE THE POOL CANNOT BE SAVED
-                if (h.args[0].transfer_fit == "CAMB" or h.args[0].transfer_fit == tm.CAMB):
-                    if any(p.startswith("cosmo_params:") for p in self.keys):
-                        nthreads = 1
+                # WE DO THE FOLLOWING IN FIT.PY, BUT HAVE TO DO IT HERE TO update
+                # THE PICKLED OBJECT, SINCE THE POOL CANNOT BE SAVED
+                if h.args[0].transfer_fit in ["CAMB", tm.CAMB] and any(
+                    p.startswith("cosmo_params:") for p in self.keys
+                ):
+                    nthreads = 1
 
                 if not nthreads:
                     # auto-calculate the number of threads to use if not set.
@@ -350,18 +349,26 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
                 if nthreads != 1:
                     h.pool = InterruptiblePool(nthreads)
                 return h
-        except:
+        except Exception:
             return None
 
     def _setup_x(self, instance):
         if self.xval == "M":
             assert np.allclose(np.diff(np.diff(np.log10(self.x))), 0)
             dlog10m = np.log10(self.x[1] / self.x[0])
-            instance.update(Mmin=np.log10(self.x[0]), Mmax=np.log10(self.x[-1]) + 0.2 * dlog10m, dlog10m=dlog10m)
+            instance.update(
+                Mmin=np.log10(self.x[0]),
+                Mmax=np.log10(self.x[-1]) + 0.2 * dlog10m,
+                dlog10m=dlog10m,
+            )
         elif self.xval == "k":
             assert np.allclose(np.diff(np.diff(np.log10(self.x))), 0)
             dlnk = np.log(self.x[1] / self.x[0])
-            instance.update(lnk_min=np.log(self.x[0]), lnk_max=np.log(self.x[-1]) + 0.2 * dlnk, dlnk=dlnk)
+            instance.update(
+                lnk_min=np.log(self.x[0]),
+                lnk_max=np.log(self.x[-1]) + 0.2 * dlnk,
+                dlnk=dlnk,
+            )
 
         return instance
 
@@ -377,10 +384,10 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
         instance = self._setup_x(instance)
 
         # pre-get the quantity
-        q = getattr(instance, self.quantity)
+        getattr(instance, self.quantity)
 
         # Write out a pickle file of the model
-        with open(self.full_prefix + "model.pickle", 'w') as f:
+        with open(self.full_prefix + "model.pickle", "w") as f:
             pickle.dump(instance, f)
 
         return instance
@@ -395,10 +402,17 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
         """
         Runs a simple downhill-gradient fit.
         """
-        fitter = fit.Minimize(priors=self.priors, data=self.y, quantity=self.quantity,
-                              constraints=self.constraints, sigma=self.sigma,
-                              guess=self.guess, blobs=self.blobs,
-                              verbose=self.verbose, relax=self.relax)
+        fitter = fit.Minimize(
+            priors=self.priors,
+            data=self.y,
+            quantity=self.quantity,
+            constraints=self.constraints,
+            sigma=self.sigma,
+            guess=self.guess,
+            blobs=self.blobs,
+            verbose=self.verbose,
+            relax=self.relax,
+        )
 
         if instance is None:
             instance = self._setup_instance()
@@ -426,22 +440,43 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
 
         self._write_log_pre()
 
-        fitter = fit.MCMC(priors=self.priors, data=self.y, quantity=self.quantity,
-                          constraints=self.constraints, sigma=self.sigma,
-                          guess=self.guess, blobs=self.blobs,
-                          verbose=self.verbose, relax=self.relax)
+        fitter = fit.MCMC(
+            priors=self.priors,
+            data=self.y,
+            quantity=self.quantity,
+            constraints=self.constraints,
+            sigma=self.sigma,
+            guess=self.guess,
+            blobs=self.blobs,
+            verbose=self.verbose,
+            relax=self.relax,
+        )
 
         start = time.time()
         if self.chunks == 0:
             self.chunks = self.nsamples - prev_samples
         nchunks = np.ceil((self.nsamples - prev_samples) / float(self.chunks))
-        for i, s in enumerate(fitter.fit(self.sampler, instance, self.nwalkers,
-                                         self.nsamples - prev_samples, self.burnin, self.nthreads,
-                                         self.chunks)):
+        for i, s in enumerate(
+            fitter.fit(
+                self.sampler,
+                instance,
+                self.nwalkers,
+                self.nsamples - prev_samples,
+                self.burnin,
+                self.nthreads,
+                self.chunks,
+            )
+        ):
             # Write out files
             self.write_iter_pickle(s)
-            print(("Done {0}%. Time per sample: {1}".format(100 * float(i + 1) / nchunks, (time.time() - start) / (
-            (i + 1) * self.chunks * self.nwalkers))))
+            print(
+                (
+                    "Done {0}%. Time per sample: {1}".format(
+                        100 * float(i + 1) / nchunks,
+                        (time.time() - start) / ((i + 1) * self.chunks * self.nwalkers),
+                    )
+                )
+            )
 
         total_time = time.time() - start
 
@@ -452,11 +487,11 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
         """
         Write out a pickle version of the sampler every chunk.
         """
-        with open(self.full_prefix + "sampler.pickle", 'w') as f:
+        with open(self.full_prefix + "sampler.pickle", "w") as f:
             pickle.dump(sampler, f)
 
     def _write_opt_log(self, result):
-        with open(self.full_prefix + "opt.log", 'w') as f:
+        with open(self.full_prefix + "opt.log", "w") as f:
             for k, r in zip(self.keys, result.x):
                 f.write("%s: %s\n" % (k, r))
             f.write(str(result))
@@ -472,39 +507,57 @@ Either a univariate standard deviation, or multivariate cov matrix must be provi
         """
         Writes out chains and other data to longer-term readable files (ie ASCII)
         """
-        with open(self.full_prefix + "chain", 'w') as f:
+        with open(self.full_prefix + "chain", "w") as f:
             np.savetxt(f, sampler.flatchain, header="\t".join(self.keys))
 
-        with open(self.full_prefix + "likelihoods", 'w') as f:
+        with open(self.full_prefix + "likelihoods", "w") as f:
             np.savetxt(f, sampler.lnprobability.T)
 
         # We can write out any blobs that are parameters
         if self.blobs:
             if self.n_dparams:
-                numblobs = np.array([[[b[ii] for ii in range(self.n_dparams)] for b in c]
-                                     for c in sampler.blobs])
+                numblobs = np.array(
+                    [
+                        [[b[ii] for ii in range(self.n_dparams)] for b in c]
+                        for c in sampler.blobs
+                    ]
+                )
 
                 # Write out numblobs
                 sh = numblobs.shape
                 numblobs = numblobs.reshape(sh[0] * sh[1], sh[2])
                 with open(self.full_prefix + "derived_parameters", "w") as f:
-                    np.savetxt(f, numblobs, header="\t".join([self.blobs[ii] for ii in range(self.n_dparams)]))
+                    np.savetxt(
+                        f,
+                        numblobs,
+                        header="\t".join(
+                            [self.blobs[ii] for ii in range(self.n_dparams)]
+                        ),
+                    )
 
     def _write_log_pre(self):
-        with open(self.full_prefix + "log", 'w') as f:
+        with open(self.full_prefix + "log", "w") as f:
             f.write("Nsamples:  %s\n" % self.nsamples)
             f.write("Nwalkers: %s\n" % self.nwalkers)
             f.write("Burnin: %s\n" % self.burnin)
             f.write("Parameters: %s\n" % self.keys)
 
     def _write_log_post(self, sampler, total_time):
-        with open(self.full_prefix + "log", 'a') as f:
+        with open(self.full_prefix + "log", "a") as f:
             f.write("Total Time: %s\n" % secondsToStr(total_time))
             if isinstance(self.burnin, int):
                 f.write(
-                    "Average time: %s\n" % (total_time / (self.nwalkers * self.nsamples + self.nwalkers * self.burnin)))
+                    "Average time: %s\n"
+                    % (
+                        total_time
+                        / (self.nwalkers * self.nsamples + self.nwalkers * self.burnin)
+                    )
+                )
             else:
-                f.write("Average time (discounting burnin): %s\n" % (total_time / (self.nwalkers * self.nsamples)))
+                f.write(
+                    "Average time (discounting burnin): %s\n"
+                    % (total_time / (self.nwalkers * self.nsamples))
+                )
             f.write("Mean values = %s\n" % np.mean(sampler.chain, axis=0))
             f.write("Std. Dev = %s\n" % np.std(sampler.chain, axis=0))
             f.write("Covariance Matrix: %s\n" % np.cov(sampler.flatchain.T))

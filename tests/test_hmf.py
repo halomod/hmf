@@ -4,49 +4,34 @@ import numpy as np
 import warnings
 
 
-# @raises(ValueError)
-# def test_wrong_fit():
-#     hmf = MassFunction(hmf_model=7)
-#     assert hmf.hmf_model == 7
-#
-# @raises(ValueError)
-# def test_wrong_dh():
-#     hmf = MassFunction(delta_h=-10)
-#     assert hmf.delta_h == -10
-#
-# @raises(ValueError)
-# def test_delta_wrt():
-#     hmf = MassFunction(delta_wrt="the_moon")
-#     assert hmf.delta_wrt == "the_moon"
-
 def test_wrong_filter():
     with raises(ValueError):
-        h = MassFunction(filter_model=2)
+        MassFunction(filter_model=2)
 
 
 def test_string_dc():
     with raises(ValueError):
-        h = MassFunction(delta_c="this")
+        MassFunction(delta_c="this")
 
 
 def test_neg_dc():
     with raises(ValueError):
-        h = MassFunction(delta_c=-1)
+        MassFunction(delta_c=-1)
 
 
 def test_big_dc():
     with raises(ValueError):
-        h = MassFunction(delta_c=20.)
+        MassFunction(delta_c=20.0)
 
 
 def test_wrong_fit():
     with raises(ValueError):
-        h = MassFunction(hmf_model=1)
+        MassFunction(hmf_model=1)
 
 
 def test_wrong_mf_par():
     with raises(ValueError):
-        h = MassFunction(hmf_params=2)
+        MassFunction(hmf_params=2)
 
 
 def test_str_filter():

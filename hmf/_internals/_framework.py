@@ -1,11 +1,12 @@
-'''
+"""
 Classes defining the overall structure of the hmf framework.
-'''
+"""
 import copy
 import sys
 
 
 # from _cache import Cache
+
 
 class Component(object):
     """
@@ -27,7 +28,10 @@ class Component(object):
         # Check that all parameters passed are valid
         for k in model_params:
             if k not in self._defaults:
-                raise ValueError("%s is not a valid argument for the %s model" % (k, self.__class__.__name__))
+                raise ValueError(
+                    "%s is not a valid argument for the %s model"
+                    % (k, self.__class__.__name__)
+                )
 
         # Gather model parameters
         self.params = copy.copy(self._defaults)
@@ -50,7 +54,7 @@ def get_model_(name, mod):
 
 
 def get_model(name, mod, **kwargs):
-    """
+    r"""
     Returns an instance of ``name`` from the module ``mod``, with given params.
 
     Parameters
@@ -90,7 +94,7 @@ class Framework(object):
         """
         Update parameters of the framework with kwargs.
         """
-        
+
         for k, v in list(kwargs.items()):
             # If key is just a parameter to the class, just update it.
             if hasattr(self, k):
@@ -123,7 +127,9 @@ class Framework(object):
             for name, default in out.items():
                 if default == {} and name.endswith("_params"):
                     try:
-                        out[name] = getattr(getattr(K, name.replace("_params", "_model")), "_defaults")
+                        out[name] = getattr(
+                            getattr(K, name.replace("_params", "_model")), "_defaults"
+                        )
                     except Exception as e:
                         print(e)
                         pass
@@ -140,8 +146,13 @@ class Framework(object):
 
     @classmethod
     def quantities_available(cls):
-        return [name for name in dir(cls) if name not in cls.get_all_parameter_names() and not name.startswith("__")
-                and name not in dir(Framework)]
+        return [
+            name
+            for name in dir(cls)
+            if name not in cls.get_all_parameter_names()
+            and not name.startswith("__")
+            and name not in dir(Framework)
+        ]
         # return getattr(self, "_" + self.__class__.__name__ + "__recalc_prop_par").keys()
 
     @classmethod
@@ -168,7 +179,11 @@ class Framework(object):
         for quant in q:
             getattr(self, quant)
 
-            deps.update(getattr(self, "_" + self.__class__.__name__ + "__recalc_prop_par_static")[quant])
+            deps.update(
+                getattr(
+                    self, "_" + self.__class__.__name__ + "__recalc_prop_par_static"
+                )[quant]
+            )
 
         return deps
 
@@ -190,7 +205,7 @@ class Framework(object):
             if len(objdoc[0]) == len("**Parameter**: "):
                 del objdoc[0]
             else:
-                objdoc[0] = objdoc[0][len("**Parameter**: "):]
+                objdoc[0] = objdoc[0][len("**Parameter**: ") :]
 
             objdoc = [o.strip() for o in objdoc]
 

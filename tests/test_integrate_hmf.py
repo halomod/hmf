@@ -6,7 +6,7 @@ from hmf.mass_function.integrate_hmf import hmf_integral_gtm
 
 def _flt(a):
     try:
-        return a.astype('float')
+        return a.astype("float")
     except AttributeError:
         return float(a)
 
@@ -18,15 +18,17 @@ def gammainc(z, x):
     return _flt(_ginc_ufunc(z, x))
 
 
-class TestAnalyticIntegral(object):
+class TestAnalyticIntegral:
     def tggd(self, m, loghs, alpha, beta):
-        return beta * (m / 10 ** loghs) ** alpha * np.exp(-(m / 10 ** loghs) ** beta)
+        return beta * (m / 10 ** loghs) ** alpha * np.exp(-((m / 10 ** loghs) ** beta))
 
     def anl_int(self, m, loghs, alpha, beta):
         return 10 ** loghs * gammainc((alpha + 1) / beta, (m / 10 ** loghs) ** beta)
 
     def anl_m_int(self, m, loghs, alpha, beta):
-        return 10 ** (2 * loghs) * gammainc((alpha + 2) / beta, (m / 10 ** loghs) ** beta)
+        return 10 ** (2 * loghs) * gammainc(
+            (alpha + 2) / beta, (m / 10 ** loghs) ** beta
+        )
 
     # def test_basic(self):
     #     m = np.logspace(10,18,500)

@@ -217,15 +217,9 @@ def cached_quantity(f):
 
 def obj_eq(ob1, ob2):
     try:
-        if ob1 == ob2:
-            return True
-        else:
-            return False
+        return ob1 == ob2
     except ValueError:
-        if (ob1 == ob2).all():
-            return True
-        else:
-            return False
+        return bool((ob1 == ob2).all())
 
 
 def parameter(kind):
@@ -276,9 +270,12 @@ def parameter(kind):
             val = f(self, val)
 
             # Here put any custom code that should be run, dependent on the type of parameter
-            if name.endswith("_params"):
-                if not (isinstance(val, dict) or val is None):
-                    raise ValueError("%s must be a dictionary" % name)
+            if (
+                name.endswith("_params")
+                and not isinstance(val, dict)
+                and val is not None
+            ):
+                raise ValueError("%s must be a dictionary" % name)
 
             # Locations of indexes
             recalc = hidden_loc(self, "recalc")
@@ -301,8 +298,8 @@ def parameter(kind):
                     getattr(self, recalc_papr)[name] = set()
 
                 except AttributeError:
-                    # Given that *at least one* parameter must be set before properties are calculated,
-                    # we can define the original empty indexes here.
+                    # Given that *at least one* parameter must be set before properties
+                    # are calculated, we can define the original empty indexes here.
                     setattr(self, recalc, {})
                     setattr(self, activeq, set())
                     setattr(self, recalc_prpa, {})
@@ -314,7 +311,8 @@ def parameter(kind):
                 # Then if its a dict, we update it
                 if isinstance(val, dict) and hasattr(self, prop) and val:
                     getattr(self, prop).update(val)
-                # Otherwise, just overwrite it. Note if dict is passed empty, it clears the whole dict.
+                # Otherwise, just overwrite it. Note if dict is passed empty, it clears
+                # the whole dict.
                 else:
                     setattr(self, prop, val)
 
@@ -322,7 +320,9 @@ def parameter(kind):
                 if kind != "switch" or doset:  # Normal parameters just update dependencies
                     for pr in getattr(self, recalc_papr)[name]:
                         getattr(self, recalc)[pr] = True
-                else:  # Switches mean that dependencies could depend on new parameters, so need to re-index
+                else:
+                    # Switches mean that dependencies could depend on new parameters,
+                    # so need to re-index
                     for pr in getattr(self, recalc_papr)[name]:
                         delattr(self, pr)
 

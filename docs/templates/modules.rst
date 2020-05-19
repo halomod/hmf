@@ -38,5 +38,3 @@
    {%- endfor %}
    {% endif %}
    {% endblock %}
-
-

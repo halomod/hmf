@@ -87,7 +87,7 @@ which might be useful, which we can input as our default model:
 .. code:: ipython2
 
     my_cosmo = cosmo.Cosmology(cosmo_model=cosmo.WMAP5)
-    
+
     print "WMAP5 baryon density: ", my_cosmo.cosmo.Ob0
 
 
@@ -125,7 +125,7 @@ of FLRW. Thus we could use a non-flat model:
 
     from astropy.cosmology import LambdaCDM
     new_model = LambdaCDM(H0 = 75.0, Om0=0.4, Tcmb0 = 0.0, Ob0 = 0.3, Ode0=0.4)
-    
+
     my_cosmo = cosmo.Cosmology(cosmo_model = new_model)
     print "Crazy cosmology curvature density: ", my_cosmo.cosmo.Ok0
 
@@ -239,4 +239,3 @@ cosmological variable:
 
 
 .. image:: deal_with_cosmology_files/deal_with_cosmology_32_0.png
-

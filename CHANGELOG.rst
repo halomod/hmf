@@ -1,6 +1,34 @@
 Releases
 ========
 
+dev
+-------
+**Notes**
+New versions of CAMB (1.0.0+) seem to run significantly slower by default than previous
+versions. This could just be a setting in CAMB that has changed its default. Be aware
+of this.
+
+**Features**
+
+- Added new ``CambGrowth`` growth factor model, which computes the growth using CAMB. This is useful especially when
+  using w > -1, for which the other growth factor models are inadequate. Solves issue #19 raised by @tijmen.
+- Added new module ``mass_definitions`` which more robustly deals with various halo mass definitions, and also includes
+  ability to convert mass functions between different definitions.
+
+**Bugfixes**
+
+- When using camb for the transfer function, some cosmologies would lead to a segfault (i.e. when Ob0 or Tcmb0 are not
+  set explicitly). This now raises a helpful error.
+
+**Internals**
+
+- Removed logging, which was redundant.
+- Moved from nose to pytest
+- Significant overhaul of package structure to more modularised form.
+- Added flake8 checks and black formatting
+
+
+
 v3.0.8 [26th March 2020]
 ------------------------
 **Bugfixes**

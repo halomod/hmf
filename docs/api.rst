@@ -19,5 +19,3 @@ API Summary
    hmf.alternatives.wdm
    hmf.helpers.sample
    hmf.helpers.functional
-   
-
