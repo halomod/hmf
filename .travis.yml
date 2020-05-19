@@ -21,26 +21,14 @@ deploy:
   password:
     secure: lAM0ScaCdOTbixtJf908INAKIpVCIPLSu4ZpqSxdp0zzMsTJJoTLo00wlmzzjeQDsxqgpiUIvjnwlpdur7Q+IPmwFa9hkg4VX4Mqe0keoDaoUQaUzpypZqYF0w4egVgc62NnXCGg3B/JuqUFuyM692uvmjvokGmadXLevXvPaxM=
 
-#addons:
-#  apt:
-#    sources:
-#    - ubuntu-toolchain-r-test
-#    packages:
-#    - gfortran-6
+addons:
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    packages:
+    - gfortran-6
 
-before_install:
-  - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
-      wget https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh;
-    else
-      wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
-    fi
-  - bash miniconda.sh -b -p $HOME/miniconda
-  - export PATH="$HOME/miniconda/bin:$PATH"
-  - hash -r
-  - conda config --set always_yes yes --set changeps1 no
-  - conda update -q conda
-  # Useful for debugging any issues with conda
-  - conda info -a
+before_install: .ci/install_deps.sh
 
 install:
   - conda install python=$TRAVIS_PYTHON_VERSION numpy scipy mpmath nose astropy
@@ -49,8 +37,15 @@ install:
 
 # command to run tests, e.g. python setup.py test
 script:
-  - tox
+  - py.test --durations=25 --cov hmf
   - coverage report
 
 after_success:
   - coveralls
+
+jobs:
+  include:
+    - name: "Lint"
+      python: 3.8
+      install: pip install pre-commit
+      script: pre-commit run -a
