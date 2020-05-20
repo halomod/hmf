@@ -20,6 +20,11 @@ try:
 except ImportError:
     HAVE_CAMB = False
 
+try:
+    import classy
+except ImportError as e:
+    pass
+
 _allfits = ["CAMB", "FromFile", "EH_BAO", "EH_NoBAO", "BBKS", "BondEfs"]
 
 
@@ -713,3 +718,65 @@ class EH(EH_BAO):
     """Alias of :class:`EH_BAO`."""
 
     pass
+
+
+class CLASS(FromFile):
+    """
+    Transfer function computed by CLASS.
+
+    Parameters
+    ----------
+
+    cosmo : :class:`astropy.cosmology.FLRW` instance
+        The cosmology used in the calculation
+
+    \*\*model_parameters : unpack-dict
+        Parameters specific to this model.
+
+        **class_params:**
+            Dict of params to set for CLASS object
+        **class_object:**
+            Custom class object. If not set, a new Class object will be
+            created.
+        **flip_t:**
+            If set to True, will return ln(|T|).
+    """
+    _defaults = {"class_params": None, "class_obj": None,
+                 "flip_T": False}
+
+    def __init__(self, *args, **kwargs):
+        super(CLASS, self).__init__(*args, **kwargs)
+        self.spline_fn = None
+
+        if self.params['class_obj'] is not None:
+            self.class_obj = self.params['class_obj']
+        else:
+            h = self.cosmo.h
+            class_params = {
+                'omega_b': self.cosmo.Ob0 * h ** 2,
+                'omega_cdm': (self.cosmo.Om0 - self.cosmo.Ob0) * h ** 2,
+                'h': h,
+            }
+            if self.params['class_params'] is not None:
+                class_params.update(self.params['class_params'])
+            class_params['output'] = 'dTk'
+
+            self.class_obj = classy.Class()
+            self.class_obj.set(class_params)
+
+    def lnt(self, lnk):
+        if self.spline_fn is None:
+            trans = self.class_obj.get_transfer(output_format='camb')
+            if not trans:
+                self.class_obj.compute()
+                trans = self.class_obj.get_transfer(output_format='camb')
+
+            _k, _t = trans['k (h/Mpc)'], trans['-T_tot/k2']
+            if self.params['flip_T']:
+                _t = np.abs(_t)
+            _lnk, _lnt = np.log(_k), np.log(_t)
+
+            if lnk[0] < _lnk[0]:
+                _lnk, _lnt = self._check_low_k(_lnk, _lnt, lnk[0])
+            self.spline_fn = spline(_lnk, _lnt, k=1)
+        return self.spline_fn(lnk)
