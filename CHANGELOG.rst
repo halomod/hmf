@@ -15,11 +15,13 @@ of this.
   using w > -1, for which the other growth factor models are inadequate. Solves issue #19 raised by @tijmen.
 - Added new module ``mass_definitions`` which more robustly deals with various halo mass definitions, and also includes
   ability to convert mass functions between different definitions.
+- New set of tutorials: quickstart/first plot and a broad overview.
 
 **Bugfixes**
 
 - When using camb for the transfer function, some cosmologies would lead to a segfault (i.e. when Ob0 or Tcmb0 are not
   set explicitly). This now raises a helpful error.
+- Fixed bug in ordering of iterator in `get_hmf`.
 
 **Internals**
 
