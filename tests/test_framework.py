@@ -1,5 +1,5 @@
 from pytest import raises
-from mass_function import hmf
+import hmf
 import pytest
 
 

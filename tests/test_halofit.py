@@ -1,4 +1,4 @@
-from density_field import transfer
+from hmf.density_field import transfer
 import numpy as np
 
 

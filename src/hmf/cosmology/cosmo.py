@@ -11,7 +11,7 @@ Cosmology framework. All custom subclasses of :class:`astropy.cosmology.FLRW`
 may be used as inputs.
 """
 
-from astropy.cosmology import FLRW, Planck15
+from astropy.cosmology import FLRW, Planck15, WMAP5, WMAP7, WMAP9, Planck13  # noqa
 from .._internals import _framework, _cache
 import sys
 import astropy.units as u

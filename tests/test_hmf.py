@@ -1,5 +1,5 @@
 from pytest import raises
-from src.hmf import MassFunction
+from hmf import MassFunction
 import numpy as np
 import warnings
 

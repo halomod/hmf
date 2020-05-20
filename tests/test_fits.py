@@ -3,8 +3,8 @@ import itertools
 import pytest
 
 from pytest import raises
-from src.hmf import MassFunction
-from mass_function import fitting_functions as ff
+from hmf import MassFunction
+from hmf.mass_function import fitting_functions as ff
 import inspect
 
 allfits = [

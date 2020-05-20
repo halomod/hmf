@@ -1,7 +1,7 @@
 import numpy as np
 from mpmath import gammainc as _mp_ginc
 
-from mass_function.integrate_hmf import hmf_integral_gtm
+from hmf.mass_function.integrate_hmf import hmf_integral_gtm
 
 
 def _flt(a):

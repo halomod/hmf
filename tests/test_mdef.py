@@ -2,7 +2,7 @@
 from colossus.halo.mass_defs import changeMassDefinition
 from colossus.cosmology.cosmology import setCosmology
 
-import halos.mass_definitions as md
+import hmf.halos.mass_definitions as md
 
 from astropy.cosmology import Planck15
 import numpy as np

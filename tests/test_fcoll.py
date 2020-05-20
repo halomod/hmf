@@ -5,7 +5,7 @@ As such, it is the best test of all calculations after sigma.
 """
 
 import numpy as np
-from src.hmf import MassFunction
+from hmf import MassFunction
 from scipy.special import erfc
 import pytest
 
