@@ -193,6 +193,7 @@ def get_hmf(
     elif len(lists) > 1:
         # should be really fast.
         order = get_best_param_order(framework, req_qauntities, **fast_kwargs)
+        order = order[::-1]  # get slow to fast
 
         ordered_kwargs = collections.OrderedDict([])
         for item in order:
@@ -202,7 +203,7 @@ def get_hmf(
             except KeyError:
                 pass
 
-        # # add the rest in any order (there shouldn't actually be any)
+        # add the rest in any order (there shouldn't actually be any)
         for k in list(lists.items()):
             if isinstance(lists[k], (list, tuple)):
                 ordered_kwargs[k] = lists.pop(k)
