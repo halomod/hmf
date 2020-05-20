@@ -28,7 +28,7 @@ def test_order():
         )
     ):
         assert len(label) == len(order[i])
-        assert sorted(label) == sorted(order[i])
+        assert sorted(label.split(", ")) == sorted(order[i].split(", "))
         assert isinstance(mf, MassFunction)
         assert np.allclose(quants[0], mf.dndm)
         assert np.allclose(quants[1], mf.ngtm)

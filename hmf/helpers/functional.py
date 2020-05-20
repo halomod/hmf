@@ -191,7 +191,6 @@ def get_hmf(
     elif len(lists) > 1:
         # should be really fast.
         order = get_best_param_order(framework, req_qauntities, **fast_kwargs)
-        order = order[::-1]  # get slow to fast
 
         ordered_kwargs = collections.OrderedDict([])
         for item in order:
