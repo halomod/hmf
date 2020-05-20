@@ -9,5 +9,6 @@ with ``hmf``, and use it efficiently.
 .. toctree::
     :maxdepth: 2
 
+    examples/your_first_plot
     examples/deal_with_cosmology
     examples/change_mass_definition
