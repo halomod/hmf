@@ -2,7 +2,6 @@ from setuptools import setup, find_packages
 
 import os
 import sys
-import re
 import io
 
 
@@ -38,6 +37,8 @@ docs_req = [
 setup(
     name="hmf",
     packages=find_packages(),
+    use_scm_version=True,
+    setup_requires=["setuptools_scm"],
     install_requires=[
         "numpy>=1.6.2",
         "scipy>=0.12.0",
