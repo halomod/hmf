@@ -16,4 +16,21 @@ exclude =
 per-file-ignores =
     scripts/hmf: F821
     scripts/hmf-fit: F821
-select = B,C,E,F,W,T4,B9
+select = B,C,E,F,W,T4,B9,D
+rst-roles =
+    class
+    func
+    mod
+    data
+    const
+    meth
+    attr
+    exc
+    obj
+rst-directives =
+    note
+    warning
+    versionadded
+    versionchanged
+    deprecated
+    seealso

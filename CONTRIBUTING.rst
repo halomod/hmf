@@ -57,7 +57,7 @@ advice to help make your work on hmf more useful and rewarding.
 
 * Use issue labels to guide you
   - Unsure where to begin contributing to hmf? You can start by looking through issues
-    labeled `good first issue` and `help wanted` issues.
+    labeled ``good first issue`` and ``help wanted`` issues.
 * Pick a subject area that you care about, that you are familiar with, or that you want
   to learn about
   - There are many aspects to hmf, from cosmography, through cosmological initial
@@ -95,9 +95,9 @@ Getting started
 5. If you like the change and think the project could use it:
   - If you're fixing a bug, include a new test that breaks as a result of the bug (if possible).
   - Ensure that all your new code is covered by tests and that the existing tests pass.
-    Tests can be run by running `pytest` in the top level ``hmf`` directory.
+    Tests can be run by running ``pytest`` in the top level ``hmf`` directory.
   - Ensure that you fully document any new features via docstrings, and potentially
-    as a new tutorial in the `docs/` directory.
+    as a new tutorial in the ``docs/`` directory.
 6. Make a Pull Request from your fork/branch.
 
 Code review process
