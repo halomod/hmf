@@ -49,9 +49,10 @@ def get_best_param_order(kls, q="dndm", **kwargs):
 
     Examples
     --------
-    >>> from hmf import MassFunction
+    >>> from src.hmf import MassFunction
     >>> print get_best_param_order(MassFunction,"dndm",transfer_model="BBKS",dlnk=1,dlog10m=1)[::3]
-    ['z2', 'hmf_model', 'delta_wrt', 'growth_params', 'filter_params', 'Mmin', 'transfer_params', 'dlnk', 'cosmo_params']
+    ['z2', 'hmf_model', 'delta_wrt', 'growth_params', 'filter_params', 'Mmin', 'transfer_params',
+    'dlnk', 'cosmo_params']
     """
     a = kls(**kwargs)
 

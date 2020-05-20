@@ -17,14 +17,7 @@ from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
 from ConfigParser import SafeConfigParser as cfg
 cfg.optionxform = str
-import time
-import errno
-from os.path import join
-from numbers import Number
-import pickle
-from emcee import autocorr
-from importlib import import_module
-from hmf.fitting import cli_tools as cli
+from fitting import cli_tools as cli
 
 __all__ = []
 __version__ = 0.5

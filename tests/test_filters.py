@@ -2,7 +2,7 @@
 Analytic functions for this test are defined in "analytic_filter.ipynb" in the development/ directory.
 """
 
-from hmf import filters
+from density_field import filters
 import numpy as np
 from numpy import sin, cos, pi
 import warnings

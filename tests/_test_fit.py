@@ -8,8 +8,8 @@ import inspect
 import os
 import sys
 
-from hmf import MassFunction
-from hmf import fit
+from src.hmf import MassFunction
+from src.hmf import fit
 
 try:
     import emcee

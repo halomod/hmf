@@ -1,5 +1,5 @@
 import numpy as np
-from hmf.helpers.sample import sample_mf, dndm_from_sample
+from helpers import sample_mf, dndm_from_sample
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from pytest import raises
 
