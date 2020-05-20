@@ -34,11 +34,9 @@ def get_best_param_order(kls, q="dndm", **kwargs):
     ----------
     kls : :class:`hmf._framwork.Framework` class
         An arbitrary framework for which to determine parameter ordering.
-
     q : str or list of str
         A string specifying the desired output (e.g. ``"dndm"``), or a list of
         such strings.
-
     kwargs : unpacked-dict
         Arbitrary keyword arguments to the framework initialiser. These are only
         for determination of parameter order and so may be very poor in resolution
@@ -76,7 +74,7 @@ def get_best_param_order(kls, q="dndm", **kwargs):
             continue
         final_list.insert(i, k)
         final_num.insert(i, num)
-    return final_list
+    return final_list[::-1]
 
 
 def get_hmf(
@@ -145,16 +143,16 @@ def get_hmf(
     >>> for quants, mf, label in get_hmf(['dndm','ngtm'],z=range(3),hmf_model=["ST","PS"],sigma_8=[0.7,0.8]):
     >>>     print label
     sigma.8: 0.7, ST, z: 0
-    sigma.8: 0.8, ST, z: 0
-    sigma.8: 0.7, ST, z: 1
-    sigma.8: 0.8, ST, z: 1
-    sigma.8: 0.7, ST, z: 2
-    sigma.8: 0.8, ST, z: 2
     sigma.8: 0.7, PS, z: 0
-    sigma.8: 0.8, PS, z: 0
+    sigma.8: 0.7, ST, z: 1
     sigma.8: 0.7, PS, z: 1
-    sigma.8: 0.8, PS, z: 1
+    sigma.8: 0.7, ST, z: 2
     sigma.8: 0.7, PS, z: 2
+    sigma.8: 0.8, ST, z: 0
+    sigma.8: 0.8, PS, z: 0
+    sigma.8: 0.8, ST, z: 1
+    sigma.8: 0.8, PS, z: 1
+    sigma.8: 0.8, ST, z: 2
     sigma.8: 0.8, PS, z: 2
 
     To calculate all of them and keep the results as a list:
@@ -202,7 +200,7 @@ def get_hmf(
             except KeyError:
                 pass
 
-        # # add the rest in any order (there shouldn't actually be any)
+        # add the rest in any order (there shouldn't actually be any)
         for k in list(lists.items()):
             if isinstance(lists[k], (list, tuple)):
                 ordered_kwargs[k] = lists.pop(k)
