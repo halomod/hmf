@@ -10,5 +10,6 @@ with ``hmf``, and use it efficiently.
     :maxdepth: 2
 
     examples/your_first_plot
+    examples/broad_overview
     examples/deal_with_cosmology
     examples/change_mass_definition
