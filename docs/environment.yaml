@@ -15,4 +15,3 @@ dependencies:
   - camb
   - pip:
     - sphinx-rtd-theme
-
