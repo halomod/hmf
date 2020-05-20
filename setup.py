@@ -37,7 +37,7 @@ docs_req = [
 setup(
     name="hmf",
     packages=find_packages(),
-    use_scm_version=True,
+    use_scm_version={"local_scheme": "no-local-version"},
     setup_requires=["setuptools_scm"],
     install_requires=[
         "numpy>=1.6.2",
