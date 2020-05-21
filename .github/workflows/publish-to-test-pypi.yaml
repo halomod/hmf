@@ -1,5 +1,9 @@
+name: Deploy to Test PyPI
+
+on: push
+
 build-n-publish:
-    name: To PyPI and TestPyPI
+    name: Deploy
     runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@master
