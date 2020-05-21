@@ -21,7 +21,7 @@ of this.
 
 - When using camb for the transfer function, some cosmologies would lead to a segfault (i.e. when Ob0 or Tcmb0 are not
   set explicitly). This now raises a helpful error.
-- Fixed bug in ordering of iterator in `get_hmf`.
+- Fixed bug in ordering of iterator in ``get_hmf``.
 
 **Internals**
 
@@ -40,7 +40,8 @@ v3.0.8 [26th March 2020]
 
 **Enhancement**
 
-- Added `get_dependencies` method to _Framework, to enable finding all parameters that a quantity depends on.
+- Added ``get_dependencies`` method to _Framework, to enable finding all parameters that
+  a quantity depends on.
 - Growth factor speed-up (thanks to @jlashner)
 - Added use_splined_growth argument (thanks to @jlashner)
 
@@ -56,10 +57,10 @@ v3.0.5 [23rd April 2019]
 ------------------------
 **Bugfixes**
 
-- Fixed naming of WDM `alter_dndm` to `alter_model` to be consistent.
+- Fixed naming of WDM ``alter_dndm`` to ``alter_model`` to be consistent.
 - Fixed bug which made CAMB transfer function not pickleable or copyable.
   NOTE: the fix is not perfect -- if you provide a custom CAMBparams class
-        to `transfer_params`, it is not certain that results will be consistent,
+        to ``transfer_params``, it is not certain that results will be consistent,
         as a few of the attributes of this object are not pickleable, and thus
         are ignored.
 
@@ -200,15 +201,15 @@ are buggy and untested. Don't use these until the next version unless you're cra
 **Enhancments**
 
 - Removed nz and z2 from MassFunction. They will return in a later version but better.
-- Improved structure for FittingFunction Component, with `cutmask` property defining valid mass range. NOTE: the default
+- Improved structure for FittingFunction Component, with ``cutmask`` property defining valid mass range. NOTE: the default
   MassFunction is no longer to mask values outside the valid range. In fact, the parameter ``cut_fit`` no longer exists.
   One can achieve the effect by accessing a relevant array as dndm[MassFunction.hmf.cutmask]
 - Renamed some parameters/quantities for more consistency (esp. M --> m)
 - No longer dependent on cosmolopy, but rather uses Astropy (v1.0+)
-- `mean_dens` now `mean_density0`, as per Astropy
+- ``mean_dens`` now ``mean_density0``, as per Astropy
 - Added exception to catch when dndm has many NaN values in it.
 - Many more tests
-- Made the `cosmo` class pickleable by cutting out a method and using it as a function instead.
+- Made the ``cosmo`` class pickleable by cutting out a method and using it as a function instead.
 - Added normalise() to Transfer class.
 - Updated fit.py extensively, and provided new example config files
 - Send arbitrary kwargs to downhill solver
@@ -444,7 +445,7 @@ v1.8.0 [February 2, 2015]
 
 - A few more documentation updates (especially tools.py)
 - Removed new_k_bounds function from tools.py
-- Added `w` parameter to cosmolopy dictionary in `cosmo.py`
+- Added ``w`` parameter to cosmolopy dictionary in ``cosmo.py``
 - Changed cosmography significantly to use cosmolopy in general
 - Generally tidied up some of the update mechanisms.
 - **API CHANGE**: cosmography.py no longer exists -- I've chosen to utilise

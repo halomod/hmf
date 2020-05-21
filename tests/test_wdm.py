@@ -1,6 +1,6 @@
 from pytest import raises
 from hmf.alternatives import wdm
-from hmf.mass_function import hmf
+import hmf
 import numpy as np
 
 

@@ -1,6 +1,6 @@
 import numpy as np
 from hmf.cosmology import growth_factor
-from hmf.cosmology.cosmo import Planck13
+from astropy.cosmology import Planck13
 import pytest
 
 

@@ -1,7 +1,8 @@
 import numpy as np
 import pytest
 
-from hmf.cosmology.cosmo import Cosmology, WMAP7
+from hmf.cosmology.cosmo import Cosmology
+from astropy.cosmology import WMAP7
 
 
 def test_string_cosmo():

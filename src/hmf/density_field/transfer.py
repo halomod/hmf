@@ -10,7 +10,7 @@ from .._internals._cache import cached_quantity, parameter
 from .halofit import halofit as _hfit
 from ..cosmology import growth_factor as gf, cosmo
 from ..density_field import transfer_models as tm, filters
-from .._internals._framework import get_model, get_model_
+from .._internals._framework import get_model_
 
 try:
     import camb

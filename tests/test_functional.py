@@ -1,5 +1,5 @@
 import numpy as np
-from hmf.helpers import functional as tf
+from hmf import get_hmf
 from hmf import MassFunction
 
 
@@ -20,7 +20,7 @@ def test_order():
     ]
 
     for i, (quants, mf, label) in enumerate(
-        tf.get_hmf(
+        get_hmf(
             ["dndm", "ngtm"],
             z=list(range(3)),
             hmf_model=["ST", "PS"],

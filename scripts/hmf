@@ -15,7 +15,7 @@ import sys
 import os
 import traceback
 
-import hmf
+from src import hmf
 import numpy as np
 from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
@@ -101,7 +101,7 @@ USAGE
                             help="the mass range and intervals, min max step [default: %s %s %s]" %
                             (np.log10(h.M[0]), np.log10(h.M[-1]), np.log10(h.M[1]) - np.log10(h.M[0])))
         hmfargs.add_argument("--mf-fit", nargs="*", choices=hmf.Fits.mf_fits + ["all"],
-                            help="fitting function(s) to use. 'all' uses all of them [default: %s]" % h.mf_fit)
+                             help="fitting function(s) to use. 'all' uses all of them [default: %s]" % h.mf_fit)
         hmfargs.add_argument("--delta-h", nargs="*", type=float,
                             help="overdensity of halo w.r.t delta_wrt [default %s]" % h.delta_wrt)
         hmfargs.add_argument("--delta-wrt", choices=["mean", "crit"],

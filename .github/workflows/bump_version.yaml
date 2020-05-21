@@ -1,15 +1,15 @@
-name: Bump version
+name: Bump Version and Deploy
 on:
   push:
     branches:
       - master
 jobs:
-  build:
+  bump-version-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@master
       - name: Bump version and push tag
         uses: mathieudutour/github-tag-action@v4.2
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.bump_version }}
           default_bump: false

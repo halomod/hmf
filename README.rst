@@ -15,7 +15,7 @@ hmf
 .. image:: https://img.shields.io/badge/code%20style-black-000000.svg
     :target: https://github.com/psf/black
 
-`hmf` is a python application that provides a flexible and simple way to calculate the
+``hmf`` is a python application that provides a flexible and simple way to calculate the
 Halo Mass Function for a range of varying parameters. It is also the backend to
 `HMFcalc <http://hmf.icrar.org>`_, the online HMF calculator.
 
@@ -55,7 +55,7 @@ From v3.1, ``hmf`` supports Python 3.6+, and has dropped support for Python 2.
 
 Quickstart
 ----------
-Once you have `hmf` installed, you can quickly generate a mass function
+Once you have ``hmf`` installed, you can quickly generate a mass function
 by opening an interpreter (e.g. IPython/Jupyter) and doing::
 
     >>> from hmf import MassFunction
@@ -64,7 +64,7 @@ by opening an interpreter (e.g. IPython/Jupyter) and doing::
 
 Note that all parameters have (what I consider reasonable) defaults. In particular,
 this will return a Tinker (2008) mass function between
-:math:`10^{10}-10^{15} M_\odot`, at :math:`z=0` for the default PLANCK15 cosmology.
+10^10 and 10^15 solar masses, at z=0 for the default PLANCK15 cosmology.
 Nevertheless, there are several parameters which can be input, either cosmological
 or otherwise. The best way to see these is to do::
 
@@ -75,13 +75,13 @@ We can also check which parameters have been set in our "default" instance::
     >>> hmf.parameter_values
 
 To change the parameters (cosmological or otherwise), one should use the
-`update()` method, if a MassFunction() object already exists. For example::
+``update()`` method, if a MassFunction() object already exists. For example::
 
     >>> hmf = MassFunction()
     >>> hmf.update(cosmo_params={"Ob0": 0.05}, z=10) #update baryon density and redshift
     >>> cumulative_mass_func = hmf.ngtm
 
-For a more involved introduction to `hmf`, check out the `tutorials <tutorials.html>`_,
+For a more involved introduction to ``hmf``, check out the `tutorials <tutorials.html>`_,
 which are currently under construction, or the `API docs <api.html>`_.
 
 Versioning
