@@ -1,12 +1,4 @@
-name: Deploy
-
-on:
-  push:
-    tags:
-      - v*
-
-jobs:
-  build-n-publish:
+build-n-publish:
     name: To PyPI and TestPyPI
     runs-on: ubuntu-18.04
     steps:
@@ -28,7 +20,8 @@ jobs:
           python setup.py --version
       - name: Build a binary wheel and a source tarball
         run: python -m pep517.build --binary --source --out-dir dist .
-      - name: Publish distribution 📦 to PyPI
+      - name: Publish distribution 📦 to Test PyPI
         uses: pypa/gh-action-pypi-publish@master
         with:
-          password: ${{ secrets.pypi_password }}
+          password: ${{ secrets.test_pypi_password }}
+          repository_url: https://test.pypi.org/legacy/
