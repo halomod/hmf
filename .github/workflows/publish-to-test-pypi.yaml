@@ -2,7 +2,8 @@ name: Deploy to Test PyPI
 
 on: push
 
-build-n-publish:
+jobs:
+  build-n-publish:
     name: Deploy
     runs-on: ubuntu-18.04
     steps:
