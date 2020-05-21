@@ -1,5 +1,15 @@
 name: Tests
-on: [push, pull_request]
+
+# Test on all pushes, except when the push is literally just a tag (because we
+# tag automatically via CI, and therefore there's no extra code in that push).
+# Also, only test on pull requests into master.
+on:
+  push:
+    tags-ignore:
+      - 'v*'
+  pull_request:
+    branches:
+      - 'master'
 
 jobs:
   linter:
