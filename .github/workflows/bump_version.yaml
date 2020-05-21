@@ -12,5 +12,5 @@ jobs:
         uses: mathieudutour/github-tag-action@v4.2
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          #default_bump: null
+          default_bump: false
           dry_run: true
