@@ -29,8 +29,7 @@ class Component(object):
         for k in model_params:
             if k not in self._defaults:
                 raise ValueError(
-                    "%s is not a valid argument for the %s model"
-                    % (k, self.__class__.__name__)
+                    f"{k} is not a valid argument for the {self.__class__.__name__} model"
                 )
 
         # Gather model parameters
@@ -96,8 +95,14 @@ class Framework(object):
         """
 
         for k, v in list(kwargs.items()):
+            # If key is just a parameter to the class, just update it.
             if hasattr(self, k):
                 setattr(self, k, v)
+                del kwargs[k]
+
+            # If key is a dictionary of parameters to a sub-framework, update the sub-framework
+            elif k.endswith("_params") and isinstance(getattr(self, k[:-7]), Framework):
+                getattr(self, k[:-7]).update(**v)
                 del kwargs[k]
 
         if kwargs:
@@ -147,11 +152,10 @@ class Framework(object):
             and not name.startswith("__")
             and name not in dir(Framework)
         ]
-        # return getattr(self, "_" + self.__class__.__name__ + "__recalc_prop_par").keys()
 
     @classmethod
     def _get_all_parameters(cls):
-        "Yield all parameters as tuples of (name,obj)"
+        """Yield all parameters as tuples of (name,obj)"""
         for name in cls.get_all_parameter_names():
             yield name, getattr(cls, name)
 
