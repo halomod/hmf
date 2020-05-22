@@ -79,7 +79,7 @@ class MassFunction(transfer.Transfer):
         filter_params=None,
         **transfer_kwargs
     ):
-        # # Call super init MUST BE DONE FIRST.
+        # Call super init MUST BE DONE FIRST.
         super(MassFunction, self).__init__(**transfer_kwargs)
 
         # Set all given parameters.

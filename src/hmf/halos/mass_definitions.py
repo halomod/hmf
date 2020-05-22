@@ -59,9 +59,11 @@ class MassDefinition(_framework.Component):
 
         May not exist in some definitions. Units are :math:`M_\odot h^2/{\rm Mpc}^3`.
         """
-        raise AttributeError(
-            "The overdensity attribute does not exist for this Mass Definition"
-        )
+        raise AttributeError("halo_density does not exist for this Mass Definition")
+
+    @property
+    def halo_overdensity_mean(self):
+        return self.halo_density / self.mean_density
 
     def m_to_r(self, m):
         r"""
