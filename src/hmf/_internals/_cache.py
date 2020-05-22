@@ -7,7 +7,7 @@ functionality of being automatically updated when a parent property is
 updated.
 """
 from functools import update_wrapper
-from copy import copy, deepcopy
+from copy import deepcopy
 
 
 def hidden_loc(obj, name):
@@ -156,9 +156,10 @@ def cached_quantity(f):
 
 def obj_eq(ob1, ob2):
     try:
-        return ob1 == ob2
+        return bool(ob1 == ob2)
     except ValueError:
-        return bool((ob1 == ob2).all())
+        # Could be a numpy array.
+        return (ob1 == ob2).all()
 
 
 def parameter(kind):
