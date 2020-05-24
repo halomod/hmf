@@ -52,6 +52,14 @@ def test_bondefs():
     assert np.isclose(np.exp(t._unnormalised_lnT[0]), 1, rtol=1e-5)
 
 
+def test_class_camb_defaults():
+    # Sets a small lnk_max to capture main features but avoid extrap error
+    tclass = Transfer(transfer_model="CLASS", lnk_max=0)._unnormalised_lnT
+    tcamb = Transfer(transfer_model="CAMB", lnk_max=0)._unnormalised_lnT
+    percent_err = 200 * (tclass - tcamb) / (tclass + tcamb)
+    assert np.all(percent_err < 1)
+
+
 @pytest.mark.skip("Too slow and needs to be constantly updated.")
 def test_data(datadir):
     import camb

@@ -22,10 +22,12 @@ except ImportError:
 
 try:
     import classy
-except ImportError as e:
-    pass
 
-_allfits = ["CAMB", "FromFile", "EH_BAO", "EH_NoBAO", "BBKS", "BondEfs"]
+    HAVE_CLASS = True
+except ImportError:
+    HAVE_CLASS = False
+
+_allfits = ["CAMB", "FromFile", "EH_BAO", "EH_NoBAO", "BBKS", "BondEfs", "CLASS"]
 
 
 class TransferComponent(Component):
@@ -726,11 +728,10 @@ class CLASS(FromFile):
 
     Parameters
     ----------
-
     cosmo : :class:`astropy.cosmology.FLRW` instance
         The cosmology used in the calculation
 
-    \*\*model_parameters : unpack-dict
+    model_parameters : unpack-dict
         Parameters specific to this model.
 
         **class_params:**
@@ -741,38 +742,52 @@ class CLASS(FromFile):
         **flip_t:**
             If set to True, will return ln(|T|).
     """
-    _defaults = {"class_params": None, "class_obj": None,
-                 "flip_T": False}
+
+    _defaults = {"class_params": None, "class_obj": None}
 
     def __init__(self, *args, **kwargs):
+        if not HAVE_CLASS:
+            raise ImportError(
+                "classy failed to import! Cannot use the Class " "transfer model."
+            )
         super(CLASS, self).__init__(*args, **kwargs)
         self.spline_fn = None
 
-        if self.params['class_obj'] is not None:
-            self.class_obj = self.params['class_obj']
+        if self.params["class_obj"] is not None:
+            self.class_obj = self.params["class_obj"]
+            if not isinstance(self.class_obj, classy.Class):
+                raise TypeError("Parameter 'class_obj' must be of type classy.Class.")
         else:
             h = self.cosmo.h
             class_params = {
-                'omega_b': self.cosmo.Ob0 * h ** 2,
-                'omega_cdm': (self.cosmo.Om0 - self.cosmo.Ob0) * h ** 2,
-                'h': h,
+                "omega_b": self.cosmo.Ob0 * h ** 2,
+                "omega_cdm": (self.cosmo.Om0 - self.cosmo.Ob0) * h ** 2,
+                "Omega_k": self.cosmo.Ok0,
+                "N_ncdm": 1,  # Camb/class defaults differ here so set manually
+                "N_ur": self.cosmo.Neff - 1,
+                "m_ncdm": sum(self.cosmo.m_nu).value,
+                "T_cmb": self.cosmo.Tcmb0.value,
+                "h": h,
             }
-            if self.params['class_params'] is not None:
-                class_params.update(self.params['class_params'])
-            class_params['output'] = 'dTk'
+            if self.params["class_params"] is not None:
+                class_params.update(self.params["class_params"])
+            class_params["output"] = "dTk"
 
             self.class_obj = classy.Class()
             self.class_obj.set(class_params)
 
     def lnt(self, lnk):
         if self.spline_fn is None:
-            trans = self.class_obj.get_transfer(output_format='camb')
-            if not trans:
+            if self.class_obj.state == 0:
                 self.class_obj.compute()
-                trans = self.class_obj.get_transfer(output_format='camb')
+            trans = self.class_obj.get_transfer(output_format="camb")
 
-            _k, _t = trans['k (h/Mpc)'], trans['-T_tot/k2']
-            if self.params['flip_T']:
+            _k, _t = trans["k (h/Mpc)"], trans["-T_tot/k2"]
+            if np.any(_t < 0):
+                print(
+                    "Warning! The transfer function dips below zero! "
+                    "Returning ln(|T|)."
+                )
                 _t = np.abs(_t)
             _lnk, _lnt = np.log(_k), np.log(_t)
 
