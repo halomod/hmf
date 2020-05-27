@@ -12,29 +12,6 @@ on:
       - 'master'
 
 jobs:
-  linter:
-    name: Linter
-    runs-on: ubuntu-latest
-    env:
-      ENV_NAME: linting
-      PYTHON: 3.8
-    steps:
-      - uses: actions/checkout@master
-        with:
-         fetch-depth: 1
-      - name: Get Miniconda Linux
-        run: |
-          wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O $HOME/miniconda.sh;
-          bash $HOME/miniconda.sh -b -p $HOME/miniconda
-      - name: Setup Environment
-        run: |
-          export PATH="$HOME/miniconda/bin:$PATH"
-          pip install pre-commit
-      - name: Linting
-        run: |
-          export PATH="$HOME/miniconda/bin:$PATH"
-          pre-commit run -a
-
   tests:
     env:
       ENV_NAME: tests
