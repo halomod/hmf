@@ -121,8 +121,13 @@ new features, and **patch** versions fix bugs and other non-breaking internal ch
 The versions are controlled by git tags, via the ``setuptools_scm`` package. Most
 bugfixes and new features will be automatically deployed to ``PyPI`` (so installable
 via ``pip install hmf``) immediately upon accepting the Pull Request, as well as the
-relevant version being updated. This is done via *tags* in the Pull Request to inform
-the deployment tools which version should be increased.
+relevant version being updated. This is done automatically via Github Actions, using
+information in the *commit messages*. Thus we strictly use commit messages following
+`AngularJS Conventions <https://gist.github.com/stephenparish/9941e89d80e2bc58a153#format-of-the-commit-message>`_
+to help this behaviour.
+
+.. note:: the behaviour when incorrect commit formatting is used is to *not* bump the
+          version. This enables a manual version bumping after a critical review.
 
 This process automates as much as possible while also not leaving feature branches to
 gather dust waiting to be deployed. However, one potential problem then remains: what
