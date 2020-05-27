@@ -271,11 +271,11 @@ def parameter(kind):
 
         def _get_property(self):
             prop = hidden_loc(self, name)
-            activeq = hidden_loc(self, "active_q")
+            activeq = getattr(self, hidden_loc(self, "active_q"))
             prpa = getattr(self, hidden_loc(self, "recalc_prop_par"))
 
             # Add parameter to any active quantity
-            for pr in getattr(self, activeq):
+            for pr in activeq:
                 prpa[pr].add(name)
 
             return getattr(self, prop)

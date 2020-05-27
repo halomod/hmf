@@ -108,6 +108,12 @@ class Framework(object):
         if kwargs:
             raise ValueError("Invalid arguments: %s" % kwargs)
 
+    def clone(self, **kwargs):
+        """Create and return an updated clone of the current object."""
+        clone = copy.deepcopy(self)
+        clone.update(**kwargs)
+        return clone
+
     @classmethod
     def get_all_parameter_names(cls):
         "Yield all parameter names in the class."
