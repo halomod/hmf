@@ -245,8 +245,17 @@ class MassFunction(transfer.Transfer):
 
     @cached_quantity
     def filter(self):
-        """Instantiated model for filter/window functions."""
+        """Instantiated model for filter/window functions.
+
+        Note that this filter is *not* normalised -- i.e. the output of `filter.sigma(8)`
+        will not be the input `sigma_8`.
+        """
         return self.filter_model(self.k, self._unnormalised_power, **self.filter_params)
+
+    @cached_quantity
+    def normalised_filter(self):
+        """A normalised filter, such that filter.sigma(8) == sigma8"""
+        return self.filter_model(self.k, self.power, **self.filter_params)
 
     @cached_quantity
     def m(self):
