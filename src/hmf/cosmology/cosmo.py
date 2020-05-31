@@ -25,7 +25,7 @@ except ImportError:
     HAVE_COLOSSUS = False
 
 
-def astropy_to_colossus(cosmo, **kwargs):
+def astropy_to_colossus(cosmo: FLRW, name: str = "custom", **kwargs):
     """Convert an astropy cosmology to a COLOSSUS cosmology"""
     # Find appropriate w(z) arguments.
     if not HAVE_COLOSSUS:
@@ -48,14 +48,17 @@ def astropy_to_colossus(cosmo, **kwargs):
         kwargs.update(w0=cosmo.w0)
 
     return cosmology.setCosmology(
-        flat=cosmo.Ok0 == 0,
-        H0=cosmo.H0,
-        Om0=cosmo.Om0,
-        Ode0=cosmo.Ode0,
-        Ob0=cosmo.Ob0,
-        Tcmb0=cosmo.Tcmb0,
-        Neff=cosmo.Neff,
-        **kwargs
+        name,
+        params=dict(
+            flat=cosmo.Ok0 == 0,
+            H0=cosmo.H0.value,
+            Om0=cosmo.Om0,
+            Ode0=cosmo.Ode0,
+            Ob0=cosmo.Ob0,
+            Tcmb0=cosmo.Tcmb0.value,
+            Neff=cosmo.Neff,
+            **kwargs
+        ),
     )
 
 
