@@ -7,7 +7,7 @@ from .._internals import _framework
 import numpy as np
 import scipy as sp
 import astropy.units as u
-from astropy.cosmology import Planck15
+from astropy.cosmology import Planck15, FLRW
 
 __all__ = [
     "FOF",
@@ -41,16 +41,20 @@ class MassDefinition(_framework.Component):
         self.z = z
 
         # Copy this from cosmology class to have it easily available here.
-        self.mean_density0 = (
-            (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2)
+        self.critical_density0 = (
+            (self.cosmo.critical_density0 / self.cosmo.h ** 2)
             .to(u.Msun / u.Mpc ** 3)
             .value
         )
-        self.mean_density = (
-            (self.cosmo.Om(z) * self.cosmo.critical_density(z) / self.cosmo.h ** 2)
+
+        self.critical_density = (
+            (self.cosmo.critical_density(z) / self.cosmo.h ** 2)
             .to(u.Msun / u.Mpc ** 3)
             .value
         )
+
+        self.mean_density0 = self.cosmo.Om0 * self.critical_density0
+        self.mean_density = self.cosmo.Om0 * self.critical_density
 
     @property
     def halo_density(self):
@@ -62,8 +66,17 @@ class MassDefinition(_framework.Component):
         raise AttributeError("halo_density does not exist for this Mass Definition")
 
     @property
+    def colossus_name(self):
+        """The name of the mass definition in Colossus format, if applicable."""
+        return None
+
+    @property
     def halo_overdensity_mean(self):
         return self.halo_density / self.mean_density
+
+    @property
+    def halo_overdensity_crit(self):
+        return self.halo_density / self.critical_density
 
     def m_to_r(self, m):
         r"""
@@ -114,7 +127,7 @@ class MassDefinition(_framework.Component):
         Change the spherical overdensity mass definition.
 
         This requires using a profile, for which the `halomod` package must be used.
-        If `halomod` is not installed, the default here is to use the NFW profile and
+        If ``halomod`` is not installed, the default here is to use the NFW profile and
         the Duffy+08 concentration-mass relation, for which a hardcoded solution is
         inbuilt to this method.
 
@@ -197,6 +210,13 @@ class MassDefinition(_framework.Component):
 
         return mdef.r_to_m(r_new), r_new, c_new
 
+    def __eq__(self, other):
+        """Test equality with another object."""
+        return (
+            self.__class__.__name__ == other.__class__.__name__
+            and self.params == other.params
+        )
+
 
 class SphericalOverdensity(MassDefinition):
     """An abstract base class for all spherical overdensity mass definitions."""
@@ -214,6 +234,10 @@ class SOMean(SphericalOverdensity):
         """The density of haloes under this definition."""
         return self.params["overdensity"] * self.mean_density
 
+    @property
+    def colossus_name(self):
+        return f"{int(self.params['overdensity'])}m"
+
 
 class SOCritical(SphericalOverdensity):
     """A mass definition based on spherical overdensity wrt critical density."""
@@ -224,6 +248,10 @@ class SOCritical(SphericalOverdensity):
     def halo_density(self):
         """The density of haloes under this definition."""
         return self.params["overdensity"] * self.mean_density / self.cosmo.Om(self.z)
+
+    @property
+    def colossus_name(self):
+        return f"{int(self.params['overdensity'])}c"
 
 
 class SOVirial(SphericalOverdensity):
@@ -238,6 +266,10 @@ class SOVirial(SphericalOverdensity):
         x = self.cosmo.Om(self.z) - 1
         overdensity = 18 * np.pi ** 2 + 82 * x - 39 * x ** 2
         return overdensity * self.mean_density / self.cosmo.Om(self.z)
+
+    @property
+    def colossus_name(self):
+        return "vir"
 
 
 class FOF(MassDefinition):
@@ -262,6 +294,23 @@ class FOF(MassDefinition):
         """
         overdensity = 9 / (2 * np.pi * self.params["linking_length"] ** 3)
         return overdensity * self.mean_density
+
+    @property
+    def colossus_name(self):
+        return "fof"
+
+
+def from_colossus_name(name, cosmo: FLRW = Planck15, z=0):
+    if name == "vir":
+        return SOVirial(cosmo=cosmo, z=z)
+    elif name.endswith("c"):
+        return SOCritical(cosmo=cosmo, z=z, overdensity=int(name[:-1]))
+    elif name.endswith("m"):
+        return SOMean(cosmo=cosmo, z=z, overdensity=int(name[:-1]))
+    elif name == "fof":
+        return FOF(cosmo=cosmo, z=z)
+    else:
+        raise ValueError(f"name '{name}' is an unknown mass definition to colossus.")
 
 
 def _find_new_concentration(rho_s, halo_density, h=None, x_guess=5.0):
