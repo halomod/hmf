@@ -72,7 +72,7 @@ class MassFunction(transfer.Transfer):
         dlog10m=0.01,
         hmf_model=ff.Tinker08,
         hmf_params=None,
-        mdef_model=None,
+        mdef_model="SOMean",
         mdef_params=None,
         delta_c=1.686,
         filter_model=TopHat,
@@ -198,7 +198,7 @@ class MassFunction(transfer.Transfer):
 
         :type: str or :class:`hmf.halos.mass_definitions.MassDefinition` subclass
         """
-        if not (issubclass_(val, md) or isinstance(val, str) or val is None):
+        if not (issubclass_(val, md) or isinstance(val, str)):
             raise ValueError(
                 "mdef_model must be a MassDefinition or string, got %s" % type(val)
             )
@@ -223,11 +223,8 @@ class MassFunction(transfer.Transfer):
 
     @cached_quantity
     def mdef(self):
-        """The halo mass-definition model instance, if set."""
-        if self.mdef_model is not None:
-            return self.mdef_model(self.cosmo, self.z, **self.mdef_params)
-        else:
-            return None
+        """The halo mass-definition model instance."""
+        return self.mdef_model(self.cosmo, self.z, **self.mdef_params)
 
     @cached_quantity
     def hmf(self):
@@ -259,7 +256,7 @@ class MassFunction(transfer.Transfer):
 
     @cached_quantity
     def m(self):
-        """Masses."""
+        """Halo masses (defined via ``mdef``)."""
         return 10 ** np.arange(self.Mmin, self.Mmax, self.dlog10m)
 
     @cached_quantity
