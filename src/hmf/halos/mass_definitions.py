@@ -274,6 +274,9 @@ class SOVirial(SphericalOverdensity):
     def colossus_name(self):
         return "vir"
 
+    def __str__(self):
+        return "SOVirial"
+
 
 class FOF(MassDefinition):
     """A mass definition based on Friends-of-Friends networks with given linking length."""
