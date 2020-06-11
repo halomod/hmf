@@ -17,7 +17,7 @@ from ..density_field import transfer
 from .._internals._cache import parameter, cached_quantity
 from ..density_field.filters import TopHat, Filter
 from .._internals._framework import get_model_
-from ..halos.mass_definitions import MassDefinition as md
+from ..halos.mass_definitions import MassDefinition as md, SOGeneric
 
 from .integrate_hmf import hmf_integral_gtm as int_gtm
 
@@ -31,19 +31,23 @@ class MassFunction(transfer.Transfer):
     cosmology and takes in various options as to how to calculate all
     further quantities.
 
-    All required outputs are provided as ``@property`` attributes for ease of
+    Most outputs are provided as ``@cached_quantity`` attributes for ease of
     access.
 
-    Contains an update() method which can be passed arguments to update, in the
+    Contains an :method:`~update` method which can be passed arguments to update, in the
     most optimal manner. All output quantities are calculated only when needed
     (but stored after first calculation for quick access).
 
     In addition to the parameters directly passed to this class, others are available
-    which are passed on to its superclass. To read a standard documented list of (all)
-    parameters, use ``MassFunction.parameter_info()``. If you want to just see the plain
-    list of available parameters, use ``MassFunction.get_all_parameters()``. To see the
-    actual defaults for each parameter, use
-    ``MassFunction.get_all_parameter_defaults()``.
+    which are passed on to its superclass (:class:`Transfer`).
+    To read a standard documented list of (all) available
+    parameters, use :func:`~parameter_info`. If you want to just see the plain
+    list of available parameters, use :func:`~get_all_parameters`. To see the
+    actual defaults for each parameter, use :func:`get_all_parameter_defaults`.
+
+    Parameters
+    ----------
+    Mmin : float
 
     Examples
     --------
@@ -67,17 +71,17 @@ class MassFunction(transfer.Transfer):
 
     def __init__(
         self,
-        Mmin=10,
-        Mmax=15,
-        dlog10m=0.01,
-        hmf_model=ff.Tinker08,
-        hmf_params=None,
-        mdef_model="SOMean",
-        mdef_params=None,
-        delta_c=1.686,
-        filter_model=TopHat,
-        filter_params=None,
-        **transfer_kwargs
+        Mmin: float = 10,
+        Mmax: float = 15,
+        dlog10m: float = 0.01,
+        hmf_model: [str, ff.FittingFunction] = ff.Tinker08,
+        hmf_params: [dict, None] = None,
+        mdef_model: [None, str, md] = None,
+        mdef_params: [dict, None] = None,
+        delta_c: float = 1.686,
+        filter_model: [str, Filter] = TopHat,
+        filter_params: [dict, None] = None,
+        **transfer_kwargs,
     ):
         # Call super init MUST BE DONE FIRST.
         super(MassFunction, self).__init__(**transfer_kwargs)
@@ -198,6 +202,9 @@ class MassFunction(transfer.Transfer):
 
         :type: str or :class:`hmf.halos.mass_definitions.MassDefinition` subclass
         """
+        if val is None:
+            return val
+
         if not (issubclass_(val, md) or isinstance(val, str)):
             raise ValueError(
                 "mdef_model must be a MassDefinition or string, got %s" % type(val)
@@ -222,9 +229,39 @@ class MassFunction(transfer.Transfer):
         return self.mean_density0 * (1 + self.z) ** 3
 
     @cached_quantity
-    def mdef(self):
-        """The halo mass-definition model instance."""
-        return self.mdef_model(self.cosmo, self.z, **self.mdef_params)
+    def mdef(self) -> md:
+        """The halo mass-definition model instance.
+
+        Default mass definition is the one the chosen hmf model was measured with.
+        """
+        if self.mdef_model is None:
+            # Get the default from the mass function definition
+            mdef = self.hmf_model.get_measured_mdef()
+
+            # Generic SO definitions, like in Tinker08, which can natively support
+            # any SO definition, also provide a "preferred" definition to use as
+            # the default.
+            if isinstance(mdef, SOGeneric):
+                mdef = mdef.preferred
+
+            # Update the actual parameters if the user has supplied any explicitly.
+            if self.mdef_params:
+                mdef.params.update(self.mdef_params)
+        else:
+            mdef = self.mdef_model(**self.mdef_params)
+
+            # Note we need to do the != in this order so that SOGeneric can compare.
+            if self.hmf_model.get_measured_mdef() != mdef:
+                warnings.warn(
+                    f"Your input mass definition '{mdef}' does not match the mass "
+                    f"definition in which the hmf fit {self.hmf_model.__name__} was measured:"
+                    f"'{self.hmf_model.get_measured_mdef()}'. The mass function will be "
+                    f"converted to your input definition, "
+                    f"but note that some properties do not survive the conversion, eg. "
+                    f"the integral of the hmf over mass yielding the total mean density."
+                )
+
+        return mdef
 
     @cached_quantity
     def hmf(self):
@@ -237,7 +274,7 @@ class MassFunction(transfer.Transfer):
             cosmo=self.cosmo,
             delta_c=self.delta_c,
             n_eff=self.n_eff,
-            **self.hmf_params
+            **self.hmf_params,
         )
 
     @cached_quantity
@@ -271,7 +308,11 @@ class MassFunction(transfer.Transfer):
 
     @cached_quantity
     def radii(self):
-        """The radii corresponding to the masses `m`."""
+        """The radii corresponding to the masses `m`.
+
+        Note that these are not the halo radii -- they are the radii containing mass
+        m given a purely background density.
+        """
         return self.filter.mass_to_radius(self.m, self.mean_density0)
 
     @cached_quantity
@@ -371,16 +412,17 @@ class MassFunction(transfer.Transfer):
             dndm = self.hmf._modify_dndm(self.m, dndm, self.z, ngtm_tinker)
 
         # Alter the mass definition
-        if self.hmf.measured_mass_definition is not None:
-            if self.mdef is not None:
-                mnew = self.hmf.measured_mass_definition.change_definition(
-                    self.m, self.mdef
-                )[
-                    0
-                ]  # this uses NFW, but we can change that in halomod.
-                spl = spline(np.log(mnew), np.log(dndm))
-                spl2 = spline(self.m, mnew)
-                dndm = np.exp(spl(np.log(self.m))) / spl2.derivative()(self.m)
+        if (
+            self.hmf.measured_mass_definition is not None
+            and self.hmf.measured_mass_definition != self.mdef
+        ):
+            # this uses NFW, but we can change that in halomod.
+            mnew = self.hmf.measured_mass_definition.change_definition(
+                self.m, self.mdef
+            )[0]
+            spl = spline(np.log(mnew), np.log(dndm))
+            spl2 = spline(self.m, mnew)
+            dndm = np.exp(spl(np.log(self.m))) / spl2.derivative()(self.m)
 
         # else:  # #This is for a survey-volume weighted calculation
         #     raise NotImplementedError()
