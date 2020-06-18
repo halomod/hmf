@@ -287,6 +287,16 @@ class MassFunction(transfer.Transfer):
         return self.filter_model(self.k, self._unnormalised_power, **self.filter_params)
 
     @cached_quantity
+    def halo_overdensity_mean(self):
+        """The halo overdensity with respect to the mean background."""
+        return self.mdef.halo_overdensity_mean(self.z, self.cosmo)
+
+    @cached_quantity
+    def halo_overdensity_crit(self):
+        """The halo overdensity with respect to the critical density."""
+        return self.mdef.halo_overdensity_crit(self.z, self.cosmo)
+
+    @cached_quantity
     def normalised_filter(self):
         """A normalised filter, such that filter.sigma(8) == sigma8"""
         return self.filter_model(self.k, self.power, **self.filter_params)
