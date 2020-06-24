@@ -81,6 +81,7 @@ class MassFunction(transfer.Transfer):
         delta_c: float = 1.686,
         filter_model: [str, Filter] = TopHat,
         filter_params: [dict, None] = None,
+        disable_mass_conversion: bool = False,
         **transfer_kwargs,
     ):
         # Call super init MUST BE DONE FIRST.
@@ -97,6 +98,7 @@ class MassFunction(transfer.Transfer):
         self.hmf_params = hmf_params or {}
         self.filter_model = filter_model
         self.filter_params = filter_params or {}
+        self.disable_mass_conversion = disable_mass_conversion
 
     # ===========================================================================
     # PARAMETERS
@@ -120,13 +122,21 @@ class MassFunction(transfer.Transfer):
         return val
 
     @parameter("res")
-    def dlog10m(self, val):
+    def dlog10m(self, val) -> float:
         """
         log10 interval between mass bins
 
         :type: float
         """
         return val
+
+    @parameter("switch")
+    def disable_mass_conversion(self, val) -> bool:
+        """Disable converting mass function from builtin definition to that provided.
+
+        :type: bool
+        """
+        return bool(val)
 
     @parameter("model")
     def filter_model(self, val):
@@ -251,7 +261,10 @@ class MassFunction(transfer.Transfer):
             mdef = self.mdef_model(**self.mdef_params)
 
             # Note we need to do the != in this order so that SOGeneric can compare.
-            if self.hmf_model.get_measured_mdef() != mdef:
+            if (
+                self.hmf_model.get_measured_mdef() != mdef
+                and not self.disable_mass_conversion
+            ):
                 warnings.warn(
                     f"Your input mass definition '{mdef}' does not match the mass "
                     f"definition in which the hmf fit {self.hmf_model.__name__} was measured:"
@@ -425,6 +438,7 @@ class MassFunction(transfer.Transfer):
         if (
             self.hmf.measured_mass_definition is not None
             and self.hmf.measured_mass_definition != self.mdef
+            and not self.disable_mass_conversion
         ):
             # this uses NFW, but we can change that in halomod.
             mnew = self.hmf.measured_mass_definition.change_definition(
