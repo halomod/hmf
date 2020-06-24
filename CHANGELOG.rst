@@ -16,6 +16,11 @@ of this.
 - Added new module ``mass_definitions`` which more robustly deals with various halo mass definitions, and also includes
   ability to convert mass functions between different definitions.
 - New set of tutorials: quickstart/first plot and a broad overview.
+- Added shortcuts to ``halo_overdensity_mean`` and ``halo_overdensity_crit``
+- Added ``normalized_filter`` to ``MassFunction`` class to make it easier to use a filter
+  with a pre-normalized power spectrum.
+- Added ``.clone()`` method to all ``Framework`` classes, which gives ability to clone
+  the current instance (while also changing some parameters).
 
 **Bugfixes**
 
