@@ -1,4 +1,5 @@
 import pytest
+from hmf import MassFunction
 
 # require colossus for this test
 from colossus.halo.mass_defs import changeMassDefinition
@@ -79,10 +80,23 @@ def test_colossus_name():
 
 def test_from_colossus_name():
     assert md.from_colossus_name("200c") == md.SOCritical()
-    assert md.from_colossus_name("200m") == md.SOMean
+    assert md.from_colossus_name("200m") == md.SOMean()
     assert md.from_colossus_name("fof") == md.FOF()
     assert md.from_colossus_name("800c") == md.SOCritical(overdensity=800)
     assert md.from_colossus_name("vir") == md.SOVirial()
 
     with pytest.raises(ValueError):
         md.from_colossus_name("derp")
+
+
+def test_change_dndm():
+    h = MassFunction(mdef_model="SOVirial", hmf_model="Warren")
+
+    with pytest.warns(UserWarning):
+        h.mdef
+
+    dndm = h.dndm
+
+    h.update(mdef_model="FOF")
+
+    assert not np.allclose(h.dndm, dndm, atol=0, rtol=0.15)
