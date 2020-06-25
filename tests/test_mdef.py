@@ -1,3 +1,5 @@
+import pytest
+
 # require colossus for this test
 from colossus.halo.mass_defs import changeMassDefinition
 from colossus.cosmology.cosmology import setCosmology
@@ -66,3 +68,21 @@ def test_mean_to_vir_nfw():
     assert np.isclose(mnew, mnew_, rtol=1e-2)
     assert np.isclose(rnew * 1e3, rnew_, rtol=1e-2)
     assert np.isclose(cnew, cnew_, rtol=1e-2)
+
+
+def test_colossus_name():
+    assert md.SOMean().colossus_name == "200m"
+    assert md.SOCritical().colossus_name == "200c"
+    assert md.SOVirial().colossus_name == "vir"
+    assert md.FOF().colossus_name == "fof"
+
+
+def test_from_colossus_name():
+    assert md.from_colossus_name("200c") == md.SOCritical()
+    assert md.from_colossus_name("200m") == md.SOMean
+    assert md.from_colossus_name("fof") == md.FOF()
+    assert md.from_colossus_name("800c") == md.SOCritical(overdensity=800)
+    assert md.from_colossus_name("vir") == md.SOVirial()
+
+    with pytest.raises(ValueError):
+        md.from_colossus_name("derp")

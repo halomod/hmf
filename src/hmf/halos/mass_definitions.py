@@ -105,9 +105,6 @@ class MassDefinition(_framework.Component):
         Change the spherical overdensity mass definition.
 
         This requires using a profile, for which the `halomod` package must be used.
-        If ``halomod`` is not installed, the default here is to use the NFW profile and
-        the Duffy+08 concentration-mass relation, for which a hardcoded solution is
-        inbuilt to this method.
 
         Parameters
         ----------
@@ -172,7 +169,7 @@ class MassDefinition(_framework.Component):
         if c is None:
             c = profile.cm_relation(m)
 
-        rs = profile._rs_from_m(m, c, at_z=True)
+        rs = self.m_to_r(m, z, cosmo) / c
         rhos = profile._rho_s(c)
 
         if not hasattr(rhos, "__len__"):
