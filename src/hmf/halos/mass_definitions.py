@@ -7,7 +7,9 @@ from .._internals import _framework
 import numpy as np
 import scipy as sp
 import astropy.units as u
-from astropy.cosmology import Planck15
+from astropy.cosmology import Planck15, FLRW
+import warnings
+from ..cosmology import Cosmology
 
 __all__ = [
     "FOF",
@@ -21,49 +23,38 @@ __all__ = [
 
 
 class MassDefinition(_framework.Component):
-    """
-    A base class for a Mass Definition.
+    """A base class for a Mass Definition."""
 
-    Parameters
-    ----------
-    cosmo: :class:`astropy.cosmology.FLRW` instance, optional
-        The cosmology within which the haloes will be embedded.
-    z : float, optional
-        The redshift at which the mass definition is defined.
-    model_parameters :
-        Any parameters that uniquely affect the chosen Mass Definition model. These
-        merge with `_defaults` to create the `.params` dictionary.
-    """
+    @staticmethod
+    def critical_density(z=0, cosmo=Planck15):
+        """Get the critical density of the Universe at redshift z, units h^2 Msun / Mpc^3."""
+        return (cosmo.critical_density(z) / cosmo.h ** 2).to(u.Msun / u.Mpc ** 3).value
 
-    def __init__(self, cosmo=Planck15, z=0, **model_parameters):
-        super(MassDefinition, self).__init__(**model_parameters)
-        self.cosmo = cosmo
-        self.z = z
+    @classmethod
+    def mean_density(cls, z=0, cosmo=Planck15):
+        """Get the mean density of the Universe at redshift z, units h^2 Msun / Mpc^3."""
+        return cosmo.Om(z) * cls.critical_density(z, cosmo)
 
-        # Copy this from cosmology class to have it easily available here.
-        self.mean_density0 = (
-            (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2)
-            .to(u.Msun / u.Mpc ** 3)
-            .value
-        )
-        self.mean_density = (
-            (self.cosmo.Om(z) * self.cosmo.critical_density(z) / self.cosmo.h ** 2)
-            .to(u.Msun / u.Mpc ** 3)
-            .value
-        )
-
-    @property
-    def halo_density(self):
+    def halo_density(self, z=0, cosmo=Planck15):
         r"""
         The density of haloes under this definition.
 
         May not exist in some definitions. Units are :math:`M_\odot h^2/{\rm Mpc}^3`.
         """
-        raise AttributeError(
-            "The overdensity attribute does not exist for this Mass Definition"
-        )
+        raise AttributeError("halo_density does not exist for this Mass Definition")
 
-    def m_to_r(self, m):
+    @property
+    def colossus_name(self):
+        """The name of the mass definition in Colossus format, if applicable."""
+        return None
+
+    def halo_overdensity_mean(self, z=0, cosmo=Planck15):
+        return self.halo_density(z, cosmo) / self.mean_density(z, cosmo)
+
+    def halo_overdensity_crit(self, z=0, cosmo=Planck15):
+        return self.halo_density(z, cosmo) / self.critical_density(z, cosmo)
+
+    def m_to_r(self, m, z=0, cosmo=Planck15):
         r"""
         Return the radius corresponding to m for this mass definition
 
@@ -77,13 +68,13 @@ class MassDefinition(_framework.Component):
         Computed as :math:`\left(\frac{3m}{4\pi \rho_{\rm halo}\right)`.
         """
         try:
-            return (3 * m / (4 * np.pi * self.halo_density)) ** (1.0 / 3.0)
+            return (3 * m / (4 * np.pi * self.halo_density(z, cosmo))) ** (1.0 / 3.0)
         except AttributeError:
             raise AttributeError(
-                "This Mass Definition has no way to convert mass to radius."
+                f"{self.__class__.__name__} cannot convert mass to radius."
             )
 
-    def r_to_m(self, r):
+    def r_to_m(self, r, z=0, cosmo=Planck15):
         r"""
         Return the mass corresponding to r for this mass definition
 
@@ -97,24 +88,23 @@ class MassDefinition(_framework.Component):
         Computed as :math:`\frac{4\pi r^3}{3} \rho_{\rm halo}`.
         """
         try:
-            return 4 * np.pi * r ** 3 * self.halo_density / 3
+            return 4 * np.pi * r ** 3 * self.halo_density(z, cosmo) / 3
         except AttributeError:
             raise AttributeError(
-                "This Mass Definition has no way to convert radius to mass."
+                f"{self.__class__.__name__} cannot convert radius to mass."
             )
 
-    def _duffy_concentration(self, m):
+    def _duffy_concentration(self, m, z=0):
         a, b, c, ms = 6.71, -0.091, 0.44, 2e12
-        return a / (1 + self.z) ** c * (m / ms) ** b
+        return a / (1 + z) ** c * (m / ms) ** b
 
-    def change_definition(self, m, mdef, profile=None, c=None):
+    def change_definition(
+        self, m: np.ndarray, mdef, profile=None, c=None, z=0, cosmo=Planck15
+    ):
         r"""
         Change the spherical overdensity mass definition.
 
         This requires using a profile, for which the `halomod` package must be used.
-        If `halomod` is not installed, the default here is to use the NFW profile and
-        the Duffy+08 concentration-mass relation, for which a hardcoded solution is
-        inbuilt to this method.
 
         Parameters
         ----------
@@ -134,10 +124,8 @@ class MassDefinition(_framework.Component):
         -------
         m_f : float or array_like
             The masses of the halos in the new definition.
-
         r_f : float or array_like
             The radii of the halos in the new definition.
-
         c_f : float or array_like
             The concentrations of the halos in the new definition.
         """
@@ -159,31 +147,43 @@ class MassDefinition(_framework.Component):
         m = np.atleast_1d(m)
 
         if profile is None:
-            # Use an NFW profile.
-            if c is None:
-                c = self._duffy_concentration(m)
+            try:
+                from halomod.profiles import NFW
+                from halomod.concentration import Duffy08
 
-            rs = self.m_to_r(m) / c
-            rhos = m / rs ** 3 / 4.0 / np.pi / (np.log(1.0 + c) - c / (1.0 + c))
+                profile = NFW(
+                    cm_relation=Duffy08(cosmo=Cosmology(cosmo)), mdef=self, z=z
+                )
+            except ImportError:
+                raise ImportError(
+                    "Cannot change mass definitions without halomod installed!"
+                )
 
-            c_new = np.array(
-                [
-                    _find_new_concentration(rho, mdef.halo_density, x_guess=cc)
-                    for rho, cc in zip(rhos, c)
-                ]
+        if profile.z != z:
+            warnings.warn(
+                f"Redshift of given profile ({profile.z})does not match redshift passed "
+                f"to change_definition(). Using the redshift directly passed."
             )
-        else:
-            if c is None:
-                c = profile.cm_relation(m)
+            profile.z = z
 
-            rs = profile._rs_from_m(m, c)
-            rhos = profile._rho_s(c)
-            c_new = np.array(
-                [
-                    _find_new_concentration(rho, mdef.halo_density, profile._h, cc)
-                    for rho, cc in zip(rhos, c)
-                ]
-            )
+        if c is None:
+            c = profile.cm_relation(m)
+
+        rs = self.m_to_r(m, z, cosmo) / c
+        rhos = profile._rho_s(c)
+
+        if not hasattr(rhos, "__len__"):
+            rhos = [rhos]
+            c = [c]
+
+        c_new = np.array(
+            [
+                _find_new_concentration(
+                    rho, mdef.halo_density(z, cosmo), profile._h, cc
+                )
+                for rho, cc in zip(rhos, c)
+            ]
+        )
 
         if len(c_new) == 1:
             c_new = c_new[0]
@@ -193,7 +193,14 @@ class MassDefinition(_framework.Component):
         if len(r_new) == 1:
             r_new = r_new[0]
 
-        return mdef.r_to_m(r_new), r_new, c_new
+        return mdef.r_to_m(r_new, z, cosmo), r_new, c_new
+
+    def __eq__(self, other):
+        """Test equality with another object."""
+        return (
+            self.__class__.__name__ == other.__class__.__name__
+            and self.params == other.params
+        )
 
 
 class SphericalOverdensity(MassDefinition):
@@ -201,16 +208,37 @@ class SphericalOverdensity(MassDefinition):
 
     pass
 
+    def __str__(self):
+        return f"{self.__class__.__name__}({self.params['overdensity']})"
+
+
+class SOGeneric(SphericalOverdensity):
+    def __init__(self, preferred: [None, SphericalOverdensity] = None, **kwargs):
+        super().__init__(**kwargs)
+        self.preferred = preferred
+
+    """A generic spherical-overdensity definition which can claim equality with any SO."""
+
+    def __eq__(self, other):
+        """Test equality with another object."""
+        return isinstance(other, SphericalOverdensity)
+
+    def __str__(self):
+        return "SOGeneric"
+
 
 class SOMean(SphericalOverdensity):
     """A mass definition based on spherical overdensity wrt mean background density."""
 
     _defaults = {"overdensity": 200}
 
-    @property
-    def halo_density(self):
+    def halo_density(self, z=0, cosmo=Planck15):
         """The density of haloes under this definition."""
-        return self.params["overdensity"] * self.mean_density
+        return self.params["overdensity"] * self.mean_density(z, cosmo)
+
+    @property
+    def colossus_name(self):
+        return f"{int(self.params['overdensity'])}m"
 
 
 class SOCritical(SphericalOverdensity):
@@ -218,24 +246,33 @@ class SOCritical(SphericalOverdensity):
 
     _defaults = {"overdensity": 200}
 
-    @property
-    def halo_density(self):
+    def halo_density(self, z=0, cosmo=Planck15):
         """The density of haloes under this definition."""
-        return self.params["overdensity"] * self.mean_density / self.cosmo.Om(self.z)
+        return self.params["overdensity"] * self.critical_density(z, cosmo)
+
+    @property
+    def colossus_name(self):
+        return f"{int(self.params['overdensity'])}c"
 
 
 class SOVirial(SphericalOverdensity):
     """A mass definition based on spherical overdensity.
 
-     Density threshold isgiven by Bryan and Norman (1998).
-     """
+    Density threshold isgiven by Bryan and Norman (1998).
+    """
+
+    def halo_density(self, z=0, cosmo=Planck15):
+        """The density of haloes under this definition."""
+        x = cosmo.Om(z) - 1
+        overdensity = 18 * np.pi ** 2 + 82 * x - 39 * x ** 2
+        return overdensity * self.mean_density(z, cosmo) / cosmo.Om(z)
 
     @property
-    def halo_density(self):
-        """The density of haloes under this definition."""
-        x = self.cosmo.Om(self.z) - 1
-        overdensity = 18 * np.pi ** 2 + 82 * x - 39 * x ** 2
-        return overdensity * self.mean_density / self.cosmo.Om(self.z)
+    def colossus_name(self):
+        return "vir"
+
+    def __str__(self):
+        return "SOVirial"
 
 
 class FOF(MassDefinition):
@@ -243,12 +280,11 @@ class FOF(MassDefinition):
 
     _defaults = {"linking_length": 0.2}
 
-    @property
-    def halo_density(self):
+    def halo_density(self, z=0, cosmo=Planck15):
         r"""
-        The density of haloes under this mass definition.
+        The density of halos under this mass definition.
 
-        Note that for FoF haloes, this is very approximate. We follow [1]_ and define
+        Note that for FoF halos, this is very approximate. We follow [1]_ and define
         :math:`rho_{FOF} = 9/(2\pi b^3) \rho_m`, with *b* the linking length. This
         assumes all groups are spherical and singular isothermal spheres.
 
@@ -259,7 +295,27 @@ class FOF(MassDefinition):
            L129–32. https://doi.org/10.1086/319644.
         """
         overdensity = 9 / (2 * np.pi * self.params["linking_length"] ** 3)
-        return overdensity * self.mean_density
+        return overdensity * self.mean_density(z, cosmo)
+
+    @property
+    def colossus_name(self):
+        return "fof"
+
+    def __str__(self):
+        return f"FoF(l={self.params['linking_length']})"
+
+
+def from_colossus_name(name):
+    if name == "vir":
+        return SOVirial()
+    elif name.endswith("c"):
+        return SOCritical(overdensity=int(name[:-1]))
+    elif name.endswith("m"):
+        return SOMean(overdensity=int(name[:-1]))
+    elif name == "fof":
+        return FOF()
+    else:
+        raise ValueError(f"name '{name}' is an unknown mass definition to colossus.")
 
 
 def _find_new_concentration(rho_s, halo_density, h=None, x_guess=5.0):
@@ -273,11 +329,10 @@ def _find_new_concentration(rho_s, halo_density, h=None, x_guess=5.0):
     Parameters
     ----------
     rho_s: float
-        The central density in physical :math:`M_{\odot} h^2 / {\\rm kpc}^3`.
+        The central density in physical units :math:`M_{\odot} h^2 / {\\rm Mpc}^3`.
     halo_density: float
-        The desired enclosed density threshold in physical :math:`M_{\odot} h^2 / {\\rm kpc}^3`.
-        This number can be generated from a mass definition and redshift using the
-        :func:`~halo.mass_so.densityThreshold` function.
+        The desired enclosed density threshold in physical units
+        :math:`M_{\odot} h^2 / {\\rm Mpc}^3`.
     h : callable
         Return the enclosed density as function of r/r_s.
 
@@ -296,6 +351,7 @@ def _find_new_concentration(rho_s, halo_density, h=None, x_guess=5.0):
     x = None
     i = 0
     XDELTA_GUESS_FACTORS = [5.0, 10.0, 20.0, 100.0, 10000.0]
+
     if h is None:
 
         def h(x):

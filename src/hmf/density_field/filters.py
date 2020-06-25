@@ -100,7 +100,6 @@ class Filter(_framework.Component):
         ----------
         m : array_like
             Masses
-
         rho_mean : float
             Mean density of the Universe.
 
@@ -123,7 +122,6 @@ class Filter(_framework.Component):
         ----------
         r : array_like
             Radii
-
         rho_mean : float
             Mean density of the Universe.
 
