@@ -172,7 +172,7 @@ class MassDefinition(_framework.Component):
         if c is None:
             c = profile.cm_relation(m)
 
-        rs = profile._rs_from_m(m, c)
+        rs = profile._rs_from_m(m, c, at_z=True)
         rhos = profile._rho_s(c)
 
         if not hasattr(rhos, "__len__"):
