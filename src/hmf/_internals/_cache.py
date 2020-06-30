@@ -8,6 +8,7 @@ updated.
 """
 from functools import update_wrapper
 from copy import deepcopy
+import warnings
 
 
 def hidden_loc(obj, name):
@@ -30,7 +31,7 @@ def cached_quantity(f):
     Examples
     --------
 
-    >>>   class CachedClass(object):
+    >>>   class CachedClass:
     >>>      @parameter
     >>>      def a_param(self,val):
     >>>         return val
@@ -146,10 +147,18 @@ def cached_quantity(f):
         try:
             prop = hidden_loc(self, name)
             delattr(self, prop)
-            del getattr(self, recalc)[name]
-            del getattr(self, recalc_prpa)[name]
         except AttributeError:
             pass
+
+        try:
+            del getattr(self, recalc)[name]
+        except KeyError:
+            warnings.warn(f"{name} not found in recalc cache.")
+
+        try:
+            del getattr(self, recalc_prpa)[name]
+        except KeyError:
+            warnings.warn(f"{name} not found in recalc_prop_par cache")
 
     return property(_get_property, None, _del_property)
 

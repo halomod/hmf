@@ -93,17 +93,14 @@ class Framework(object):
         """
         Update parameters of the framework with kwargs.
         """
-
         for k, v in list(kwargs.items()):
             # If key is just a parameter to the class, just update it.
             if hasattr(self, k):
-                setattr(self, k, v)
-                del kwargs[k]
+                setattr(self, k, kwargs.pop(k))
 
             # If key is a dictionary of parameters to a sub-framework, update the sub-framework
             elif k.endswith("_params") and isinstance(getattr(self, k[:-7]), Framework):
-                getattr(self, k[:-7]).update(**v)
-                del kwargs[k]
+                getattr(self, k[:-7]).update(**kwargs.pop(k))
 
         if kwargs:
             raise ValueError("Invalid arguments: %s" % kwargs)
@@ -137,8 +134,6 @@ class Framework(object):
                         )
                     except Exception as e:
                         print(e)
-                        pass
-
         return out
 
     @property
