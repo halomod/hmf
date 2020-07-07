@@ -212,7 +212,7 @@ class MassFunction(transfer.Transfer):
 
         :type: str or :class:`hmf.halos.mass_definitions.MassDefinition` subclass
         """
-        if val is None or val.lower() == "none":
+        if val is None or (isinstance(val, str) and val.lower() == "none"):
             return None
 
         if not (issubclass_(val, md) or isinstance(val, str)):

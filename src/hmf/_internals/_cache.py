@@ -73,7 +73,12 @@ def cached_quantity(f):
         # otherwise they will be lost to their parents.
         if name in recalc:
             for pr in activeq:
-                recalc_prpa[pr].update(recalc_prpa[name])
+                try:
+                    recalc_prpa[pr].update(recalc_prpa[name])
+                except KeyError:
+                    raise KeyError(
+                        f"When getting {name}, couldn't find {pr} in recalc_prpa. Had {list(recalc_prpa.keys())}."
+                    )
 
             # check all quantities for dependence on subframeworks and update their entries
             for s in subframeworks:
@@ -265,9 +270,8 @@ def parameter(kind):
                     setattr(self, prop, val)
 
                 # Make sure children are updated
-                if (
-                    kind != "switch" or doset
-                ):  # Normal parameters just update dependencies
+                if kind != "switch" or doset:
+                    # Normal parameters just update dependencies
                     for pr in getattr(self, recalc_papr)[name]:
                         getattr(self, recalc)[pr] = True
                 else:

@@ -1,8 +1,14 @@
 Releases
 ========
 
-3.1.0dev
---------
+3.1.1
+-----
+**Bugfixes**
+
+- Consistently allow string "None" for some parameters.
+
+3.1.0
+-----
 **Notes**
 
 New versions of CAMB (1.0.0+) seem to run significantly slower by default than previous
