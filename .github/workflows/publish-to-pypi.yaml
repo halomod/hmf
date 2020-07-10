@@ -22,6 +22,7 @@ jobs:
       - name: Install pep517
         run: |
           python -m pip install pep517 --user
+          python -m pip install setuptools_scm
           python setup.py --version
       - name: Create setuptools_scm env variable
         if: startsWith(github.ref, 'refs/tags/') != true
