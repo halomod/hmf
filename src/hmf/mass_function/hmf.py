@@ -17,7 +17,7 @@ from ..density_field import transfer
 from .._internals._cache import parameter, cached_quantity
 from ..density_field.filters import TopHat, Filter
 from .._internals._framework import get_model_
-from ..halos.mass_definitions import MassDefinition as md, SOGeneric
+from ..halos.mass_definitions import MassDefinition as md, SOGeneric, SOMean
 
 from .integrate_hmf import hmf_integral_gtm as int_gtm
 
@@ -48,6 +48,9 @@ class MassFunction(transfer.Transfer):
     Parameters
     ----------
     Mmin : float
+    mdef_model
+        The mass definition model to use. By default, use the mass definition in which
+        the chosen hmf was measured. If that does not exist, use SOMean(200).
 
     Examples
     --------
@@ -81,7 +84,7 @@ class MassFunction(transfer.Transfer):
         delta_c: float = 1.686,
         filter_model: [str, Filter] = TopHat,
         filter_params: [dict, None] = None,
-        disable_mass_conversion: bool = False,
+        disable_mass_conversion: bool = True,
         **transfer_kwargs,
     ):
         # Call super init MUST BE DONE FIRST.
@@ -257,6 +260,10 @@ class MassFunction(transfer.Transfer):
             # Update the actual parameters if the user has supplied any explicitly.
             if self.mdef_params:
                 mdef.params.update(self.mdef_params)
+
+            if mdef is None:
+                # Some mass functions don't have any set mass definition (eg. PS)
+                mdef = SOMean(**self.mdef_params)
         else:
             mdef = self.mdef_model(**self.mdef_params)
 
