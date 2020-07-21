@@ -131,7 +131,7 @@ def get_hmf(
     quantities : list
         A list of quantities, specified by the `req_quantities` arguments
     x : Framework instance
-        An instance of `framework`, with the requisitie quantities pre-cached.
+        An instance of `framework`, with the requisite quantities pre-cached.
     label : optional
         If `get_label` is True, also returns a string label uniquely specifying
         the current parameter combination.
