@@ -14,6 +14,7 @@ from rich.panel import Panel
 from rich import box
 from rich.rule import Rule
 from time import time
+from astropy.units import Quantity
 
 console = Console(width=100)
 
@@ -28,7 +29,9 @@ def _get_config(config=None):
     # Import an actual framework.
     fmwk = cfg.get("framework", None)
     if fmwk:
-        cfg["framework"] = importlib.import_module(fmwk)
+        mod, cls = fmwk.rsplit(".", maxsplit=1)
+
+        cfg["framework"] = getattr(importlib.import_module(mod), cls)
 
     return cfg
 
@@ -58,6 +61,20 @@ def _ctx_to_dct(args):
         dct[k] = v
 
     return dct
+
+
+def _process_dct(dct):
+    out = {}
+    for k, v in dct.items():
+        if isinstance(v, dict):
+            if set(v.keys()) == {"unit", "value"}:
+                v = Quantity(v["value"], v["unit"])
+            else:
+                v = _process_dct(v)
+
+        out[k] = v
+
+    return out
 
 
 main = click.Group()
@@ -102,13 +119,21 @@ def run(ctx, config, outdir, label):
 
     # Update the file-based config with options given on the CLI.
     if ctx.args:
-        cfg.update(_ctx_to_dct(ctx.args))
+        if "params" not in cfg:
+            cfg["params"] = {}
+
+        cfg["params"].update(_ctx_to_dct(ctx.args))
+
+    cfg["params"] = _process_dct(cfg["params"])
+
+    console.print(f"Explicitly set parameters: {cfg.get('params', {})}", style="bold")
 
     quantities = cfg.get("quantities", ["m", "dndm"])
     out = get_hmf(
         quantities,
         framework=cfg.get("framework", hmf.MassFunction),
         get_label=True,
+        label_kind="filename",
         **cfg.get("params", {}),
     )
 

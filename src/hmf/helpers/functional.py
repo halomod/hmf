@@ -91,7 +91,9 @@ def get_hmf(
         "Mmax": 11.5,
         "dlog10m": 0.5,
     },
-    **kwargs
+    label_kind="display",
+    label_kwargs=None,
+    **kwargs,
 ):
     """
     Yield framework instances for all combinations of parameters supplied.
@@ -162,6 +164,8 @@ def get_hmf(
     >>> print [x[0][0]/1e10 for x in big_list]
     [8.531878308131338, 68.2550264650507, 230.36071431954613, 546.0402117204056, 1066.4847885164174, 1842.885714556369, 2926.434259689049, 4368.321693763245]
     """
+    label_kwargs = label_kwargs or {}
+
     if isinstance(req_qauntities, str):
         req_qauntities = [req_qauntities]
     lists = {}
@@ -185,7 +189,7 @@ def get_hmf(
                 x.update(**{k: vv})
                 if get_label:
                     yield [getattr(x, a) for a in req_qauntities], x, _make_label(
-                        {k: vv}
+                        {k: vv}, kind=label_kind, **label_kwargs
                     )
                 else:
                     yield [getattr(x, a) for a in req_qauntities], x
@@ -218,23 +222,38 @@ def get_hmf(
                 yield [[getattr(x, q) for q in req_qauntities], x]
 
             else:
-                yield [[getattr(x, q) for q in req_qauntities], x, _make_label(vals)]
+                yield [
+                    [getattr(x, q) for q in req_qauntities],
+                    x,
+                    _make_label(vals, kind=label_kind, **label_kwargs),
+                ]
 
 
-def _make_label(d):
+def _make_label(d, no_spaces=None, equals=None, delim=None, kind="display"):
+    if kind == "display":
+        space = " " if not no_spaces else ""
+        equals = f":{space}" if equals is None else equals
+        delim = f",{space}" if delim is None else delim
+    elif kind == "filename":
+        space = ""
+        equals = "=" if equals is None else equals
+        delim = "_" if delim is None else delim
+
     label = ""
+
     for key, val in d.items():
         if isinstance(val, str):
-            label += val + ", "
+            label += f"{val}{delim}"
         elif isinstance(val, dict):
             for k, v in val.items():
-                label += "%s: %s, " % (k, v)
+                label += f"{k}{equals}{v}{delim}"
         else:
-            label += "%s: %s, " % (key, val)
+            label += f"{key}{equals}{val}{delim}"
 
     # Some post-formatting to make it look nicer
-    label = label[:-2]
-    label = label.replace("__", "_")
-    label = label.replace("_", ".")
+    label = label[: -len(delim)]
+
+    if no_spaces:
+        label = label.replace(" ", "")
 
     return label
