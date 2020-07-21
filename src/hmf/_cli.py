@@ -5,11 +5,17 @@ import click
 import numpy as np
 import toml
 from pathlib import Path
-import datetime
 import importlib
-
 import hmf
 from hmf.helpers.functional import get_hmf
+from .helpers.cfg_utils import framework_to_dict
+from rich.console import Console
+from rich.panel import Panel
+from rich import box
+from rich.rule import Rule
+from time import time
+
+console = Console(width=100)
 
 
 def _get_config(config=None):
@@ -54,34 +60,6 @@ def _ctx_to_dct(args):
     return dct
 
 
-#
-# def _update(obj, ctx):
-#     # Try to use the extra arguments as an override of config.
-#     kk = list(ctx.keys())
-#     for k in kk:
-#         if hasattr(obj, k):
-#             try:
-#                 given_val = ctx.pop(k)
-#                 setattr(obj, k, eval(given_val))
-#             except AttributeError:
-#                 raise AttributeError(f"Parameter {k} is not a valid parameter to {obj.__class__.__name__}.")
-#             except TypeError:
-#                 raise TypeError(f"For parameter '{k}', given value {given_val} is not of a valid type.")
-#             except Exception:
-#                 raise ValueError(f"Something went wrong when specifying parameter {k} with val of {given_val}.")
-#
-#
-# def _override(ctx, obj):
-#     # Try to use the extra arguments as an override of config.
-#
-#     if ctx.args:
-#         ctx = _ctx_to_dct(ctx.args)
-#         _update(obj, ctx)
-#
-#         if ctx:
-#             warnings.warn(f"The following arguments were not able to be set: {ctx}")
-
-
 main = click.Group()
 
 
@@ -100,8 +78,11 @@ main = click.Group()
     type=click.Path(exists=True, dir_okay=True, file_okay=True),
     default=".",
 )
+@click.option(
+    "-l", "--label", type=str, default="hmf",
+)
 @click.pass_context
-def run(ctx, config, outdir):
+def run(ctx, config, outdir, label):
     """Calculate quantities using hmf and output to a file.
 
     Parameters
@@ -111,14 +92,21 @@ def run(ctx, config, outdir):
     config : str
         Path to the configuration file.
     """
+    console.print(
+        Panel("Welcome to hmf!", box=box.DOUBLE_EDGE), style="bold", justify="center"
+    )
+    console.print()
+    console.print(f"Using hmf version [blue]{hmf.__version__}[/blue]", style="strong")
+
     cfg = _get_config(config)
 
     # Update the file-based config with options given on the CLI.
     if ctx.args:
         cfg.update(_ctx_to_dct(ctx.args))
 
+    quantities = cfg.get("quantities", ["m", "dndm"])
     out = get_hmf(
-        cfg.get("quantities", ["m", "dndm"]),
+        quantities,
         framework=cfg.get("framework", hmf.MassFunction),
         get_label=True,
         **cfg.get("params", {}),
@@ -126,19 +114,41 @@ def run(ctx, config, outdir):
 
     outdir = Path(outdir)
 
-    for quantities, obj, label in out:
+    console.print()
+    console.print("Quantities to be obtained: ", style="bold")
+    for q in quantities:
+        console.print(f"  - {q}", style="dim grey53")
+    console.print()
+
+    console.print(Rule("Starting Calculations", style="grey53"))
+    t = time()
+
+    for quants, obj, lab in out:
+        lab = lab or label
+
+        console.print(f"Calculated {lab}:", style="bold", end="")
+        console.print(
+            f"[[{time() - t:.2f} sec]]", style="blue", justify="right", width=100
+        )
+        t = time()
+
         # Write out quantities
-        for qname, q in zip(cfg.get("quantities"), quantities):
-            np.savetxt(outdir / f"{label}_{qname}.txt", q)
+        for qname, q in zip(quantities, quants):
+            np.savetxt(outdir / f"{lab}_{qname}.txt", q)
+
+        console.print(
+            f"   Writing quantities to [cyan]{outdir}/{lab}_<quantity>.txt[/cyan]."
+        )
 
         # Write out parameters
-        with open(outdir / f"{label}_cfg.toml") as fl:
-            fl.write(f"# File Created On: {datetime.datetime.now()}\n")
-            fl.write("# With version {hmf.__version__} of hmf\n")
+        dct = framework_to_dict(obj)
+        dct["quantities"] = quantities
+        with open(outdir / f"{lab}_cfg.toml", "w") as fl:
+            toml.dump(dct, fl, encoder=toml.TomlNumpyEncoder())
 
-            fl.write("\n")
+        console.print(
+            f"   Writing explicit config to [cyan]{outdir}/{lab}_cfg.toml[/cyan]."
+        )
+        console.print()
 
-            fl.write(f"quantities = {toml.dumps(cfg.get('quantities'))}\n")
-
-            for k, v in list(obj.parameter_values.items()):
-                fl.write(f"{k} = {v} \n")
+    console.print(Rule("Finished!", style="grey53"), style="bold green")
