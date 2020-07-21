@@ -6,6 +6,7 @@ import numpy as np
 import toml
 from pathlib import Path
 import datetime
+import importlib
 
 import hmf
 from hmf.helpers.functional import get_hmf
@@ -13,10 +14,15 @@ from hmf.helpers.functional import get_hmf
 
 def _get_config(config=None):
     if config is None:
-        config = {}
+        return {}
 
-    with open(config, "r") as f:
-        cfg = toml.load(f)
+    with open(config, "r") as fl:
+        cfg = toml.load(fl)
+
+    # Import an actual framework.
+    fmwk = cfg.get("framework", None)
+    if fmwk:
+        cfg["framework"] = importlib.import_module(fmwk)
 
     return cfg
 
@@ -28,45 +34,52 @@ def _ctx_to_dct(args):
         arg = args[j]
         if "=" in arg:
             a = arg.split("=")
-            dct[a[0].replace("--", "")] = a[-1]
+            k = a[0].replace("--", "")
+            v = a[-1]
             j += 1
         else:
-            dct[arg.replace("--", "")] = args[j + 1]
+            k = arg.replace("--", "")
+            v = args[j + 1]
             j += 2
+
+        try:
+            # For most arguments, this will convert it to the right type.
+            v = eval(v)
+        except NameError:
+            # If it's supposed to be a string, but quotes weren't supplied.
+            v = eval('"' + v + '"')
+
+        dct[k] = v
 
     return dct
 
 
-def _update(obj, ctx):
-    # Try to use the extra arguments as an override of config.
-    kk = list(ctx.keys())
-    for k in kk:
-        # noinspection PyProtectedMember
-        if hasattr(obj, k):
-            try:
-                val = getattr(obj, "_" + k)
-                setattr(obj, "_" + k, type(val)(ctx[k]))
-                ctx.pop(k)
-            except (AttributeError, TypeError):
-                try:
-                    val = getattr(obj, k)
-                    setattr(obj, k, type(val)(ctx[k]))
-                    ctx.pop(k)
-                except AttributeError:
-                    pass
-
-
-def _override(ctx, *param_dicts):
-    # Try to use the extra arguments as an override of config.
-
-    if ctx.args:
-        ctx = _ctx_to_dct(ctx.args)
-        for p in param_dicts:
-            _update(p, ctx)
-
-        # Also update globals, always.
-        if ctx:
-            warnings.warn("The following arguments were not able to be set: %s" % ctx)
+#
+# def _update(obj, ctx):
+#     # Try to use the extra arguments as an override of config.
+#     kk = list(ctx.keys())
+#     for k in kk:
+#         if hasattr(obj, k):
+#             try:
+#                 given_val = ctx.pop(k)
+#                 setattr(obj, k, eval(given_val))
+#             except AttributeError:
+#                 raise AttributeError(f"Parameter {k} is not a valid parameter to {obj.__class__.__name__}.")
+#             except TypeError:
+#                 raise TypeError(f"For parameter '{k}', given value {given_val} is not of a valid type.")
+#             except Exception:
+#                 raise ValueError(f"Something went wrong when specifying parameter {k} with val of {given_val}.")
+#
+#
+# def _override(ctx, obj):
+#     # Try to use the extra arguments as an override of config.
+#
+#     if ctx.args:
+#         ctx = _ctx_to_dct(ctx.args)
+#         _update(obj, ctx)
+#
+#         if ctx:
+#             warnings.warn(f"The following arguments were not able to be set: {ctx}")
 
 
 main = click.Group()
@@ -100,10 +113,15 @@ def run(ctx, config, outdir):
     """
     cfg = _get_config(config)
 
+    # Update the file-based config with options given on the CLI.
+    if ctx.args:
+        cfg.update(_ctx_to_dct(ctx.args))
+
     out = get_hmf(
-        cfg.get("quantities"),
+        cfg.get("quantities", ["m", "dndm"]),
         framework=cfg.get("framework", hmf.MassFunction),
-        get_label=True ** cfg.get("params"),
+        get_label=True,
+        **cfg.get("params", {}),
     )
 
     outdir = Path(outdir)
