@@ -723,7 +723,7 @@ class EH(EH_BAO):
 
 
 class CLASS(FromFile):
-    """
+    r"""
     Transfer function computed by CLASS.
 
     Parameters
@@ -739,8 +739,6 @@ class CLASS(FromFile):
         **class_object:**
             Custom class object. If not set, a new Class object will be
             created.
-        **flip_t:**
-            If set to True, will return ln(|T|).
     """
 
     _defaults = {"class_params": None, "class_obj": None}
