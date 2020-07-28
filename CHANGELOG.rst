@@ -1,6 +1,12 @@
 Releases
 ========
 
+3.2.0
+-----
+**Features**
+
+- Updated (working) CLI: use ``hmf run`` to produce mass functions on the command-line!
+
 3.1.1
 -----
 **Bugfixes**
