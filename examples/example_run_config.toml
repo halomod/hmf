@@ -2,6 +2,12 @@
 # dotted path to the Python class
 framework = "hmf.MassFunction"
 
+# Quantities are only used in the CLI, and dictate what quantities should be output.
+quantities = [
+    "m",
+    "dndm",
+]
+
 [params]
 # The params section holds any parameters used in the framework.
 z = 1.0
