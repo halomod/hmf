@@ -91,7 +91,11 @@ You can also run ``hmf`` from the command-line. For basic usage, do::
     hmf run --help
 
 Configuration for the run can be specified on the CLI or via a TOML file (recommended).
+An example TOML file can be found in `examples/example_run_config.toml <examples/example_run_config>`_.
+Any parameter specifiable in the TOML file can alternatively be specified on the commmand
+line after an isolated double-dash, eg.::
 
+    hmf run -- z=1.0 hmf_model='SMT01'
 
 Versioning
 ----------
