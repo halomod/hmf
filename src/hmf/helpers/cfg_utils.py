@@ -4,7 +4,6 @@ from datetime import datetime
 from .. import __version__
 from inspect import signature
 from astropy.units import Quantity
-import toml
 
 
 def framework_to_dict(obj: Framework) -> dict:
@@ -29,13 +28,24 @@ def framework_to_dict(obj: Framework) -> dict:
             # Model components should just be the name of the class, not a
             # full class __repr__, and also, we give the actual model, not the input
             # parameter.
-            out["params"][k] = getattr(obj, k.split("_model")[0]).__class__.__name__
+            val = getattr(obj, k)
+            if val is None:
+                obj_val = getattr(obj, k.split("_model")[0])
+                out["params"][k] = (
+                    None if obj_val is None else obj_val.__class__.__name__
+                )
+            else:
+                out["params"][k] = val.__name__
+
         elif k.endswith("_params"):
             if k == "transfer_params" and obj.transfer_model.__name__ == "CAMB":
                 # Special case CAMB because its params are weird.
                 out["params"][k] = v
             else:
-                out["params"][k] = getattr(obj, k.split("_params")[0]).params
+                try:
+                    out["params"][k] = getattr(obj, k.split("_params")[0]).params
+                except AttributeError:
+                    out["params"][k] = None
         else:
             out["params"][k] = v
 

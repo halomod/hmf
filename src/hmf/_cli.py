@@ -110,11 +110,21 @@ def run(ctx, config, outdir, label):
     config : str
         Path to the configuration file.
     """
+    run_cli(config, "hmf", ctx.args, outdir, label, [hmf], hmf.MassFunction)
+
+
+def run_cli(config, pkg_name, args, outdir, label, pkgs, default_framework):
     console.print(
-        Panel("Welcome to hmf!", box=box.DOUBLE_EDGE), style="bold", justify="center"
+        Panel(f"Welcome to {pkg_name}!", box=box.DOUBLE_EDGE),
+        style="bold",
+        justify="center",
     )
     console.print()
-    console.print(f"Using hmf version [blue]{hmf.__version__}[/blue]", style="strong")
+    for pkg in pkgs:
+        console.print(
+            f"Using {pkg.__name__} version [blue]{pkg.__version__}[/blue]",
+            style="strong",
+        )
 
     cfg = _get_config(config)
 
@@ -123,8 +133,8 @@ def run(ctx, config, outdir, label):
     if "params" not in cfg:
         cfg["params"] = {}
 
-    if ctx.args:
-        cfg["params"].update(_ctx_to_dct(ctx.args))
+    if args:
+        cfg["params"].update(_ctx_to_dct(args))
 
     cfg["params"] = _process_dct(cfg["params"])
 
@@ -136,7 +146,7 @@ def run(ctx, config, outdir, label):
     quantities = cfg.get("quantities", ["m", "dndm"])
     out = get_hmf(
         quantities,
-        framework=cfg.get("framework", hmf.MassFunction),
+        framework=cfg.get("framework", default_framework),
         get_label=True,
         label_kind="filename",
         **cfg.get("params", {}),
