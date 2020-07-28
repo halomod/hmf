@@ -45,7 +45,7 @@ Features
 * Includes models for Warm Dark Matter
 * Nonlinear power spectra via HALOFIT
 * Functions for sampling the mass function.
-* CLI scripts both for producing any quantity included, or fitting any quantity.
+* CLI scripts both for producing any quantity included.
 * Python 2 and 3 compatible
 
 Note
@@ -83,6 +83,15 @@ To change the parameters (cosmological or otherwise), one should use the
 
 For a more involved introduction to ``hmf``, check out the `tutorials <tutorials.html>`_,
 which are currently under construction, or the `API docs <api.html>`_.
+
+Using the CLI
+~~~~~~~~~~~~~
+You can also run ``hmf`` from the command-line. For basic usage, do::
+
+    hmf run --help
+
+Configuration for the run can be specified on the CLI or via a TOML file (recommended).
+
 
 Versioning
 ----------
