@@ -31,7 +31,7 @@ def astropy_to_colossus(cosmo: FLRW, name: str = "custom", **kwargs):
     try:
         from colossus.cosmology import cosmology
 
-        return cosmology.fromAstropy()
+        return cosmology.fromAstropy(astropy_cosmo=cosmo, name=name, **kwargs)
     except ImportError:
         raise ImportError(
             "Cannot convert to COLOSSUS cosmology without installing COLOSSUS!"

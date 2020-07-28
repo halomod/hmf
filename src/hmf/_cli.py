@@ -15,6 +15,7 @@ from rich import box
 from rich.rule import Rule
 from time import time
 from astropy.units import Quantity
+from rich.table import Table
 
 console = Console(width=100)
 
@@ -118,15 +119,19 @@ def run(ctx, config, outdir, label):
     cfg = _get_config(config)
 
     # Update the file-based config with options given on the CLI.
-    if ctx.args:
-        if "params" not in cfg:
-            cfg["params"] = {}
 
+    if "params" not in cfg:
+        cfg["params"] = {}
+
+    if ctx.args:
         cfg["params"].update(_ctx_to_dct(ctx.args))
 
     cfg["params"] = _process_dct(cfg["params"])
 
-    console.print(f"Explicitly set parameters: {cfg.get('params', {})}", style="bold")
+    console.print()
+    console.print("You set the following parameters explicitly:", style="bold")
+    for k, v in cfg.get("params", {}).items():
+        console.print(f"   {k}: {v}")
 
     quantities = cfg.get("quantities", ["m", "dndm"])
     out = get_hmf(
@@ -151,10 +156,13 @@ def run(ctx, config, outdir, label):
     for quants, obj, lab in out:
         lab = lab or label
 
-        console.print(f"Calculated {lab}:", style="bold", end="")
-        console.print(
-            f"[[{time() - t:.2f} sec]]", style="blue", justify="right", width=100
-        )
+        table = Table.grid()
+        table.expand = True
+        table.add_column(style="bold", justify="left")
+        table.add_column(style="blue", justify="right")
+        table.add_row(f"Calculated {lab}:", f"[[{time() - t:.2f} sec]]")
+        console.print(table)
+
         t = time()
 
         # Write out quantities
@@ -172,7 +180,7 @@ def run(ctx, config, outdir, label):
             toml.dump(dct, fl, encoder=toml.TomlNumpyEncoder())
 
         console.print(
-            f"   Writing explicit config to [cyan]{outdir}/{lab}_cfg.toml[/cyan]."
+            f"   Writing full config to [cyan]{outdir}/{lab}_cfg.toml[/cyan]."
         )
         console.print()
 
