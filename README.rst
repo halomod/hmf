@@ -45,7 +45,7 @@ Features
 * Includes models for Warm Dark Matter
 * Nonlinear power spectra via HALOFIT
 * Functions for sampling the mass function.
-* CLI scripts both for producing any quantity included.
+* CLI scripts for producing any quantity included.
 * Python 2 and 3 compatible
 
 Note
