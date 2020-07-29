@@ -14,52 +14,28 @@ may be used as inputs.
 from astropy.cosmology import FLRW, Planck15, WMAP5, WMAP7, WMAP9, Planck13  # noqa
 from astropy import cosmology as acsm
 from .._internals import _framework, _cache
+from .. import __version__
 import sys
 import astropy.units as u
-
-try:
-    from colossus.cosmology import cosmology
-
-    HAVE_COLOSSUS = True
-except ImportError:
-    HAVE_COLOSSUS = False
+import deprecation
 
 
+@deprecation.deprecated(
+    deprecated_in="3.1.3",
+    removed_in="4.0",
+    current_version=__version__,
+    details="Use the cosmology.fromAstropy function in COLOSSUS instead",
+)
 def astropy_to_colossus(cosmo: FLRW, name: str = "custom", **kwargs):
     """Convert an astropy cosmology to a COLOSSUS cosmology"""
-    # Find appropriate w(z) arguments.
-    if not HAVE_COLOSSUS:
-        raise ImportError("You need COLOSSUS to use this function!")
+    try:
+        from colossus.cosmology import cosmology
 
-    if isinstance(cosmo, acsm.wpwaCDM):
-        kwargs.update(de_model="user")
-        kwargs.update(
-            wz_function=lambda z: cosmo.wp + cosmo.wa * (cosmo.ap - 1 / (1 + z))
+        return cosmology.fromAstropy(astropy_cosmo=cosmo, cosmo_name=name, **kwargs)
+    except ImportError:  # pragma: nocover
+        raise ImportError(
+            "Cannot convert to COLOSSUS cosmology without installing COLOSSUS!"
         )
-    elif isinstance(cosmo, acsm.w0waCDM):
-        kwargs.update(de_model="w0wa")
-        kwargs.update(w0=cosmo.w0)
-        kwargs.update(wa=cosmo.wa)
-    elif isinstance(cosmo, acsm.w0wzCDM):
-        kwargs.update(de_model="user")
-        kwargs.update(wz_function=lambda z: cosmo.w0 + cosmo.wz * z)
-    elif isinstance(cosmo, acsm.wCDM):
-        kwargs.update(de_model="w0")
-        kwargs.update(w0=cosmo.w0)
-
-    return cosmology.setCosmology(
-        name,
-        params=dict(
-            flat=cosmo.Ok0 == 0,
-            H0=cosmo.H0.value,
-            Om0=cosmo.Om0,
-            Ode0=cosmo.Ode0,
-            Ob0=cosmo.Ob0,
-            Tcmb0=cosmo.Tcmb0.value,
-            Neff=cosmo.Neff,
-            **kwargs
-        ),
-    )
 
 
 class Cosmology(_framework.Framework):
