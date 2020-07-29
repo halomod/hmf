@@ -1,7 +1,8 @@
 import numpy as np
 import pytest
+import deprecation
 
-from hmf.cosmology.cosmo import Cosmology
+from hmf.cosmology.cosmo import Cosmology, astropy_to_colossus
 from astropy.cosmology import WMAP7
 
 
@@ -31,3 +32,11 @@ def test_cosmo_params(cosmo):
     assert cosmo.cosmo.Om0 == 0.2
     assert cosmo.cosmo.H0.value == 0.6
     assert cosmo.cosmo_params == {"Om0": 0.2, "H0": 0.6}
+
+
+@deprecation.fail_if_not_removed
+def test_cosmo_to_colossus():
+    colossus = astropy_to_colossus(cosmo=WMAP7, name="wmap7", sigma8=0.8, ns=1.0)
+
+    assert colossus.sigma8 == 0.8
+    assert colossus.ns == 1.0
