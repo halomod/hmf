@@ -1,6 +1,16 @@
 Releases
 ========
 
+3.2.0
+-----
+**Features**
+
+- Updated (working) CLI: use ``hmf run`` to produce mass functions on the command-line!
+
+**Internals**
+
+- Deprecated astropy_to_colossus function.
+
 3.1.1
 -----
 **Bugfixes**

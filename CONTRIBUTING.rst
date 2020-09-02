@@ -107,9 +107,7 @@ quickly as possible. Larger pull requests generally require more time for review
 
 Release Cycle and Versioning
 ----------------------------
-In the past ``hmf`` has used ``git-flow`` as a release management workflow. This is,
-however, quite complicated to enable properly through GitHub, and we have fallen back
-on the simpler `Github-Flow<https://guides.github.com/introduction/flow/>`_.
+``hmf`` uses git-flow and GitHub to manage releases. This means it
 
 In this workflow, ``master`` is protected and commits may *not* be pushed to it directly,
 but must first undergo testing and review via a Pull Request.
@@ -118,23 +116,27 @@ From v3.1.0, ``hmf`` will be using strict semantic versioning, such that increas
 the **major** version have potential API breaking changes, **minor** versions introduce
 new features, and **patch** versions fix bugs and other non-breaking internal changes.
 
-The versions are controlled by git tags, via the ``setuptools_scm`` package. Most
-bugfixes and new features will be automatically deployed to ``PyPI`` (so installable
-via ``pip install hmf``) immediately upon accepting the Pull Request, as well as the
-relevant version being updated. This is done automatically via Github Actions, using
-information in the *commit messages*. Thus we strictly use commit messages following
-`AngularJS Conventions <https://gist.github.com/stephenparish/9941e89d80e2bc58a153#format-of-the-commit-message>`_
-to help this behaviour.
+Releases will be cut on the following timescales:
 
-.. note:: the behaviour when incorrect commit formatting is used is to *not* bump the
-          version. This enables a manual version bumping after a critical review.
+* Major versions: no more than one each six months -- aiming for one per year or less.
+* Minor versions: no more than one each two months.
+* Patch versions: no restrictions.
 
-This process automates as much as possible while also not leaving feature branches to
-gather dust waiting to be deployed. However, one potential problem then remains: what
-if a new feature is added that is backwards incompatible (therefore requiring a new
-major release), but a new release has just been deployed? Since we will not support
-fixing previous releases with bugfixes, and we don't want users to have to update their
-scripts too often, we'd like to be able to withhold that from going into master. In this
-case, a special branch can be made that will act as a conglomeration point for all
-additions to the new version, to enable parallel working on the current and future
-branch.
+Note that patches will generally *not* be applied to previous major or minor versions.
+
+To cut a release, maintainers do the following:
+
+1. Ensure all relevant branches have been merged to master
+2. Checkout master
+3. Check all commits since last tag: ``git log $(git describe --tags --abbrev=0)..HEAD --oneline``
+4. If a feature commit is present, bump the minor version. If a BREAKING CHANGE is present,
+   bump the major version. Otherwise, bump the patch version.
+5. Create a new branch named vX.Y.Zdev with the proper bump.
+6. Update the changelog and check any other things that need to be fixed.
+7. Push the branch
+8. Merge to master
+9. Run ``git tag vX.Y.Z``.
+
+This is very simple, and doesn't support adding fixes to the current release if a feature
+or breaking change has been merged to master in the meantime. This may be updated in
+the future.

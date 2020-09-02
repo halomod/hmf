@@ -5,18 +5,18 @@ from hmf import MassFunction
 
 def test_order():
     order = [
-        "sigma.8: 0.7, ST, z: 0",
-        "sigma.8: 0.7, PS, z: 0",
-        "sigma.8: 0.7, ST, z: 1",
-        "sigma.8: 0.7, PS, z: 1",
-        "sigma.8: 0.7, ST, z: 2",
-        "sigma.8: 0.7, PS, z: 2",
-        "sigma.8: 0.8, ST, z: 0",
-        "sigma.8: 0.8, PS, z: 0",
-        "sigma.8: 0.8, ST, z: 1",
-        "sigma.8: 0.8, PS, z: 1",
-        "sigma.8: 0.8, ST, z: 2",
-        "sigma.8: 0.8, PS, z: 2",
+        "sigma_8: 0.7, ST, z: 0",
+        "sigma_8: 0.7, PS, z: 0",
+        "sigma_8: 0.7, ST, z: 1",
+        "sigma_8: 0.7, PS, z: 1",
+        "sigma_8: 0.7, ST, z: 2",
+        "sigma_8: 0.7, PS, z: 2",
+        "sigma_8: 0.8, ST, z: 0",
+        "sigma_8: 0.8, PS, z: 0",
+        "sigma_8: 0.8, ST, z: 1",
+        "sigma_8: 0.8, PS, z: 1",
+        "sigma_8: 0.8, ST, z: 2",
+        "sigma_8: 0.8, PS, z: 2",
     ]
 
     for i, (quants, mf, label) in enumerate(

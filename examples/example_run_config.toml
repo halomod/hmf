@@ -1,0 +1,19 @@
+# The framework is the class that is used to produce the quantities. Must be a full
+# dotted path to the Python class
+framework = "hmf.MassFunction"
+
+# Quantities are only used in the CLI, and dictate what quantities should be output.
+quantities = [
+    "m",
+    "dndm",
+]
+
+[params]
+# The params section holds any parameters used in the framework.
+z = 1.0
+mdef_model = 'SOCritical'
+
+
+[params.mdef_params]
+# Model parameters go in sub-dictionaries like this.
+overdensity = 300
