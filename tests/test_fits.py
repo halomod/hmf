@@ -62,19 +62,28 @@ def test_allfits(hmf, ps_max, redshift, fit):
 
 def test_tinker08_dh():
     h = MassFunction(
-        hmf_model="Tinker08", mdef_model="SOMean", mdef_params={"overdensity": 200}
+        hmf_model="Tinker08",
+        mdef_model="SOMean",
+        mdef_params={"overdensity": 200},
+        transfer_model="EH",
     )
     h1 = MassFunction(
-        hmf_model="Tinker08", mdef_model="SOMean", mdef_params={"overdensity": 200.1}
+        hmf_model="Tinker08",
+        mdef_model="SOMean",
+        mdef_params={"overdensity": 200.1},
+        transfer_model="EH",
     )
 
     assert np.allclose(h.fsigma, h1.fsigma, rtol=1e-2)
 
 
 def test_tinker10_dh():
-    h = MassFunction(hmf_model="Tinker10")
+    h = MassFunction(hmf_model="Tinker10", transfer_model="EH")
     h1 = MassFunction(
-        hmf_model="Tinker10", mdef_model="SOMean", mdef_params={"overdensity": 200.1}
+        hmf_model="Tinker10",
+        mdef_model="SOMean",
+        mdef_params={"overdensity": 200.1},
+        transfer_model="EH",
     )
 
     assert np.allclose(h.fsigma, h1.fsigma, rtol=1e-2)
@@ -82,23 +91,33 @@ def test_tinker10_dh():
 
 def test_tinker10_neg_gam():
     with raises(ValueError):
-        h = MassFunction(hmf_model="Tinker10", hmf_params={"gamma_200": -1})
+        h = MassFunction(
+            hmf_model="Tinker10", hmf_params={"gamma_200": -1}, transfer_model="EH"
+        )
         h.fsigma
 
 
 def test_tinker10_neg_eta():
     with raises(ValueError):
-        h = MassFunction(hmf_model="Tinker10", hmf_params={"eta_200": -1})
+        h = MassFunction(
+            hmf_model="Tinker10", hmf_params={"eta_200": -1}, transfer_model="EH"
+        )
         h.fsigma
 
 
 def test_tinker10_neg_etaphi():
     with raises(ValueError):
-        h = MassFunction(hmf_model="Tinker10", hmf_params={"eta_200": -1, "phi_200": 0})
+        h = MassFunction(
+            hmf_model="Tinker10",
+            hmf_params={"eta_200": -1, "phi_200": 0},
+            transfer_model="EH",
+        )
         h.fsigma
 
 
 def test_tinker10_neg_beta():
     with raises(ValueError):
-        h = MassFunction(hmf_model="Tinker10", hmf_params={"beta_200": -1})
+        h = MassFunction(
+            hmf_model="Tinker10", hmf_params={"beta_200": -1}, transfer_model="EH"
+        )
         h.fsigma

@@ -37,8 +37,10 @@ class TestBode(TestViel):
 
 class TestSchneider12_vCDM:
     def setup_class(self):
-        self.cdm = hmf.MassFunction()
-        self.cls = wdm.Schneider12_vCDM(m=self.cdm.m, dndm0=self.cdm.dndm)
+        self.cdm = hmf.MassFunction(transfer_model="EH")
+        self.cls = wdm.Schneider12_vCDM(
+            m=self.cdm.m, dndm0=self.cdm.dndm, transfer_model="EH"
+        )
 
     def test_high_m(self):
         assert np.isclose(self.cls.dndm_alter()[-1], self.cdm.dndm[-1], rtol=1e-3)
@@ -46,27 +48,31 @@ class TestSchneider12_vCDM:
 
 class TestSchneider12(TestSchneider12_vCDM):
     def setup_class(self):
-        self.cdm = hmf.MassFunction()
-        self.cls = wdm.Schneider12(m=self.cdm.m, dndm0=self.cdm.dndm)
+        self.cdm = hmf.MassFunction(transfer_model="EH")
+        self.cls = wdm.Schneider12(
+            m=self.cdm.m, dndm0=self.cdm.dndm, transfer_model="EH"
+        )
 
 
 class TestLovell14(TestSchneider12_vCDM):
     def setup_class(self):
-        self.cdm = hmf.MassFunction()
-        self.cls = wdm.Lovell14(m=self.cdm.m, dndm0=self.cdm.dndm)
+        self.cdm = hmf.MassFunction(transfer_model="EH")
+        self.cls = wdm.Lovell14(m=self.cdm.m, dndm0=self.cdm.dndm, transfer_model="EH")
 
 
 class TestTransfer:
     def setup_class(self):
-        self.wdm = wdm.TransferWDM(wdm_mass=3.0, wdm_model=wdm.Viel05)
-        self.cdm = hmf.MassFunction()
+        self.wdm = wdm.TransferWDM(
+            wdm_mass=3.0, wdm_model=wdm.Viel05, transfer_model="EH"
+        )
+        self.cdm = hmf.MassFunction(transfer_model="EH")
 
     def test_wdm_model(self):
         assert isinstance(self.wdm.wdm, wdm.Viel05)
 
     def test_wrong_model_type(self):
         with raises(ValueError):
-            wdm.TransferWDM(wdm_mass=3.0, wdm_model=3)
+            wdm.TransferWDM(wdm_mass=3.0, wdm_model=3, transfer_model="EH")
 
     def test_power(self):
         print(
@@ -81,9 +87,9 @@ class TestTransfer:
 class TestMassFunction:
     def setup_class(self):
         self.wdm = wdm.MassFunctionWDM(
-            alter_model=None, wdm_mass=3.0, wdm_model=wdm.Viel05
+            alter_model=None, wdm_mass=3.0, wdm_model=wdm.Viel05, transfer_model="EH"
         )
-        self.cdm = hmf.MassFunction()
+        self.cdm = hmf.MassFunction(transfer_model="E")
 
     def test_dndm(self):
         assert np.isclose(self.cdm.dndm[-1], self.wdm.dndm[-1], rtol=1e-3)
@@ -93,6 +99,9 @@ class TestMassFunction:
 class TestMassFunctionAlter(TestMassFunction):
     def setup_class(self):
         self.wdm = wdm.MassFunctionWDM(
-            alter_model=wdm.Schneider12_vCDM, wdm_mass=3.0, wdm_model=wdm.Viel05
+            alter_model=wdm.Schneider12_vCDM,
+            wdm_mass=3.0,
+            wdm_model=wdm.Viel05,
+            transfer_model="EH",
         )
-        self.cdm = hmf.MassFunction()
+        self.cdm = hmf.MassFunction(transfer_model="EH")

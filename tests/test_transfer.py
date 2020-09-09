@@ -16,7 +16,7 @@ import pytest
 
 @pytest.fixture
 def transfers():
-    return Transfer(), Transfer()
+    return Transfer(transfer_model="EH"), Transfer(transfer_model="EH")
 
 
 @pytest.mark.parametrize(
