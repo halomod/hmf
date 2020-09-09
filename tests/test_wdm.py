@@ -85,7 +85,7 @@ class TestMassFunction:
         self.wdm = wdm.MassFunctionWDM(
             alter_model=None, wdm_mass=3.0, wdm_model=wdm.Viel05, transfer_model="EH"
         )
-        self.cdm = hmf.MassFunction(transfer_model="E")
+        self.cdm = hmf.MassFunction(transfer_model="EH")
 
     def test_dndm(self):
         assert np.isclose(self.cdm.dndm[-1], self.wdm.dndm[-1], rtol=1e-3)
