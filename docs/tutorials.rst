@@ -13,3 +13,4 @@ with ``hmf``, and use it efficiently.
     examples/broad_overview
     examples/deal_with_cosmology
     examples/change_mass_definition
+    examples/fitting
