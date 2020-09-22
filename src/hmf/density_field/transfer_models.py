@@ -154,9 +154,17 @@ if HAVE_CAMB:
             **dark_energy_params:** A dictionary of values passed to CAMB's `
                                     `set_dark_energy`` method. Values include
                                     `sound_speed` and `dark_energy_model`.
+            **extrapolate_with_eh:** Whether to extrapolate past the intrinsic CAMB
+                                     kmax by using an EH model. Can cause some problems
+                                     if kmax is high, since CAMB diverges from the EH
+                                     approximation.
         """
 
-        _defaults = {"camb_params": None, "dark_energy_params": {}}
+        _defaults = {
+            "camb_params": None,
+            "dark_energy_params": {},
+            "extrapolate_with_eh": False,
+        }
 
         def __init__(self, *args, **kwargs):
             super(CAMB, self).__init__(*args, **kwargs)
@@ -177,6 +185,16 @@ if HAVE_CAMB:
                     WantCls=False,
                     WantDerivedParameters=False,
                 )
+
+                self.params["camb_params"].Transfer.high_precision = False
+                self.params["camb_params"].Transfer.k_per_logint = 0
+
+                # If extrapolating with EH, use a lower value of kmax so that the
+                # calculation is faster.
+                if self.params["extrapolate_with_eh"]:
+                    self.params["camb_params"].Transfer.kmax = 2
+                else:
+                    self.params["camb_params"].Transfer.kmax = 1e3
 
             if self.cosmo.Ob0 is None:
                 raise ValueError(
@@ -203,6 +221,10 @@ if HAVE_CAMB:
             if isinstance(self.cosmo, cosmology.wCDM):
                 self.params["camb_params"].set_dark_energy(w=self.cosmo.w0)
 
+            if self.params["extrapolate_with_eh"]:
+                # Create an EH transfer to extrapolate to at high k.
+                self._eh = EH(self.cosmo)
+
         def lnt(self, lnk):
             r"""
             Natural log of the transfer function
@@ -228,7 +250,30 @@ if HAVE_CAMB:
                 lnkout = T[0, :]
                 lnT = T[1, :]
 
-            return spline(lnkout, lnT, k=1)(lnk)
+            lnT -= lnT[0]
+
+            if self.params["extrapolate_with_eh"]:
+                # Now add a point one e-fold above the max, with an EH-generated transfer
+                lnkout = np.concatenate((lnkout, [lnkout[-1] + 1]))
+                # normalise EH at the final CAMB point.
+                norm = self._eh.lnt(lnkout[-2]) - lnT[-1]
+                lnT = np.concatenate((lnT, [self._eh.lnt(lnkout[-1]) - norm]))
+
+                lnkmin = lnkout.min()
+                lnkmax = lnkout.max()
+
+                inner_spline = spline(lnkout, lnT, k=3)
+
+                out = np.zeros_like(lnk)
+                out[lnk < lnkmin] = 0
+                out[(lnkmin <= lnk) & (lnk <= lnkmax)] = inner_spline(
+                    lnk[(lnkmin <= lnk) & (lnk <= lnkmax)]
+                )
+                out[lnk >= lnkmax] = self._eh.lnt(lnk[lnk >= lnkmax]) - norm
+
+                return out
+            else:
+                return spline(lnkout, lnT, k=1)(lnk)
 
         def __getstate__(self):
             # We need to get rid of the CAMBparams() object, as it cannot be pickled.

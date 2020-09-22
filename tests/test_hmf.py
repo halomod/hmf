@@ -35,8 +35,8 @@ def test_wrong_mf_par():
 
 
 def test_str_filter():
-    h = MassFunction(filter_model="TopHat")
-    h_ = MassFunction(filter_model="TopHat")
+    h = MassFunction(filter_model="TopHat", transfer_model="EH")
+    h_ = MassFunction(filter_model="TopHat", transfer_model="EH")
 
     assert np.allclose(h.sigma, h_.sigma)
 

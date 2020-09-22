@@ -1,5 +1,11 @@
 Releases
 ========
+dev
+---
+**Features**
+- Option to extrapolate high-k for CAMB transfer using EH. This gives a fast and
+  reasonably consistent high-k transfer function. If not extrapolating with EH (this
+  is the default) a higher kmax is set by default, to enable better accuracy.
 
 3.2.0
 -----
@@ -10,6 +16,7 @@ Releases
 **Internals**
 
 - Deprecated astropy_to_colossus function.
+
 
 3.1.1
 -----

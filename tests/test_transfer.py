@@ -16,7 +16,7 @@ import pytest
 
 @pytest.fixture
 def transfers():
-    return Transfer(), Transfer()
+    return Transfer(transfer_model="EH"), Transfer(transfer_model="EH")
 
 
 @pytest.mark.parametrize(
@@ -70,3 +70,17 @@ def test_data(datadir):
     pdata = np.genfromtxt(datadir / "power_for_hmf_tests.dat")
 
     assert np.sqrt(np.mean(np.square(t.power - pdata[:, 1]))) < 0.001
+
+
+def test_camb_extrapolation():
+    t = Transfer(transfer_params={"extrapolate_with_eh": True})
+
+    assert t.transfer.params["camb_params"].Transfer.kmax == 2
+
+    k = np.logspace(1.5, 2, 20)
+    eh = t.transfer._eh.lnt(np.log(k))
+    camb = t.transfer.lnt(np.log(k))
+
+    eh += eh[0] - camb[0]
+
+    assert np.isclose(eh[-1], camb[-1], rtol=1e-1)
