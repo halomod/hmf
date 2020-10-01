@@ -66,7 +66,7 @@ Note that all parameters have (what I consider reasonable) defaults. In particul
 this will return a Tinker (2008) mass function between
 10^10 and 10^15 solar masses, at z=0 for the default PLANCK15 cosmology.
 Nevertheless, there are several parameters which can be input, either cosmological
-or otherwise. The best way to see these is to do::
+or otherwise. The best way to see these is to do:
 
     >>> MassFunction.parameter_info()
 
@@ -112,3 +112,5 @@ Attribution
 Please cite `Murray, Power and Robotham (2013)
 <https://arxiv.org/abs/1306.6721>`_ and/or https://ascl.net/1412.006 (whichever is more appropriate) if you find this
 code useful in your research. Please also consider starring the GitHub repository.
+At last it is one of the finest calculators whiuch helps you to perform calculation at fast speed .
+Thank you and always show your support.
