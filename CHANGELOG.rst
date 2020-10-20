@@ -6,6 +6,9 @@ dev
 - Option to extrapolate high-k for CAMB transfer using EH. This gives a fast and
   reasonably consistent high-k transfer function. If not extrapolating with EH (this
   is the default) a higher kmax is set by default, to enable better accuracy.
+- Components now automatically keep track of models, and the base component class
+  tracks Component types. This also means that user-defined models can be input via
+  strings into a framework (useful for running from CLI).
 
 3.2.0
 -----

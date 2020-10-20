@@ -1,14 +1,12 @@
-"""
-Classes defining the overall structure of the hmf framework.
-"""
+"""Classes defining the overall structure of the hmf framework."""
 import copy
 import sys
+from typing import Type, List, Optional, Union, Dict
+import warnings
+import deprecation
 
 
-# from _cache import Cache
-
-
-class Component(object):
+class Component:
     """
     Base class representing a component model.
 
@@ -36,7 +34,119 @@ class Component(object):
         self.params = copy.copy(self._defaults)
         self.params.update(model_params)
 
+    @classmethod
+    def get_models(cls) -> Dict[str, Type]:
+        """Get a dictionary of all implemented models for this component."""
+        return cls._plugins
 
+
+def get_base_components() -> List[Type[Component]]:
+    """Get a list of classes defining base components."""
+    return Component.__subclasses__()
+
+
+def get_base_component(name: [str, Type[Component]]) -> Type[Component]:
+    """Return an actual class representing a component.
+
+    Parameters
+    ----------
+    name
+        The name of the component for which to return a class. If ``name`` is a class,
+        then just return it (after checking that it is a Component).
+
+    Returns
+    -------
+    cmp
+        The Component subclass defining the desired component.
+    """
+    if isinstance(name, str):
+        avail = [cmp for cmp in get_base_components() if cmp.__name__ == name]
+        if not avail:
+            raise ValueError(
+                f"There are no components called '{name}'. Available: {get_base_components()}"
+            )
+        if len(avail) > 1:
+            warnings.warn(
+                f"More than one component called '{name}'. Returning {avail[-1]}."
+            )
+        return avail[-1]
+    else:
+        try:
+            assert issubclass(name, Component)
+            return name
+        except TypeError:
+            raise ValueError(f"{name} must be str or a Component subclass")
+
+
+def pluggable(cls):
+    """A decorator that adds pluggable capabilities."""
+    cls._plugins = {}
+
+    @classmethod
+    def init_sc(kls, abstract=False):
+        """Provide plugin capablity."""
+        # Plugin framework
+        if not abstract:
+            kls._plugins[kls.__name__] = kls
+
+    cls.__init_subclass__ = init_sc
+    return cls
+
+
+def get_mdl(
+    name: [str, Type[Component]], kind: Optional[Union[str, Type[Component]]] = None
+) -> Type[Component]:
+    """Return a defined model with given name.
+
+    Parameters
+    ----------
+    name
+        The name of the model to return. Can be the actual model class itself.
+    kind
+        The kind of component to search for.
+
+    Returns
+    -------
+    model
+        The actual model class (not instantiated).
+    """
+    if kind is not None:
+        kind = get_base_component(kind)
+
+    if isinstance(name, str):
+        if kind is not None:
+            try:
+                return kind._plugins[name]
+            except KeyError:
+                raise ValueError(
+                    f"The model {name} is not a defined {kind} model. Available: {tuple(kind._plugins.keys())}"
+                )
+        else:
+            # Try to get *any* model called by this name.
+            avail_models = [
+                (key, cls)
+                for cmp in get_base_components()
+                for key, cls in cmp._plugins.items()
+                if key == name
+            ]
+            if len(avail_models) > 1:
+                warnings.warn(
+                    f"More than one model was found with name '{name}'. Returning {avail_models[-1][1]}."
+                )
+            if not avail_models:
+                raise ValueError(f"No model found with name '{name}'.")
+            return avail_models[-1][1]
+    else:
+        try:
+            assert issubclass(name, kind or Component)
+            return name
+        except TypeError:
+            raise ValueError(f"{name} must be str or Component subclass")
+
+
+@deprecation.deprecated(
+    "3.3.0", removed_in="4.0.0", details="Use get_mdl instead of get_model_"
+)
 def get_model_(name, mod):
     """
     Returns a class ``name`` from the module ``mod``.
@@ -52,6 +162,9 @@ def get_model_(name, mod):
     return getattr(sys.modules[mod], name)
 
 
+@deprecation.deprecated(
+    "3.3.0", removed_in="4.0.0", details="Use get_mdl and pass **kwargs yourself."
+)
 def get_model(name, mod, **kwargs):
     r"""
     Returns an instance of ``name`` from the module ``mod``, with given params.
@@ -60,7 +173,6 @@ def get_model(name, mod, **kwargs):
     ----------
     name : str
         The class name of the appropriate model
-
     mod : str
         The module name of the appropriate module
 
@@ -119,7 +231,7 @@ class Framework(object):
 
     @classmethod
     def get_all_parameter_defaults(cls, recursive=True):
-        "Dictionary of all parameters and defaults"
+        "Dictionary of all parameters and defaults."
         K = cls()
         out = {}
         for name in cls.get_all_parameter_names():
