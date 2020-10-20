@@ -3,6 +3,9 @@ import hmf
 import pytest
 from hmf.density_field.transfer_models import TransferComponent
 from hmf._internals import pluggable, get_base_components, get_base_component
+from hmf._internals._framework import get_model_
+from deprecation import fail_if_not_removed
+from hmf import GrowthFactor
 
 
 def test_incorrect_argument():
@@ -77,3 +80,8 @@ def test_get_base_components():
 
 def test_get_base_component():
     assert get_base_component("TransferComponent") == TransferComponent
+
+
+@fail_if_not_removed
+def test_get_model():
+    assert get_model_("GrowthFactor", "hmf.cosmology.growth_factor") == GrowthFactor
