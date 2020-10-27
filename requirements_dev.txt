@@ -1,7 +1,7 @@
 colossus>=1.2.1
 coverage==4.5.1
 coveralls
-cryptography==2.3
+cryptography==3.2
 flake8==2.6.0
 halomod @ git+git://github.com/steven-murray/hmf.git@unit-tests
 mpmath==1.0.0
