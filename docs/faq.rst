@@ -28,7 +28,7 @@ Simply do::
     >>> bias = get_base_component("Bias")
     >>> bias.get_models()
 
-This returns a dictionary of names: classes for every model defined for the ``Bias``
+This returns a dictionary of ``name: class`` for every model defined for the ``Bias``
 component -- even user-defined models (as long as they've been imported)!
 
 To get a particular model just from its string name::

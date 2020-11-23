@@ -182,7 +182,7 @@ def get_model(name, mod, **kwargs):
     return get_model_(name, mod)(**kwargs)
 
 
-class Framework(object):
+class Framework:
     """
     Class representing a coherent framework of component models.
 
