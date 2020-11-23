@@ -85,3 +85,7 @@ def test_get_base_component():
 @fail_if_not_removed
 def test_get_model():
     assert get_model_("GrowthFactor", "hmf.cosmology.growth_factor") == GrowthFactor
+
+
+def test_growth_plugins():
+    assert "GenMFGrowth" in GrowthFactor._plugins
