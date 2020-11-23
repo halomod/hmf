@@ -16,7 +16,7 @@ from . import fitting_functions as ff
 from ..density_field import transfer
 from .._internals._cache import parameter, cached_quantity
 from ..density_field.filters import TopHat, Filter
-from .._internals._framework import get_model_
+from .._internals._framework import get_mdl
 from ..halos.mass_definitions import MassDefinition as md, SOGeneric, SOMean
 
 from .integrate_hmf import hmf_integral_gtm as int_gtm
@@ -148,12 +148,7 @@ class MassFunction(transfer.Transfer):
 
         :type: :class:`hmf.filters.Filter` subclass
         """
-        if not (issubclass_(val, Filter) or isinstance(val, str)):
-            raise ValueError("filter must be a Filter or string, got %s" % type(val))
-        elif isinstance(val, str):
-            return get_model_(val, "hmf.density_field.filters")
-        else:
-            return val
+        return get_mdl(val, "Filter")
 
     @parameter("param")
     def filter_params(self, val):
@@ -190,14 +185,9 @@ class MassFunction(transfer.Transfer):
 
         :type: str or `hmf.fitting_functions.FittingFunction` subclass
         """
-        if not (issubclass_(val, ff.FittingFunction) or isinstance(val, str)):
-            raise ValueError(
-                "hmf_model must be a ff.FittingFunction or string, got %s" % type(val)
-            )
-        elif isinstance(val, str):
-            return get_model_(val, "hmf.mass_function.fitting_functions")
-        else:
+        if val is None:
             return val
+        return get_mdl(val, "FittingFunction")
 
     @parameter("param")
     def hmf_params(self, val):
@@ -217,15 +207,7 @@ class MassFunction(transfer.Transfer):
         """
         if val is None or (isinstance(val, str) and val.lower() == "none"):
             return None
-
-        if not (issubclass_(val, md) or isinstance(val, str)):
-            raise ValueError(
-                "mdef_model must be a MassDefinition or string, got %s" % type(val)
-            )
-        elif isinstance(val, str):
-            return get_model_(val, "hmf.halos.mass_definitions")
-        else:
-            return val
+        return get_mdl(val, "MassDefinition")
 
     @parameter("param")
     def mdef_params(self, val):

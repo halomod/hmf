@@ -10,7 +10,7 @@ from .._internals._cache import cached_quantity, parameter
 from .halofit import halofit as _hfit
 from ..cosmology import growth_factor as gf, cosmo
 from ..density_field import transfer_models as tm, filters
-from .._internals._framework import get_model_
+from .._internals._framework import get_mdl
 
 try:
     import camb
@@ -96,16 +96,9 @@ class Transfer(cosmo.Cosmology):
         """
         The model to use to calculate the growth function/growth rate.
 
-        :type: `hmf.growth_factor.GrowthFactor` subclass
+        :type: `hmf.growth_factor._GrowthFactor` subclass
         """
-        if np.issubclass_(val, gf.GrowthFactor):
-            return val
-        elif isinstance(val, str):
-            return get_model_(val, "hmf.cosmology.growth_factor")
-        else:
-            raise ValueError(
-                "growth_model must be a GrowthFactor or string, got %s" % type(val)
-            )
+        return get_mdl(val, "_GrowthFactor")
 
     @parameter("param")
     def growth_params(self, val):
@@ -130,12 +123,7 @@ class Transfer(cosmo.Cosmology):
             raise ValueError(
                 "You cannot use the CAMB transfer since pycamb isn't installed"
             )
-        if np.issubclass_(val, tm.TransferComponent):
-            return val
-        elif isinstance(val, str):
-            return get_model_(val, "hmf.density_field.transfer_models")
-        else:
-            raise ValueError("transfer_model must be string or Transfer subclass")
+        return get_mdl(val, "TransferComponent")
 
     @parameter("param")
     def transfer_params(self, val):

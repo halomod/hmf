@@ -134,6 +134,7 @@ def _makedoc(pdocs, lname, sname, eq, ref):
     )
 
 
+@_framework.pluggable
 class FittingFunction(_framework.Component):
     r"""
     Base-class for a halo mass function fit.

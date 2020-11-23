@@ -22,6 +22,7 @@ __all__ = [
 ]
 
 
+@_framework.pluggable
 class MassDefinition(_framework.Component):
     """A base class for a Mass Definition."""
 

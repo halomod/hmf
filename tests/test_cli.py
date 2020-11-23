@@ -37,6 +37,7 @@ def test_with_config(tmpdir: Path):
     result = runner.invoke(
         main, ["run", "-i", str(tmpdir / "cfg.toml"), "-o", str(tmpdir)]
     )
+    print(result.stdout)
     assert result.exit_code == 0
 
 
