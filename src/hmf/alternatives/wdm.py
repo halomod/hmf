@@ -11,7 +11,7 @@ import numpy as np
 from ..density_field.transfer import Transfer as _Tr
 from ..mass_function.hmf import MassFunction as _MF
 from .._internals._cache import parameter, cached_quantity
-from .._internals._framework import Component, get_model_
+from .._internals._framework import Component, get_mdl, pluggable
 from ..cosmology.cosmo import Planck15
 
 import astropy.units as u
@@ -20,6 +20,7 @@ import astropy.units as u
 # ===============================================================================
 # Model Components
 # ===============================================================================
+@pluggable
 class WDM(Component):
     r"""
     Base class for all WDM components.
@@ -159,6 +160,7 @@ class Bode01(Viel05):
     pass
 
 
+@pluggable
 class WDMRecalibrateMF(Component):
     r"""
     Base class for Components that emulate the effect of WDM on the HMF empirically.
@@ -297,14 +299,7 @@ class TransferWDM(_Tr):
 
         :type: str or :class:`WDM` subclass
         """
-        if np.issubclass_(val, WDM):
-            return val
-        elif isinstance(val, str):
-            return get_model_(val, "hmf.wdm")
-        else:
-            raise ValueError(
-                "wdm_model must be a WDM subclass or string, got %s" % type(val)
-            )
+        return get_mdl(val, WDM)
 
     @parameter("param")
     def wdm_params(self, val):
@@ -376,16 +371,9 @@ class MassFunctionWDM(_MF, TransferWDM):
 
         :type: None, str, or :class`WDMRecalibrateMF` subclass.
         """
-        if np.issubclass_(val, WDMRecalibrateMF):
-            return val
-        elif val is None:
+        if val is None:
             return None
-        elif isinstance(val, str):
-            return get_model_(val, __name__)
-        else:
-            raise TypeError(
-                "alter_model must be a WDMRecalibrateMF subclass, string, or None"
-            )
+        return get_mdl(val, WDMRecalibrateMF)
 
     @parameter("param")
     def alter_params(self, val):
