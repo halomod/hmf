@@ -1,6 +1,11 @@
 from pytest import raises
 import hmf
 import pytest
+from hmf.density_field.transfer_models import TransferComponent
+from hmf._internals import pluggable, get_base_components, get_base_component
+from hmf._internals._framework import get_model_
+from deprecation import fail_if_not_removed
+from hmf import GrowthFactor
 
 
 def test_incorrect_argument():
@@ -51,3 +56,36 @@ def test_qnt_avail(cls):
 def test_parameter_info(cls):
     assert cls.parameter_info() is None
     assert cls.parameter_info(names=["z"]) is None
+
+
+def test_pluggable():
+    class A:
+        pass
+
+    @pluggable
+    class B(A):
+        pass
+
+    class C(B):
+        pass
+
+    assert not hasattr(A, "_plugins")
+    assert "C" in B._plugins
+    assert "C" in C._plugins
+
+
+def test_get_base_components():
+    assert TransferComponent in get_base_components()
+
+
+def test_get_base_component():
+    assert get_base_component("TransferComponent") == TransferComponent
+
+
+@fail_if_not_removed
+def test_get_model():
+    assert get_model_("GrowthFactor", "hmf.cosmology.growth_factor") == GrowthFactor
+
+
+def test_growth_plugins():
+    assert "GenMFGrowth" in GrowthFactor._plugins

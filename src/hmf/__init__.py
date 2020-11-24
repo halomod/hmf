@@ -15,4 +15,12 @@ from .density_field import filters, halofit, transfer, transfer_models, Transfer
 from .halos import mass_definitions
 from .helpers import functional, sample, get_hmf, get_best_param_order
 from .mass_function import fitting_functions, hmf, integrate_hmf, MassFunction
-from ._internals import Component, Framework, cached_quantity, parameter
+from ._internals import (
+    Component,
+    Framework,
+    cached_quantity,
+    parameter,
+    get_mdl,
+    get_base_component,
+    get_base_components,
+)

@@ -10,7 +10,7 @@ from copy import deepcopy
 
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
-from .._internals._framework import Component
+from .._internals._framework import Component, pluggable
 from astropy import cosmology
 
 try:
@@ -23,6 +23,7 @@ except ImportError:
 _allfits = ["CAMB", "FromFile", "EH_BAO", "EH_NoBAO", "BBKS", "BondEfs"]
 
 
+@pluggable
 class TransferComponent(Component):
     r"""
     Base class for transfer models.
