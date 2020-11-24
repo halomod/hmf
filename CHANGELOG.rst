@@ -2,7 +2,11 @@ Releases
 ========
 dev
 ---
+
+v3.3.0  [24th Nov 2020]
+-----------------------
 **Features**
+
 - Option to extrapolate high-k for CAMB transfer using EH. This gives a fast and
   reasonably consistent high-k transfer function. If not extrapolating with EH (which
   is still the default) you can now set ``transfer_params={'kmax':1e3}`` to get better
