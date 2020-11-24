@@ -75,8 +75,6 @@ def test_data(datadir):
 def test_camb_extrapolation():
     t = Transfer(transfer_params={"extrapolate_with_eh": True})
 
-    assert t.transfer.params["camb_params"].Transfer.kmax == 2
-
     k = np.logspace(1.5, 2, 20)
     eh = t.transfer._eh.lnt(np.log(k))
     camb = t.transfer.lnt(np.log(k))
