@@ -2,6 +2,7 @@ import numpy as np
 from hmf.density_field.transfer import Transfer
 from hmf.density_field.transfer_models import EH_BAO
 import pytest
+import camb
 
 # def rms(a):
 #     print(a)
@@ -73,7 +74,7 @@ def test_data(datadir):
 
 
 def test_camb_extrapolation():
-    t = Transfer(transfer_params={"extrapolate_with_eh": True})
+    t = Transfer(transfer_params={"extrapolate_with_eh": True}, transfer_model="CAMB")
 
     k = np.logspace(1.5, 2, 20)
     eh = t.transfer._eh.lnt(np.log(k))
@@ -82,3 +83,14 @@ def test_camb_extrapolation():
     eh += eh[0] - camb[0]
 
     assert np.isclose(eh[-1], camb[-1], rtol=1e-1)
+
+
+def test_setting_kmax():
+    t = Transfer(
+        transfer_params={"extrapolate_with_eh": True, "kmax": 1.0},
+        transfer_model="CAMB",
+    )
+    assert t.transfer.params["camb_params"].Transfer.kmax == 1.0
+    camb_transfers = camb.get_transfer_functions(t.transfer.params["camb_params"])
+    T = camb_transfers.get_matter_transfer_data().transfer_data
+    assert np.max(T[0]) < 2.0
