@@ -11,6 +11,7 @@ from .._internals import _framework, _utils
 import warnings
 
 
+@_framework.pluggable
 class Filter(_framework.Component):
     r"""
     Base class for Filter components.

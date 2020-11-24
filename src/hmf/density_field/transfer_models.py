@@ -10,7 +10,7 @@ from copy import deepcopy
 
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
-from .._internals._framework import Component
+from .._internals._framework import Component, pluggable
 from astropy import cosmology
 
 try:
@@ -23,6 +23,7 @@ except ImportError:
 _allfits = ["CAMB", "FromFile", "EH_BAO", "EH_NoBAO", "BBKS", "BondEfs"]
 
 
+@pluggable
 class TransferComponent(Component):
     r"""
     Base class for transfer models.
@@ -164,6 +165,7 @@ if HAVE_CAMB:
             "camb_params": None,
             "dark_energy_params": {},
             "extrapolate_with_eh": False,
+            "kmax": None,
         }
 
         def __init__(self, *args, **kwargs):
@@ -191,10 +193,8 @@ if HAVE_CAMB:
 
                 # If extrapolating with EH, use a lower value of kmax so that the
                 # calculation is faster.
-                if self.params["extrapolate_with_eh"]:
-                    self.params["camb_params"].Transfer.kmax = 2
-                else:
-                    self.params["camb_params"].Transfer.kmax = 1e3
+                if self.params["kmax"]:
+                    self.params["camb_params"].Transfer.kmax = self.params["kmax"]
 
             if self.cosmo.Ob0 is None:
                 raise ValueError(

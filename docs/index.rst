@@ -17,6 +17,7 @@ Contents
    api
    changelog
    contributors
+   developing
 
 Indices and tables
 ==================
