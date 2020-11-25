@@ -8,13 +8,16 @@ been modified to improve its integration with this package.
 """
 import warnings
 import numpy as np
+from typing import Tuple
 from scipy.integrate import simps as _simps
-import copy
 from scipy.interpolate import InterpolatedUnivariateSpline as _spline
 from ..cosmology.cosmo import Cosmology as csm
+from scipy.optimize import minimize
 
 
-def _get_spec(k, delta_k, sigma_8):
+def _get_spec(
+    k: np.ndarray, delta_k: np.ndarray, sigma_8=None
+) -> Tuple[float, float, float]:
     """
     Calculate nonlinear wavenumber, effective spectral index and curvature
     of the power spectrum.
@@ -26,83 +29,52 @@ def _get_spec(k, delta_k, sigma_8):
     delta_k : array_like
         Dimensionless power spectrum at `k`
     sigma_8 : scalar
-        RMS linear density fluctuations in spheres of radius 8 Mpc/h at z=0.
+        RMS linear density fluctuations in spheres of radius 8 Mpc/h at z=0. Not
+        used any more at all!
 
     Returns
     -------
-    rknl : float
+    knl : float
         Non-linear wavenumber
-    rneff : float
+    n_eff : float
         Effective spectral index
-    rncur : float
+    n_curv : float
         Curvature of the spectrum
     """
     # Initialize sigma spline
-    if 0.6 < sigma_8 < 1.0:
-        lnr = np.linspace(np.log(0.1), np.log(10.0), 500)
-        lnsig = np.empty(500)
-
-    else:  # weird sigma_8 means we need a different range of r to go through 0.
-        lnsig_old = None
-        for r in [0.00001, 0.0001, 0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]:
-            integrand = delta_k * np.exp(-((k * r) ** 2))
-            sigma2 = _simps(integrand, np.log(k))
-            lnsig1 = np.log(sigma2)
-
-            if lnsig1 < 0:
-                try:
-                    lnsig1 = float(lnsig_old)
-                except TypeError:
-                    warnings.warn(
-                        f"Lowest r not low enough in _get_spec. ln(sig) starts below 0: {lnsig1}"
-                    )
-                break
-
-            lnsig_old = copy.copy(lnsig1)
-
-        lnr = np.linspace(np.log(0.1 * r), np.log(r), 250)
-        lnsig = np.empty(250)
-
-    for i, r in enumerate(lnr):
-        R = np.exp(r)
+    def get_log_sigma2(lnr):
+        R = np.exp(lnr)
         integrand = delta_k * np.exp(-((k * R) ** 2))
-        sigma2 = _simps(integrand, np.log(k))
-        lnsig[i] = np.log(sigma2)
+        return np.log(_simps(integrand, np.log(k)))
 
-    r_of_sig = _spline(lnsig[::-1], lnr[::-1], k=5)
-    rknl = 1.0 / np.exp(r_of_sig(0.0))
+    def get_sigma_abs(lnr):
+        return np.abs(get_log_sigma2(lnr))
 
-    sig_of_r = _spline(lnr, lnsig, k=5)
-    try:
-        dev1, dev2 = sig_of_r.derivatives(np.log(1.0 / rknl))[1:3]
-    except Exception:
+    res = minimize(
+        get_sigma_abs, x0=[1.0], options={"xatol": np.log(1.1)}, method="Nelder-Mead"
+    )
+
+    if not res.success:
         warnings.warn(
-            "Requiring extra iterations to find derivatives of sigma at 1/rknl "
-            "(this often happens at high redshift)."
+            f"Could not determine non-linear scale! Failed with error: {res.message}. "
+            f"Continuing with best-fit non-linear scale: r_nl={np.exp(res.x)}, with log_sigma^2 = {res.fun}"
         )
-        lnr = np.linspace(np.log(0.2 / rknl), np.log(5 / rknl), 100)
-        lnsig = np.empty(100)
 
-        for i, r in enumerate(lnr):
-            R = np.exp(r)
-            integrand = delta_k * np.exp(-((k * R) ** 2))
-            sigma2 = _simps(integrand, np.log(k))
-            lnsig[i] = np.log(sigma2)
-        lnr = lnr[np.logical_not(np.isinf(lnsig))]
-        lnsig = lnsig[np.logical_not(np.isinf(lnsig))]
-        if len(lnr) < 2:
-            raise Exception("Lots of things went wrong in halofit")
+    rnl = np.exp(res.x)
+    knl = 1 / rnl
 
-        sig_of_r = _spline(lnr, lnsig, k=5)
-        dev1, dev2 = sig_of_r.derivatives(np.log(1.0 / rknl))[1:3]
+    lnr = np.linspace(np.log(0.75 * rnl), np.log(1.25 * rnl), 20)
+    lnsig = [get_log_sigma2(r) for r in lnr]
+    sig_of_r = _spline(lnr, lnsig, k=5)
+    dev1, dev2 = sig_of_r.derivatives(np.log(rnl))[1:3]
 
-    rneff = -dev1 - 3.0
-    rncur = -dev2
+    n_eff = -dev1 - 3.0
+    n_curv = -dev2
 
-    return rknl, rneff, rncur
+    return knl, n_eff, n_curv
 
 
-def halofit(k, delta_k, sigma_8, z, cosmo=None, takahashi=True):
+def halofit(k, delta_k, sigma_8=None, z=0, cosmo=None, takahashi=True):
     """
     Implementation of HALOFIT (Smith+2003).
 
@@ -113,7 +85,8 @@ def halofit(k, delta_k, sigma_8, z, cosmo=None, takahashi=True):
     delta_k : array_like
         Dimensionless power (linear) at `k`.
     sigma_8 : float
-        RMS linear density fluctuations in spheres of radius 8 Mpc/h at z=0.
+        RMS linear density fluctuations in spheres of radius 8 Mpc/h at z=0. Not used
+        at all.
     z : float
         Redshift
     cosmo : :class:`hmf.cosmo.Cosmology` instance, optional
@@ -129,11 +102,14 @@ def halofit(k, delta_k, sigma_8, z, cosmo=None, takahashi=True):
     nonlinear_delta_k : array_like
         Dimensionless power at `k`, with nonlinear corrections applied.
     """
+    if sigma_8 is not None:
+        warnings.warn("sigma_8 is not used any more, and will be removed in v4")
+
     if cosmo is None:
         cosmo = csm()
 
     # Get physical parameters
-    rknl, neff, rncur = _get_spec(k, delta_k, sigma_8)
+    rknl, neff, rncur = _get_spec(k, delta_k)
 
     # Only apply the model to higher wavenumbers
     mask = k > 0.005
