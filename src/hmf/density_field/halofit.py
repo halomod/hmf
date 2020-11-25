@@ -38,7 +38,7 @@ def _get_spec(k, delta_k, sigma_8):
         Curvature of the spectrum
     """
     # Initialize sigma spline
-    if 0.6 < sigma_8 > 1.0:
+    if 0.6 < sigma_8 < 1.0:
         lnr = np.linspace(np.log(0.1), np.log(10.0), 500)
         lnsig = np.empty(500)
 
