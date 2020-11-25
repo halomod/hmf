@@ -54,8 +54,7 @@ def _get_spec(k, delta_k, sigma_8):
                     lnsig1 = float(lnsig_old)
                 except TypeError:
                     warnings.warn(
-                        "Lowest R not low enough in _get_spec. ln(sig) starts below 0: ",
-                        lnsig1,
+                        f"Lowest r not low enough in _get_spec. ln(sig) starts below 0: {lnsig1}"
                     )
                 break
 
