@@ -1,7 +1,12 @@
 Releases
 ========
-dev
----
+
+v3.3.1 [30th Nov 2020]
+----------------------
+
+**Bugfixes**
+
+- Faster and more reliable halofit! `PR #106 <https://github.com/steven-murray/hmf/pull/106>`_
 
 v3.3.0  [24th Nov 2020]
 -----------------------
