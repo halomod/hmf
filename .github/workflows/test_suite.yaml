@@ -42,22 +42,25 @@ jobs:
           wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O $HOME/miniconda.sh;
           bash $HOME/miniconda.sh -b -p $HOME/miniconda
       - name: Setup Environment
+        if: ! contains(github.event.pull_request.labels.*.name, 'auto-pr')
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
           ./ci/install_conda.sh
       - name: Install
+        if: ! contains(github.event.pull_request.labels.*.name, 'auto-pr')
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
           source activate ${ENV_NAME}
           conda install -c conda-forge camb
           pip install .[dev]
       - name: Run Tests
+        if: ! contains(github.event.pull_request.labels.*.name, 'auto-pr')
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
           source activate $ENV_NAME
           python -m pytest --cov=hmf --cov-config=.coveragerc --cov-report xml:./coverage.xml --durations=25
       - uses: codecov/codecov-action@master
-        if: matrix.os == 'ubuntu-latest' && success()
+        if: matrix.os == 'ubuntu-latest' && success() && !contains(github.event.pull_request.labels.*.name, 'auto-pr')
         with:
           token: ${{secrets.CODECOV_TOKEN}} #required
           file: ./coverage.xml #optional
