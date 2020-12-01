@@ -2,6 +2,8 @@
 set -e
 
 PART=$1
+
+OLDVERSION=$(cat VERSION)
 NEWVERSION=$(bump2version --dry-run --list ${PART} | grep new_version | sed -r s,"^.*=",,)
 echo "New Version: ${NEWVERSION}"
 
@@ -15,3 +17,7 @@ sed -i '/========/a \
 \' CHANGELOG.rst
 
 sed -i "s/$NEWVERSION/$NEWVERSION [$(date +'%d %b %Y')]/g" CHANGELOG.rst
+
+# Now commit
+git add .
+git commit -m "Bump Version: $(OLDVRESION) -> $(NEWVERSION)"
