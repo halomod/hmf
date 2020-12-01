@@ -20,11 +20,40 @@ API-breaking changes, ``MINOR`` including new features, and ``PATCH`` fixing bug
 documentation etc. If you depend on hmf, you can set your dependency as
 ``hmf >= X.Y < X+1`` and not worry that we'll break your code with an update.
 
-To mechanically handle versioning within the package, we use
-`setuptools-scm <https://pypi.org/project/setuptools-scm/>`_. This means there's only
-one place that versions are stored -- in the git tag. It also offers benefits like the
-current version having full version info in it (how many commits since last tag, the
-current git hash, etc).
+To mechanically handle versioning within the package, we use two methods that we make
+to work together automatically. The "true" version of the package is set with
+`setuptools-scm <https://pypi.org/project/setuptools-scm/>`_. This stores the version
+in the git tag. There are many benefits to this -- one is that the version is unique
+for every single change in the code, with commits on top of a release changing the
+version. This means that versions accessed via `hmf.__version__` are unique and track
+the exact code in the package (useful for reproducing results). To get the current
+version from command line, simply do ``python setup.py --version`` in the top-level
+directory.
+
+To actually bump the version, we use ``bump2version``. The reason for this is that the
+CHANGELOG requires manual intervention -- we need to change the "dev-version" section
+at the top of the file to the current version. Since this has to be manual, it requires
+a specific commit to make it happen, which thus requires a PR (since commits can't be
+pushed to master). To get all this to happen as smoothly as possible, we have a little
+bash script ``bump`` that should be used to bump the version, which wraps ``bump2version``.
+What it does is:
+
+1. Runs ``bump2version`` and updates the ``major``, ``minor`` or ``patch`` part (passed like
+   ``./bump minor``) in the VERSION file.
+2. Updates the changelog with the new version heading (with the date),
+   and adds a new ``dev-version`` heading above that.
+3. Makes a commit with the changes.
+
+.. note:: Using the ``bump`` script is currently necessary, but future versions of
+   ``bump2version`` may be able to do this automatically, see
+   https://github.com/c4urself/bump2version/issues/133.
+
+The VERSION file might seem a bit redundant, and it is NOT recognized as the "official"
+version (that is given by the git tag). Notice we didn't make a git tag in the above
+script. That's because the tag should be made directly on the merge commit into master.
+We do this using a Github Action ("tag-release.yaml") which runs on every push to master,
+reads the VERSION file, and makes a tag based on that version.
+
 
 Branching
 ~~~~~~~~~
@@ -67,30 +96,33 @@ To make a **patch** release, follow these steps:
 1. Branch off of ``master``.
 2. Write the fix.
 3. Write a test that would have broken without the fix.
-4. Update the changelog with a *new version heading* and your fix (link to the issue/PR!)
-5. Get a PR review and ensure CI passes.
-6. Merge into ``master`` -- don't delete the branch!
-7. Create another PR and merge into ``dev`` -- now you can delete
-7. Locally, git tag it with the next patch version, and push the tag.
+4. Update the changelog with your changes, under the ``**Bugfixes**`` heading.
+5. Commit, push, and create a PR.
+6. Locally, run ``./bump patch``.
+7. Push.
+8. Get a PR review and ensure CI passes.
+9. Merge the PR
+10. Merge the auto-created PR back into dev.
 
 Note that you don't have to merge fixes in this way. You can instead just branch off
-``dev``, but then the fix won't be included until the next minor version. This is easier
-and useful for non-urgent fixes.
+``dev``, but then the fix won't be included until the next ``minor`` version.
+This is easier (the admins do the adminy work) and useful for non-urgent fixes.
 
 Any other fix/feature should be branched from ``dev``. Every PR that does anything
 noteworthy should have an accompanying edit to the changelog. However, you do not have
 to update the version in the changelog -- that is left up to the admin(s). To make a
 minor release, they should:
 
-1. Make a new branch from ``dev`` called ``release``.
-2. No new features should be merged into ``dev`` after that branching occurs.
-3. On ``release``, update the CHANGELOG so that the correct version is displayed at the
-   top, and add any other overall info to the section.
-4. Ensure all tests pass.
-5. Merge into ``dev`` -- don't delete!
-6. Merge into ``master`` -- now delete.
-7. Locally, git tag it with the next minor vesion, and push the tag.
+1. Locally, ``git checkout release``
+2. ``git merge dev``
+3. No new features should be merged into ``dev`` after that branching occurs.
+4. Run ``./bump minor``
+5. Make sure everything looks right.
+6. ``git push``
+7. Ensure all tests pass.
+8. Merge into ``master``
+9. Merge auto-created PR into ``dev``
 
-The above also works for MAJOR versions, however getting them *in* to ``dev`` is a little
+The above also works for ``MAJOR`` versions, however getting them *in* to ``dev`` is a little
 different, in that they should wait for merging until we're sure that the next version
 will be a major version.
