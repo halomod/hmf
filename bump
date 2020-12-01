@@ -11,6 +11,7 @@ bump2version $PART
 # Now add in stuff to the changelog
 sed -i '/========/a \
 \dev-version\
-\---' CHANGELOG.rst
+\--------------------\
+\' CHANGELOG.rst
 
 sed -i "s/$NEWVERSION/$NEWVERSION [$(date +'%d %b %Y')]/g" CHANGELOG.rst
