@@ -2,7 +2,7 @@
 set -e
 
 PART=$1
-NEWVERSION=$(bump2version --dry-run --list ${PART} | grep <field name> | sed -r s,"^.*=",,)
+NEWVERSION=$(bump2version --dry-run --list ${PART} | grep new_version | sed -r s,"^.*=",,)
 echo "New Version: ${NEWVERSION}"
 
 # Actually Run The Update
