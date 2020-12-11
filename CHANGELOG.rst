@@ -1,5 +1,11 @@
 Releases
 ========
+dev-version
+-----------
+**Changes**
+
+- ``camb`` is no longer installed by default. If you want to install it along with ``hmf``
+  (as well as other useful utilities) install with ``pip install hmf[all]``.
 
 v3.3.1 [30th Nov 2020]
 ----------------------
