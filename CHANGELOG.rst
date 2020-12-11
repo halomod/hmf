@@ -1,7 +1,7 @@
 Releases
 ========
-dev-version
------------
+v3.3.2 [11th Dec 2020]
+----------------------
 **Changes**
 
 - ``camb`` is no longer installed by default. If you want to install it along with ``hmf``
