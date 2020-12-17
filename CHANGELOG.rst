@@ -7,6 +7,11 @@ v3.3.2 [11th Dec 2020]
 - ``camb`` is no longer installed by default. If you want to install it along with ``hmf``
   (as well as other useful utilities) install with ``pip install hmf[all]``.
 
+**Bugfixes**
+
+- Redefined omch2 to account for massive neutrinos `PR #118 <https://github.com/steven-murray/hmf/pull/118>`_
+
+
 v3.3.1 [30th Nov 2020]
 ----------------------
 
