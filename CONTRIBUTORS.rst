@@ -7,6 +7,7 @@ Contributors
 * Jordan Mirocha (UCLA): `@mirochaj <https://github.com/mirochaj>`_
 * `@jlashner <https://github.com/jlashner>`_
 * `@liweitianux <https://github.com/liweitianux>`_
+* Jia Liu (UC Berkeley): `@liuxx479 <https://github.com/liuxx479>`_
 
 Comments, corrections and suggestions
 -------------------------------------
