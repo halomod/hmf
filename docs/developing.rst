@@ -51,7 +51,7 @@ What it does is:
 The VERSION file might seem a bit redundant, and it is NOT recognized as the "official"
 version (that is given by the git tag). Notice we didn't make a git tag in the above
 script. That's because the tag should be made directly on the merge commit into master.
-We do this using a Github Action ("tag-release.yaml") which runs on every push to master,
+We do this using a Github Action (``tag-release.yaml``) which runs on every push to master,
 reads the VERSION file, and makes a tag based on that version.
 
 
@@ -102,7 +102,11 @@ To make a **patch** release, follow these steps:
 7. Push.
 8. Get a PR review and ensure CI passes.
 9. Merge the PR
-10. Merge the auto-created PR back into dev.
+
+Note that in the background, Github Actions *should* take care of then tagging master
+with the new version, deploying that to PyPI, creating a new PR from master back into
+dev, and accepting that PR. If it fails for one of these steps, they can all be done
+manually.
 
 Note that you don't have to merge fixes in this way. You can instead just branch off
 ``dev``, but then the fix won't be included until the next ``minor`` version.
@@ -119,9 +123,8 @@ minor release, they should:
 4. Run ``./bump minor``
 5. Make sure everything looks right.
 6. ``git push``
-7. Ensure all tests pass.
+7. Ensure all tests pass and get a CI review.
 8. Merge into ``master``
-9. Merge auto-created PR into ``dev``
 
 The above also works for ``MAJOR`` versions, however getting them *in* to ``dev`` is a little
 different, in that they should wait for merging until we're sure that the next version
