@@ -1,6 +1,9 @@
 Releases
 ========
-dev-version
+\dev-version\
+\--------------------\
+
+v3.3.3 [21 Dec 2020]
 -----------
 **Bugfixes**
 
