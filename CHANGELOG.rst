@@ -1,10 +1,8 @@
 Releases
 ========
-dev-version
---------------------
 
-v3.3.3 [21 Dec 2020]
------------
+dev-version
+----------------------
 **Bugfixes**
 
 - Redefined omch2 to account for massive neutrinos `PR #118 <https://github.com/steven-murray/hmf/pull/118>`_
