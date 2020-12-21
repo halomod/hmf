@@ -16,7 +16,7 @@ sed -i '/========/a \
 \--------------------\
 \' CHANGELOG.rst
 
-sed -i "s/$NEWVERSION/$NEWVERSION [$(date +'%d %b %Y')]/g" CHANGELOG.rst
+sed -i "s/$(NEWVERSION)/$(NEWVERSION) [$(date +'%d %b %Y')]/g" CHANGELOG.rst
 
 # Now commit
 git add .
