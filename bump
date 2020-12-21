@@ -16,8 +16,8 @@ sed -i '/========/a \
 \--------------------\
 \' CHANGELOG.rst
 
-sed -i "s/$(NEWVERSION)/$(NEWVERSION) [$(date +'%d %b %Y')]/g" CHANGELOG.rst
+sed -i "s/${NEWVERSION}/${NEWVERSION} [$(date +'%d %b %Y')]/g" CHANGELOG.rst
 
 # Now commit
 git add .
-git commit -m "Bump Version: $(OLDVRESION) -> $(NEWVERSION)"
+git commit -m "Bump Version: $(OLDVRESION) -> ${NEWVERSION}"
