@@ -209,7 +209,10 @@ if HAVE_CAMB:
             self.params["camb_params"].set_cosmology(
                 H0=self.cosmo.H0.value,
                 ombh2=self.cosmo.Ob0 * self.cosmo.h ** 2,
-                omch2=(self.cosmo.Om0 - self.cosmo.Ob0) * self.cosmo.h ** 2,
+                omch2=(self.cosmo.Om0 - self.cosmo.Ob0 - self.cosmo.Onu0)
+                * self.cosmo.h ** 2,
+                mnu=sum(self.cosmo.m_nu.value),
+                neutrino_hierarchy="degenerate",
                 omk=self.cosmo.Ok0,
                 nnu=self.cosmo.Neff,
                 standard_neutrino_neff=self.cosmo.Neff,
