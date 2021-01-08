@@ -278,10 +278,11 @@ class Framework(metaclass=_Validator):
 
     @classmethod
     def quantities_available(cls):
+        all_names = cls.get_all_parameter_names()
         return [
             name
             for name in dir(cls)
-            if name not in cls.get_all_parameter_names()
+            if name not in all_names
             and not name.startswith("__")
             and name not in dir(Framework)
         ]
