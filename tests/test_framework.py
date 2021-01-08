@@ -6,6 +6,7 @@ from hmf._internals import pluggable, get_base_components, get_base_component
 from hmf._internals._framework import get_model_
 from deprecation import fail_if_not_removed
 from hmf import GrowthFactor
+from hmf import MassFunction
 
 
 def test_incorrect_argument():
@@ -89,3 +90,22 @@ def test_get_model():
 
 def test_growth_plugins():
     assert "GenMFGrowth" in GrowthFactor._plugins
+
+
+def test_validate_inputs():
+    with pytest.raises(AssertionError):
+        MassFunction(Mmin=10, Mmax=9)
+
+    m = MassFunction(Mmin=10, Mmax=11)
+    with pytest.raises(AssertionError):
+        m.update(Mmax=9)
+
+    # Without checking on, we can still manually set it, but it will warn us
+    with pytest.warns(DeprecationWarning):
+        m.Mmax = 9
+        m.Mmin = 8
+
+    # But with checking on, we can't
+    m._validate_every_param_set = True
+    with pytest.raises(AssertionError):
+        m.Mmax = 7

@@ -88,7 +88,7 @@ class MassFunction(transfer.Transfer):
         **transfer_kwargs,
     ):
         # Call super init MUST BE DONE FIRST.
-        super(MassFunction, self).__init__(**transfer_kwargs)
+        super().__init__(**transfer_kwargs)
 
         # Set all given parameters.
         self.hmf_model = hmf_model
@@ -106,6 +106,14 @@ class MassFunction(transfer.Transfer):
     # ===========================================================================
     # PARAMETERS
     # ===========================================================================
+    def validate(self):
+        super().validate()
+        assert self.Mmin < self.Mmax, f"Mmin > Mmax: {self.Mmin}, {self.Mmax}"
+        assert len(self.m) > 0, "mass vector has length zero!"
+
+        # Check whether the hmf component validates.
+        self.hmf
+
     @parameter("res")
     def Mmin(self, val):
         r"""

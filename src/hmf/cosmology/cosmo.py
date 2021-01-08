@@ -63,7 +63,7 @@ class Cosmology(_framework.Framework):
 
     def __init__(self, cosmo_model=Planck15, cosmo_params=None):
         # Call Framework init
-        super(Cosmology, self).__init__()
+        super().__init__()
 
         # Set all given parameters
         self.cosmo_model = cosmo_model

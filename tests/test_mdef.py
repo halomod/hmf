@@ -96,12 +96,10 @@ def test_from_colossus_name(colossus_cosmo):
 
 
 def test_change_dndm(colossus_cosmo):
-    h = MassFunction(
-        mdef_model="SOVirial", hmf_model="Warren", disable_mass_conversion=False
-    )
-
     with pytest.warns(UserWarning):
-        h.mdef
+        h = MassFunction(
+            mdef_model="SOVirial", hmf_model="Warren", disable_mass_conversion=False
+        )
 
     dndm = h.dndm
 

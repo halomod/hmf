@@ -4,6 +4,17 @@ Releases
 dev-version
 ----------------------
 
+v3.3.4 [08 Jan 2021]
+----------------------
+
+**Bugfixes**
+
+- Added ``validate()`` method that is automatically called after ``__init__()`` and
+  ``update()`` and also (optionally) on every ``parameter`` update. This can cross-validate different
+  inputs. **NOTE**: if you currently have code that sets parameters directly, eg ``mf.z=2.0``,
+  you should update to using the ``update()`` method, as this allows multiple parameters
+  to be set, and then a call to ``validate()``.
+
 v3.3.3 [21 Dec 2020]
 ----------------------
 **Bugfixes**
