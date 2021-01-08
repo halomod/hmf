@@ -57,11 +57,11 @@ class Transfer(cosmo.Cosmology):
         growth_model=None,
         growth_params=None,
         use_splined_growth=False,
-        **kwargs
+        **kwargs,
     ):
 
         # Call Cosmology init
-        super(Transfer, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
         # Set all given parameters
         self.n = n
@@ -90,6 +90,12 @@ class Transfer(cosmo.Cosmology):
     # ===========================================================================
     # Parameters
     # ===========================================================================
+    def validate(self):
+        super().validate()
+        assert (
+            self.lnk_min < self.lnk_max
+        ), f"lnk_min >= lnk_max: {self.lnk_min}, {self.lnk_max}"
+        assert len(self.k) > 1, f"len(k) < 2: {len(self.k)}"
 
     @parameter("model")
     def growth_model(self, val):
