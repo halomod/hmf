@@ -281,7 +281,16 @@ def parameter(kind):
                         delattr(self, pr)
 
                 if not doset and self._validate:
-                    self.validate()
+                    if self._validate_every_param_set:
+                        self.validate()
+                    else:
+                        warnings.warn(
+                            f"You are setting {name} directly. This is unstable, as less "
+                            f"validation is performed. You can turn on extra validation "
+                            f"for directly set parameters by setting framework._validate_every_param_set=True."
+                            f"However, this can be brittle, since intermediate states may not be valid.",
+                            category=DeprecationWarning,
+                        )
 
         update_wrapper(_set_property, f)
 
