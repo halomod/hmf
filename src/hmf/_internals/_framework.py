@@ -182,7 +182,15 @@ def get_model(name, mod, **kwargs):
     return get_model_(name, mod)(**kwargs)
 
 
-class Framework:
+class _Validator(type):
+    def __call__(cls, *args, **kwargs):
+        """Called when you call MyNewClass() """
+        obj = type.__call__(cls, *args, **kwargs)
+        obj.validate()
+        return obj
+
+
+class Framework(metaclass=_Validator):
     """
     Class representing a coherent framework of component models.
 
@@ -198,21 +206,32 @@ class Framework:
     defined as a ``parameter`` within the class so it may be set properly.
     """
 
-    def __init__(self):
-        super(Framework, self).__init__()
+    _validate = True
+
+    def validate(self):
+        pass
 
     def update(self, **kwargs):
         """
         Update parameters of the framework with kwargs.
         """
-        for k, v in list(kwargs.items()):
-            # If key is just a parameter to the class, just update it.
-            if hasattr(self, k):
-                setattr(self, k, kwargs.pop(k))
+        self._validate = False
+        try:
+            for k, v in list(kwargs.items()):
+                # If key is just a parameter to the class, just update it.
+                if hasattr(self, k):
+                    setattr(self, k, kwargs.pop(k))
 
-            # If key is a dictionary of parameters to a sub-framework, update the sub-framework
-            elif k.endswith("_params") and isinstance(getattr(self, k[:-7]), Framework):
-                getattr(self, k[:-7]).update(**kwargs.pop(k))
+                # If key is a dictionary of parameters to a sub-framework, update the sub-framework
+                elif k.endswith("_params") and isinstance(
+                    getattr(self, k[:-7]), Framework
+                ):
+                    getattr(self, k[:-7]).update(**kwargs.pop(k))
+            self._validate = True
+            self.validate()
+        except Exception:
+            self._validate = True
+            raise
 
         if kwargs:
             raise ValueError("Invalid arguments: %s" % kwargs)

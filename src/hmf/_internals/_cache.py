@@ -229,7 +229,7 @@ def parameter(kind):
                 and not isinstance(val, dict)
                 and val is not None
             ):
-                raise ValueError("%s must be a dictionary" % name)
+                raise ValueError(f"{name} must be a dictionary")
 
             # Locations of indexes
             recalc = hidden_loc(self, "recalc")
@@ -279,6 +279,9 @@ def parameter(kind):
                     # so need to re-index
                     for pr in getattr(self, recalc_papr)[name]:
                         delattr(self, pr)
+
+                if not doset and self._validate:
+                    self.validate()
 
         update_wrapper(_set_property, f)
 

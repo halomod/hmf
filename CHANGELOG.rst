@@ -4,6 +4,12 @@ Releases
 dev-version
 ----------------------
 
+**Bugfixes**
+
+- Added ``validate()`` method that is automatically called after ``__init__()`` and
+  ``update()`` and also on every ``parameter`` update. This can cross-validate different
+  inputs.
+
 v3.3.3 [21 Dec 2020]
 ----------------------
 **Bugfixes**
