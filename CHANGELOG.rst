@@ -4,6 +4,9 @@ Releases
 dev-version
 ----------------------
 
+v3.3.4 [08 Jan 2021]
+----------------------
+
 **Bugfixes**
 
 - Added ``validate()`` method that is automatically called after ``__init__()`` and
