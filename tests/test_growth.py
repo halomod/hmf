@@ -18,7 +18,9 @@ def genf():
 def test_gf(z, gf, genf):
     print(gf.growth_factor(z), genf.growth_factor(z))
     assert np.isclose(
-        gf.growth_factor(z), genf.growth_factor(z), rtol=1e-2 + z / 500.0,
+        gf.growth_factor(z),
+        genf.growth_factor(z),
+        rtol=1e-2 + z / 500.0,
     )
 
 
