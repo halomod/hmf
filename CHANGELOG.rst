@@ -222,7 +222,7 @@ v2.0.2 [2nd August, 2016]
 **Features**
 
 - Added a bunch of information to each hmf_model, indicating simulation parameters from which the fit was derived.
-- Added ``FromArray`` transfer model, allowing an array to be passed programmatically for `k` and `T`.
+- Added ``FromArray`` transfer model, allowing an array to be passed programmatically for ``k`` and ``T``.
 - Added ``Carroll1992`` growth factor approximation model.
 
 **Enhancments**

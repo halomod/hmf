@@ -264,7 +264,9 @@ class FittingFunction(_framework.Component):
                 if delta_h == "vir":
                     measured = md.SOVirial()
                 elif delta_h.endswith("c"):
-                    measured = md.SOCritical(overdensity=float(delta_h[:-1]),)
+                    measured = md.SOCritical(
+                        overdensity=float(delta_h[:-1]),
+                    )
                 elif delta_h.endswith("m"):
                     measured = md.SOMean(overdensity=float(delta_h[:-1]))
                 elif delta_h.startswith("*"):

@@ -21,7 +21,10 @@ def transfers():
 
 
 @pytest.mark.parametrize(
-    ["name", "val",],
+    [
+        "name",
+        "val",
+    ],
     [("z", 0.1), ("sigma_8", 0.82), ("n", 0.95), ("cosmo_params", {"H0": 68.0})],
 )
 def test_updates(transfers, name, val):
