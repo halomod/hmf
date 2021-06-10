@@ -194,7 +194,9 @@ class Transfer(cosmo.Cosmology):
     @parameter("switch")
     def takahashi(self, val):
         """
-        Whether to use updated HALOFIT coefficients from Takahashi+12
+        Whether to use updated HALOFIT coefficients from Takahashi+12.
+
+        If False, use the original coefficients from Smith+2003.
 
         :type: bool
         """
