@@ -3,6 +3,7 @@ from hmf.density_field.transfer import Transfer
 from hmf.density_field.transfer_models import EH_BAO
 import pytest
 import camb
+from astropy.cosmology import w0waCDM
 
 # def rms(a):
 #     print(a)
@@ -97,3 +98,14 @@ def test_setting_kmax():
     camb_transfers = camb.get_transfer_functions(t.transfer.params["camb_params"])
     T = camb_transfers.get_matter_transfer_data().transfer_data
     assert np.max(T[0]) < 2.0
+
+
+def test_camb_w0wa():
+    """Essentially just test that CAMB doesn't fall over with a w0wa model."""
+    t = Transfer(
+        transfer_model="CAMB",
+        cosmo_model=w0waCDM(
+            Om0=0.3, Ode0=0.7, w0=-1, wa=0.03, Ob0=0.05, H0=70.0, Tcmb0=2.7
+        ),
+    )
+    assert t.transfer_function.shape == t.k.shape
