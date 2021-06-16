@@ -171,9 +171,8 @@ if HAVE_CAMB:
         def __init__(self, *args, **kwargs):
             super(CAMB, self).__init__(*args, **kwargs)
 
-            if not (
-                isinstance(self.cosmo, cosmology.LambdaCDM)
-                or isinstance(self.cosmo, cosmology.wCDM)
+            if not isinstance(
+                self.cosmo, (cosmology.LambdaCDM, cosmology.wCDM, cosmology.w0waCDM)
             ):
                 raise ValueError("CAMB will only work with LCDM or wCDM cosmologies")
 
@@ -223,6 +222,10 @@ if HAVE_CAMB:
             # Set the DE equation of state. We only support constant w.
             if isinstance(self.cosmo, cosmology.wCDM):
                 self.params["camb_params"].set_dark_energy(w=self.cosmo.w0)
+            elif isinstance(self.cosmo, cosmology.w0waCDM):
+                self.params["camb_params"].set_dark_energy(
+                    w=self.cosmo.w0, wa=self.cosmo.wa
+                )
 
             if self.params["extrapolate_with_eh"]:
                 # Create an EH transfer to extrapolate to at high k.

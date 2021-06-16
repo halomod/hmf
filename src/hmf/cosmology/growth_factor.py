@@ -13,6 +13,7 @@ from .._internals._framework import Component as Cmpt, pluggable
 from scipy.interpolate import InterpolatedUnivariateSpline as _spline
 from .._internals._utils import inherit_docstrings as _inherit
 import warnings
+from astropy import cosmology
 
 try:
     import camb
@@ -27,9 +28,16 @@ class _GrowthFactor(Cmpt):
     r"""
     General class for a growth factor calculation.
     """
+    supported_cosmos = (cosmology.LambdaCDM,)
 
     def __init__(self, cosmo, **model_parameters):
         self.cosmo = cosmo
+        if not isinstance(self.cosmo, self.supported_cosmos):
+            raise ValueError(
+                f"Cosmology of type {type(self.cosmo)} not supported by "
+                f"{self.__class__.__name__}. Supported cosmologies: "
+                f"{self.supported_cosmos}."
+            )
         super(_GrowthFactor, self).__init__(**model_parameters)
 
 
@@ -97,12 +105,10 @@ class GrowthFactor(_GrowthFactor):
 
         if not getvec:
             integral = intg.simps(np.exp(lna) * integrand, x=lna, even="avg")
-            dplus = 5.0 * self.cosmo.Om0 * self.cosmo.efunc(z) * integral / 2.0
+            return 5.0 * self.cosmo.Om0 * self.cosmo.efunc(z) * integral / 2.0
         else:
             integral = intg.cumtrapz(np.exp(lna) * integrand, x=lna, initial=0.0)
-            dplus = 5.0 * self.cosmo.Om0 * self.cosmo.efunc(self._zvec) * integral / 2.0
-
-        return dplus
+            return 5.0 * self.cosmo.Om0 * self.cosmo.efunc(self._zvec) * integral / 2.0
 
     def growth_factor(self, z):
         r"""
@@ -142,10 +148,9 @@ class GrowthFactor(_GrowthFactor):
         dp = self._d_plus(0.0, True)
         growth = dp / dp[-1]
         if not inverse:
-            s = _spline(self._zvec[::-1], growth[::-1])
+            return _spline(self._zvec[::-1], growth[::-1])
         else:
-            s = _spline(growth, self._zvec)
-        return s
+            return _spline(growth, self._zvec)
 
     def growth_rate(self, z):
         """
@@ -290,10 +295,10 @@ class GenMFGrowth(GrowthFactor):
         """
         if not inverse:
             return self.growth_factor
-        else:
-            self._zvec = np.arange(zmin, self.params["zmax"], self.params["dz"])
-            gf = self.growth_factor(self._zvec)
-            return _spline(gf[::-1], self._zvec[::-1])
+
+        self._zvec = np.arange(zmin, self.params["zmax"], self.params["dz"])
+        gf = self.growth_factor(self._zvec)
+        return _spline(gf[::-1], self._zvec[::-1])
 
 
 @_inherit
@@ -372,10 +377,10 @@ class Carroll1992(GrowthFactor):
         """
         if not inverse:
             return self.growth_factor
-        else:
-            self._zvec = np.arange(zmin, self.params["zmax"], self.params["dz"])
-            gf = self.growth_factor(self._zvec)
-            return _spline(gf[::-1], self._zvec[::-1])
+
+        self._zvec = np.arange(zmin, self.params["zmax"], self.params["dz"])
+        gf = self.growth_factor(self._zvec)
+        return _spline(gf[::-1], self._zvec[::-1])
 
 
 if HAVE_CAMB:
@@ -388,6 +393,8 @@ if HAVE_CAMB:
         the growth in this case. However, it standard LCDM is used, other classes are
         preferred, as this class needs to re-calculate the transfer function.
         """
+
+        supported_cosmos = (cosmology.LambdaCDM, cosmology.w0waCDM, cosmology.wCDM)
 
         def __init__(self, *args, **kwargs):
             super(CambGrowth, self).__init__(*args, **kwargs)
