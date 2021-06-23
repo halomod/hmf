@@ -996,6 +996,9 @@ class Bhattacharya(SMT):
         return np.logical_and(self.m > 6 * 10 ** 11, self.m < 3 * 10 ** 15)
 
     def norm(self):
+        if self.params["A"] is not None:
+            return self.params["A"]
+
         p, q = self.params["p"], self.params["q"]
         return (
             2 ** (-1 / 2 - p + q / 2)
