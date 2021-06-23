@@ -4,6 +4,12 @@ Releases
 dev-version
 ----------------------
 
+**Features**
+
+- Added ``normalized`` attribute of all ``FittingFunction`` models, to tell whether the
+  model integrates to the mean density over all mass.
+
+
 v3.3.4 [08 Jan 2021]
 ----------------------
 
