@@ -224,7 +224,7 @@ class FittingFunction(_framework.Component):
         mass_definition: Union[None, md.MassDefinition] = None,
         cosmo: csm.FLRW = csm.Planck15,
         delta_c: float = 1.686,
-        **model_parameters
+        **model_parameters,
     ):
 
         super(FittingFunction, self).__init__(**model_parameters)
@@ -367,16 +367,14 @@ class SMT(FittingFunction):
         other_cosmo={"omegav": 0.7, "h": 0.7, "n": 1},
     )
 
-    def __init__(self, *args, **kwargs):
-        if "A" not in kwargs and "a" not in kwargs and "p" not in kwargs:
-            kwargs["A"] = 0.3222
-
+    def __init__(self, *args, validate=True, **kwargs):
         super().__init__(*args, **kwargs)
 
-        if self.params["p"] >= 0.5:
-            raise ValueError("p in SMT must be < 0.5")
-        if self.params["a"] <= 0:
-            raise ValueError("a in SMT must be > 0")
+        if validate:
+            if self.params["p"] >= 0.5:
+                raise ValueError(f"p in SMT must be < 0.5. Got {self.params['p']}")
+            if self.params["a"] <= 0:
+                raise ValueError(f"a in SMT must be > 0. Got {self.params['a']}.")
 
     @property
     def fsigma(self):
@@ -935,6 +933,8 @@ class Bhattacharya(SMT):
         "normed": False,
     }
 
+    normalized = False
+
     sim_definition = SimDetails(
         L=[1000 * 0.72, 1736 * 0.72, 2778 * 0.72, 178 * 0.72, 1300 * 0.72],
         N=[1500 ** 3, 1200 ** 3, 1024 ** 3, 512 ** 3, 1024 ** 3],
@@ -959,7 +959,7 @@ class Bhattacharya(SMT):
     )
 
     def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+        super().__init__(validate=False, **kwargs)
         if not self.params["normed"]:
             self.params["A"] = self.params["A_a"] * (1 + self.z) ** -self.params["A_b"]
         else:
@@ -999,7 +999,7 @@ class Bhattacharya(SMT):
         p, q = self.params["p"], self.params["q"]
         return (
             2 ** (-1 / 2 - p + q / 2)
-            * (2 ** p * sp.Gamma(q / 2) + sp.Gamma(-p + q / 2))
+            * (2 ** p * sp.gamma(q / 2) + sp.gamma(-p + q / 2))
             / np.sqrt(np.pi)
         )
 
