@@ -4,6 +4,12 @@ Releases
 dev-version
 ----------------------
 
+**Bugfixes**
+
+- Fixes to the BBKS transfer function
+- Fixes to allow w0waCDM models (#113)
+
+
 v3.3.4 [08 Jan 2021]
 ----------------------
 
