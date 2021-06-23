@@ -373,8 +373,8 @@ class SMT(FittingFunction):
 
         super().__init__(*args, **kwargs)
 
-        if self.params["b"] >= 0.5:
-            raise ValueError("b in SMT must be < 0.5")
+        if self.params["p"] >= 0.5:
+            raise ValueError("p in SMT must be < 0.5")
         if self.params["a"] <= 0:
             raise ValueError("a in SMT must be > 0")
 
