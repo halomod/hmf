@@ -13,6 +13,7 @@ from .._internals import _framework
 from copy import copy
 from ..halos import mass_definitions as md
 import warnings
+from typing import Union
 
 
 class SimDetails:
@@ -206,24 +207,24 @@ class FittingFunction(_framework.Component):
     _defaults = {}
 
     # Subclass requirements
-    req_neff = False
-    "Whether `n_eff` is required for this subclass"
-    req_mass = False
-    "Whether `m` is required for this subclass"
+    req_neff = False  #: Whether `n_eff` is required for this subclass
+    req_mass = False  #: Whether `m` is required for this subclass
 
     sim_definition = None
-    "Details of the defining simulation, subclass of ``SimDetails``"
+    #: Details of the defining simulation, instance of :class:`SimDetails`
+
+    normalized = False  #: Whether this mass function is normalized such that all mass is in halos
 
     def __init__(
         self,
         nu2: np.ndarray,
-        m: [None, np.ndarray] = None,
+        m: Union[None, np.ndarray] = None,
         z: float = 0.0,
-        n_eff: [None, np.ndarray] = None,
-        mass_definition: [None, md.MassDefinition] = None,
-        cosmo: [csm.FLRW] = csm.Planck15,
+        n_eff: Union[None, np.ndarray] = None,
+        mass_definition: Union[None, md.MassDefinition] = None,
+        cosmo: csm.FLRW = csm.Planck15,
         delta_c: float = 1.686,
-        **model_parameters
+        **model_parameters,
     ):
 
         super(FittingFunction, self).__init__(**model_parameters)
@@ -264,7 +265,9 @@ class FittingFunction(_framework.Component):
                 if delta_h == "vir":
                     measured = md.SOVirial()
                 elif delta_h.endswith("c"):
-                    measured = md.SOCritical(overdensity=float(delta_h[:-1]),)
+                    measured = md.SOCritical(
+                        overdensity=float(delta_h[:-1]),
+                    )
                 elif delta_h.endswith("m"):
                     measured = md.SOMean(overdensity=float(delta_h[:-1]))
                 elif delta_h.startswith("*"):
@@ -329,6 +332,7 @@ class PS(FittingFunction):
     _ref = r"""Press, W. H., Schechter, P., 1974. ApJ 187, 425-438. http://adsabs.harvard.edu/full/1974ApJ...187..425P"""
 
     __doc__ = _makedoc(FittingFunction._pdocs, "Press-Schechter", "PS", _eq, _ref)
+    normalized = True
 
     @property
     def fsigma(self):
@@ -344,7 +348,8 @@ class SMT(FittingFunction):
     _ref = r"""Sheth, R. K., Mo, H. J., Tormen, G., May 2001. MNRAS 323 (1), 1-12. http://doi.wiley.com/10.1046/j.1365-8711.2001.04006.x"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Sheth-Mo-Tormen", "SMT", _eq, _ref)
 
-    _defaults = {"a": 0.707, "p": 0.3, "A": 0.3222}
+    _defaults = {"a": 0.707, "p": 0.3, "A": None}
+    normalized = True
 
     sim_definition = SimDetails(
         L=[84.5, 141.3],
@@ -364,6 +369,15 @@ class SMT(FittingFunction):
         other_cosmo={"omegav": 0.7, "h": 0.7, "n": 1},
     )
 
+    def __init__(self, *args, validate=True, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if validate:
+            if self.params["p"] >= 0.5:
+                raise ValueError(f"p in SMT must be < 0.5. Got {self.params['p']}")
+            if self.params["a"] <= 0:
+                raise ValueError(f"a in SMT must be > 0. Got {self.params['a']}.")
+
     @property
     def fsigma(self):
         A = self.norm()
@@ -381,15 +395,13 @@ class SMT(FittingFunction):
     def norm(self):
         if self.params["A"] is not None:
             return self.params["A"]
-        else:
-            p = self.params["p"]
-            return 1.0 / (1 + 2 ** -p * sp.gamma(0.5 - p) / sp.gamma(0.5))
+
+        p = self.params["p"]
+        return 1.0 / (1 + 2 ** -p * sp.gamma(0.5 - p) / sp.gamma(0.5))
 
 
 class ST(SMT):
-    """
-    Alias of :class:`SMT`
-    """
+    """Alias of :class:`SMT`."""
 
     pass
 
@@ -402,6 +414,7 @@ class Jenkins(FittingFunction):
     _ref = r"""Jenkins, A. R., et al., Feb. 2001. MNRAS 321 (2), 372-384. http://doi.wiley.com/10.1046/j.1365-8711.2001.04029.x"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Jenkins", "Jenkins", _eq, _ref)
     _defaults = {"A": 0.315, "b": 0.61, "c": 3.8}
+    normalized = False
 
     sim_definition = SimDetails(
         L=[84.5, 141.3, 479, 3000],
@@ -445,6 +458,7 @@ class Warren(FittingFunction):
     __doc__ = _makedoc(FittingFunction._pdocs, "Warren", "Warren", _eq, _ref)
 
     _defaults = {"A": 0.7234, "b": 1.625, "c": 0.2538, "d": 1.1982, "e": 1}
+    normalized = False
 
     uncertainties = {"A": 0.0073, "a": 0.028, "b": 0.0051, "c": 0.0075}
     sim_definition = SimDetails(
@@ -502,6 +516,7 @@ class Reed03(SMT):
     __doc__ = _makedoc(FittingFunction._pdocs, "Reed03", "R03", _eq, _ref)
 
     _defaults = {"a": 0.707, "p": 0.3, "A": 0.3222, "c": 0.7}
+    normalized = False
 
     sim_definition = SimDetails(
         L=50.0,
@@ -626,6 +641,7 @@ class Peacock(FittingFunction):
 
     sim_definition = copy(Warren.sim_definition)
     sim_definition.hmf_analysis_notes = "Fit directly to Warren+2006 fit."
+    normalized = True
 
     @property
     def fsigma(self):
@@ -763,18 +779,15 @@ class Watson(FittingFunction):
 
     def gamma(self):
         r"""Calculate :math:`\Gamma` for the Watson fit."""
-        if self.mass_definition is not None:
-            if not isinstance(self.mass_definition, md.SphericalOverdensity):
-                raise ValueError(
-                    "The Watson fitting function is a spherical-overdensity function."
-                )
-            else:
-                delta_halo = self.mass_definition.halo_overdensity_mean(
-                    self.z, self.cosmo
-                )
-        else:
+        if self.mass_definition is None:
             delta_halo = 178.0
 
+        elif not isinstance(self.mass_definition, md.SphericalOverdensity):
+            raise ValueError(
+                "The Watson fitting function is a spherical-overdensity function."
+            )
+        else:
+            delta_halo = self.mass_definition.halo_overdensity_mean(self.z, self.cosmo)
         C = np.exp(self.params["C_a"] * (delta_halo / 178 - 1))
         d = -self.params["d_a"] * self.omegam_z - self.params["d_b"]
         p = self.params["p"]
@@ -880,6 +893,8 @@ class Courtin(SMT):
     __doc__ = _makedoc(FittingFunction._pdocs, "Courtin", "Ctn", SMT._eq, _ref)
     _defaults = {"A": 0.348, "a": 0.695, "p": 0.1}
 
+    normalized = False
+
     sim_definition = SimDetails(
         L=[162, 648, 1296],
         N=[512 ** 3, 512 ** 3, 512 ** 3],
@@ -917,7 +932,10 @@ class Bhattacharya(SMT):
         "a_b": 0.01,
         "p": 0.807,
         "q": 1.795,
+        "normed": False,
     }
+
+    normalized = False
 
     sim_definition = SimDetails(
         L=[1000 * 0.72, 1736 * 0.72, 2778 * 0.72, 178 * 0.72, 1300 * 0.72],
@@ -943,9 +961,19 @@ class Bhattacharya(SMT):
     )
 
     def __init__(self, **kwargs):
-        super(Bhattacharya, self).__init__(**kwargs)
-        self.params["A"] = self.params["A_a"] * (1 + self.z) ** -self.params["A_b"]
+        super().__init__(validate=False, **kwargs)
+        if not self.params["normed"]:
+            self.params["A"] = self.params["A_a"] * (1 + self.z) ** -self.params["A_b"]
+        else:
+            self.params["A"] = self.norm()
+
         self.params["a"] = self.params["a_a"] * (1 + self.z) ** -self.params["a_b"]
+
+        # To enable satisfying normalization to unity
+        if self.params["q"] <= 0:
+            raise ValueError("q in Bhattacharya must be > 0")
+        if self.params["p"] * 2 >= self.params["q"]:
+            raise ValueError("2p in Bhattacharya must be < q")
 
     @property
     def fsigma(self):
@@ -962,12 +990,23 @@ class Bhattacharya(SMT):
         vfv : array_like, len=len(pert.M)
             The function :math:`f(\sigma)\equiv\nu f(\nu)`.
         """
-        vfv = super(Bhattacharya, self).fsigma
+        vfv = super().fsigma
         return vfv * (np.sqrt(self.params["a"]) * self.nu) ** (self.params["q"] - 1)
 
     @property
     def cutmask(self):
         return np.logical_and(self.m > 6 * 10 ** 11, self.m < 3 * 10 ** 15)
+
+    def norm(self):
+        if self.params["A"] is not None:
+            return self.params["A"]
+
+        p, q = self.params["p"], self.params["q"]
+        return (
+            2 ** (-1 / 2 - p + q / 2)
+            * (2 ** p * sp.gamma(q / 2) + sp.gamma(-p + q / 2))
+            / np.sqrt(np.pi)
+        )
 
 
 class Tinker08(FittingFunction):
@@ -1366,22 +1405,20 @@ class Tinker10(FittingFunction):
 
     delta_virs = np.array([200, 300, 400, 600, 800, 1200, 1600, 2400, 3200])
     terminate = True
+    normalized = True
 
     def __init__(self, **model_parameters):
         super().__init__(**model_parameters)
 
-        if self.mass_definition is not None:
-            if not isinstance(self.mass_definition, md.SphericalOverdensity):
-                raise ValueError(
-                    "The Tinker10 fitting function is a spherical-overdensity function."
-                )
-            else:
-                delta_halo = self.mass_definition.halo_overdensity_mean(
-                    self.z, self.cosmo
-                )
-        else:
+        if self.mass_definition is None:
             delta_halo = 200
 
+        elif not isinstance(self.mass_definition, md.SphericalOverdensity):
+            raise ValueError(
+                "The Tinker10 fitting function is a spherical-overdensity function."
+            )
+        else:
+            delta_halo = self.mass_definition.halo_overdensity_mean(self.z, self.cosmo)
         self.delta_halo = delta_halo
 
         if int(delta_halo) not in self.delta_virs:
@@ -1421,7 +1458,7 @@ class Tinker10(FittingFunction):
             * (1 + min(self.z, self.params["max_z"])) ** self.params["gamma_exp"]
         )
 
-        # # The normalisation only works with specific conditions
+        # The normalisation only works with specific conditions
         # gamma > 0
         if self.gamma <= 0:
             if self.terminate:
@@ -1438,7 +1475,7 @@ class Tinker10(FittingFunction):
         if self.eta - self.phi <= -0.5:
             if self.terminate:
                 raise ValueError(
-                    "eta-phi must be >-0.5, got " + str(self.eta - self.phi)
+                    "eta-phi must be > -0.5, got " + str(self.eta - self.phi)
                 )
             else:
                 self.phi = self.eta + 0.499
@@ -1505,6 +1542,7 @@ class Behroozi(Tinker10):
         _ref,
     )
 
+    normalized = False
     sim_definition = SimDetails(
         L=[250, 1000, 420],
         N=[2048 ** 3, 2048 ** 3, 1400 ** 3],
@@ -1555,6 +1593,7 @@ class Pillepich(Warren):
         FittingFunction._pdocs, "Pillepich", "Pillepich", Warren._eq, _ref
     )
     _defaults = {"A": 0.6853, "b": 1.868, "c": 0.3324, "d": 1.2266, "e": 1}
+    normalized = False
 
     sim_definition = SimDetails(
         L=[1200, 1200, 150],

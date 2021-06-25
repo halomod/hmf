@@ -4,14 +4,25 @@ Releases
 dev-version
 ----------------------
 
-**Features:**
+**Features**
 
+- Added ``normalized`` attribute of all ``FittingFunction`` models, to tell whether the
+  model integrates to the mean density over all mass.
 - New ``Bocquet`` fitting functions (for Hydro and DMOnly at all overdensities).
 
-**Bugfixes:**
+**Changes**
 
+- Internal working of ``GrowthFactor`` has been updated to use splines. It is now faster
+  and can natively compute multiple redshifts at once (which was already true of the
+  other growth functions).
+
+**Bugfixes**
+
+- Fixes to the BBKS transfer function
+- Fixes to allow w0waCDM models (#113)
 - Fixes to mass conversion for HMF (according to Bocquet), and raising of error when the
   wrong mass definition is used without allowing mass conversion.
+
 
 v3.3.4 [08 Jan 2021]
 ----------------------
@@ -231,7 +242,7 @@ v2.0.2 [2nd August, 2016]
 **Features**
 
 - Added a bunch of information to each hmf_model, indicating simulation parameters from which the fit was derived.
-- Added ``FromArray`` transfer model, allowing an array to be passed programmatically for `k` and `T`.
+- Added ``FromArray`` transfer model, allowing an array to be passed programmatically for ``k`` and ``T``.
 - Added ``Carroll1992`` growth factor approximation model.
 
 **Enhancments**

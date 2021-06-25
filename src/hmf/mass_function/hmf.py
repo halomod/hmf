@@ -386,7 +386,12 @@ class MassFunction(transfer.Transfer):
                 ** 2
             )
 
-            res = minimize(model, [startr,])
+            res = minimize(
+                model,
+                [
+                    startr,
+                ],
+            )
 
             if res.success:
                 r = np.exp(res.x[0])
