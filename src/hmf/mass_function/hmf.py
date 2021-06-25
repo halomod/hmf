@@ -258,18 +258,24 @@ class MassFunction(transfer.Transfer):
             mdef = self.mdef_model(**self.mdef_params)
 
             # Note we need to do the != in this order so that SOGeneric can compare.
-            if (
-                self.hmf_model.get_measured_mdef() != mdef
-                and not self.disable_mass_conversion
-            ):
-                warnings.warn(
-                    f"Your input mass definition '{mdef}' does not match the mass "
-                    f"definition in which the hmf fit {self.hmf_model.__name__} was measured:"
-                    f"'{self.hmf_model.get_measured_mdef()}'. The mass function will be "
-                    f"converted to your input definition, "
-                    f"but note that some properties do not survive the conversion, eg. "
-                    f"the integral of the hmf over mass yielding the total mean density."
-                )
+            if self.hmf_model.get_measured_mdef() != mdef:
+                if self.disable_mass_conversion:
+                    raise ValueError(
+                        f"Your input mass definition '{mdef}' does not match the mass "
+                        f"definition in which the hmf fit {self.hmf_model.__name__} was "
+                        f"measured: '{self.hmf_model.get_measured_mdef()}' Either allow "
+                        f"automatic mass conversion by setting `disable_mass_conversion=False, "
+                        "or use the correct mass definition."
+                    )
+                else:
+                    warnings.warn(
+                        f"Your input mass definition '{mdef}' does not match the mass "
+                        f"definition in which the hmf fit {self.hmf_model.__name__} was measured:"
+                        f"'{self.hmf_model.get_measured_mdef()}'. The mass function will be "
+                        f"converted to your input definition, "
+                        f"but note that some properties do not survive the conversion, eg. "
+                        f"the integral of the hmf over mass yielding the total mean density."
+                    )
 
         return mdef
 
@@ -441,35 +447,8 @@ class MassFunction(transfer.Transfer):
             mnew = self.hmf.measured_mass_definition.change_definition(
                 self.m, self.mdef
             )[0]
-            spl = spline(np.log(mnew), np.log(dndm))
-            spl2 = spline(self.m, mnew)
-            dndm = np.exp(spl(np.log(self.m))) / spl2.derivative()(self.m)
-
-        # else:  # #This is for a survey-volume weighted calculation
-        #     raise NotImplementedError()
-        #             if self.nz is None:
-        #                 self.nz = 10
-        #             zedges = np.linspace(self.z, self.z2, self.nz)
-        #             zcentres = (zedges[:-1] + zedges[1:]) / 2
-        #             dndm = np.zeros_like(zcentres)
-        #             vol = np.zeros_like(zedges)
-        #             vol[0] = cp.distance.comoving_volume(self.z,
-        #                                         **self.cosmolopy_dict)
-        #             for i, zz in enumerate(zcentres):
-        #                 self.update(z=zz)
-        #                 dndm[i] = self.fsigma * self.mean_dens * np.abs(self._dlnsdlnm) / self.m ** 2
-        #                 if isinstance(self.hmf_model, "ff.Behroozi"):
-        #                     ngtm_tinker = self._gtm(dndm[i])
-        #                     dndm[i] = self.hmf_model._modify_dndm(self.m, dndm[i], self.z, ngtm_tinker)
-        #
-        #                 vol[i + 1] = cp.distance.comoving_volume(z=zedges[i + 1],
-        #                                                 **self.cosmolopy_dict)
-        #
-        #             vol = vol[1:] - vol[:-1]  # Volume in shells
-        #             integrand = vol * dndm[i]
-        #             numerator = intg.simps(integrand, x=zcentres)
-        #             denom = intg.simps(vol, zcentres)
-        #             dndm = numerator / denom
+            spl2 = spline(mnew, self.m)
+            dndm *= self.m / spl2(self.m)
 
         return dndm
 

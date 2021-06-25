@@ -1644,3 +1644,159 @@ class Ishiyama(Warren):
     @property
     def cutmask(self):
         return np.logical_and(self.m > 1e8, self.m < 1e16)
+
+
+class Bocquet200mDMOnly(Warren):
+    _eq = r"A\left[\left(\frac{e}{\sigma}\right)^b + 1\right]\exp(-\frac{d}{\sigma^2})"
+    _ref = r"""Bocuet, S., et al., 2016, MNRAS 456 2361"""
+    __doc__ = _makedoc(FittingFunction._pdocs, "Bocquet", "Bocquet", _eq, _ref)
+    _defaults = {
+        "A": 0.216,
+        "b": 1.87,
+        "c": 1,
+        "d": 1.31,
+        "e": 2.02,
+        "A_z": 0.018,
+        "b_z": -0.0748,
+        "d_z": -0.0689,
+        "e_z": -0.215,
+    }
+
+    sim_definition = SimDetails(
+        L=[68.1, 181.8, 1274],
+        N=None,
+        halo_finder_type="SO",
+        omegam=0.272,
+        sigma_8=0.809,
+        halo_overdensity="200m",
+        halo_finder="Subfind",
+        softening=None,
+        transfer=None,
+        z_start=None,
+        z_meas=(0, 2),
+        ICS=None,
+        nmin=10000,
+        hmf_analysis_notes="Poisson bayesian likelihood and finite volume correction.",
+        other_cosmo={
+            "omegav": 0.69,
+            "omegab": 0.0456,  # uses lower case omega without definition
+            "h": 0.704,
+            "n": 0.96,
+        },
+    )
+
+    def get_params(self):
+        return (
+            self.params["A"] * (1 + self.z) ** self.params["A_z"],
+            self.params["b"] * (1 + self.z) ** self.params["b_z"],
+            self.params["d"] * (1 + self.z) ** self.params["d_z"],
+            self.params["e"] * (1 + self.z) ** self.params["e_z"],
+        )
+
+    def convert_mass(self):
+        return 1
+
+    @property
+    def fsigma(self):
+        A, b, d, e = self.get_params()
+        mass_conversion = self.convert_mass()
+        return (
+            A
+            * ((e / self.sigma) ** b + 1)
+            * np.exp(-d / self.sigma ** 2)
+            * mass_conversion
+        )
+
+
+class Bocquet200mHydro(Bocquet200mDMOnly):
+    _defaults = {
+        "A": 0.240,
+        "b": 2.43,
+        "c": 1,
+        "d": 1.41,
+        "e": 1.65,
+        "A_z": 0.365,
+        "b_z": -0.129,
+        "d_z": -0.138,
+        "e_z": -0.453,
+    }
+
+
+class Bocquet200cDMOnly(Bocquet200mDMOnly):
+    _defaults = {
+        "A": 0.256,
+        "b": 2.01,
+        "c": 1,
+        "d": 1.59,
+        "e": 1.97,
+        "A_z": 0.218,
+        "b_z": 0.290,
+        "d_z": -0.174,
+        "e_z": -0.518,
+    }
+    sim_definition = copy(Bocquet200mDMOnly.sim_definition)
+    sim_definition.halo_overdensity = "200c"
+
+
+class Bocquet200cHydro(Bocquet200cDMOnly):
+    _defaults = {
+        "A": 0.290,
+        "b": 2.69,
+        "c": 1,
+        "d": 1.70,
+        "e": 1.58,
+        "A_z": 0.216,
+        "b_z": 0.027,
+        "d_z": -0.226,
+        "e_z": -0.352,
+    }
+
+    def convert_mass(self):
+        g0 = 3.54e-2 + self.cosmo.Om0 ** 0.09
+        g1 = 4.56e-2 + 2.68e-2 / self.cosmo.Om0
+        g2 = 0.721 + 3.5e-2 / self.cosmo.Om0
+        g3 = 0.628 + 0.164 / self.cosmo.Om0
+        d0 = -1.67e-2 + 2.18e-2 * self.cosmo.Om0
+        d1 = 6.52e-3 - 6.86e-3 * self.cosmo.Om0
+
+        g = g0 + g1 * np.exp(-(((g2 - self.z) / g3) ** 2))
+        d = d0 + d1 * self.z
+        return g + d * np.log(self.m)
+
+
+class Bocquet500cDMOnly(Bocquet200cDMOnly):
+    _defaults = {
+        "A": 0.390,
+        "b": 3.05,
+        "c": 1,
+        "d": 2.32,
+        "e": 1.72,
+        "A_z": -0.924,
+        "b_z": -0.421,
+        "d_z": -0.509,
+        "e_z": 0.190,
+    }
+    sim_definition = copy(Bocquet200mDMOnly.sim_definition)
+    sim_definition.halo_overdensity = "500c"
+
+    def convert_mass(self):
+        alpha_0 = 0.80 + 0.329 * self.cosmo.Om0
+        alpha_1 = 1.0 + 4.31 * 1e-2 / self.cosmo.Om0
+        alpha_2 = -0.365 + 0.254 / self.cosmo.Om0
+        alpha = alpha_0 * (alpha_1 * self.z + alpha_2) / (self.z + alpha_2)
+        beta = -1.7e-2 + self.cosmo.Om0 * 3.74e-3
+        return alpha + beta * np.log(self.m)
+
+
+class Bocquet500cDMOnly(Bocquet500cDMOnly):
+    _defaults = {
+        "A": 0.322,
+        "b": 3.24,
+        "c": 1,
+        "d": 2.29,
+        "e": 1.71,
+        "A_z": 0.0142,
+        "b_z": -0.219,
+        "d_z": -0.428,
+        "e_z": -0.275,
+    }
