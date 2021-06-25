@@ -130,13 +130,13 @@ def test_camb_unset_params():
         Transfer(
             transfer_model="CAMB",
             cosmo_model=w0waCDM(Om0=0.3, Ode0=0.7, w0=-1, wa=0.03, Ob0=0.05, H0=70.0),
-        )
+        ).transfer
 
     with pytest.raises(ValueError):
         Transfer(
             transfer_model="CAMB",
             cosmo_model=w0waCDM(Om0=0.3, Ode0=0.7, w0=-1, wa=0.03, H0=70.0, Tcmb0=2.7),
-        )
+        ).transfer
 
 
 def test_bbks_sugiyama():
