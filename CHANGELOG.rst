@@ -4,6 +4,12 @@ Releases
 dev-version
 ----------------------
 
+**Changes**
+
+- Internal working of ``GrowthFactor`` has been updated to use splines. It is now faster
+  and can natively compute multiple redshifts at once (which was already true of the
+  other growth functions).
+
 **Bugfixes**
 
 - Fixes to the BBKS transfer function
