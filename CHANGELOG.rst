@@ -4,6 +4,15 @@ Releases
 dev-version
 ----------------------
 
+**Features:**
+
+- New ``Bocquet`` fitting functions (for Hydro and DMOnly at all overdensities).
+
+**Bugfixes:**
+
+- Fixes to mass conversion for HMF (according to Bocquet), and raising of error when the
+  wrong mass definition is used without allowing mass conversion.
+
 v3.3.4 [08 Jan 2021]
 ----------------------
 
