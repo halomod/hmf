@@ -1,6 +1,6 @@
 import numpy as np
 from hmf.cosmology import growth_factor
-from astropy.cosmology import Planck13
+from astropy.cosmology import Planck13, w0waCDM
 import pytest
 
 
@@ -18,7 +18,9 @@ def genf():
 def test_gf(z, gf, genf):
     print(gf.growth_factor(z), genf.growth_factor(z))
     assert np.isclose(
-        gf.growth_factor(z), genf.growth_factor(z), rtol=1e-2 + z / 500.0,
+        gf.growth_factor(z),
+        genf.growth_factor(z),
+        rtol=1e-2 + z / 500.0,
     )
 
 
@@ -55,3 +57,19 @@ def test_inverse(gf, genf):
     gf = np.linspace(0.15, 0.99, 10)
     print(gf_func(gf), genf_func(gf))
     assert np.allclose(gf_func(gf), genf_func(gf), rtol=1e-1)
+
+
+def test_unsupported_cosmo():
+    cosmo = w0waCDM(H0=70.0, Om0=0.3, Ode0=0.7, w0=-0.9, Ob0=0.05, Tcmb0=2.7)
+    with pytest.raises(ValueError):
+        growth_factor.GenMFGrowth(cosmo=cosmo)
+
+    # But shouldn't raise error for CAMBGrowth
+    growth_factor.CambGrowth(cosmo=cosmo)
+
+
+def test_carroll(gf):
+    cgf = growth_factor.Carroll1992(Planck13)
+
+    z = np.arange(6)
+    np.testing.assert_allclose(gf.growth_rate(z), cgf.growth_rate(z), rtol=0.05)

@@ -17,7 +17,7 @@ try:
     import camb
 
     HAVE_CAMB = True
-except ImportError:
+except ImportError:  # pragma: no cover
     HAVE_CAMB = False
 
 _allfits = ["CAMB", "FromFile", "EH_BAO", "EH_NoBAO", "BBKS", "BondEfs"]
@@ -171,9 +171,8 @@ if HAVE_CAMB:
         def __init__(self, *args, **kwargs):
             super(CAMB, self).__init__(*args, **kwargs)
 
-            if not (
-                isinstance(self.cosmo, cosmology.LambdaCDM)
-                or isinstance(self.cosmo, cosmology.wCDM)
+            if not isinstance(
+                self.cosmo, (cosmology.LambdaCDM, cosmology.wCDM, cosmology.w0waCDM)
             ):
                 raise ValueError("CAMB will only work with LCDM or wCDM cosmologies")
 
@@ -223,6 +222,10 @@ if HAVE_CAMB:
             # Set the DE equation of state. We only support constant w.
             if isinstance(self.cosmo, cosmology.wCDM):
                 self.params["camb_params"].set_dark_energy(w=self.cosmo.w0)
+            elif isinstance(self.cosmo, cosmology.w0waCDM):
+                self.params["camb_params"].set_dark_energy(
+                    w=self.cosmo.w0, wa=self.cosmo.wa
+                )
 
             if self.params["extrapolate_with_eh"]:
                 # Create an EH transfer to extrapolate to at high k.
@@ -662,11 +665,31 @@ class BBKS(TransferComponent):
 
     where
 
-    .. math:: q = \frac{k}{\Gamma} \exp\left(\Omega_{b,0} + \frac{\sqrt{2h}\Omega_{b,0}}{\Omega_{m,0}}\right)
+    .. math:: q = \frac{k}{\Gamma}
 
-    and :math:`\Gamma = \Omega_{m,0} h`.
+    and :math:`\Gamma = \Omega_{m,0} h`. Note that here *k* is in units of h/Mpc, which
+    accounts for the extra *h* in the equations in BBKS.
+
+    These equations are taken from BBKS 1986, Eq. G3.
+
+    Further modifications can be made in the presence of baryons. Sugiyama 1995, Eq. 3.9
+    gives
+
+    .. math:: \Gamma \rightarrow \Gamma \exp\left(-\Omega_{b,0}(1 + 1/\Omega_{m,0})\right)
+
+    and Liddle and Lythe (2000) Eq. 5.14 give a slight extra:
+
+    .. math:: \Gamma \rightarrow \Gamma \exp\left(-\Omega_{b,0}(1 + \sqrt{2h}/\Omega_{m,0})\right).
     """
-    _defaults = {"a": 2.34, "b": 3.89, "c": 16.1, "d": 5.47, "e": 6.71}
+    _defaults = {
+        "a": 2.34,
+        "b": 3.89,
+        "c": 16.1,
+        "d": 5.46,
+        "e": 6.71,
+        "use_sugiyama_baryons": False,
+        "use_liddle_baryons": True,
+    }
 
     def lnt(self, lnk):
         """
@@ -675,7 +698,7 @@ class BBKS(TransferComponent):
         Parameters
         ----------
         lnk : array_like
-            Wavenumbers [Mpc/h]
+            Wavenumbers [h/Mpc]
 
         Returns
         -------
@@ -689,14 +712,17 @@ class BBKS(TransferComponent):
         e = self.params["e"]
 
         Gamma = self.cosmo.Om0 * self.cosmo.h
-        q = (
-            np.exp(lnk)
-            / Gamma
-            * np.exp(
-                self.cosmo.Ob0
-                + np.sqrt(2 * self.cosmo.h) * self.cosmo.Ob0 / self.cosmo.Om0
+
+        if self.params["use_sugiyama_baryons"]:
+            Gamma *= np.exp(-self.cosmo.Ob0 * (1 + 1 / self.cosmo.Om0))
+        elif self.params["use_liddle_baryons"]:
+            Gamma *= np.exp(
+                -self.cosmo.Ob0
+                * (1 + np.sqrt(self.cosmo.Ob0 * self.cosmo.h) / self.cosmo.Om0)
             )
-        )
+
+        q = np.exp(lnk) / Gamma
+
         return np.log(
             (
                 np.log(1.0 + a * q)
@@ -747,7 +773,7 @@ class BondEfs(TransferComponent):
             The log of the transfer function at lnk.
         """
 
-        scale = (0.3 * 0.75 ** 2) / (self.cosmo.Om0 * self.cosmo.h ** 2)
+        scale = (0.3 * 0.75 ** 2) / (self.cosmo.Om0 * self.cosmo.h)
 
         a = self.params["a"] * scale
         b = self.params["b"] * scale

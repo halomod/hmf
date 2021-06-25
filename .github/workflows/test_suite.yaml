@@ -56,8 +56,9 @@ jobs:
           export PATH="$HOME/miniconda/bin:$PATH"
           source activate $ENV_NAME
           python -m pytest --cov=hmf --cov-config=.coveragerc --cov-report xml:./coverage.xml --durations=25
-      - uses: codecov/codecov-action@master
+      - uses: codecov/codecov-action@v1.5.2
         if: matrix.os == 'ubuntu-latest' && success() && !contains(github.event.pull_request.labels.*.name, 'auto-pr')
         with:
-          token: ${{secrets.CODECOV_TOKEN}} #required
-          file: ./coverage.xml #optional
+          file: ./coverage.xml # optional
+          fail_ci_if_error: true
+          verbose: true
