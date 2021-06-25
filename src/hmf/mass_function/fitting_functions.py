@@ -210,8 +210,9 @@ class FittingFunction(_framework.Component):
     req_neff = False  #: Whether `n_eff` is required for this subclass
     req_mass = False  #: Whether `m` is required for this subclass
 
-    sim_definition = None
-    #: Details of the defining simulation, instance of :class:`SimDetails`
+    sim_definition = (
+        None  #: Details of the defining simulation, instance of :class:`SimDetails`
+    )
 
     normalized = False  #: Whether this mass function is normalized such that all mass is in halos
 
@@ -325,8 +326,8 @@ class FittingFunction(_framework.Component):
 
 class PS(FittingFunction):
     # Subclass requirements
-    req_sigma = False
-    req_z = False
+    req_sigma = False  #: Whether sigma is required to compute this model.
+    req_z = False  #: Whether redshift is required for this model.
 
     _eq = r"\sqrt{\frac{2}{\pi}}\nu\exp(-0.5\nu^2)"
     _ref = r"""Press, W. H., Schechter, P., 1974. ApJ 187, 425-438. http://adsabs.harvard.edu/full/1974ApJ...187..425P"""
@@ -460,7 +461,12 @@ class Warren(FittingFunction):
     _defaults = {"A": 0.7234, "b": 1.625, "c": 0.2538, "d": 1.1982, "e": 1}
     normalized = False
 
-    uncertainties = {"A": 0.0073, "a": 0.028, "b": 0.0051, "c": 0.0075}
+    uncertainties = {
+        "A": 0.0073,
+        "a": 0.028,
+        "b": 0.0051,
+        "c": 0.0075,
+    }  #: Quoted uncertainties of the model parameters.
     sim_definition = SimDetails(
         L=[96, 135, 192, 272, 384, 543, 768, 1086, 1536, 2172, 2583, 3072],
         N=1024 ** 3,
@@ -1725,6 +1731,7 @@ class Bocquet200mDMOnly(Warren):
     )
 
     def get_params(self):
+        """Get the redshift-dependent parameters."""
         return (
             self.params["A"] * (1 + self.z) ** self.params["A_z"],
             self.params["b"] * (1 + self.z) ** self.params["b_z"],
@@ -1733,6 +1740,12 @@ class Bocquet200mDMOnly(Warren):
         )
 
     def convert_mass(self):
+        """Function to compute mass in this definition compared to 200m.
+
+        This is an analytic approximation, not a full mass translation, and is calibrated
+        to the NFW profile with Duffy+08 concentration-mass relation. This ratio is
+        applied in :meth:`fsigma`.
+        """
         return 1
 
     @property
@@ -1748,6 +1761,13 @@ class Bocquet200mDMOnly(Warren):
 
 
 class Bocquet200mHydro(Bocquet200mDMOnly):
+    __doc__ = _makedoc(
+        FittingFunction._pdocs,
+        "Bocquet",
+        "Bocquet",
+        Bocquet200mDMOnly._eq,
+        Bocquet200mDMOnly._ref,
+    )
     _defaults = {
         "A": 0.240,
         "b": 2.43,
@@ -1762,6 +1782,14 @@ class Bocquet200mHydro(Bocquet200mDMOnly):
 
 
 class Bocquet200cDMOnly(Bocquet200mDMOnly):
+    __doc__ = _makedoc(
+        FittingFunction._pdocs,
+        "Bocquet",
+        "Bocquet",
+        Bocquet200mDMOnly._eq,
+        Bocquet200mDMOnly._ref,
+    )
+
     _defaults = {
         "A": 0.256,
         "b": 2.01,
@@ -1778,6 +1806,14 @@ class Bocquet200cDMOnly(Bocquet200mDMOnly):
 
 
 class Bocquet200cHydro(Bocquet200cDMOnly):
+    __doc__ = _makedoc(
+        FittingFunction._pdocs,
+        "Bocquet",
+        "Bocquet",
+        Bocquet200mDMOnly._eq,
+        Bocquet200mDMOnly._ref,
+    )
+
     _defaults = {
         "A": 0.290,
         "b": 2.69,
@@ -1804,6 +1840,14 @@ class Bocquet200cHydro(Bocquet200cDMOnly):
 
 
 class Bocquet500cDMOnly(Bocquet200cDMOnly):
+    __doc__ = _makedoc(
+        FittingFunction._pdocs,
+        "Bocquet",
+        "Bocquet",
+        Bocquet200mDMOnly._eq,
+        Bocquet200mDMOnly._ref,
+    )
+
     _defaults = {
         "A": 0.390,
         "b": 3.05,
@@ -1828,6 +1872,14 @@ class Bocquet500cDMOnly(Bocquet200cDMOnly):
 
 
 class Bocquet500cDMOnly(Bocquet500cDMOnly):
+    __doc__ = _makedoc(
+        FittingFunction._pdocs,
+        "Bocquet",
+        "Bocquet",
+        Bocquet200mDMOnly._eq,
+        Bocquet200mDMOnly._ref,
+    )
+
     _defaults = {
         "A": 0.322,
         "b": 3.24,

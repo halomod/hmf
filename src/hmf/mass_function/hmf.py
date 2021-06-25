@@ -35,7 +35,7 @@ class MassFunction(transfer.Transfer):
     Most outputs are provided as ``@cached_quantity`` attributes for ease of
     access.
 
-    Contains an :method:`~update` method which can be passed arguments to update, in the
+    Contains an :meth:`~update` method which can be passed arguments to update, in the
     most optimal manner. All output quantities are calculated only when needed
     (but stored after first calculation for quick access).
 
@@ -64,7 +64,13 @@ class MassFunction(transfer.Transfer):
         this must be compatible with the halo definition used in measuring the chosen
         HMF -- unless ``disable_mass_conversion`` is set to False, in which case the
         HMF is automatically translated to a new mass definition.
-    h
+    mdef_params
+        Parameters specific to the mass definition model. Typically "overdensity" or
+        "linking_length".
+    delta_c
+        The critical overdensity for collapse.
+    filter_model
+        A model to compute the
 
     Examples
     --------

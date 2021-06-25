@@ -210,6 +210,7 @@ class Framework(metaclass=_Validator):
     _validate_every_param_set = False
 
     def validate(self):
+        """Perform validation of the input parameters as they relate to each other."""
         pass
 
     def update(self, **kwargs):
@@ -271,13 +272,16 @@ class Framework(metaclass=_Validator):
     @property
     def parameter_values(self):
         "Dictionary of all parameters and their current values"
-        out = {}
-        for name in getattr(self, "_" + self.__class__.__name__ + "__recalc_par_prop"):
-            out[name] = getattr(self, name)
-        return out
+        return {
+            name: getattr(self, name)
+            for name in getattr(
+                self, "_" + self.__class__.__name__ + "__recalc_par_prop"
+            )
+        }
 
     @classmethod
     def quantities_available(cls):
+        """Obtain a list of all available output quantities."""
         all_names = cls.get_all_parameter_names()
         return [
             name

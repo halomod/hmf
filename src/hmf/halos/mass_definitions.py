@@ -10,6 +10,7 @@ import astropy.units as u
 from astropy.cosmology import Planck15, FLRW
 import warnings
 from ..cosmology import Cosmology
+from typing import Optional
 
 __all__ = [
     "FOF",
@@ -214,7 +215,7 @@ class SphericalOverdensity(MassDefinition):
 
 
 class SOGeneric(SphericalOverdensity):
-    def __init__(self, preferred: [None, SphericalOverdensity] = None, **kwargs):
+    def __init__(self, preferred: Optional[SphericalOverdensity] = None, **kwargs):
         super().__init__(**kwargs)
         self.preferred = preferred
 

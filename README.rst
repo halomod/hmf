@@ -4,12 +4,12 @@ hmf
 
 **The halo mass function calculator.**
 
-.. image:: https://github.com/steven-murray/hmf/workflows/Tests/badge.svg
-    :target: https://github.com/steven-murray/hmf
+.. image:: https://github.com/halomod/hmf/workflows/Tests/badge.svg
+    :target: https://github.com/halomod/hmf
 .. image:: https://badge.fury.io/py/hmf.svg
     :target: https://badge.fury.io/py/hmf
-.. image:: https://codecov.io/gh/steven-murray/hmf/branch/master/graph/badge.svg
-    :target: https://codecov.io/gh/steven-murray/hmf
+.. image:: https://codecov.io/gh/halomod/hmf/branch/master/graph/badge.svg
+    :target: https://codecov.io/gh/halomod/hmf
 .. image:: https://img.shields.io/pypi/pyversions/hmf.svg
     :target: https://pypi.org/project/hmf/
 .. image:: https://img.shields.io/badge/code%20style-black-000000.svg
