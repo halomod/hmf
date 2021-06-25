@@ -82,7 +82,7 @@ To change the parameters (cosmological or otherwise), one should use the
     >>> cumulative_mass_func = hmf.ngtm
 
 For a more involved introduction to ``hmf``, check out the `tutorials <tutorials.html>`_,
-which are currently under construction, or the `API docs <api.html>`_.
+or the `API docs <api.html>`_.
 
 Using the CLI
 ~~~~~~~~~~~~~
@@ -109,6 +109,7 @@ If your package depends on ``hmf``, set the dependent version like this::
 
 Attribution
 -----------
-Please cite `Murray, Power and Robotham (2013)
-<https://arxiv.org/abs/1306.6721>`_ and/or https://ascl.net/1412.006 (whichever is more appropriate) if you find this
+Please cite `Murray, Power and Robotham (2013) <https://arxiv.org/abs/1306.6721>`_,
+`Murray, Diemer, Chen, et al. (2021) <https://arxiv.org/abs/2009.14066>`_
+and/or https://ascl.net/1412.006 (whichever is more appropriate) if you find this
 code useful in your research. Please also consider starring the GitHub repository.

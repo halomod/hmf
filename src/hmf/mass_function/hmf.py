@@ -11,6 +11,7 @@ from scipy.optimize import minimize
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 import warnings
 from numpy import issubclass_
+from typing import Union, Optional, Dict, Any
 
 from . import fitting_functions as ff
 from ..density_field import transfer
@@ -47,10 +48,23 @@ class MassFunction(transfer.Transfer):
 
     Parameters
     ----------
-    Mmin : float
+    Mmin
+        The log10 of the minimum halo mass to compute quantities for (units Msun/h).
+    Mmax
+        The log10 of the minimum halo mass to compute quantities for (units Msun/h).
+    dlog10m
+        The resolution of the mass array (logarithmically spaced).
+    hmf_model
+        The HMF fitting function to use.
+    hmf_params
+        Parameters specific to the chosen HMF.
     mdef_model
         The mass definition model to use. By default, use the mass definition in which
-        the chosen hmf was measured. If that does not exist, use SOMean(200).
+        the chosen HMF was measured. If that does not exist, use ``SOMean(200)``. If set,
+        this must be compatible with the halo definition used in measuring the chosen
+        HMF -- unless ``disable_mass_conversion`` is set to False, in which case the
+        HMF is automatically translated to a new mass definition.
+    h
 
     Examples
     --------
@@ -74,16 +88,16 @@ class MassFunction(transfer.Transfer):
 
     def __init__(
         self,
-        Mmin: float = 10,
-        Mmax: float = 15,
+        Mmin: float = 10.0,
+        Mmax: float = 15.0,
         dlog10m: float = 0.01,
-        hmf_model: [str, ff.FittingFunction] = ff.Tinker08,
-        hmf_params: [dict, None] = None,
-        mdef_model: [None, str, md] = None,
-        mdef_params: [dict, None] = None,
+        hmf_model: Union[str, ff.FittingFunction] = ff.Tinker08,
+        hmf_params: Optional[Dict[str, Any]] = None,
+        mdef_model: Union[None, str, md] = None,
+        mdef_params: Union[dict, None] = None,
         delta_c: float = 1.686,
-        filter_model: [str, Filter] = TopHat,
-        filter_params: [dict, None] = None,
+        filter_model: Union[str, Filter] = TopHat,
+        filter_params: Union[dict, None] = None,
         disable_mass_conversion: bool = True,
         **transfer_kwargs,
     ):
