@@ -226,7 +226,7 @@ class Framework(metaclass=_Validator):
         """
         self._validate = False
         try:
-            for k in list(kwargs.values()):
+            for k in list(kwargs.keys()):
                 # If key is just a parameter to the class, just update it.
                 if hasattr(self, k):
                     setattr(self, k, kwargs.pop(k))
