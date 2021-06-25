@@ -4,6 +4,11 @@ Releases
 dev-version
 ----------------------
 
+**Features**
+
+- Added ``normalized`` attribute of all ``FittingFunction`` models, to tell whether the
+  model integrates to the mean density over all mass.
+
 **Changes**
 
 - Internal working of ``GrowthFactor`` has been updated to use splines. It is now faster
