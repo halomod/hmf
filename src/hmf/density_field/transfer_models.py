@@ -17,7 +17,7 @@ try:
     import camb
 
     HAVE_CAMB = True
-except ImportError:
+except ImportError:  # pragma: no cover
     HAVE_CAMB = False
 
 _allfits = ["CAMB", "FromFile", "EH_BAO", "EH_NoBAO", "BBKS", "BondEfs"]

@@ -3,7 +3,7 @@ from hmf.density_field.transfer import Transfer
 from hmf.density_field.transfer_models import EH_BAO
 import pytest
 import camb
-from astropy.cosmology import w0waCDM
+from astropy.cosmology import w0waCDM, wCDM, LambdaCDM
 
 # def rms(a):
 #     print(a)
@@ -109,3 +109,38 @@ def test_camb_w0wa():
         ),
     )
     assert t.transfer_function.shape == t.k.shape
+
+
+def test_camb_wCDM():
+    """Essentially just test that CAMB doesn't fall over with a w0wa model."""
+    t = Transfer(
+        transfer_model="CAMB",
+        cosmo_model=wCDM(Om0=0.3, Ode0=0.7, w0=-1, Ob0=0.05, H0=70.0, Tcmb0=2.7),
+    )
+
+    t2 = Transfer(
+        transfer_model="CAMB",
+        cosmo_model=LambdaCDM(Om0=0.3, Ode0=0.7, Ob0=0.05, H0=70.0, Tcmb0=2.7),
+    )
+    np.testing.assert_array_almost_equal(t.transfer_function, t2.transfer_function)
+
+
+def test_camb_unset_params():
+    with pytest.raises(ValueError):
+        Transfer(
+            transfer_model="CAMB",
+            cosmo_model=w0waCDM(Om0=0.3, Ode0=0.7, w0=-1, wa=0.03, Ob0=0.05, H0=70.0),
+        )
+
+    with pytest.raises(ValueError):
+        Transfer(
+            transfer_model="CAMB",
+            cosmo_model=w0waCDM(Om0=0.3, Ode0=0.7, w0=-1, wa=0.03, H0=70.0, Tcmb0=2.7),
+        )
+
+
+def test_bbks_sugiyama():
+    t = Transfer(transfer_model="BBKS", transfer_params={"use_sugiyama_baryons": True})
+    t2 = Transfer(transfer_model="BBKS")
+
+    assert not np.allclose(t.transfer_function, t2.transfer_function)
