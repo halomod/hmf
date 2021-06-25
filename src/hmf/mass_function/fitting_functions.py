@@ -6,14 +6,15 @@ listed here, please advise via GitHub.
 """
 
 import numpy as np
-from scipy.interpolate import InterpolatedUnivariateSpline as _spline
 import scipy.special as sp
-from ..cosmology import cosmo as csm
-from .._internals import _framework
-from copy import copy
-from ..halos import mass_definitions as md
 import warnings
+from copy import copy
+from scipy.interpolate import InterpolatedUnivariateSpline as _spline
 from typing import Union
+
+from .._internals import _framework
+from ..cosmology import cosmo as csm
+from ..halos import mass_definitions as md
 
 
 class SimDetails:
@@ -79,7 +80,7 @@ class SimDetails:
         ICS=None,
         nmin=None,
         hmf_analysis_notes="",
-        other_cosmo={},
+        other_cosmo=None,
     ):
 
         # Possible multi-sims
@@ -99,7 +100,7 @@ class SimDetails:
         self.hmf_analysis_notes = hmf_analysis_notes
         self.nmin = nmin
 
-        self.other_cosmo = other_cosmo
+        self.other_cosmo = other_cosmo or {}
 
         # Derived
         self.V = self.L ** 3
@@ -172,7 +173,8 @@ class FittingFunction(_framework.Component):
     >>>        a = self.params["a"]
     >>>        p = self.params['p']
     >>>
-    >>>        return (A * np.sqrt(2.0 * a / np.pi) * self.nu * np.exp(-(a * self.nu2) / 2.0)
+    >>>        return (A * np.sqrt(2.0 * a / np.pi) * self.nu *
+    >>>               np.exp(-(a * self.nu2) / 2.0)
     >>>               * (1 + (1.0 / (a * self.nu2)) ** p))
 
     In that example, we did not specify :attr:`cutmask`.
@@ -192,9 +194,9 @@ class FittingFunction(_framework.Component):
         is 0.
     n_eff : array_like, optional
         The effective spectral index at `m`. Only required if :attr:`req_neff` is True.
-    mass_definition : :class:`hmf.halos.mass_definitions.MassDefinition` instance, optional
-        A halo mass definition. Only required for fits which explicitly include a parameterization
-        for halo definition.
+    mass_definition : :class:`hmf.halos.mass_definitions.MassDefinition` instance
+        A halo mass definition. Only required for fits which explicitly include a
+        parameterization for halo definition.
     cosmo : :class:`astropy.cosmology.FLRW` instance, optional
         A cosmology. Default is Planck15. Either `omegam_z` or `cosmo` is required if
         :attr:`req_omz` is True. If both are passed, omegam_z takes precedence.
@@ -214,7 +216,7 @@ class FittingFunction(_framework.Component):
         None  #: Details of the defining simulation, instance of :class:`SimDetails`
     )
 
-    normalized = False  #: Whether this mass function is normalized such that all mass is in halos
+    normalized = False  #: Whether this model is normalized so that all mass is in halos
 
     def __init__(
         self,
@@ -272,7 +274,8 @@ class FittingFunction(_framework.Component):
                 elif delta_h.endswith("m"):
                     measured = md.SOMean(overdensity=float(delta_h[:-1]))
                 elif delta_h.startswith("*"):
-                    # A Generic SO that will accept any SO definition, but has a preferred one.
+                    # A Generic SO that will accept any SO definition, but has a
+                    # preferred one.
                     measured = md.SOGeneric(
                         preferred=md.from_colossus_name(
                             delta_h.split("(")[-1].split(")")[0]
@@ -330,7 +333,10 @@ class PS(FittingFunction):
     req_z = False  #: Whether redshift is required for this model.
 
     _eq = r"\sqrt{\frac{2}{\pi}}\nu\exp(-0.5\nu^2)"
-    _ref = r"""Press, W. H., Schechter, P., 1974. ApJ 187, 425-438. http://adsabs.harvard.edu/full/1974ApJ...187..425P"""
+    _ref = (
+        r"Press, W. H., Schechter, P., 1974. ApJ 187, 425-438. "
+        "http://adsabs.harvard.edu/full/1974ApJ...187..425P"
+    )
 
     __doc__ = _makedoc(FittingFunction._pdocs, "Press-Schechter", "PS", _eq, _ref)
     normalized = True
@@ -346,7 +352,10 @@ class SMT(FittingFunction):
     req_z = False
 
     _eq = r"A\sqrt{2a/\pi}\nu\exp(-a\nu^2/2)(1+(a\nu^2)^{-p})"
-    _ref = r"""Sheth, R. K., Mo, H. J., Tormen, G., May 2001. MNRAS 323 (1), 1-12. http://doi.wiley.com/10.1046/j.1365-8711.2001.04006.x"""
+    _ref = (
+        r"Sheth, R. K., Mo, H. J., Tormen, G., May 2001. MNRAS 323 (1), 1-12. "
+        r"http://doi.wiley.com/10.1046/j.1365-8711.2001.04006.x"
+    )
     __doc__ = _makedoc(FittingFunction._pdocs, "Sheth-Mo-Tormen", "SMT", _eq, _ref)
 
     _defaults = {"a": 0.707, "p": 0.3, "A": None}
@@ -412,7 +421,10 @@ class Jenkins(FittingFunction):
     req_z = False
 
     _eq = r"A\exp\left(-\left|\ln\sigma^{-1}+b\right|^c\right)"
-    _ref = r"""Jenkins, A. R., et al., Feb. 2001. MNRAS 321 (2), 372-384. http://doi.wiley.com/10.1046/j.1365-8711.2001.04029.x"""
+    _ref = (
+        r"Jenkins, A. R., et al., Feb. 2001. MNRAS 321 (2), 372-384. "
+        r"http://doi.wiley.com/10.1046/j.1365-8711.2001.04029.x"
+    )
     __doc__ = _makedoc(FittingFunction._pdocs, "Jenkins", "Jenkins", _eq, _ref)
     _defaults = {"A": 0.315, "b": 0.61, "c": 3.8}
     normalized = False
@@ -454,8 +466,14 @@ class Warren(FittingFunction):
     req_z = False
     req_mass = True
 
-    _eq = r"A\left[\left(\frac{e}{\sigma}\right)^b + c\right]\exp\left(\frac{d}{\sigma^2}\right)"
-    _ref = r"""Warren, M. S., et al., Aug. 2006. ApJ 646 (2), 881-885. http://adsabs.harvard.edu/abs/2006ApJ...646..881W"""
+    _eq = (
+        r"A\left[\left(\frac{e}{\sigma}\right)^b + c\right]\exp"
+        r"\left(\frac{d}{\sigma^2}\right)"
+    )
+    _ref = (
+        r"Warren, M. S., et al., Aug. 2006. ApJ 646 (2), 881-885."
+        r"http://adsabs.harvard.edu/abs/2006ApJ...646..881W"
+    )
     __doc__ = _makedoc(FittingFunction._pdocs, "Warren", "Warren", _eq, _ref)
 
     _defaults = {"A": 0.7234, "b": 1.625, "c": 0.2538, "d": 1.1982, "e": 1}
@@ -1619,9 +1637,8 @@ class Pillepich(Warren):
         other_cosmo={
             "omegav": [0.721, 0.76, 0.721],
             "omegab": [0.0462, 0.042, 0.0462],
-            ## uses lower case omega without definition
+            # uses lower case omega without definition
             "h": [0.701, 0.73, 0.701],
-            "n": [0.96, 0.95, 0.96],
         },
     )
 

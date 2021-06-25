@@ -4,14 +4,14 @@ Various models for computing the transfer function.
 Note that these are not transfer function "frameworks". The framework is found
 in :mod:`hmf.transfer`.
 """
-import warnings
-import pickle
-from copy import deepcopy
-
 import numpy as np
-from scipy.interpolate import InterpolatedUnivariateSpline as spline
-from .._internals._framework import Component, pluggable
+import pickle
+import warnings
 from astropy import cosmology
+from copy import deepcopy
+from scipy.interpolate import InterpolatedUnivariateSpline as spline
+
+from .._internals._framework import Component, pluggable
 
 try:
     import camb
@@ -98,7 +98,6 @@ class FromFile(TransferComponent):
         lnT : array_like
             Value of log(transfer)
         """
-
         start = 0
         for i in range(len(lnk) - 1):
             if abs((lnT[i + 1] - lnT[i]) / (lnk[i + 1] - lnk[i])) < 0.0001:
@@ -197,12 +196,14 @@ if HAVE_CAMB:
 
             if self.cosmo.Ob0 is None:
                 raise ValueError(
-                    "To use CAMB, you must set the baryon density in the cosmology explicitly."
+                    "To use CAMB, you must set the baryon density in the cosmology "
+                    "explicitly."
                 )
 
             if self.cosmo.Tcmb0.value == 0:
                 raise ValueError(
-                    "If using CAMB, the CMB temperature must be set explicitly in the cosmology."
+                    "If using CAMB, the CMB temperature must be set explicitly in the "
+                    "cosmology."
                 )
 
             self.params["camb_params"].set_cosmology(
@@ -258,28 +259,28 @@ if HAVE_CAMB:
 
             lnT -= lnT[0]
 
-            if self.params["extrapolate_with_eh"]:
-                # Now add a point one e-fold above the max, with an EH-generated transfer
-                lnkout = np.concatenate((lnkout, [lnkout[-1] + 1]))
-                # normalise EH at the final CAMB point.
-                norm = self._eh.lnt(lnkout[-2]) - lnT[-1]
-                lnT = np.concatenate((lnT, [self._eh.lnt(lnkout[-1]) - norm]))
-
-                lnkmin = lnkout.min()
-                lnkmax = lnkout.max()
-
-                inner_spline = spline(lnkout, lnT, k=3)
-
-                out = np.zeros_like(lnk)
-                out[lnk < lnkmin] = 0
-                out[(lnkmin <= lnk) & (lnk <= lnkmax)] = inner_spline(
-                    lnk[(lnkmin <= lnk) & (lnk <= lnkmax)]
-                )
-                out[lnk >= lnkmax] = self._eh.lnt(lnk[lnk >= lnkmax]) - norm
-
-                return out
-            else:
+            if not self.params["extrapolate_with_eh"]:
                 return spline(lnkout, lnT, k=1)(lnk)
+
+            # Now add a point one e-fold above the max, with an EH-generated transfer
+            lnkout = np.concatenate((lnkout, [lnkout[-1] + 1]))
+            # normalise EH at the final CAMB point.
+            norm = self._eh.lnt(lnkout[-2]) - lnT[-1]
+            lnT = np.concatenate((lnT, [self._eh.lnt(lnkout[-1]) - norm]))
+
+            lnkmin = lnkout.min()
+            lnkmax = lnkout.max()
+
+            inner_spline = spline(lnkout, lnT, k=3)
+
+            out = np.zeros_like(lnk)
+            out[lnk < lnkmin] = 0
+            out[(lnkmin <= lnk) & (lnk <= lnkmax)] = inner_spline(
+                lnk[(lnkmin <= lnk) & (lnk <= lnkmax)]
+            )
+            out[lnk >= lnkmax] = self._eh.lnt(lnk[lnk >= lnkmax]) - norm
+
+            return out
 
         def __getstate__(self):
             # We need to get rid of the CAMBparams() object, as it cannot be pickled.
@@ -351,8 +352,9 @@ if HAVE_CAMB:
                     dct[pk] = getattr(p, pk)
                 except AttributeError:
                     warnings.warn(
-                        f"CAMB key '{pk}' is not an attribute. If you provided a custom "
-                        f"CAMBparams, results may be inconsistent. Available: {dir(p)}"
+                        f"CAMB key '{pk}' is not an attribute. If you provided a "
+                        f"custom CAMBparams, results may be inconsistent. Available: "
+                        f"{dir(p)}"
                     )
 
                 except Exception:
@@ -661,7 +663,8 @@ class BBKS(TransferComponent):
     -----
     The fit is given as
 
-    .. math:: T(k) = \frac{\ln(1+aq)}{aq}\left(1 + bq + (cq)^2 + (dq)^3 + (eq)^4\right)^{-1/4},
+    .. math:: T(k) = \frac{\ln(1+aq)}{aq}
+              \left(1 + bq + (cq)^2 + (dq)^3 + (eq)^4\right)^{-1/4},
 
     where
 
@@ -675,11 +678,13 @@ class BBKS(TransferComponent):
     Further modifications can be made in the presence of baryons. Sugiyama 1995, Eq. 3.9
     gives
 
-    .. math:: \Gamma \rightarrow \Gamma \exp\left(-\Omega_{b,0}(1 + 1/\Omega_{m,0})\right)
+    .. math:: \Gamma \rightarrow \Gamma
+              \exp\left(-\Omega_{b,0}(1 + 1/\Omega_{m,0})\right)
 
     and Liddle and Lythe (2000) Eq. 5.14 give a slight extra:
 
-    .. math:: \Gamma \rightarrow \Gamma \exp\left(-\Omega_{b,0}(1 + \sqrt{2h}/\Omega_{m,0})\right).
+    .. math:: \Gamma \rightarrow \Gamma
+              \exp\left(-\Omega_{b,0}(1 + \sqrt{2h}/\Omega_{m,0})\right).
     """
     _defaults = {
         "a": 2.34,
@@ -724,11 +729,9 @@ class BBKS(TransferComponent):
         q = np.exp(lnk) / Gamma
 
         return np.log(
-            (
-                np.log(1.0 + a * q)
-                / (a * q)
-                * (1 + b * q + (c * q) ** 2 + (d * q) ** 3 + (e * q) ** 4) ** (-0.25)
-            )
+            np.log(1.0 + a * q)
+            / (a * q)
+            * (1 + b * q + (c * q) ** 2 + (d * q) ** 3 + (e * q) ** 4) ** (-0.25)
         )
 
 
@@ -750,7 +753,8 @@ class BondEfs(TransferComponent):
     -----
     The fit is given as
 
-    .. math:: T(k) = \left[1 + (\tilde{a}k + (\tilde{b}k)^{3/2} + (\tilde{c}k)^2)^\nu\right]^{-1/\nu}
+    .. math:: T(k) = \left[1 + (\tilde{a}k + (\tilde{b}k)^{3/2} +
+              (\tilde{c}k)^2)^\nu\right]^{-1/\nu}
 
     where :math:`\tilde{x} = x\alpha` and
 

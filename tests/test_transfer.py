@@ -1,9 +1,11 @@
+import pytest
+
+import camb
 import numpy as np
+from astropy.cosmology import LambdaCDM, w0waCDM, wCDM
+
 from hmf.density_field.transfer import Transfer
 from hmf.density_field.transfer_models import EH_BAO
-import pytest
-import camb
-from astropy.cosmology import w0waCDM, wCDM, LambdaCDM
 
 # def rms(a):
 #     print(a)

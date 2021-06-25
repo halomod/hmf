@@ -1,6 +1,6 @@
 import numpy as np
-from hmf import get_hmf
-from hmf import MassFunction
+
+from hmf import MassFunction, get_hmf
 
 
 def test_order():

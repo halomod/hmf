@@ -5,21 +5,20 @@ The module contains a single class, `MassFunction`, which wraps almost all the
 functionality of :mod:`hmf` in an easy-to-use way.
 """
 
-import numpy as np
 import copy
-from scipy.optimize import minimize
-from scipy.interpolate import InterpolatedUnivariateSpline as spline
+import numpy as np
 import warnings
-from numpy import issubclass_
-from typing import Union, Optional, Dict, Any
+from scipy.interpolate import InterpolatedUnivariateSpline as spline
+from scipy.optimize import minimize
+from typing import Any, Dict, Optional, Union
 
-from . import fitting_functions as ff
-from ..density_field import transfer
-from .._internals._cache import parameter, cached_quantity
-from ..density_field.filters import TopHat, Filter
+from .._internals._cache import cached_quantity, parameter
 from .._internals._framework import get_mdl
-from ..halos.mass_definitions import MassDefinition as md, SOGeneric, SOMean
-
+from ..density_field import transfer
+from ..density_field.filters import Filter, TopHat
+from ..halos.mass_definitions import MassDefinition as md
+from ..halos.mass_definitions import SOGeneric, SOMean
+from . import fitting_functions as ff
 from .integrate_hmf import hmf_integral_gtm as int_gtm
 
 
@@ -368,9 +367,7 @@ class MassFunction(transfer.Transfer):
 
         Notes
         -----
-
         .. math:: frac{d\ln\sigma}{d\ln m} = \frac{3}{2\sigma^2\pi^2R^4}\int_0^\infty \frac{dW^2(kR)}{dM}\frac{P(k)}{k^2}dk
-
         """
         return 0.5 * self.filter.dlnss_dlnm(self.radii)
 
@@ -496,7 +493,7 @@ class MassFunction(transfer.Transfer):
         Calculate number or mass density above mass thresholds in `m`
 
         This function is here, separate from the properties, due to its need
-        of being passed ``dndm` in the case of the :class:`~fitting_functions.Behroozi`
+        of being passed ``dndm`` in the case of the :class:`~fitting_functions.Behroozi`
         fit only, in which case an infinite recursion would occur otherwise.
 
         Parameters

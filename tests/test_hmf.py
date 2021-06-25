@@ -1,7 +1,10 @@
+"""Tests of HMF."""
 from pytest import raises
-from hmf import MassFunction
+
 import numpy as np
 import warnings
+
+from hmf import MassFunction
 
 
 def test_wrong_filter():

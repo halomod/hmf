@@ -1,20 +1,20 @@
 """
 Module containing Warm Dark Matter models.
 
-This module contains both WDM Components (basic WDM models and also recalibrators for the
-HMF) and Frameworks (Transfer and MassFunction). The latter inject WDM modelling into
-the standard CDM Frameworks, and provide an example of how one would go about this for
-other alternative cosmologies.
+This module contains both WDM Components (basic WDM models and also recalibrators for
+the HMF) and Frameworks (Transfer and MassFunction). The latter inject WDM modelling
+into the standard CDM Frameworks, and provide an example of how one would go about this
+for other alternative cosmologies.
 """
 
+import astropy.units as u
 import numpy as np
-from ..density_field.transfer import Transfer as _Tr
-from ..mass_function.hmf import MassFunction as _MF
-from .._internals._cache import parameter, cached_quantity
+
+from .._internals._cache import cached_quantity, parameter
 from .._internals._framework import Component, get_mdl, pluggable
 from ..cosmology.cosmo import Planck15
-
-import astropy.units as u
+from ..density_field.transfer import Transfer as _Tr
+from ..mass_function.hmf import MassFunction as _MF
 
 
 # ===============================================================================
@@ -58,8 +58,7 @@ class WDM(Component):
         super(WDM, self).__init__(**model_params)
 
     def transfer(self, lnk):
-        """
-        Transfer function for WDM models
+        """Transfer function for WDM models.
 
         Parameters
         ----------
@@ -73,14 +72,14 @@ class WDM(Component):
 
         """
         raise NotImplementedError(
-            "You shouldn't call the WDM class, and any subclass should define the transfer method."
+            "You shouldn't call the WDM class, and any subclass should define the "
+            "transfer method."
         )
 
 
 class Viel05(WDM):
     r"""
-    Transfer function from Viel 2005 (which is exactly the same as Bode et al.
-    2001).
+    Transfer function from Viel 2005 (which is exactly the same as Bode et al. 2001).
 
     Formula from Bode et. al. 2001 eq. A9.
 
@@ -104,14 +103,14 @@ class Viel05(WDM):
     _defaults = {"mu": 1.12, "g_x": 1.5}
 
     def transfer(self, k):
+        """Compute the modified WDM transfer function."""
         return (1 + (self.lam_eff_fs * k) ** (2 * self.params["mu"])) ** (
             -5.0 / self.params["mu"]
         )
 
     @property
     def lam_eff_fs(self):
-        """
-        Effective free-streaming scale.
+        """Effective free-streaming scale.
 
         From Schneider+2013, Eq. 6
         """
@@ -157,7 +156,12 @@ class Viel05(WDM):
 
 
 class Bode01(Viel05):
+    """The WDM model of Bode et al. (2001)."""
+
     pass
+
+
+viel_model = Viel05(mx=1.0)
 
 
 @pluggable
@@ -181,13 +185,14 @@ class WDMRecalibrateMF(Component):
         class attribute.
     """
 
-    def __init__(self, m, dndm0, wdm=Viel05(mx=1.0), **model_parameters):
+    def __init__(self, m, dndm0, wdm=viel_model, **model_parameters):
         self.m = m
         self.dndm0 = dndm0
         self.wdm = wdm
         super(WDMRecalibrateMF, self).__init__(**model_parameters)
 
     def dndm_alter(self):
+        """Alter the CDM dn/dm to impose WDM modeling."""
         pass
 
 
@@ -276,14 +281,16 @@ class TransferWDM(_Tr):
 
     In addition to the parameters directly passed to this class, others are available
     which are passed on to its superclass. To read a standard documented list of (all)
-    parameters, use ``TransferWDM.parameter_info()``. If you want to just see the plain
-    list of available parameters, use ``TransferWDM.get_all_parameters()``.To see the
-    actual defaults for each parameter, use ``TransferWDM.get_all_parameter_defaults()``.
+    parameters, use :meth:`parameter_info`. If you want to just see the plain
+    list of available parameters, use :meth`get_all_parameters`. To see the
+    actual defaults for each parameter, use :meth:`get_all_parameter_defaults`.
     """
 
     def __init__(
-        self, wdm_mass=3.0, wdm_model=Viel05, wdm_params={}, **transfer_kwargs
+        self, wdm_mass=3.0, wdm_model=Viel05, wdm_params=None, **transfer_kwargs
     ):
+        wdm_params = wdm_params or {}
+
         # Call standard transfer
         super(TransferWDM, self).__init__(**transfer_kwargs)
 
@@ -352,10 +359,9 @@ class MassFunctionWDM(_MF, TransferWDM):
 
     In addition to the parameters directly passed to this class, others are available
     which are passed on to its superclass. To read a standard documented list of (all)
-    parameters, use ``MassFunctionWDM.parameter_info()``. If you want to just see the
-    plain list of available parameters, use ``MassFunctionWDM.get_all_parameters()``. To
-    see the actual defaults for each parameter, use
-    ``MassFunctionWDM.get_all_parameter_defaults()``.
+    parameters, use :meth:`parameter_info`. If you want to just see the plain
+    list of available parameters, use :meth`get_all_parameters`. To see the
+    actual defaults for each parameter, use :meth:`get_all_parameter_defaults`.
     """
 
     def __init__(self, alter_model=None, alter_params=None, **kwargs):
@@ -377,9 +383,7 @@ class MassFunctionWDM(_MF, TransferWDM):
 
     @parameter("param")
     def alter_params(self, val):
-        """
-        Model parameters for `alter_model`.
-        """
+        """Model parameters for `alter_model`."""
         return val
 
     @cached_quantity

@@ -1,18 +1,17 @@
-"""
-This module provides functions for generating several :class:`hmf.hmf.MassFunction` instances
-from a combination of lists of parameters, in optimal order.
+"""Functions for generating several :class:`hmf.hmf.MassFunction` instances at once.
 
-The underlying idea here is that typically modifying say the redshift has a smaller number
-of re-computations than modifying the base cosmological parameters. Thus, in a nested
-loop, the redshift should be the inner loop.
+The underlying idea here is that typically modifying say the redshift has a smaller
+number of re-computations than modifying the base cosmological parameters. Thus, in a
+nested loop, the redshift should be the inner loop.
 
 It is not always obvious which order the loops should be, so this module provides
 functions to determine that order, and indeed perform the loops.
 """
 
 import collections
-from ..mass_function import hmf
 import itertools
+
+from ..mass_function import hmf
 
 
 def get_best_param_order(kls, q="dndm", **kwargs):
@@ -45,14 +44,17 @@ def get_best_param_order(kls, q="dndm", **kwargs):
     Returns
     -------
     final_list : list
-        An ordered list of parameters, with the first corresponding to the outer-most loop.
+        An ordered list of parameters, with the first corresponding to the outer-most
+        loop.
 
     Examples
     --------
     >>> from src.hmf import MassFunction
-    >>> print get_best_param_order(MassFunction,"dndm",transfer_model="BBKS",dlnk=1,dlog10m=1)[::3]
-    ['z2', 'hmf_model', 'delta_wrt', 'growth_params', 'filter_params', 'Mmin', 'transfer_params',
-    'dlnk', 'cosmo_params']
+    >>> print get_best_param_order(
+    >>>     MassFunction,"dndm",transfer_model="BBKS",dlnk=1,dlog10m=1
+    >>> )[::3]
+    ['z2', 'hmf_model', 'delta_wrt', 'growth_params', 'filter_params',
+     'Mmin', 'transfer_params', 'dlnk', 'cosmo_params']
     """
     a = kls(**kwargs)
 
@@ -64,9 +66,11 @@ def get_best_param_order(kls, q="dndm", **kwargs):
 
     final_list = []
     final_num = []
-    for k, v in getattr(a, "_" + a.__class__.__name__ + "__recalc_par_prop").items():
+    for i, (k, v) in enumerate(
+        getattr(a, "_" + a.__class__.__name__ + "__recalc_par_prop").items()
+    ):
         num = len(v)
-        for i, ln in enumerate(final_num):
+        for ln in final_num:
             if ln >= num:
                 break
         else:
@@ -82,7 +86,7 @@ def get_hmf(
     req_qauntities,
     get_label=True,
     framework=hmf.MassFunction,
-    fast_kwargs={
+    fast_kwargs={  # noqa: B006
         "transfer_model": "BBKS",
         "lnk_min": -1,
         "lnk_max": 1,
@@ -141,9 +145,12 @@ def get_hmf(
     Examples
     --------
     The following operation will run 12 iterations, yielding the desired quantities,
-    an instance containing those and other quantities, and a unique label at every iteration.
+    an instance containing those and other quantities, and a unique label at every
+    iteration.
 
-    >>> for quants, mf, label in get_hmf(['dndm','ngtm'],z=range(3),hmf_model=["ST","PS"],sigma_8=[0.7,0.8]):
+    >>> for quants, mf, label in get_hmf(
+    >>>     ['dndm','ngtm'], z=range(3),hmf_model=["ST","PS"],sigma_8=[0.7,0.8]
+    >>> ):
     >>>     print label
     sigma.8: 0.7, ST, z: 0
     sigma.8: 0.7, PS, z: 0
@@ -162,7 +169,8 @@ def get_hmf(
 
     >>> big_list = list(get_hmf('mean_density',z=range(8)))
     >>> print [x[0][0]/1e10 for x in big_list]
-    [8.531878308131338, 68.2550264650507, 230.36071431954613, 546.0402117204056, 1066.4847885164174, 1842.885714556369, 2926.434259689049, 4368.321693763245]
+    [8.531878308131338, 68.2550264650507, 230.36071431954613, 546.0402117204056,
+     1066.4847885164174, 1842.885714556369, 2926.434259689049, 4368.321693763245]
     """
     label_kwargs = label_kwargs or {}
 

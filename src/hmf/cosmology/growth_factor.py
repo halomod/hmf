@@ -8,14 +8,14 @@ may be implemented.
 """
 
 import numpy as np
-from scipy import integrate as intg
-from .._internals._framework import Component as Cmpt, pluggable
-from scipy.interpolate import InterpolatedUnivariateSpline as _spline
-from .._internals._utils import inherit_docstrings as _inherit
-import warnings
 from astropy import cosmology
 from cached_property import cached_property
-from typing import Optional, Union
+from scipy.interpolate import InterpolatedUnivariateSpline as _spline
+from typing import Union
+
+from .._internals._framework import Component as Cmpt
+from .._internals._framework import pluggable
+from .._internals._utils import inherit_docstrings as _inherit
 
 try:
     import camb

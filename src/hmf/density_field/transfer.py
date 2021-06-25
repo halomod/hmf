@@ -6,18 +6,14 @@ calculate the transfer function, matter power spectrum and several other
 related quantities.
 """
 import numpy as np
+
 from .._internals._cache import cached_quantity, parameter
-from .halofit import halofit as _hfit
-from ..cosmology import growth_factor as gf, cosmo
-from ..density_field import transfer_models as tm, filters
 from .._internals._framework import get_mdl
-
-try:
-    import camb
-
-    HAVE_PYCAMB = True
-except ImportError:
-    HAVE_PYCAMB = False
+from ..cosmology import cosmo
+from ..density_field import filters
+from ..density_field import transfer_models as tm
+from .halofit import halofit as _hfit
+from .transfer_models import HAVE_PYCAMB
 
 
 class Transfer(cosmo.Cosmology):
@@ -48,8 +44,8 @@ class Transfer(cosmo.Cosmology):
         sigma_8=0.8159,
         n=0.9667,
         z=0.0,
-        lnk_min=np.log(1e-8),
-        lnk_max=np.log(2e4),
+        lnk_min=np.log(1e-8),  # noqa: B008
+        lnk_max=np.log(2e4),  # noqa: B008
         dlnk=0.05,
         transfer_model=tm.CAMB if HAVE_PYCAMB else tm.EH,
         transfer_params=None,
@@ -226,7 +222,7 @@ class Transfer(cosmo.Cosmology):
     # ===========================================================================
     @cached_quantity
     def k(self):
-        "Wavenumbers, [h/Mpc]"
+        """Wavenumbers, [h/Mpc]"""
         return np.exp(np.arange(self.lnk_min, self.lnk_max, self.dlnk))
 
     @cached_quantity
@@ -326,7 +322,6 @@ class Transfer(cosmo.Cosmology):
 
         .. math:: \Delta_k = \frac{k^3 P_{\rm nl}(k)}{2\pi^2}
         """
-
         return _hfit(
             self.k, self.delta_k, self.sigma_8, self.z, self.cosmo, self.takahashi
         )
