@@ -13,7 +13,7 @@ from ..cosmology import cosmo
 from ..density_field import filters
 from ..density_field import transfer_models as tm
 from .halofit import halofit as _hfit
-from .transfer_models import HAVE_PYCAMB
+from .transfer_models import HAVE_CAMB
 
 
 class Transfer(cosmo.Cosmology):
@@ -47,7 +47,7 @@ class Transfer(cosmo.Cosmology):
         lnk_min=np.log(1e-8),  # noqa: B008
         lnk_max=np.log(2e4),  # noqa: B008
         dlnk=0.05,
-        transfer_model=tm.CAMB if HAVE_PYCAMB else tm.EH,
+        transfer_model=tm.CAMB if HAVE_CAMB else tm.EH,
         transfer_params=None,
         takahashi=True,
         growth_model=None,
@@ -76,7 +76,7 @@ class Transfer(cosmo.Cosmology):
         # We set it here so that "None" is not a relevant option for self.growth_model
         # (and it can't be explicitly updated to None).
         if growth_model is None:
-            if hasattr(self.cosmo, "w0") and HAVE_PYCAMB:
+            if hasattr(self.cosmo, "w0") and HAVE_CAMB:
                 self.growth_model = "CambGrowth"
             else:
                 self.growth_model = "GrowthFactor"
@@ -121,7 +121,7 @@ class Transfer(cosmo.Cosmology):
 
         :type: str or :class:`hmf.transfer_models.TransferComponent` subclass, optional
         """
-        if not HAVE_PYCAMB and val in ["CAMB", tm.CAMB]:
+        if not HAVE_CAMB and val in ["CAMB", tm.CAMB]:
             raise ValueError(
                 "You cannot use the CAMB transfer since pycamb isn't installed"
             )
