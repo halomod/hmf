@@ -1,9 +1,12 @@
 """Classes defining the overall structure of the hmf framework."""
 import copy
-import sys
-from typing import Type, List, Optional, Union, Dict
-import warnings
 import deprecation
+import logging
+import sys
+import warnings
+from typing import Dict, List, Optional, Type, Union
+
+logger = logging.getLogger(__name__)
 
 
 class Component:
@@ -27,7 +30,7 @@ class Component:
         for k in model_params:
             if k not in self._defaults:
                 raise ValueError(
-                    f"{k} is not a valid argument for the {self.__class__.__name__} model"
+                    f"{k} is not a valid argument for {self.__class__.__name__}."
                 )
 
         # Gather model parameters
@@ -63,7 +66,8 @@ def get_base_component(name: [str, Type[Component]]) -> Type[Component]:
         avail = [cmp for cmp in get_base_components() if cmp.__name__ == name]
         if not avail:
             raise ValueError(
-                f"There are no components called '{name}'. Available: {get_base_components()}"
+                f"There are no components called '{name}'. Available: "
+                f"{get_base_components()}"
             )
         if len(avail) > 1:
             warnings.warn(
@@ -94,7 +98,8 @@ def pluggable(cls):
 
 
 def get_mdl(
-    name: [str, Type[Component]], kind: Optional[Union[str, Type[Component]]] = None
+    name: Union[str, Type[Component]],
+    kind: Optional[Union[str, Type[Component]]] = None,
 ) -> Type[Component]:
     """Return a defined model with given name.
 
@@ -119,7 +124,8 @@ def get_mdl(
                 return kind._plugins[name]
             except KeyError:
                 raise ValueError(
-                    f"The model {name} is not a defined {kind} model. Available: {tuple(kind._plugins.keys())}"
+                    f"The model {name} is not a defined {kind} model. Available: "
+                    f"{tuple(kind._plugins.keys())}"
                 )
         else:
             # Try to get *any* model called by this name.
@@ -131,7 +137,8 @@ def get_mdl(
             ]
             if len(avail_models) > 1:
                 warnings.warn(
-                    f"More than one model was found with name '{name}'. Returning {avail_models[-1][1]}."
+                    f"More than one model was found with name '{name}'. Returning "
+                    f"{avail_models[-1][1]}."
                 )
             if not avail_models:
                 raise ValueError(f"No model found with name '{name}'.")
@@ -210,6 +217,7 @@ class Framework(metaclass=_Validator):
     _validate_every_param_set = False
 
     def validate(self):
+        """Perform validation of the input parameters as they relate to each other."""
         pass
 
     def update(self, **kwargs):
@@ -218,12 +226,13 @@ class Framework(metaclass=_Validator):
         """
         self._validate = False
         try:
-            for k, v in list(kwargs.items()):
+            for k in list(kwargs.keys()):
                 # If key is just a parameter to the class, just update it.
                 if hasattr(self, k):
                     setattr(self, k, kwargs.pop(k))
 
-                # If key is a dictionary of parameters to a sub-framework, update the sub-framework
+                # If key is a dictionary of parameters to a sub-framework,
+                # update the sub-framework
                 elif k.endswith("_params") and isinstance(
                     getattr(self, k[:-7]), Framework
                 ):
@@ -245,39 +254,41 @@ class Framework(metaclass=_Validator):
 
     @classmethod
     def get_all_parameter_names(cls):
-        "Yield all parameter names in the class."
+        """Yield all parameter names in the class."""
         K = cls()
         return getattr(K, "_" + K.__class__.__name__ + "__recalc_par_prop")
 
     @classmethod
     def get_all_parameter_defaults(cls, recursive=True):
-        "Dictionary of all parameters and defaults."
+        """Dictionary of all parameters and defaults."""
         K = cls()
-        out = {}
-        for name in cls.get_all_parameter_names():
-            out[name] = getattr(K, name)
+        out = {name: getattr(K, name) for name in cls.get_all_parameter_names()}
 
         if recursive:
             for name, default in out.items():
                 if default == {} and name.endswith("_params"):
                     try:
                         out[name] = getattr(
-                            getattr(K, name.replace("_params", "_model")), "_defaults"
-                        )
+                            K, name.replace("_params", "_model")
+                        )._defaults
+
                     except Exception as e:
-                        print(e)
+                        logger.info(e)
         return out
 
     @property
     def parameter_values(self):
-        "Dictionary of all parameters and their current values"
-        out = {}
-        for name in getattr(self, "_" + self.__class__.__name__ + "__recalc_par_prop"):
-            out[name] = getattr(self, name)
-        return out
+        """Dictionary of all parameters and their current values"""
+        return {
+            name: getattr(self, name)
+            for name in getattr(
+                self, "_" + self.__class__.__name__ + "__recalc_par_prop"
+            )
+        }
 
     @classmethod
     def quantities_available(cls):
+        """Obtain a list of all available output quantities."""
         all_names = cls.get_all_parameter_names()
         return [
             name
@@ -324,7 +335,8 @@ class Framework(metaclass=_Validator):
         """
         Prints information about each parameter in the class.
 
-        Optionally, restrict printed parameters to those found in the list of names provided.
+        Optionally, restrict printed parameters to those found in the list of names
+        provided.
         """
         docs = ""
         for name, obj in cls._get_all_parameters():
@@ -353,4 +365,4 @@ class Framework(metaclass=_Validator):
             docs += "\n    ".join(objdoc) + "\n\n"
             while "\n\n\n" in docs:
                 docs.replace("\n\n\n", "\n\n")
-        print((docs[:-1]))
+        print(docs[:-1])  # noqa

@@ -1,7 +1,9 @@
-import numpy as np
-from hmf.cosmology import growth_factor
-from astropy.cosmology import Planck13, w0waCDM
 import pytest
+
+import numpy as np
+from astropy.cosmology import Planck13, w0waCDM
+
+from hmf.cosmology import growth_factor
 
 
 @pytest.fixture(scope="module")

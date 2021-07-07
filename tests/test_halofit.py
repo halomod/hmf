@@ -1,5 +1,6 @@
-from hmf.density_field import transfer
 import numpy as np
+
+from hmf.density_field import transfer
 
 
 def test_takahashi():

@@ -1,14 +1,16 @@
-"""
-A model for mass definitions.
+"""A model for mass definitions.
 
-This is primarily inspired by Benedikt Diemer's COLOSSUS code: https://bdiemer.bitbucket.io/colossus/halo_mass_defs.html
+This is primarily inspired by Benedikt Diemer's COLOSSUS code:
+https://bdiemer.bitbucket.io/colossus/halo_mass_defs.html
 """
-from .._internals import _framework
+import astropy.units as u
 import numpy as np
 import scipy as sp
-import astropy.units as u
-from astropy.cosmology import Planck15, FLRW
 import warnings
+from astropy.cosmology import Planck15
+from typing import Optional
+
+from .._internals import _framework
 from ..cosmology import Cosmology
 
 __all__ = [
@@ -28,12 +30,12 @@ class MassDefinition(_framework.Component):
 
     @staticmethod
     def critical_density(z=0, cosmo=Planck15):
-        """Get the critical density of the Universe at redshift z, units h^2 Msun / Mpc^3."""
+        """Get the critical density of the Universe at redshift z, [h^2 Msun/Mpc^3]."""
         return (cosmo.critical_density(z) / cosmo.h ** 2).to(u.Msun / u.Mpc ** 3).value
 
     @classmethod
     def mean_density(cls, z=0, cosmo=Planck15):
-        """Get the mean density of the Universe at redshift z, units h^2 Msun / Mpc^3."""
+        """Get the mean density of the Universe at redshift z, [h^2 Msun / Mpc^3]."""
         return cosmo.Om(z) * cls.critical_density(z, cosmo)
 
     def halo_density(self, z=0, cosmo=Planck15):
@@ -62,7 +64,8 @@ class MassDefinition(_framework.Component):
         Parameters
         ----------
         m : float or array_like
-            The mass to convert to radius. Should be in the same units (modulo volume) as  :meth:`halo_density`.
+            The mass to convert to radius. Should be in the same units (modulo volume)
+            as  :meth:`halo_density`.
 
         Notes
         -----
@@ -82,7 +85,8 @@ class MassDefinition(_framework.Component):
         Parameters
         ----------
         r : float or array_like
-            The radius to convert to mass. Units should be compatible with :meth:`halo_density`.
+            The radius to convert to mass. Units should be compatible with
+            :meth:`halo_density`.
 
         Notes
         -----
@@ -149,8 +153,8 @@ class MassDefinition(_framework.Component):
 
         if profile is None:
             try:
-                from halomod.profiles import NFW
                 from halomod.concentration import Duffy08
+                from halomod.profiles import NFW
 
                 profile = NFW(
                     cm_relation=Duffy08(cosmo=Cosmology(cosmo)), mdef=self, z=z
@@ -162,8 +166,8 @@ class MassDefinition(_framework.Component):
 
         if profile.z != z:
             warnings.warn(
-                f"Redshift of given profile ({profile.z})does not match redshift passed "
-                f"to change_definition(). Using the redshift directly passed."
+                f"Redshift of given profile ({profile.z})does not match redshift "
+                f"passed to change_definition(). Using the redshift directly passed."
             )
             profile.z = z
 
@@ -210,15 +214,16 @@ class SphericalOverdensity(MassDefinition):
     pass
 
     def __str__(self):
+        """Describe the overdensity in standard notation."""
         return f"{self.__class__.__name__}({self.params['overdensity']})"
 
 
 class SOGeneric(SphericalOverdensity):
-    def __init__(self, preferred: [None, SphericalOverdensity] = None, **kwargs):
+    """A generic SO definition which can claim equality with any SO."""
+
+    def __init__(self, preferred: Optional[SphericalOverdensity] = None, **kwargs):
         super().__init__(**kwargs)
         self.preferred = preferred
-
-    """A generic spherical-overdensity definition which can claim equality with any SO."""
 
     def __eq__(self, other):
         """Test equality with another object."""
@@ -273,11 +278,12 @@ class SOVirial(SphericalOverdensity):
         return "vir"
 
     def __str__(self):
+        """Describe the halo definition in standard notation."""
         return "SOVirial"
 
 
 class FOF(MassDefinition):
-    """A mass definition based on Friends-of-Friends networks with given linking length."""
+    """A mass definition based on FroF networks with given linking length."""
 
     _defaults = {"linking_length": 0.2}
 
@@ -303,6 +309,7 @@ class FOF(MassDefinition):
         return "fof"
 
     def __str__(self):
+        """Describe the halo definition in standard notation."""
         return f"FoF(l={self.params['linking_length']})"
 
 
@@ -323,9 +330,9 @@ def _find_new_concentration(rho_s, halo_density, h=None, x_guess=5.0):
     r"""
     Find :math:`x=r/r_{\\rm s}` where the enclosed density has a particular value.
 
-    .. note :: This is almost exactly the same code as profileNFW.xDelta from COLOSSUS. It
-               may one day be changed to literally just call that function. For now it just
-               sits here to be called whenever halomod is not installed
+    .. note :: This is almost exactly the same code as profileNFW.xDelta from COLOSSUS.
+               It may one day be changed to literally just call that function. For now
+               it just sits here to be called whenever halomod is not installed
 
     Parameters
     ----------
@@ -340,14 +347,14 @@ def _find_new_concentration(rho_s, halo_density, h=None, x_guess=5.0):
     Returns
     -------
     x: float
-        The radius in units of the scale radius, :math:`x=r/r_{\\rm s}`, where the enclosed
-        density reaches ``density_threshold``.
+        The radius in units of the scale radius, :math:`x=r/r_{\\rm s}`, where the
+        enclosed density reaches ``density_threshold``.
     """
 
     # A priori, we have no idea at what radius the result will come out, but we need to
-    # provide lower and upper limits for the root finder. To balance stability and performance,
-    # we do so iteratively: if there is no result within relatively aggressive limits, we
-    # try again with more conservative limits.
+    # provide lower and upper limits for the root finder. To balance stability and
+    # performance, we do so iteratively: if there is no result within relatively
+    # aggressive limits, we try again with more conservative limits.
     args = rho_s, halo_density
     x = None
     i = 0
@@ -381,4 +388,6 @@ def _find_new_concentration(rho_s, halo_density, h=None, x_guess=5.0):
 
 
 class OptimizationException(Exception):
+    """Exception class related to failed optimization."""
+
     pass

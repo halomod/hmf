@@ -6,14 +6,15 @@ They are both designed to cache class properties, but have the added
 functionality of being automatically updated when a parent property is
 updated.
 """
-from functools import update_wrapper
-from copy import deepcopy
 import warnings
+from copy import deepcopy
+from functools import update_wrapper
 
 
 def hidden_loc(obj, name):
     """
     Generate the location of a hidden attribute.
+
     Importantly deals with attributes beginning with an underscore.
     """
     return ("_" + obj.__class__.__name__ + "__" + name).replace("___", "__")
@@ -30,7 +31,6 @@ def cached_quantity(f):
 
     Examples
     --------
-
     >>>   class CachedClass:
     >>>      @parameter
     >>>      def a_param(self,val):
@@ -169,6 +169,7 @@ def cached_quantity(f):
 
 
 def obj_eq(ob1, ob2):
+    """Test equality of objects that is numpy-aware."""
     try:
         return bool(ob1 == ob2)
     except ValueError:
@@ -178,7 +179,7 @@ def obj_eq(ob1, ob2):
 
 def parameter(kind):
     """
-    A decorator which indicates a parameter of a calculation (i.e. something that must be input by user).
+    A decorator which indicates a parameter of a calculation.
 
     This decorator is intended for use with the complementary `cached_quantity` decorator.
     It provides the mechanisms by which the quantities are re-calculated intelligently.
@@ -194,7 +195,6 @@ def parameter(kind):
 
     Examples
     --------
-
     >>>   class CachedClass(object):
     >>>      @parameter
     >>>      def a_param(self,val):
@@ -364,7 +364,7 @@ def subframework(f):
             try:
                 getattr(self, hidden_loc(self, "subframeworks")).add(name)
             except AttributeError:
-                setattr(self, hidden_loc(self, "subframeworks"), set([name]))
+                setattr(self, hidden_loc(self, "subframeworks"), {name})
 
             return value
 

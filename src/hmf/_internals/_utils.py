@@ -2,6 +2,7 @@ from inspect import getmembers, ismethod
 
 
 def inherit_docstrings(cls):
+    """Make docstrings inheritable for a class."""
     for name, func in getmembers(cls, ismethod):
         if func.__doc__:
             continue
