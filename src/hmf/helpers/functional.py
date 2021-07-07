@@ -203,7 +203,7 @@ def get_hmf(
                     yield [getattr(x, a) for a in req_qauntities], x
     elif len(lists) > 1:
         # should be really fast.
-        order = get_best_param_order(framework, req_qauntities, **fast_kwargs)
+        order = get_best_param_order(framework, req_qauntities, **fast_kwargs)[::-1]
 
         ordered_kwargs = collections.OrderedDict([])
         for item in order:

@@ -27,6 +27,7 @@ def test_order():
             sigma_8=[0.7, 0.8],
         )
     ):
+        print(i)
         assert len(label) == len(order[i])
         assert sorted(label.split(", ")) == sorted(order[i].split(", "))
         assert isinstance(mf, MassFunction)

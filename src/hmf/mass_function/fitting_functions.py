@@ -1821,6 +1821,18 @@ class Bocquet200cDMOnly(Bocquet200mDMOnly):
     sim_definition = copy(Bocquet200mDMOnly.sim_definition)
     sim_definition.halo_overdensity = "200c"
 
+    def convert_mass(self):
+        g0 = 3.54e-2 + self.cosmo.Om0 ** 0.09
+        g1 = 4.56e-2 + 2.68e-2 / self.cosmo.Om0
+        g2 = 0.721 + 3.5e-2 / self.cosmo.Om0
+        g3 = 0.628 + 0.164 / self.cosmo.Om0
+        d0 = -1.67e-2 + 2.18e-2 * self.cosmo.Om0
+        d1 = 6.52e-3 - 6.86e-3 * self.cosmo.Om0
+
+        g = g0 + g1 * np.exp(-(((g2 - self.z) / g3) ** 2))
+        d = d0 + d1 * self.z
+        return g + d * np.log(self.m)
+
 
 class Bocquet200cHydro(Bocquet200cDMOnly):
     __doc__ = _makedoc(
@@ -1842,18 +1854,6 @@ class Bocquet200cHydro(Bocquet200cDMOnly):
         "d_z": -0.226,
         "e_z": -0.352,
     }
-
-    def convert_mass(self):
-        g0 = 3.54e-2 + self.cosmo.Om0 ** 0.09
-        g1 = 4.56e-2 + 2.68e-2 / self.cosmo.Om0
-        g2 = 0.721 + 3.5e-2 / self.cosmo.Om0
-        g3 = 0.628 + 0.164 / self.cosmo.Om0
-        d0 = -1.67e-2 + 2.18e-2 * self.cosmo.Om0
-        d1 = 6.52e-3 - 6.86e-3 * self.cosmo.Om0
-
-        g = g0 + g1 * np.exp(-(((g2 - self.z) / g3) ** 2))
-        d = d0 + d1 * self.z
-        return g + d * np.log(self.m)
 
 
 class Bocquet500cDMOnly(Bocquet200cDMOnly):
@@ -1880,7 +1880,7 @@ class Bocquet500cDMOnly(Bocquet200cDMOnly):
     sim_definition.halo_overdensity = "500c"
 
     def convert_mass(self):
-        alpha_0 = 0.80 + 0.329 * self.cosmo.Om0
+        alpha_0 = 0.880 + 0.329 * self.cosmo.Om0
         alpha_1 = 1.0 + 4.31 * 1e-2 / self.cosmo.Om0
         alpha_2 = -0.365 + 0.254 / self.cosmo.Om0
         alpha = alpha_0 * (alpha_1 * self.z + alpha_2) / (self.z + alpha_2)
@@ -1888,7 +1888,7 @@ class Bocquet500cDMOnly(Bocquet200cDMOnly):
         return alpha + beta * np.log(self.m)
 
 
-class Bocquet500cDMOnly(Bocquet500cDMOnly):
+class Bocquet500cHydro(Bocquet500cDMOnly):
     __doc__ = _makedoc(
         FittingFunction._pdocs,
         "Bocquet",

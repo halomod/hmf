@@ -466,11 +466,12 @@ class MassFunction(transfer.Transfer):
             and not self.disable_mass_conversion
         ):
             # this uses NFW, but we can change that in halomod.
-            mnew = self.hmf.measured_mass_definition.change_definition(
-                self.m, self.mdef
+            m_meas = self.mdef.change_definition(
+                self.m,
+                self.hmf.measured_mass_definition,
             )[0]
-            spl2 = spline(mnew, self.m)
-            dndm *= self.m / spl2(self.m)
+
+            dndm *= self.m / m_meas
 
         return dndm
 
