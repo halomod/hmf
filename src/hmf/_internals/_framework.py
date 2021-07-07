@@ -184,7 +184,7 @@ def get_model(name, mod, **kwargs):
 
 class _Validator(type):
     def __call__(cls, *args, **kwargs):
-        """Called when you call MyNewClass() """
+        """Called when you call MyNewClass()"""
         obj = type.__call__(cls, *args, **kwargs)
         obj.validate()
         return obj

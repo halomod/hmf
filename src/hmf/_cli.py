@@ -88,7 +88,10 @@ main = click.Group()
     }
 )
 @click.option(
-    "-i", "--config", type=click.Path(exists=True, dir_okay=False), default=None,
+    "-i",
+    "--config",
+    type=click.Path(exists=True, dir_okay=False),
+    default=None,
 )
 @click.option(
     "-o",
@@ -97,7 +100,10 @@ main = click.Group()
     default=".",
 )
 @click.option(
-    "-l", "--label", type=str, default="hmf",
+    "-l",
+    "--label",
+    type=str,
+    default="hmf",
 )
 @click.pass_context
 def run(ctx, config, outdir, label):

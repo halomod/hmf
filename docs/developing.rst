@@ -25,7 +25,7 @@ to work together automatically. The "true" version of the package is set with
 `setuptools-scm <https://pypi.org/project/setuptools-scm/>`_. This stores the version
 in the git tag. There are many benefits to this -- one is that the version is unique
 for every single change in the code, with commits on top of a release changing the
-version. This means that versions accessed via `hmf.__version__` are unique and track
+version. This means that versions accessed via ``hmf.__version__`` are unique and track
 the exact code in the package (useful for reproducing results). To get the current
 version from command line, simply do ``python setup.py --version`` in the top-level
 directory.

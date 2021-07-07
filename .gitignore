@@ -16,3 +16,4 @@ docs/_*/*
 \.tox/log/
 .coverage
 pip-wheel-metadata/
+htmlcov/

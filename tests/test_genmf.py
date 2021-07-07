@@ -106,7 +106,7 @@ class TestGenMF:
 
     @staticmethod
     def check_col(pert, fit, redshift, col):
-        """ Able to check all columns"""
+        """Able to check all columns"""
         data = np.genfromtxt("tests/data/" + fit + "_" + str(int(redshift)))[::-1][
             400:1201
         ]
