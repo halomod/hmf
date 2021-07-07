@@ -1556,12 +1556,12 @@ class Behroozi(Tinker10):
     This is an empirical modification to the :class:`Tinker08` fit, to improve
     accuracy at high redshift.
 
-    %s
+    {}
 
     References
     ----------
-    .. [1] %s
-    """ % (
+    .. [1] {}
+    """.format(
         FittingFunction._pdocs,
         _ref,
     )
