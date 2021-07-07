@@ -4,6 +4,9 @@ Releases
 dev-version
 ----------------------
 
+v3.4.0 [07 Jul 2021]
+----------------------
+
 **Features**
 
 - Now the user can use non-matched mass definitions for the HMF without translating
