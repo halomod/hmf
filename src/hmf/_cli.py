@@ -1,21 +1,21 @@
 """Module that contains the command line app."""
-import warnings
-
 import click
+import importlib
 import numpy as np
 import toml
+from astropy.units import Quantity
 from pathlib import Path
-import importlib
-import hmf
-from hmf.helpers.functional import get_hmf
-from .helpers.cfg_utils import framework_to_dict
+from rich import box
 from rich.console import Console
 from rich.panel import Panel
-from rich import box
 from rich.rule import Rule
-from time import time
-from astropy.units import Quantity
 from rich.table import Table
+from time import time
+
+import hmf
+from hmf.helpers.functional import get_hmf
+
+from .helpers.cfg_utils import framework_to_dict
 
 console = Console(width=100)
 
@@ -88,7 +88,10 @@ main = click.Group()
     }
 )
 @click.option(
-    "-i", "--config", type=click.Path(exists=True, dir_okay=False), default=None,
+    "-i",
+    "--config",
+    type=click.Path(exists=True, dir_okay=False),
+    default=None,
 )
 @click.option(
     "-o",
@@ -97,7 +100,10 @@ main = click.Group()
     default=".",
 )
 @click.option(
-    "-l", "--label", type=str, default="hmf",
+    "-l",
+    "--label",
+    type=str,
+    default="hmf",
 )
 @click.pass_context
 def run(ctx, config, outdir, label):
@@ -114,6 +120,7 @@ def run(ctx, config, outdir, label):
 
 
 def run_cli(config, pkg_name, args, outdir, label, pkgs, default_framework):
+    """Run the CLI command."""
     console.print(
         Panel(f"Welcome to {pkg_name}!", box=box.DOUBLE_EDGE),
         style="bold",

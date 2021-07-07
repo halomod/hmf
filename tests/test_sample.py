@@ -1,7 +1,9 @@
-import numpy as np
-from hmf.helpers.sample import sample_mf, dndm_from_sample
-from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from pytest import raises
+
+import numpy as np
+from scipy.interpolate import InterpolatedUnivariateSpline as spline
+
+from hmf.helpers.sample import dndm_from_sample, sample_mf
 
 
 def test_circular():

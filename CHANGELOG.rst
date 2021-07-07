@@ -4,6 +4,29 @@ Releases
 dev-version
 ----------------------
 
+v3.4.0 [07 Jul 2021]
+----------------------
+
+**Features**
+
+- Added ``normalized`` attribute of all ``FittingFunction`` models, to tell whether the
+  model integrates to the mean density over all mass.
+- New ``Bocquet`` fitting functions (for Hydro and DMOnly at all overdensities).
+
+**Changes**
+
+- Internal working of ``GrowthFactor`` has been updated to use splines. It is now faster
+  and can natively compute multiple redshifts at once (which was already true of the
+  other growth functions).
+
+**Bugfixes**
+
+- Fixes to the BBKS transfer function
+- Fixes to allow w0waCDM models (#113)
+- Fixes to mass conversion for HMF (according to Bocquet), and raising of error when the
+  wrong mass definition is used without allowing mass conversion.
+
+
 v3.3.4 [08 Jan 2021]
 ----------------------
 
@@ -131,10 +154,11 @@ v3.0.5 [23rd April 2019]
 
 - Fixed naming of WDM ``alter_dndm`` to ``alter_model`` to be consistent.
 - Fixed bug which made CAMB transfer function not pickleable or copyable.
-  NOTE: the fix is not perfect -- if you provide a custom CAMBparams class
-        to ``transfer_params``, it is not certain that results will be consistent,
-        as a few of the attributes of this object are not pickleable, and thus
-        are ignored.
+
+  .. note:: the fix is not perfect -- if you provide a custom CAMBparams class
+            to ``transfer_params``, it is not certain that results will be consistent,
+            as a few of the attributes of this object are not pickleable, and thus
+            are ignored.
 
 v3.0.3 [1st Dec 2017]
 ---------------------
@@ -222,7 +246,7 @@ v2.0.2 [2nd August, 2016]
 **Features**
 
 - Added a bunch of information to each hmf_model, indicating simulation parameters from which the fit was derived.
-- Added ``FromArray`` transfer model, allowing an array to be passed programmatically for `k` and `T`.
+- Added ``FromArray`` transfer model, allowing an array to be passed programmatically for ``k`` and ``T``.
 - Added ``Carroll1992`` growth factor approximation model.
 
 **Enhancments**

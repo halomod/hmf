@@ -1,8 +1,10 @@
-from hmf.density_field.transfer import Transfer
-from astropy.cosmology import FlatwCDM, FlatLambdaCDM
-from hmf.cosmology.growth_factor import CambGrowth
-import numpy as np
 import pytest
+
+import numpy as np
+from astropy.cosmology import FlatLambdaCDM, FlatwCDM
+
+from hmf.cosmology.growth_factor import CambGrowth
+from hmf.density_field.transfer import Transfer
 
 
 @pytest.fixture(scope="module")

@@ -1,14 +1,12 @@
-"""
-A module containing various smoothing filter Component models,
-including the popular top-hat in real space.
-"""
+"""A module containing various smoothing filter Component models."""
 
-import numpy as np
-from scipy.interpolate import InterpolatedUnivariateSpline as _spline
-import scipy.integrate as intg
 import collections
-from .._internals import _framework, _utils
+import numpy as np
+import scipy.integrate as intg
 import warnings
+from scipy.interpolate import InterpolatedUnivariateSpline as _spline
+
+from .._internals import _framework, _utils
 
 
 @_framework.pluggable
@@ -48,7 +46,8 @@ class Filter(_framework.Component):
     To remain extensible and general, the methodology in this class is to calculate the
     latter quantity as
 
-    .. math:: \frac{d\ln\sigma}{d\ln m} = \frac{1}{2} \frac{d \ln \sigma^2}{d\ln R}\frac{d\ln R}{d\ln m}.
+    .. math:: \frac{d\ln\sigma}{d\ln m} = \frac{1}{2} \frac{d \ln \sigma^2}{d\ln R}
+              \frac{d\ln R}{d\ln m}.
 
     Each of the quantities on the right can be separately calculated, improving
     extensibility.
@@ -177,7 +176,8 @@ class Filter(_framework.Component):
 
         The general formula is
 
-        .. math:: \frac{d\ln \sigma^2}{d\ln R} = \frac{1}{\pi^2\sigma^2} \int_0^\infty W(kR) \frac{dW(kR)}{d\ln(kR)} P(k)k^2 dk
+        .. math:: \frac{d\ln \sigma^2}{d\ln R} = \frac{1}{\pi^2\sigma^2} \int_0^\infty
+                  W(kR) \frac{dW(kR)}{d\ln(kR)} P(k)k^2 dk
         """
         dlnk = np.log(self.k[1] / self.k[0])
         s = self.sigma(r)
@@ -238,9 +238,11 @@ class Filter(_framework.Component):
 
         Notes
         -----
-        The general definition for the nth-moment of the smoothed density field is (see Bardeen et al. 1986, Eq 4.6c)
+        The general definition for the nth-moment of the smoothed density field is (see
+        Bardeen et al. 1986, Eq 4.6c)
 
-        .. math:: \sigma^2_n(R) = \frac{1}{2\pi^2} \int_0^\infty dk\ k^{2(1+n)} P(k) W^2(kR)
+        .. math:: \sigma^2_n(R) = \frac{1}{2\pi^2} \int_0^\infty dk\ k^{2(1+n)}
+                  P(k) W^2(kR)
         """
         if rk is None:
             rk = np.outer(r, self.k)
@@ -387,15 +389,17 @@ class SharpK(Filter):
 
     .. math:: m(R) = \frac{4\pi}{3}[cR]^3\bar{\rho},
 
-    where *c* is a free parameter, typically c~2.5. The derivative of the window function is
+    where *c* is a free parameter, typically c~2.5. The derivative of the window
+    function is
 
     .. math:: \frac{dW}{d\ln x}(x=kR) = \delta_D(x-1),
 
-    where :math:`\delta_D` is the Dirac delta. Furthermore, the derivative of the mass variance
-    takes a particularly simple form in this filter:
+    where :math:`\delta_D` is the Dirac delta. Furthermore, the derivative of the mass
+    variance takes a particularly simple form in this filter:
 
     .. math:: \frac{d\ln \sigma^2}{d \ln R} = -\frac{P(1/R)}{2\pi^2\sigma^2(R)R^3}.
     """
+
     _defaults = {"c": 2.5}
 
     def k_space(self, kr):
@@ -461,9 +465,10 @@ class SharpKEllipsoid(SharpK):
 
     def xm(self, g, v):
         """
-        Peak of the distribution of x, where x is the sum of the eigenvalues
-        of the inertia tensor (?) of an ellipsoidal peak, divided by the second
-        spectral moment.
+        Peak of the distribution of x.
+
+        Here, x is the sum of the eigenvalues of the inertia tensor (?) of an
+        ellipsoidal peak, divided by the second spectral moment.
 
         Equation A6. in Schneider et al. 2013
         """
@@ -487,22 +492,18 @@ class SharpKEllipsoid(SharpK):
 
     def a3a1(self, e, p):
         """
-        The short to long axis ratio of an ellipsoid given its ellipticity and
-        prolateness
+        The short:long axis ratio of an ellipsoid given its ellipticity and prolateness
         """
         return np.sqrt((1 - 3 * e + p) / (1 + 3 * e + p))
 
     def a3a2(self, e, p):
         """
-        The short to medium axis ratio of an ellipsoid given its ellipticity and
-        prolateness
+        The short:medium axis ratio of an ellipsoid given its ellipticity/prolateness
         """
         return np.sqrt((1 - 2 * p) / (1 + 3 * e + p))
 
     def gamma(self, r):
-        """
-        Bardeen et al. 1986 equation 6.17
-        """
+        """Bardeen et al. 1986 equation 6.17."""
         sig_0 = self.sigma(r)
         sig_1 = self.sigma(r, order=1)
         sig_2 = self.sigma(r, order=2)
@@ -521,8 +522,7 @@ class SharpKEllipsoid(SharpK):
     def r_a3(self, rmin, rmax):
         r = np.logspace(np.log(rmin), np.log(rmax), 200, base=np.e)
         a3 = self.a3(r)
-        s = _spline(a3, r)
-        return s
+        return _spline(a3, r)
 
     def dlnss_dlnr(self, r):
         a3 = self.a3(r)

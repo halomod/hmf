@@ -1,8 +1,11 @@
+import pytest
+
+import camb
 import numpy as np
+from astropy.cosmology import LambdaCDM, w0waCDM, wCDM
+
 from hmf.density_field.transfer import Transfer
 from hmf.density_field.transfer_models import EH_BAO
-import pytest
-import camb
 
 # def rms(a):
 #     print(a)
@@ -21,7 +24,10 @@ def transfers():
 
 
 @pytest.mark.parametrize(
-    ["name", "val",],
+    [
+        "name",
+        "val",
+    ],
     [("z", 0.1), ("sigma_8", 0.82), ("n", 0.95), ("cosmo_params", {"H0": 68.0})],
 )
 def test_updates(transfers, name, val):
@@ -94,3 +100,49 @@ def test_setting_kmax():
     camb_transfers = camb.get_transfer_functions(t.transfer.params["camb_params"])
     T = camb_transfers.get_matter_transfer_data().transfer_data
     assert np.max(T[0]) < 2.0
+
+
+def test_camb_w0wa():
+    """Essentially just test that CAMB doesn't fall over with a w0wa model."""
+    t = Transfer(
+        transfer_model="CAMB",
+        cosmo_model=w0waCDM(
+            Om0=0.3, Ode0=0.7, w0=-1, wa=0.03, Ob0=0.05, H0=70.0, Tcmb0=2.7
+        ),
+    )
+    assert t.transfer_function.shape == t.k.shape
+
+
+def test_camb_wCDM():
+    """Essentially just test that CAMB doesn't fall over with a w0wa model."""
+    t = Transfer(
+        transfer_model="CAMB",
+        cosmo_model=wCDM(Om0=0.3, Ode0=0.7, w0=-1, Ob0=0.05, H0=70.0, Tcmb0=2.7),
+    )
+
+    t2 = Transfer(
+        transfer_model="CAMB",
+        cosmo_model=LambdaCDM(Om0=0.3, Ode0=0.7, Ob0=0.05, H0=70.0, Tcmb0=2.7),
+    )
+    np.testing.assert_array_almost_equal(t.transfer_function, t2.transfer_function)
+
+
+def test_camb_unset_params():
+    with pytest.raises(ValueError):
+        Transfer(
+            transfer_model="CAMB",
+            cosmo_model=w0waCDM(Om0=0.3, Ode0=0.7, w0=-1, wa=0.03, Ob0=0.05, H0=70.0),
+        ).transfer
+
+    with pytest.raises(ValueError):
+        Transfer(
+            transfer_model="CAMB",
+            cosmo_model=w0waCDM(Om0=0.3, Ode0=0.7, w0=-1, wa=0.03, H0=70.0, Tcmb0=2.7),
+        ).transfer
+
+
+def test_bbks_sugiyama():
+    t = Transfer(transfer_model="BBKS", transfer_params={"use_sugiyama_baryons": True})
+    t2 = Transfer(transfer_model="BBKS")
+
+    assert not np.allclose(t.transfer_function, t2.transfer_function)

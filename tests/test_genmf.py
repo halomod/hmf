@@ -16,36 +16,38 @@ for later versions.
 
 To be more explicit, the power spectrum in all cases is produced with the following parameters:
 
-       "w_lam"    :-1,
-       "omegab"   : 0.05,
-       "omegac"   : 0.25,
-       "omegav"   : 0.7,
-       "omegan"   : 0.0,
-       "H0"       : 70,
-       'cs2_lam'  : 1,
-       'TCMB'     : 2.725,
-       'yhe'      : 0.24,
-       'Num_NuMassless' : 3.04,
-       'reion__redshift': 10.3,
-       'reion__optical_depth': 0.085
-        "sigma_8":0.8,
-        "n":1,
-        "delta_c":1.686,
-        "crit_dens":27.755 * 10 ** 10
-        'Num_NuMassive'  : 0,
-         'reion__fraction' :-1,
-         'reion__delta_redshift' : 1.5,
-         'lAccuracyBoost' : 1,
-         'lSampleBoost'   : 1,
-         'AccuracyBoost'  : 1,
-         'transfer__k_per_logint': 0,
-         'transfer__kmax':100.0
+    "w_lam"    :-1,
+    "omegab"   : 0.05,
+    "omegac"   : 0.25,
+    "omegav"   : 0.7,
+    "omegan"   : 0.0,
+    "H0"       : 70,
+    'cs2_lam'  : 1,
+    'TCMB'     : 2.725,
+    'yhe'      : 0.24,
+    'Num_NuMassless' : 3.04,
+    'reion__redshift': 10.3,
+    'reion__optical_depth': 0.085
+    "sigma_8":0.8,
+    "n":1,
+    "delta_c":1.686,
+    "crit_dens":27.755 * 10 ** 10
+    'Num_NuMassive'  : 0,
+    'reion__fraction' :-1,
+    'reion__delta_redshift' : 1.5,
+    'lAccuracyBoost' : 1,
+    'lSampleBoost'   : 1,
+    'AccuracyBoost'  : 1,
+    'transfer__k_per_logint': 0,
+    'transfer__kmax':100.0
 """
-import numpy as np
-from hmf import MassFunction
-from astropy.cosmology import LambdaCDM
 import pytest
+
+import numpy as np
+from astropy.cosmology import LambdaCDM
 from itertools import product
+
+from hmf import MassFunction
 
 
 def rms_diff(vec1, vec2, tol):
@@ -76,7 +78,7 @@ def max_diff(vec1, vec2, tol):
     )
     vec1 = vec1[mask]
     vec2 = vec2[mask]
-    err = np.max(np.abs((vec1 - vec2)))
+    err = np.max(np.abs(vec1 - vec2))
     print("Max Diff: ", err, "(> ", tol, ")")
     return err < tol
 
@@ -106,7 +108,7 @@ class TestGenMF:
 
     @staticmethod
     def check_col(pert, fit, redshift, col):
-        """ Able to check all columns"""
+        """Able to check all columns"""
         data = np.genfromtxt("tests/data/" + fit + "_" + str(int(redshift)))[::-1][
             400:1201
         ]

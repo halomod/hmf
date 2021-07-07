@@ -5,20 +5,20 @@ The module contains a single class, `MassFunction`, which wraps almost all the
 functionality of :mod:`hmf` in an easy-to-use way.
 """
 
-import numpy as np
 import copy
-from scipy.optimize import minimize
-from scipy.interpolate import InterpolatedUnivariateSpline as spline
+import numpy as np
 import warnings
-from numpy import issubclass_
+from scipy.interpolate import InterpolatedUnivariateSpline as spline
+from scipy.optimize import minimize
+from typing import Any, Dict, Optional, Union
 
-from . import fitting_functions as ff
-from ..density_field import transfer
-from .._internals._cache import parameter, cached_quantity
-from ..density_field.filters import TopHat, Filter
+from .._internals._cache import cached_quantity, parameter
 from .._internals._framework import get_mdl
-from ..halos.mass_definitions import MassDefinition as md, SOGeneric, SOMean
-
+from ..density_field import transfer
+from ..density_field.filters import Filter, TopHat
+from ..halos.mass_definitions import MassDefinition as md
+from ..halos.mass_definitions import SOGeneric, SOMean
+from . import fitting_functions as ff
 from .integrate_hmf import hmf_integral_gtm as int_gtm
 
 
@@ -34,7 +34,7 @@ class MassFunction(transfer.Transfer):
     Most outputs are provided as ``@cached_quantity`` attributes for ease of
     access.
 
-    Contains an :method:`~update` method which can be passed arguments to update, in the
+    Contains an :meth:`~update` method which can be passed arguments to update, in the
     most optimal manner. All output quantities are calculated only when needed
     (but stored after first calculation for quick access).
 
@@ -47,10 +47,29 @@ class MassFunction(transfer.Transfer):
 
     Parameters
     ----------
-    Mmin : float
+    Mmin
+        The log10 of the minimum halo mass to compute quantities for (units Msun/h).
+    Mmax
+        The log10 of the minimum halo mass to compute quantities for (units Msun/h).
+    dlog10m
+        The resolution of the mass array (logarithmically spaced).
+    hmf_model
+        The HMF fitting function to use.
+    hmf_params
+        Parameters specific to the chosen HMF.
     mdef_model
         The mass definition model to use. By default, use the mass definition in which
-        the chosen hmf was measured. If that does not exist, use SOMean(200).
+        the chosen HMF was measured. If that does not exist, use ``SOMean(200)``. If set,
+        this must be compatible with the halo definition used in measuring the chosen
+        HMF -- unless ``disable_mass_conversion`` is set to False, in which case the
+        HMF is automatically translated to a new mass definition.
+    mdef_params
+        Parameters specific to the mass definition model. Typically "overdensity" or
+        "linking_length".
+    delta_c
+        The critical overdensity for collapse.
+    filter_model
+        A model to compute the
 
     Examples
     --------
@@ -74,16 +93,16 @@ class MassFunction(transfer.Transfer):
 
     def __init__(
         self,
-        Mmin: float = 10,
-        Mmax: float = 15,
+        Mmin: float = 10.0,
+        Mmax: float = 15.0,
         dlog10m: float = 0.01,
-        hmf_model: [str, ff.FittingFunction] = ff.Tinker08,
-        hmf_params: [dict, None] = None,
-        mdef_model: [None, str, md] = None,
-        mdef_params: [dict, None] = None,
+        hmf_model: Union[str, ff.FittingFunction] = ff.Tinker08,
+        hmf_params: Optional[Dict[str, Any]] = None,
+        mdef_model: Union[None, str, md] = None,
+        mdef_params: Union[dict, None] = None,
         delta_c: float = 1.686,
-        filter_model: [str, Filter] = TopHat,
-        filter_params: [dict, None] = None,
+        filter_model: Union[str, Filter] = TopHat,
+        filter_params: Union[dict, None] = None,
         disable_mass_conversion: bool = True,
         **transfer_kwargs,
     ):
@@ -258,18 +277,24 @@ class MassFunction(transfer.Transfer):
             mdef = self.mdef_model(**self.mdef_params)
 
             # Note we need to do the != in this order so that SOGeneric can compare.
-            if (
-                self.hmf_model.get_measured_mdef() != mdef
-                and not self.disable_mass_conversion
-            ):
-                warnings.warn(
-                    f"Your input mass definition '{mdef}' does not match the mass "
-                    f"definition in which the hmf fit {self.hmf_model.__name__} was measured:"
-                    f"'{self.hmf_model.get_measured_mdef()}'. The mass function will be "
-                    f"converted to your input definition, "
-                    f"but note that some properties do not survive the conversion, eg. "
-                    f"the integral of the hmf over mass yielding the total mean density."
-                )
+            if self.hmf_model.get_measured_mdef() != mdef:
+                if self.disable_mass_conversion:
+                    raise ValueError(
+                        f"Your input mass definition '{mdef}' does not match the mass "
+                        f"definition in which the hmf fit {self.hmf_model.__name__} was "
+                        f"measured: '{self.hmf_model.get_measured_mdef()}' Either allow "
+                        f"automatic mass conversion by setting `disable_mass_conversion=False, "
+                        "or use the correct mass definition."
+                    )
+                else:
+                    warnings.warn(
+                        f"Your input mass definition '{mdef}' does not match the mass "
+                        f"definition in which the hmf fit {self.hmf_model.__name__} was measured:"
+                        f"'{self.hmf_model.get_measured_mdef()}'. The mass function will be "
+                        f"converted to your input definition, "
+                        f"but note that some properties do not survive the conversion, eg. "
+                        f"the integral of the hmf over mass yielding the total mean density."
+                    )
 
         return mdef
 
@@ -342,9 +367,7 @@ class MassFunction(transfer.Transfer):
 
         Notes
         -----
-
         .. math:: frac{d\ln\sigma}{d\ln m} = \frac{3}{2\sigma^2\pi^2R^4}\int_0^\infty \frac{dW^2(kR)}{dM}\frac{P(k)}{k^2}dk
-
         """
         return 0.5 * self.filter.dlnss_dlnm(self.radii)
 
@@ -380,7 +403,12 @@ class MassFunction(transfer.Transfer):
                 ** 2
             )
 
-            res = minimize(model, [startr,])
+            res = minimize(
+                model,
+                [
+                    startr,
+                ],
+            )
 
             if res.success:
                 r = np.exp(res.x[0])
@@ -438,38 +466,12 @@ class MassFunction(transfer.Transfer):
             and not self.disable_mass_conversion
         ):
             # this uses NFW, but we can change that in halomod.
-            mnew = self.hmf.measured_mass_definition.change_definition(
-                self.m, self.mdef
+            m_meas = self.mdef.change_definition(
+                self.m,
+                self.hmf.measured_mass_definition,
             )[0]
-            spl = spline(np.log(mnew), np.log(dndm))
-            spl2 = spline(self.m, mnew)
-            dndm = np.exp(spl(np.log(self.m))) / spl2.derivative()(self.m)
 
-        # else:  # #This is for a survey-volume weighted calculation
-        #     raise NotImplementedError()
-        #             if self.nz is None:
-        #                 self.nz = 10
-        #             zedges = np.linspace(self.z, self.z2, self.nz)
-        #             zcentres = (zedges[:-1] + zedges[1:]) / 2
-        #             dndm = np.zeros_like(zcentres)
-        #             vol = np.zeros_like(zedges)
-        #             vol[0] = cp.distance.comoving_volume(self.z,
-        #                                         **self.cosmolopy_dict)
-        #             for i, zz in enumerate(zcentres):
-        #                 self.update(z=zz)
-        #                 dndm[i] = self.fsigma * self.mean_dens * np.abs(self._dlnsdlnm) / self.m ** 2
-        #                 if isinstance(self.hmf_model, "ff.Behroozi"):
-        #                     ngtm_tinker = self._gtm(dndm[i])
-        #                     dndm[i] = self.hmf_model._modify_dndm(self.m, dndm[i], self.z, ngtm_tinker)
-        #
-        #                 vol[i + 1] = cp.distance.comoving_volume(z=zedges[i + 1],
-        #                                                 **self.cosmolopy_dict)
-        #
-        #             vol = vol[1:] - vol[:-1]  # Volume in shells
-        #             integrand = vol * dndm[i]
-        #             numerator = intg.simps(integrand, x=zcentres)
-        #             denom = intg.simps(vol, zcentres)
-        #             dndm = numerator / denom
+            dndm *= self.m / m_meas
 
         return dndm
 
@@ -492,7 +494,7 @@ class MassFunction(transfer.Transfer):
         Calculate number or mass density above mass thresholds in `m`
 
         This function is here, separate from the properties, due to its need
-        of being passed ``dndm` in the case of the :class:`~fitting_functions.Behroozi`
+        of being passed ``dndm`` in the case of the :class:`~fitting_functions.Behroozi`
         fit only, in which case an infinite recursion would occur otherwise.
 
         Parameters

@@ -42,6 +42,7 @@ extensions =extensions = [
     "numpydoc",
     "nbsphinx",
     "IPython.sphinxext.ipython_console_highlighting",
+    "sphinx.ext.intersphinx",
 ]
 
 numpydoc_show_class_members = False
@@ -72,7 +73,7 @@ exclude_patterns = [
     "Thumbs.db",
     ".DS_Store",
     "templates",
-    "**.ipynb_checkpoints/*",
+    "examples/.ipynb_checkpoints",
 ]
 
 
@@ -92,10 +93,6 @@ release = _version('hmf')
 # today = ''
 # Else, today_fmt is used as the format for a strftime call.
 # today_fmt = '%B %d, %Y'
-
-# List of patterns, relative to source directory, that match files and
-# directories to ignore when looking for source files.
-exclude_patterns = ['_build']
 
 # The reST default role (used for this markup: `text`) to use for all documents.
 # default_role = None
@@ -274,14 +271,12 @@ texinfo_documents = [
 
 
 # Example configuration for intersphinx: refer to the Python standard library.
-intersphinx_mapping = {'http://docs.python.org/': None}
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/3/", None),
+    "numpy": ("https://numpy.org/doc/stable/", None),
+    "astropy": ("https://docs.astropy.org/en/stable/", None),
+}
+
 
 mathjax_path = "http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
 
-#
-# #===============================================================================
-# # This does something naughty. It runs the nbconvert command on everything in the
-# # given folder, and moves the results to another given folder on every make.
-#
-# source_ipy_folder = "examples"
-# output_ipy_folder = "_exampledoc"

@@ -6,13 +6,15 @@ listed here, please advise via GitHub.
 """
 
 import numpy as np
-from scipy.interpolate import InterpolatedUnivariateSpline as _spline
 import scipy.special as sp
-from ..cosmology import cosmo as csm
-from .._internals import _framework
-from copy import copy
-from ..halos import mass_definitions as md
 import warnings
+from copy import copy
+from scipy.interpolate import InterpolatedUnivariateSpline as _spline
+from typing import Union
+
+from .._internals import _framework
+from ..cosmology import cosmo as csm
+from ..halos import mass_definitions as md
 
 
 class SimDetails:
@@ -78,7 +80,7 @@ class SimDetails:
         ICS=None,
         nmin=None,
         hmf_analysis_notes="",
-        other_cosmo={},
+        other_cosmo=None,
     ):
 
         # Possible multi-sims
@@ -98,7 +100,7 @@ class SimDetails:
         self.hmf_analysis_notes = hmf_analysis_notes
         self.nmin = nmin
 
-        self.other_cosmo = other_cosmo
+        self.other_cosmo = other_cosmo or {}
 
         # Derived
         self.V = self.L ** 3
@@ -171,7 +173,8 @@ class FittingFunction(_framework.Component):
     >>>        a = self.params["a"]
     >>>        p = self.params['p']
     >>>
-    >>>        return (A * np.sqrt(2.0 * a / np.pi) * self.nu * np.exp(-(a * self.nu2) / 2.0)
+    >>>        return (A * np.sqrt(2.0 * a / np.pi) * self.nu *
+    >>>               np.exp(-(a * self.nu2) / 2.0)
     >>>               * (1 + (1.0 / (a * self.nu2)) ** p))
 
     In that example, we did not specify :attr:`cutmask`.
@@ -191,9 +194,9 @@ class FittingFunction(_framework.Component):
         is 0.
     n_eff : array_like, optional
         The effective spectral index at `m`. Only required if :attr:`req_neff` is True.
-    mass_definition : :class:`hmf.halos.mass_definitions.MassDefinition` instance, optional
-        A halo mass definition. Only required for fits which explicitly include a parameterization
-        for halo definition.
+    mass_definition : :class:`hmf.halos.mass_definitions.MassDefinition` instance
+        A halo mass definition. Only required for fits which explicitly include a
+        parameterization for halo definition.
     cosmo : :class:`astropy.cosmology.FLRW` instance, optional
         A cosmology. Default is Planck15. Either `omegam_z` or `cosmo` is required if
         :attr:`req_omz` is True. If both are passed, omegam_z takes precedence.
@@ -206,24 +209,25 @@ class FittingFunction(_framework.Component):
     _defaults = {}
 
     # Subclass requirements
-    req_neff = False
-    "Whether `n_eff` is required for this subclass"
-    req_mass = False
-    "Whether `m` is required for this subclass"
+    req_neff = False  #: Whether `n_eff` is required for this subclass
+    req_mass = False  #: Whether `m` is required for this subclass
 
-    sim_definition = None
-    "Details of the defining simulation, subclass of ``SimDetails``"
+    sim_definition = (
+        None  #: Details of the defining simulation, instance of :class:`SimDetails`
+    )
+
+    normalized = False  #: Whether this model is normalized so that all mass is in halos
 
     def __init__(
         self,
         nu2: np.ndarray,
-        m: [None, np.ndarray] = None,
+        m: Union[None, np.ndarray] = None,
         z: float = 0.0,
-        n_eff: [None, np.ndarray] = None,
-        mass_definition: [None, md.MassDefinition] = None,
-        cosmo: [csm.FLRW] = csm.Planck15,
+        n_eff: Union[None, np.ndarray] = None,
+        mass_definition: Union[None, md.MassDefinition] = None,
+        cosmo: csm.FLRW = csm.Planck15,
         delta_c: float = 1.686,
-        **model_parameters
+        **model_parameters,
     ):
 
         super(FittingFunction, self).__init__(**model_parameters)
@@ -264,11 +268,14 @@ class FittingFunction(_framework.Component):
                 if delta_h == "vir":
                     measured = md.SOVirial()
                 elif delta_h.endswith("c"):
-                    measured = md.SOCritical(overdensity=float(delta_h[:-1]),)
+                    measured = md.SOCritical(
+                        overdensity=float(delta_h[:-1]),
+                    )
                 elif delta_h.endswith("m"):
                     measured = md.SOMean(overdensity=float(delta_h[:-1]))
                 elif delta_h.startswith("*"):
-                    # A Generic SO that will accept any SO definition, but has a preferred one.
+                    # A Generic SO that will accept any SO definition, but has a
+                    # preferred one.
                     measured = md.SOGeneric(
                         preferred=md.from_colossus_name(
                             delta_h.split("(")[-1].split(")")[0]
@@ -322,13 +329,17 @@ class FittingFunction(_framework.Component):
 
 class PS(FittingFunction):
     # Subclass requirements
-    req_sigma = False
-    req_z = False
+    req_sigma = False  #: Whether sigma is required to compute this model.
+    req_z = False  #: Whether redshift is required for this model.
 
     _eq = r"\sqrt{\frac{2}{\pi}}\nu\exp(-0.5\nu^2)"
-    _ref = r"""Press, W. H., Schechter, P., 1974. ApJ 187, 425-438. http://adsabs.harvard.edu/full/1974ApJ...187..425P"""
+    _ref = (
+        r"Press, W. H., Schechter, P., 1974. ApJ 187, 425-438. "
+        "http://adsabs.harvard.edu/full/1974ApJ...187..425P"
+    )
 
     __doc__ = _makedoc(FittingFunction._pdocs, "Press-Schechter", "PS", _eq, _ref)
+    normalized = True
 
     @property
     def fsigma(self):
@@ -341,10 +352,14 @@ class SMT(FittingFunction):
     req_z = False
 
     _eq = r"A\sqrt{2a/\pi}\nu\exp(-a\nu^2/2)(1+(a\nu^2)^{-p})"
-    _ref = r"""Sheth, R. K., Mo, H. J., Tormen, G., May 2001. MNRAS 323 (1), 1-12. http://doi.wiley.com/10.1046/j.1365-8711.2001.04006.x"""
+    _ref = (
+        r"Sheth, R. K., Mo, H. J., Tormen, G., May 2001. MNRAS 323 (1), 1-12. "
+        r"http://doi.wiley.com/10.1046/j.1365-8711.2001.04006.x"
+    )
     __doc__ = _makedoc(FittingFunction._pdocs, "Sheth-Mo-Tormen", "SMT", _eq, _ref)
 
-    _defaults = {"a": 0.707, "p": 0.3, "A": 0.3222}
+    _defaults = {"a": 0.707, "p": 0.3, "A": None}
+    normalized = True
 
     sim_definition = SimDetails(
         L=[84.5, 141.3],
@@ -364,6 +379,15 @@ class SMT(FittingFunction):
         other_cosmo={"omegav": 0.7, "h": 0.7, "n": 1},
     )
 
+    def __init__(self, *args, validate=True, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if validate:
+            if self.params["p"] >= 0.5:
+                raise ValueError(f"p in SMT must be < 0.5. Got {self.params['p']}")
+            if self.params["a"] <= 0:
+                raise ValueError(f"a in SMT must be > 0. Got {self.params['a']}.")
+
     @property
     def fsigma(self):
         A = self.norm()
@@ -381,15 +405,13 @@ class SMT(FittingFunction):
     def norm(self):
         if self.params["A"] is not None:
             return self.params["A"]
-        else:
-            p = self.params["p"]
-            return 1.0 / (1 + 2 ** -p * sp.gamma(0.5 - p) / sp.gamma(0.5))
+
+        p = self.params["p"]
+        return 1.0 / (1 + 2 ** -p * sp.gamma(0.5 - p) / sp.gamma(0.5))
 
 
 class ST(SMT):
-    """
-    Alias of :class:`SMT`
-    """
+    """Alias of :class:`SMT`."""
 
     pass
 
@@ -399,9 +421,13 @@ class Jenkins(FittingFunction):
     req_z = False
 
     _eq = r"A\exp\left(-\left|\ln\sigma^{-1}+b\right|^c\right)"
-    _ref = r"""Jenkins, A. R., et al., Feb. 2001. MNRAS 321 (2), 372-384. http://doi.wiley.com/10.1046/j.1365-8711.2001.04029.x"""
+    _ref = (
+        r"Jenkins, A. R., et al., Feb. 2001. MNRAS 321 (2), 372-384. "
+        r"http://doi.wiley.com/10.1046/j.1365-8711.2001.04029.x"
+    )
     __doc__ = _makedoc(FittingFunction._pdocs, "Jenkins", "Jenkins", _eq, _ref)
     _defaults = {"A": 0.315, "b": 0.61, "c": 3.8}
+    normalized = False
 
     sim_definition = SimDetails(
         L=[84.5, 141.3, 479, 3000],
@@ -440,13 +466,25 @@ class Warren(FittingFunction):
     req_z = False
     req_mass = True
 
-    _eq = r"A\left[\left(\frac{e}{\sigma}\right)^b + c\right]\exp\left(\frac{d}{\sigma^2}\right)"
-    _ref = r"""Warren, M. S., et al., Aug. 2006. ApJ 646 (2), 881-885. http://adsabs.harvard.edu/abs/2006ApJ...646..881W"""
+    _eq = (
+        r"A\left[\left(\frac{e}{\sigma}\right)^b + c\right]\exp"
+        r"\left(\frac{d}{\sigma^2}\right)"
+    )
+    _ref = (
+        r"Warren, M. S., et al., Aug. 2006. ApJ 646 (2), 881-885."
+        r"http://adsabs.harvard.edu/abs/2006ApJ...646..881W"
+    )
     __doc__ = _makedoc(FittingFunction._pdocs, "Warren", "Warren", _eq, _ref)
 
     _defaults = {"A": 0.7234, "b": 1.625, "c": 0.2538, "d": 1.1982, "e": 1}
+    normalized = False
 
-    uncertainties = {"A": 0.0073, "a": 0.028, "b": 0.0051, "c": 0.0075}
+    uncertainties = {
+        "A": 0.0073,
+        "a": 0.028,
+        "b": 0.0051,
+        "c": 0.0075,
+    }  #: Quoted uncertainties of the model parameters.
     sim_definition = SimDetails(
         L=[96, 135, 192, 272, 384, 543, 768, 1086, 1536, 2172, 2583, 3072],
         N=1024 ** 3,
@@ -502,6 +540,7 @@ class Reed03(SMT):
     __doc__ = _makedoc(FittingFunction._pdocs, "Reed03", "R03", _eq, _ref)
 
     _defaults = {"a": 0.707, "p": 0.3, "A": 0.3222, "c": 0.7}
+    normalized = False
 
     sim_definition = SimDetails(
         L=50.0,
@@ -626,6 +665,7 @@ class Peacock(FittingFunction):
 
     sim_definition = copy(Warren.sim_definition)
     sim_definition.hmf_analysis_notes = "Fit directly to Warren+2006 fit."
+    normalized = True
 
     @property
     def fsigma(self):
@@ -763,18 +803,15 @@ class Watson(FittingFunction):
 
     def gamma(self):
         r"""Calculate :math:`\Gamma` for the Watson fit."""
-        if self.mass_definition is not None:
-            if not isinstance(self.mass_definition, md.SphericalOverdensity):
-                raise ValueError(
-                    "The Watson fitting function is a spherical-overdensity function."
-                )
-            else:
-                delta_halo = self.mass_definition.halo_overdensity_mean(
-                    self.z, self.cosmo
-                )
-        else:
+        if self.mass_definition is None:
             delta_halo = 178.0
 
+        elif not isinstance(self.mass_definition, md.SphericalOverdensity):
+            raise ValueError(
+                "The Watson fitting function is a spherical-overdensity function."
+            )
+        else:
+            delta_halo = self.mass_definition.halo_overdensity_mean(self.z, self.cosmo)
         C = np.exp(self.params["C_a"] * (delta_halo / 178 - 1))
         d = -self.params["d_a"] * self.omegam_z - self.params["d_b"]
         p = self.params["p"]
@@ -880,6 +917,8 @@ class Courtin(SMT):
     __doc__ = _makedoc(FittingFunction._pdocs, "Courtin", "Ctn", SMT._eq, _ref)
     _defaults = {"A": 0.348, "a": 0.695, "p": 0.1}
 
+    normalized = False
+
     sim_definition = SimDetails(
         L=[162, 648, 1296],
         N=[512 ** 3, 512 ** 3, 512 ** 3],
@@ -917,7 +956,10 @@ class Bhattacharya(SMT):
         "a_b": 0.01,
         "p": 0.807,
         "q": 1.795,
+        "normed": False,
     }
+
+    normalized = False
 
     sim_definition = SimDetails(
         L=[1000 * 0.72, 1736 * 0.72, 2778 * 0.72, 178 * 0.72, 1300 * 0.72],
@@ -943,9 +985,19 @@ class Bhattacharya(SMT):
     )
 
     def __init__(self, **kwargs):
-        super(Bhattacharya, self).__init__(**kwargs)
-        self.params["A"] = self.params["A_a"] * (1 + self.z) ** -self.params["A_b"]
+        super().__init__(validate=False, **kwargs)
+        if not self.params["normed"]:
+            self.params["A"] = self.params["A_a"] * (1 + self.z) ** -self.params["A_b"]
+        else:
+            self.params["A"] = self.norm()
+
         self.params["a"] = self.params["a_a"] * (1 + self.z) ** -self.params["a_b"]
+
+        # To enable satisfying normalization to unity
+        if self.params["q"] <= 0:
+            raise ValueError("q in Bhattacharya must be > 0")
+        if self.params["p"] * 2 >= self.params["q"]:
+            raise ValueError("2p in Bhattacharya must be < q")
 
     @property
     def fsigma(self):
@@ -962,12 +1014,23 @@ class Bhattacharya(SMT):
         vfv : array_like, len=len(pert.M)
             The function :math:`f(\sigma)\equiv\nu f(\nu)`.
         """
-        vfv = super(Bhattacharya, self).fsigma
+        vfv = super().fsigma
         return vfv * (np.sqrt(self.params["a"]) * self.nu) ** (self.params["q"] - 1)
 
     @property
     def cutmask(self):
         return np.logical_and(self.m > 6 * 10 ** 11, self.m < 3 * 10 ** 15)
+
+    def norm(self):
+        if self.params["A"] is not None:
+            return self.params["A"]
+
+        p, q = self.params["p"], self.params["q"]
+        return (
+            2 ** (-1 / 2 - p + q / 2)
+            * (2 ** p * sp.gamma(q / 2) + sp.gamma(-p + q / 2))
+            / np.sqrt(np.pi)
+        )
 
 
 class Tinker08(FittingFunction):
@@ -1366,22 +1429,20 @@ class Tinker10(FittingFunction):
 
     delta_virs = np.array([200, 300, 400, 600, 800, 1200, 1600, 2400, 3200])
     terminate = True
+    normalized = True
 
     def __init__(self, **model_parameters):
         super().__init__(**model_parameters)
 
-        if self.mass_definition is not None:
-            if not isinstance(self.mass_definition, md.SphericalOverdensity):
-                raise ValueError(
-                    "The Tinker10 fitting function is a spherical-overdensity function."
-                )
-            else:
-                delta_halo = self.mass_definition.halo_overdensity_mean(
-                    self.z, self.cosmo
-                )
-        else:
+        if self.mass_definition is None:
             delta_halo = 200
 
+        elif not isinstance(self.mass_definition, md.SphericalOverdensity):
+            raise ValueError(
+                "The Tinker10 fitting function is a spherical-overdensity function."
+            )
+        else:
+            delta_halo = self.mass_definition.halo_overdensity_mean(self.z, self.cosmo)
         self.delta_halo = delta_halo
 
         if int(delta_halo) not in self.delta_virs:
@@ -1421,7 +1482,7 @@ class Tinker10(FittingFunction):
             * (1 + min(self.z, self.params["max_z"])) ** self.params["gamma_exp"]
         )
 
-        # # The normalisation only works with specific conditions
+        # The normalisation only works with specific conditions
         # gamma > 0
         if self.gamma <= 0:
             if self.terminate:
@@ -1438,7 +1499,7 @@ class Tinker10(FittingFunction):
         if self.eta - self.phi <= -0.5:
             if self.terminate:
                 raise ValueError(
-                    "eta-phi must be >-0.5, got " + str(self.eta - self.phi)
+                    "eta-phi must be > -0.5, got " + str(self.eta - self.phi)
                 )
             else:
                 self.phi = self.eta + 0.499
@@ -1495,16 +1556,17 @@ class Behroozi(Tinker10):
     This is an empirical modification to the :class:`Tinker08` fit, to improve
     accuracy at high redshift.
 
-    %s
+    {}
 
     References
     ----------
-    .. [1] %s
-    """ % (
+    .. [1] {}
+    """.format(
         FittingFunction._pdocs,
         _ref,
     )
 
+    normalized = False
     sim_definition = SimDetails(
         L=[250, 1000, 420],
         N=[2048 ** 3, 2048 ** 3, 1400 ** 3],
@@ -1555,6 +1617,7 @@ class Pillepich(Warren):
         FittingFunction._pdocs, "Pillepich", "Pillepich", Warren._eq, _ref
     )
     _defaults = {"A": 0.6853, "b": 1.868, "c": 0.3324, "d": 1.2266, "e": 1}
+    normalized = False
 
     sim_definition = SimDetails(
         L=[1200, 1200, 150],
@@ -1574,9 +1637,8 @@ class Pillepich(Warren):
         other_cosmo={
             "omegav": [0.721, 0.76, 0.721],
             "omegab": [0.0462, 0.042, 0.0462],
-            ## uses lower case omega without definition
+            # uses lower case omega without definition
             "h": [0.701, 0.73, 0.701],
-            "n": [0.96, 0.95, 0.96],
         },
     )
 
@@ -1644,3 +1706,205 @@ class Ishiyama(Warren):
     @property
     def cutmask(self):
         return np.logical_and(self.m > 1e8, self.m < 1e16)
+
+
+class Bocquet200mDMOnly(Warren):
+    _eq = r"A\left[\left(\frac{e}{\sigma}\right)^b + 1\right]\exp(-\frac{d}{\sigma^2})"
+    _ref = r"""Bocuet, S., et al., 2016, MNRAS 456 2361"""
+    __doc__ = _makedoc(FittingFunction._pdocs, "Bocquet", "Bocquet", _eq, _ref)
+    _defaults = {
+        "A": 0.216,
+        "b": 1.87,
+        "c": 1,
+        "d": 1.31,
+        "e": 2.02,
+        "A_z": 0.018,
+        "b_z": -0.0748,
+        "d_z": -0.0689,
+        "e_z": -0.215,
+    }
+
+    sim_definition = SimDetails(
+        L=[68.1, 181.8, 1274],
+        N=None,
+        halo_finder_type="SO",
+        omegam=0.272,
+        sigma_8=0.809,
+        halo_overdensity="200m",
+        halo_finder="Subfind",
+        softening=None,
+        transfer=None,
+        z_start=None,
+        z_meas=(0, 2),
+        ICS=None,
+        nmin=10000,
+        hmf_analysis_notes="Poisson bayesian likelihood and finite volume correction.",
+        other_cosmo={
+            "omegav": 0.69,
+            "omegab": 0.0456,  # uses lower case omega without definition
+            "h": 0.704,
+            "n": 0.96,
+        },
+    )
+
+    def get_params(self):
+        """Get the redshift-dependent parameters."""
+        return (
+            self.params["A"] * (1 + self.z) ** self.params["A_z"],
+            self.params["b"] * (1 + self.z) ** self.params["b_z"],
+            self.params["d"] * (1 + self.z) ** self.params["d_z"],
+            self.params["e"] * (1 + self.z) ** self.params["e_z"],
+        )
+
+    def convert_mass(self):
+        """Function to compute mass in this definition compared to 200m.
+
+        This is an analytic approximation, not a full mass translation, and is calibrated
+        to the NFW profile with Duffy+08 concentration-mass relation. This ratio is
+        applied in :meth:`fsigma`.
+        """
+        return 1
+
+    @property
+    def fsigma(self):
+        A, b, d, e = self.get_params()
+        mass_conversion = self.convert_mass()
+        return (
+            A
+            * ((e / self.sigma) ** b + 1)
+            * np.exp(-d / self.sigma ** 2)
+            * mass_conversion
+        )
+
+
+class Bocquet200mHydro(Bocquet200mDMOnly):
+    __doc__ = _makedoc(
+        FittingFunction._pdocs,
+        "Bocquet",
+        "Bocquet",
+        Bocquet200mDMOnly._eq,
+        Bocquet200mDMOnly._ref,
+    )
+    _defaults = {
+        "A": 0.240,
+        "b": 2.43,
+        "c": 1,
+        "d": 1.41,
+        "e": 1.65,
+        "A_z": 0.365,
+        "b_z": -0.129,
+        "d_z": -0.138,
+        "e_z": -0.453,
+    }
+
+
+class Bocquet200cDMOnly(Bocquet200mDMOnly):
+    __doc__ = _makedoc(
+        FittingFunction._pdocs,
+        "Bocquet",
+        "Bocquet",
+        Bocquet200mDMOnly._eq,
+        Bocquet200mDMOnly._ref,
+    )
+
+    _defaults = {
+        "A": 0.256,
+        "b": 2.01,
+        "c": 1,
+        "d": 1.59,
+        "e": 1.97,
+        "A_z": 0.218,
+        "b_z": 0.290,
+        "d_z": -0.174,
+        "e_z": -0.518,
+    }
+    sim_definition = copy(Bocquet200mDMOnly.sim_definition)
+    sim_definition.halo_overdensity = "200c"
+
+    def convert_mass(self):
+        g0 = 3.54e-2 + self.cosmo.Om0 ** 0.09
+        g1 = 4.56e-2 + 2.68e-2 / self.cosmo.Om0
+        g2 = 0.721 + 3.5e-2 / self.cosmo.Om0
+        g3 = 0.628 + 0.164 / self.cosmo.Om0
+        d0 = -1.67e-2 + 2.18e-2 * self.cosmo.Om0
+        d1 = 6.52e-3 - 6.86e-3 * self.cosmo.Om0
+
+        g = g0 + g1 * np.exp(-(((g2 - self.z) / g3) ** 2))
+        d = d0 + d1 * self.z
+        return g + d * np.log(self.m)
+
+
+class Bocquet200cHydro(Bocquet200cDMOnly):
+    __doc__ = _makedoc(
+        FittingFunction._pdocs,
+        "Bocquet",
+        "Bocquet",
+        Bocquet200mDMOnly._eq,
+        Bocquet200mDMOnly._ref,
+    )
+
+    _defaults = {
+        "A": 0.290,
+        "b": 2.69,
+        "c": 1,
+        "d": 1.70,
+        "e": 1.58,
+        "A_z": 0.216,
+        "b_z": 0.027,
+        "d_z": -0.226,
+        "e_z": -0.352,
+    }
+
+
+class Bocquet500cDMOnly(Bocquet200cDMOnly):
+    __doc__ = _makedoc(
+        FittingFunction._pdocs,
+        "Bocquet",
+        "Bocquet",
+        Bocquet200mDMOnly._eq,
+        Bocquet200mDMOnly._ref,
+    )
+
+    _defaults = {
+        "A": 0.390,
+        "b": 3.05,
+        "c": 1,
+        "d": 2.32,
+        "e": 1.72,
+        "A_z": -0.924,
+        "b_z": -0.421,
+        "d_z": -0.509,
+        "e_z": 0.190,
+    }
+    sim_definition = copy(Bocquet200mDMOnly.sim_definition)
+    sim_definition.halo_overdensity = "500c"
+
+    def convert_mass(self):
+        alpha_0 = 0.880 + 0.329 * self.cosmo.Om0
+        alpha_1 = 1.0 + 4.31 * 1e-2 / self.cosmo.Om0
+        alpha_2 = -0.365 + 0.254 / self.cosmo.Om0
+        alpha = alpha_0 * (alpha_1 * self.z + alpha_2) / (self.z + alpha_2)
+        beta = -1.7e-2 + self.cosmo.Om0 * 3.74e-3
+        return alpha + beta * np.log(self.m)
+
+
+class Bocquet500cHydro(Bocquet500cDMOnly):
+    __doc__ = _makedoc(
+        FittingFunction._pdocs,
+        "Bocquet",
+        "Bocquet",
+        Bocquet200mDMOnly._eq,
+        Bocquet200mDMOnly._ref,
+    )
+
+    _defaults = {
+        "A": 0.322,
+        "b": 3.24,
+        "c": 1,
+        "d": 2.29,
+        "e": 1.71,
+        "A_z": 0.0142,
+        "b_z": -0.219,
+        "d_z": -0.428,
+        "e_z": -0.275,
+    }

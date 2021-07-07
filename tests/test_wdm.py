@@ -1,7 +1,9 @@
 from pytest import raises
-from hmf.alternatives import wdm
-import hmf
+
 import numpy as np
+
+import hmf
+from hmf.alternatives import wdm
 
 
 def test_null():
@@ -38,7 +40,10 @@ class TestBode(TestViel):
 class TestSchneider12_vCDM:
     def setup_class(self):
         self.cdm = hmf.MassFunction(transfer_model="EH")
-        self.cls = wdm.Schneider12_vCDM(m=self.cdm.m, dndm0=self.cdm.dndm,)
+        self.cls = wdm.Schneider12_vCDM(
+            m=self.cdm.m,
+            dndm0=self.cdm.dndm,
+        )
 
     def test_high_m(self):
         assert np.isclose(self.cls.dndm_alter()[-1], self.cdm.dndm[-1], rtol=1e-3)
@@ -47,13 +52,19 @@ class TestSchneider12_vCDM:
 class TestSchneider12(TestSchneider12_vCDM):
     def setup_class(self):
         self.cdm = hmf.MassFunction(transfer_model="EH")
-        self.cls = wdm.Schneider12(m=self.cdm.m, dndm0=self.cdm.dndm,)
+        self.cls = wdm.Schneider12(
+            m=self.cdm.m,
+            dndm0=self.cdm.dndm,
+        )
 
 
 class TestLovell14(TestSchneider12_vCDM):
     def setup_class(self):
         self.cdm = hmf.MassFunction(transfer_model="EH")
-        self.cls = wdm.Lovell14(m=self.cdm.m, dndm0=self.cdm.dndm,)
+        self.cls = wdm.Lovell14(
+            m=self.cdm.m,
+            dndm0=self.cdm.dndm,
+        )
 
 
 class TestTransfer:

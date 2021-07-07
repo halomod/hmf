@@ -4,10 +4,12 @@ This module provides some tests of mgtm/mean_density0 against analytic f_coll.
 As such, it is the best test of all calculations after sigma.
 """
 
-import numpy as np
-from hmf import MassFunction
-from scipy.special import erfc
 import pytest
+
+import numpy as np
+from scipy.special import erfc
+
+from hmf import MassFunction
 
 
 @pytest.fixture(scope="function")
@@ -82,7 +84,7 @@ class TestCumulants:
             np.logical_and(peacock.m > 10 ** 10, peacock.m < 10 ** 15)
         ]
         err = err[np.logical_not(np.isnan(err))]
-        print((np.max(err)))
+        print(np.max(err))
         assert np.max(err) < 0.4
 
     @pytest.fixture(scope="class")

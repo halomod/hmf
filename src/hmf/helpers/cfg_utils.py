@@ -1,9 +1,11 @@
 """Utilities for interacting with hmf TOML configs."""
-from hmf._internals._framework import Framework
-from datetime import datetime
-from .. import __version__
-from inspect import signature
 from astropy.units import Quantity
+from datetime import datetime
+from inspect import signature
+
+from hmf._internals._framework import Framework
+
+from .. import __version__
 
 
 def framework_to_dict(obj: Framework) -> dict:

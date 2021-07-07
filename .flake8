@@ -1,12 +1,19 @@
 [flake8]
 ignore =
-    E203
-    E266
-    E501
+    E203  # No space before colon
     W503
-    F403
-    F401
-    E231
+    D107  # Missing docstring in __init__ (we do it in the class)
+    D401  # "First line should be in imperative mood" -- this doesn't work for properties, see https://github.com/PyCQA/pydocstyle/issues/301
+    A003  # allow method names to be the same as python builtins
+    RST210  # inline strong start-string without end-string. This is OK in the case of **kwargs in parameters.
+    D102  # Ignore public methods without docstrings, because it doesn't check for inheritance :/
+    D200  # TODO: remove. (one-line docstring should fit on one line with quotes)
+    D400  # TODO: remove. (first line should end with a period)
+    E501  # TODO: remove (line too long)
+    D105  # TODO: remove
+    D204  # TODO: remove
+    D202  # TODO: remove
+    D205  # TODO: remove
 max-line-length = 88
 # Should be 18.
 max-complexity = 25
@@ -14,9 +21,11 @@ exclude =
     development/*
 # Not ready for this yet.
 per-file-ignores =
-    scripts/hmf: F821
-    scripts/hmf-fit: F821
-select = B,C,E,F,W,T4,B9,D
+    tests/*:D,T001   # print statements allowed in tests
+    scripts/*: F821, T001
+    docs/conf.py:D,A
+    */__init__.py:F401
+    src/hmf/mass_function/fitting_functions.py:D101
 rst-roles =
     class
     func
