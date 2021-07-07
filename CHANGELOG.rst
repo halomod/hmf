@@ -4,6 +4,11 @@ Releases
 dev-version
 ----------------------
 
+**Features**
+
+- Now the user can use non-matched mass definitions for the HMF without translating
+  the definition, by setting ``MassFunction.ERROR_ON_BAD_MDEF=False``.
+
 v3.4.0 [07 Jul 2021]
 ----------------------
 
