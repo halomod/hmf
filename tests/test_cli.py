@@ -1,8 +1,10 @@
 import pytest
-from pathlib import Path
-from click.testing import CliRunner
-from hmf._cli import main
+
 import numpy as np
+from click.testing import CliRunner
+from pathlib import Path
+
+from hmf._cli import main
 
 
 @pytest.fixture(scope="function")

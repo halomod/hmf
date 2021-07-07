@@ -1,12 +1,13 @@
-from pytest import raises
-import hmf
 import pytest
-from hmf.density_field.transfer_models import TransferComponent
-from hmf._internals import pluggable, get_base_components, get_base_component
-from hmf._internals._framework import get_model_
+from pytest import raises
+
 from deprecation import fail_if_not_removed
-from hmf import GrowthFactor
-from hmf import MassFunction
+
+import hmf
+from hmf import GrowthFactor, MassFunction
+from hmf._internals import get_base_component, get_base_components, pluggable
+from hmf._internals._framework import get_model_
+from hmf.density_field.transfer_models import TransferComponent
 
 
 def test_incorrect_argument():

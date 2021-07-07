@@ -1,11 +1,12 @@
-import numpy as np
-import itertools
 import pytest
-
 from pytest import raises
+
+import inspect
+import itertools
+import numpy as np
+
 from hmf import MassFunction
 from hmf.mass_function import fitting_functions as ff
-import inspect
 
 allfits = [
     o

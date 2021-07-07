@@ -1,6 +1,6 @@
 import numpy as np
-from hmf import get_hmf
-from hmf import MassFunction
+
+from hmf import MassFunction, get_hmf
 
 
 def test_order():
@@ -27,6 +27,7 @@ def test_order():
             sigma_8=[0.7, 0.8],
         )
     ):
+        print(i)
         assert len(label) == len(order[i])
         assert sorted(label.split(", ")) == sorted(order[i].split(", "))
         assert isinstance(mf, MassFunction)

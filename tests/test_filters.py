@@ -2,11 +2,13 @@
 Analytic functions for this test are defined in "analytic_filter.ipynb" in the development/ directory.
 """
 
-from hmf.density_field import filters
-import numpy as np
-from numpy import sin, cos, pi
-import warnings
 import pytest
+
+import numpy as np
+import warnings
+from numpy import cos, pi, sin
+
+from hmf.density_field import filters
 
 # Need to do the following to catch repeated warnings.
 warnings.simplefilter("always", UserWarning)

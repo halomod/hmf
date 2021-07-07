@@ -1,12 +1,14 @@
 """
 A supporting module that provides a routine to integrate the differential hmf in a robust manner.
 """
-from scipy.interpolate import InterpolatedUnivariateSpline as _spline
 import numpy as np
 import scipy.integrate as intg
+from scipy.interpolate import InterpolatedUnivariateSpline as _spline
 
 
 class NaNException(Exception):
+    """Integrator hit a NaN."""
+
     pass
 
 

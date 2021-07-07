@@ -1,7 +1,9 @@
 from pytest import raises
-from hmf.alternatives import wdm
-import hmf
+
 import numpy as np
+
+import hmf
+from hmf.alternatives import wdm
 
 
 def test_null():
