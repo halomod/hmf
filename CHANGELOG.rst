@@ -9,6 +9,14 @@ v3.4.0 [07 Jul 2021]
 
 **Features**
 
+- Now the user can use non-matched mass definitions for the HMF without translating
+  the definition, by setting ``MassFunction.ERROR_ON_BAD_MDEF=False``.
+
+v3.4.0 [07 Jul 2021]
+----------------------
+
+**Features**
+
 - Added ``normalized`` attribute of all ``FittingFunction`` models, to tell whether the
   model integrates to the mean density over all mass.
 - New ``Bocquet`` fitting functions (for Hydro and DMOnly at all overdensities).
