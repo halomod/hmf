@@ -91,6 +91,7 @@ class MassFunction(transfer.Transfer):
     >>> h.dndm
     """
 
+    #: Switch to turn off exceptions for mdef's not matching hmf_model
     ERROR_ON_BAD_MDEF = True
 
     def __init__(
@@ -288,19 +289,18 @@ class MassFunction(transfer.Transfer):
                         f"automatic mass conversion by setting `disable_mass_conversion=False, "
                         "or use the correct mass definition."
                     )
-                else:
-                    extra_msg = (
-                        "The mass function will be "
-                        "converted to your input definition, "
-                        "but note that some properties do not survive the conversion, eg. "
-                        "the integral of the hmf over mass yielding the total mean density."
-                    )
+                extra_msg = (
+                    "The mass function will be "
+                    "converted to your input definition, "
+                    "but note that some properties do not survive the conversion, eg. "
+                    "the integral of the hmf over mass yielding the total mean density."
+                )
 
-                    warnings.warn(
-                        f"Your input mass definition '{mdef}' does not match the mass "
-                        f"definition in which the hmf fit {self.hmf_model.__name__} was measured:"
-                        f"'{self.hmf_model.get_measured_mdef()}'. {extra_msg if not self.disable_mass_conversion else ''}"
-                    )
+                warnings.warn(
+                    f"Your input mass definition '{mdef}' does not match the mass "
+                    f"definition in which the hmf fit {self.hmf_model.__name__} was measured:"
+                    f"'{self.hmf_model.get_measured_mdef()}'. {extra_msg if not self.disable_mass_conversion else ''}"
+                )
 
         return mdef
 
