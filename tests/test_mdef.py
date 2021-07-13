@@ -105,3 +105,18 @@ def test_change_dndm(colossus_cosmo):
     h.update(mdef_model="FOF")
 
     assert not np.allclose(h.dndm, dndm, atol=0, rtol=0.15)
+
+
+def test_change_dndm_bocquet():
+    h200m = MassFunction(
+        mdef_model="SOMean",
+        mdef_params={"overdensity": 200},
+        hmf_model="Bocquet200mDMOnly",
+    )
+    h200c = MassFunction(
+        mdef_model="SOCritical",
+        mdef_params={"overdensity": 200},
+        hmf_model="Bocquet200cDMOnly",
+    )
+
+    np.testing.assert_allclose(h200m.fsigma / h200c.fsigma, h200m.dndm / h200c.dndm)

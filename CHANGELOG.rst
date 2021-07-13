@@ -4,6 +4,13 @@ Releases
 dev-version
 ----------------------
 
+v3.4.2 [13 Jul 2021]
+----------------------
+
+**Bugfixes**
+
+- Watson high-z parameters had a typo which is now fixed (#141)
+
 v3.4.1 [07 Jul 2021]
 ----------------------
 
