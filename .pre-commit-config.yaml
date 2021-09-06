@@ -17,7 +17,7 @@ repos:
   - id: requirements-txt-fixer
   - id: mixed-line-ending
     args: ['--fix=no']
--   repo: https://gitlab.com/pycqa/flake8
+-   repo: https://github.com/PyCQA/flake8
     rev: '3.9.2'  # pick a git hash / tag to point to
     hooks:
     -   id: flake8
@@ -33,19 +33,19 @@ repos:
           - flake8-comprehensions
           - flake8-print
 -   repo: https://github.com/psf/black
-    rev: 21.6b0
+    rev: 21.8b0
     hooks:
     - id: black
 -   repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.9.0
     hooks:
       - id: rst-backticks
-- repo: https://github.com/timothycrosley/isort
-  rev: 5.9.1
+- repo: https://github.com/PyCQA/isort
+  rev: 5.9.3
   hooks:
   - id: isort
 
 - repo: https://github.com/asottile/pyupgrade
-  rev: v2.19.4
+  rev: v2.25.0
   hooks:
   -   id: pyupgrade
