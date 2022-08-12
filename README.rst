@@ -17,7 +17,7 @@ hmf
 
 ``hmf`` is a python application that provides a flexible and simple way to calculate the
 Halo Mass Function for a range of varying parameters. It is also the backend to
-`HMFcalc <http://hmf.icrar.org>`_, the online HMF calculator.
+`HMFcalc <http://thehalomod.app>`_, the online HMF calculator.
 
 Full Documentation
 ------------------
