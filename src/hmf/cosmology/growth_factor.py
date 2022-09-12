@@ -9,7 +9,7 @@ may be implemented.
 
 import numpy as np
 from astropy import cosmology
-from cached_property import cached_property
+from functools import cached_property
 from scipy.interpolate import InterpolatedUnivariateSpline as _spline
 from typing import Union
 
