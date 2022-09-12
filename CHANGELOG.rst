@@ -4,6 +4,18 @@ Releases
 dev-version
 ----------------------
 
+v3.4.3 [12 Sep 2022]
+----------------------
+
+**Changes**
+-----------
+
+- No longer supporting <py38
+- Fixes to setup.cfg (#150)
+
+v3.4.2 [13 Jul 2021]
+----------------------
+
 **Bugfixes**
 
 - Watson high-z parameters had a typo which is now fixed (#141)
