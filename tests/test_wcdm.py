@@ -9,7 +9,7 @@ from hmf.density_field.transfer import Transfer
 
 @pytest.fixture(scope="module")
 def wcdm():
-    return FlatwCDM(H0=70.0, w0=-0.9, Om0=0.3, Ob0=0.05, Tcmb0=2.7)
+    return FlatwCDM(H0=70.0, w0=-0.9, Om0=0.3, Ob0=0.05, Tcmb0=2.7, name="FlatwCDM")
 
 
 @pytest.fixture(scope="module")

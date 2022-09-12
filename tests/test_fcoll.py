@@ -47,7 +47,7 @@ def fcoll_Peacock(nu):
     b = 0.704
     c = 0.412
 
-    return (1 + a * nu ** b) ** -1 * np.exp(-c * nu ** 2)
+    return (1 + a * nu**b) ** -1 * np.exp(-c * nu**2)
 
 
 class TestCumulants:
@@ -81,7 +81,7 @@ class TestCumulants:
         anl = fcoll_Peacock(np.sqrt(peacock.nu))
         num = peacock.rho_gtm / peacock.mean_density0
         err = np.abs((num - anl) / anl)[
-            np.logical_and(peacock.m > 10 ** 10, peacock.m < 10 ** 15)
+            np.logical_and(peacock.m > 10**10, peacock.m < 10**15)
         ]
         err = err[np.logical_not(np.isnan(err))]
         print(np.max(err))

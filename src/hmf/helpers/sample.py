@@ -103,7 +103,7 @@ def dndm_from_sample(m, V, nm=None, bins=50):
     hist, edges = np.histogram(np.log10(m), bins, weights=nm)
     centres = (edges[1:] + edges[:-1]) / 2
     dx = centres[1] - centres[0]
-    hist = hist.astype("float") / (10 ** centres * float(V) * dx * np.log(10))
+    hist = hist.astype("float") / (10**centres * float(V) * dx * np.log(10))
 
     if hist[0] == 0:
         try:

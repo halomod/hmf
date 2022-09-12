@@ -20,14 +20,14 @@ def gammainc(z, x):
 
 class TestAnalyticIntegral:
     def tggd(self, m, loghs, alpha, beta):
-        return beta * (m / 10 ** loghs) ** alpha * np.exp(-((m / 10 ** loghs) ** beta))
+        return beta * (m / 10**loghs) ** alpha * np.exp(-((m / 10**loghs) ** beta))
 
     def anl_int(self, m, loghs, alpha, beta):
-        return 10 ** loghs * gammainc((alpha + 1) / beta, (m / 10 ** loghs) ** beta)
+        return 10**loghs * gammainc((alpha + 1) / beta, (m / 10**loghs) ** beta)
 
     def anl_m_int(self, m, loghs, alpha, beta):
         return 10 ** (2 * loghs) * gammainc(
-            (alpha + 2) / beta, (m / 10 ** loghs) ** beta
+            (alpha + 2) / beta, (m / 10**loghs) ** beta
         )
 
     # def test_basic(self):
