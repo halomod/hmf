@@ -230,7 +230,7 @@ class FittingFunction(_framework.Component):
         **model_parameters,
     ):
 
-        super(FittingFunction, self).__init__(**model_parameters)
+        super().__init__(**model_parameters)
 
         self.nu2 = nu2
         self.z = z
@@ -562,7 +562,7 @@ class Reed03(SMT):
 
     @property
     def fsigma(self):
-        vfv = super(Reed03, self).fsigma
+        vfv = super().fsigma
         return vfv * np.exp(
             -self.params["c"] / (self.sigma * np.cosh(2.0 * self.sigma) ** 5)
         )
@@ -899,7 +899,7 @@ class Crocce(Warren):
     )
 
     def __init__(self, *args, **kwargs):
-        super(Crocce, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self.params["A"] = self.params["A_a"] * (1 + self.z) ** (-self.params["A_b"])
         self.params["b"] = self.params["b_a"] * (1 + self.z) ** (-self.params["b_b"])
@@ -1303,7 +1303,7 @@ class Tinker08(FittingFunction):
     delta_virs = np.array([200, 300, 400, 600, 800, 1200, 1600, 2400, 3200])
 
     def __init__(self, **model_parameters):
-        super(Tinker08, self).__init__(**model_parameters)
+        super().__init__(**model_parameters)
 
         if not isinstance(self.mass_definition, md.SphericalOverdensity):
             raise ValueError(

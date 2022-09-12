@@ -40,7 +40,7 @@ class _GrowthFactor(Cmpt):
                 f"{self.__class__.__name__}. Supported cosmologies: "
                 f"{self.supported_cosmos}."
             )
-        super(_GrowthFactor, self).__init__(**model_parameters)
+        super().__init__(**model_parameters)
 
 
 class GrowthFactor(_GrowthFactor):
@@ -67,7 +67,7 @@ class GrowthFactor(_GrowthFactor):
     _defaults = {"dlna": 0.01, "amin": 1e-8}
 
     def __init__(self, *args, **kwargs):
-        super(GrowthFactor, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     @cached_property
     def _lna(self):
@@ -353,7 +353,7 @@ if HAVE_CAMB:
         supported_cosmos = (cosmology.LambdaCDM, cosmology.w0waCDM, cosmology.wCDM)
 
         def __init__(self, *args, **kwargs):
-            super(CambGrowth, self).__init__(*args, **kwargs)
+            super().__init__(*args, **kwargs)
 
             # Save the CAMB object properly for use
             # Set the cosmology

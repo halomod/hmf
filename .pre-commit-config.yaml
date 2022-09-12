@@ -48,4 +48,5 @@ repos:
 - repo: https://github.com/asottile/pyupgrade
   rev: v2.37.3
   hooks:
-  -   id: pyupgrade
+  - id: pyupgrade
+    args: [--py38-plus]

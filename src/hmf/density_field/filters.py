@@ -60,7 +60,7 @@ class Filter(_framework.Component):
         self.k = k
         self.power = power
 
-        super(Filter, self).__init__(**model_parameters)
+        super().__init__(**model_parameters)
 
     def real_space(self, R, r):
         r"""

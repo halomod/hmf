@@ -55,7 +55,7 @@ class WDM(Component):
         ).to(u.solMass / u.Mpc**3).value
         self.Oc0 = cosmo.Om0 - cosmo.Ob0
 
-        super(WDM, self).__init__(**model_params)
+        super().__init__(**model_params)
 
     def transfer(self, lnk):
         """Transfer function for WDM models.
@@ -189,7 +189,7 @@ class WDMRecalibrateMF(Component):
         self.m = m
         self.dndm0 = dndm0
         self.wdm = wdm
-        super(WDMRecalibrateMF, self).__init__(**model_parameters)
+        super().__init__(**model_parameters)
 
     def dndm_alter(self):
         """Alter the CDM dn/dm to impose WDM modeling."""
@@ -292,7 +292,7 @@ class TransferWDM(_Tr):
         wdm_params = wdm_params or {}
 
         # Call standard transfer
-        super(TransferWDM, self).__init__(**transfer_kwargs)
+        super().__init__(**transfer_kwargs)
 
         # Set given parameters
         self.wdm_mass = wdm_mass
@@ -346,9 +346,7 @@ class TransferWDM(_Tr):
 
     @cached_quantity
     def _unnormalised_lnT(self):
-        return super(TransferWDM, self)._unnormalised_lnT + np.log(
-            self.wdm.transfer(self.k)
-        )
+        return super()._unnormalised_lnT + np.log(self.wdm.transfer(self.k))
 
 
 class MassFunctionWDM(_MF, TransferWDM):
@@ -365,7 +363,7 @@ class MassFunctionWDM(_MF, TransferWDM):
     """
 
     def __init__(self, alter_model=None, alter_params=None, **kwargs):
-        super(MassFunctionWDM, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
         self.alter_model = alter_model
         self.alter_params = alter_params or {}
@@ -393,7 +391,7 @@ class MassFunctionWDM(_MF, TransferWDM):
 
         Units of :math:`h^4 M_\odot^{-1} Mpc^{-3}`
         """
-        dndm = super(MassFunctionWDM, self).dndm
+        dndm = super().dndm
 
         if self.alter_model is not None:
             alter = self.alter_model(

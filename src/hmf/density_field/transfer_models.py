@@ -43,7 +43,7 @@ class TransferComponent(Component):
 
     def __init__(self, cosmo, **model_parameters):
         self.cosmo = cosmo
-        super(TransferComponent, self).__init__(**model_parameters)
+        super().__init__(**model_parameters)
 
     def lnt(self, lnk):
         r"""
@@ -168,7 +168,7 @@ if HAVE_CAMB:
         }
 
         def __init__(self, *args, **kwargs):
-            super(CAMB, self).__init__(*args, **kwargs)
+            super().__init__(*args, **kwargs)
 
             if not isinstance(
                 self.cosmo, (cosmology.LambdaCDM, cosmology.wCDM, cosmology.w0waCDM)
@@ -446,7 +446,7 @@ class EH_BAO(TransferComponent):
     """
 
     def __init__(self, *args, **kwargs):
-        super(EH_BAO, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._set_params()
 
     def _set_params(self):
