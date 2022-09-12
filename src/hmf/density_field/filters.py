@@ -426,7 +426,7 @@ class SharpK(Filter):
         return 4 * np.pi * (self.params["c"] * r) ** 3 * rho_mean / 3
 
     def sigma(self, r, order=0):
-        if not isinstance(r, collections.Iterable):
+        if not isinstance(r, collections.abc.Iterable):
             r = np.atleast_1d(r)
 
         if self.k.max() < 1 / r.min():

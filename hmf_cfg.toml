@@ -1,0 +1,92 @@
+created_on = 2022-09-12T09:16:26.539419
+hmf_version = "3.3.5.dev49+gba93c5d"
+quantities = [ "m", "dndm", "sigma",]
+
+[params]
+cosmo_model = "Planck15"
+n = 0.9667
+sigma_8 = 0.8159
+lnk_min = -18.420680743952364
+lnk_max = 9.903487552536127
+dlnk = 0.05
+z = 1.0
+transfer_model = "EH"
+takahashi = true
+growth_model = "GrowthFactor"
+hmf_model = "Tinker08"
+Mmin = 10.0
+Mmax = 15.0
+dlog10m = 0.01
+mdef_model = "SOMean"
+delta_c = 1.686
+filter_model = "TopHat"
+disable_mass_conversion = true
+
+[params.cosmo_params]
+Om0 = 0.3075
+Neff = 3.046
+Ob0 = 0.0486
+name = "Planck15"
+
+[params.growth_params]
+dlna = 0.01
+amin = 1e-8
+
+[params.transfer_params]
+
+[params.mdef_params]
+overdensity = 200
+
+[params.hmf_params]
+A_200 = 0.1858659
+A_300 = 0.1995973
+A_400 = 0.2115659
+A_600 = 0.2184113
+A_800 = 0.2480968
+A_1200 = 0.2546053
+A_1600 = 0.26
+A_2400 = 0.26
+A_3200 = 0.26
+a_200 = 1.466904
+a_300 = 1.521782
+a_400 = 1.559186
+a_600 = 1.614585
+a_800 = 1.869936
+a_1200 = 2.128056
+a_1600 = 2.301275
+a_2400 = 2.529241
+a_3200 = 2.661983
+b_200 = 2.571104
+b_300 = 2.254217
+b_400 = 2.048674
+b_600 = 1.869559
+b_800 = 1.588649
+b_1200 = 1.507134
+b_1600 = 1.464374
+b_2400 = 1.436827
+b_3200 = 1.40521
+c_200 = 1.193958
+c_300 = 1.270316
+c_400 = 1.335191
+c_600 = 1.446266
+c_800 = 1.581345
+c_1200 = 1.79505
+c_1600 = 1.965613
+c_2400 = 2.237466
+c_3200 = 2.439729
+A_exp = 0.14
+a_exp = 0.06
+
+[params.filter_params]
+
+[params.cosmo_params.H0]
+value = 67.74
+unit = "km / (Mpc s)"
+
+[params.cosmo_params.Tcmb0]
+value = 2.7255
+unit = "K"
+
+[params.cosmo_params.m_nu]
+value = [ 0.0, 0.0, 0.06,]
+unit = "eV"
