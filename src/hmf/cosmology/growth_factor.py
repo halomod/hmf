@@ -239,10 +239,10 @@ class GenMFGrowth(GrowthFactor):
         x = np.atleast_1d(x)
         xn_vec = np.linspace(0, x.max(), 1000)
 
-        func = _spline(xn_vec, (xn_vec / (xn_vec ** 3 + 2)) ** 1.5)
+        func = _spline(xn_vec, (xn_vec / (xn_vec**3 + 2)) ** 1.5)
 
         g = np.array([func.integral(0, y) for y in x])
-        return ((x ** 3.0 + 2.0) ** 0.5) * (g / x ** 1.5)
+        return ((x**3.0 + 2.0) ** 0.5) * (g / x**1.5)
 
     def growth_factor(self, z):
         """
@@ -281,13 +281,13 @@ class GenMFGrowth(GrowthFactor):
             dn = (
                 1
                 + 3 / w
-                + (3 * ((1 + w) ** 0.5) / w ** 1.5) * np.log((1 + w) ** 0.5 - w ** 0.5)
+                + (3 * ((1 + w) ** 0.5) / w**1.5) * np.log((1 + w) ** 0.5 - w**0.5)
             )
             x = w * a
             return (
                 1
                 + 3 / x
-                + (3 * ((1 + x) ** 0.5) / x ** 1.5) * np.log((1 + x) ** 0.5 - x ** 0.5)
+                + (3 * ((1 + x) ** 0.5) / x**1.5) * np.log((1 + x) ** 0.5 - x**0.5)
             ) / dn
 
 
@@ -329,7 +329,7 @@ class Carroll1992(GrowthFactor):
         """
         a = 1 / (1 + z)
 
-        om = self.cosmo.Om0 / a ** 3
+        om = self.cosmo.Om0 / a**3
         denom = self.cosmo.Ode0 + om
         Omega_m = om / denom
         Omega_L = self.cosmo.Ode0 / denom
@@ -371,8 +371,8 @@ if HAVE_CAMB:
 
             self.p.set_cosmology(
                 H0=self.cosmo.H0.value,
-                ombh2=self.cosmo.Ob0 * self.cosmo.h ** 2,
-                omch2=(self.cosmo.Om0 - self.cosmo.Ob0) * self.cosmo.h ** 2,
+                ombh2=self.cosmo.Ob0 * self.cosmo.h**2,
+                omch2=(self.cosmo.Om0 - self.cosmo.Ob0) * self.cosmo.h**2,
                 omk=self.cosmo.Ok0,
                 nnu=self.cosmo.Neff,
                 standard_neutrino_neff=self.cosmo.Neff,

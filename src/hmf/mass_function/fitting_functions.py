@@ -103,7 +103,7 @@ class SimDetails:
         self.other_cosmo = other_cosmo or {}
 
         # Derived
-        self.V = self.L ** 3
+        self.V = self.L**3
         try:
             self.mp = self.omegam * 2.7755e11 * self.V / self.N
             self.mmin = self.mp * self.nmin
@@ -363,7 +363,7 @@ class SMT(FittingFunction):
 
     sim_definition = SimDetails(
         L=[84.5, 141.3],
-        N=[256 ** 3, 256 ** 3],
+        N=[256**3, 256**3],
         halo_finder_type="SO",
         omegam=0.3,
         sigma_8=0.9,
@@ -407,7 +407,7 @@ class SMT(FittingFunction):
             return self.params["A"]
 
         p = self.params["p"]
-        return 1.0 / (1 + 2 ** -p * sp.gamma(0.5 - p) / sp.gamma(0.5))
+        return 1.0 / (1 + 2**-p * sp.gamma(0.5 - p) / sp.gamma(0.5))
 
 
 class ST(SMT):
@@ -431,7 +431,7 @@ class Jenkins(FittingFunction):
 
     sim_definition = SimDetails(
         L=[84.5, 141.3, 479, 3000],
-        N=[256 ** 3, 256 ** 3, 134217728, 1000 ** 3],
+        N=[256**3, 256**3, 134217728, 1000**3],
         halo_finder_type="FoF",
         omegam=0.3,
         sigma_8=0.9,
@@ -487,7 +487,7 @@ class Warren(FittingFunction):
     }  #: Quoted uncertainties of the model parameters.
     sim_definition = SimDetails(
         L=[96, 135, 192, 272, 384, 543, 768, 1086, 1536, 2172, 2583, 3072],
-        N=1024 ** 3,
+        N=1024**3,
         halo_finder_type="FoF",
         omegam=0.3,
         sigma_8=0.9,
@@ -524,7 +524,7 @@ class Warren(FittingFunction):
         d = self.params["d"]
         e = self.params["e"]
 
-        return A * ((e / self.sigma) ** b + c) * np.exp(-d / self.sigma ** 2)
+        return A * ((e / self.sigma) ** b + c) * np.exp(-d / self.sigma**2)
 
     @property
     def cutmask(self):
@@ -544,7 +544,7 @@ class Reed03(SMT):
 
     sim_definition = SimDetails(
         L=50.0,
-        N=432 ** 3,
+        N=432**3,
         halo_finder_type="FoF",
         omegam=0.3,
         sigma_8=1.0,
@@ -585,19 +585,19 @@ class Reed07(FittingFunction):
     sim_definition = SimDetails(
         L=[1.0, 2.5, 2.5, 2.5, 2.5, 4.64, 11.6, 20, 50, 100, 500, 1340, 3000],
         N=[
-            400 ** 3,
-            1000 ** 3,
-            1000 ** 3,
-            500 ** 3,
-            200 ** 3,
-            400 ** 3,
-            1000 ** 3,
-            400 ** 3,
-            1000 ** 3,
-            900 ** 3,
-            2160 ** 3,
-            1448 ** 3,
-            1000 ** 3,
+            400**3,
+            1000**3,
+            1000**3,
+            500**3,
+            200**3,
+            400**3,
+            1000**3,
+            400**3,
+            1000**3,
+            900**3,
+            2160**3,
+            1448**3,
+            1000**3,
         ],
         halo_finder_type="FoF",
         omegam=0.3,
@@ -630,8 +630,8 @@ class Reed07(FittingFunction):
 
     @property
     def fsigma(self):
-        G_1 = np.exp(-((self.lnsigma - 0.4) ** 2) / (2 * 0.6 ** 2))
-        G_2 = np.exp(-((self.lnsigma - 0.75) ** 2) / (2 * 0.2 ** 2))
+        G_1 = np.exp(-((self.lnsigma - 0.4) ** 2) / (2 * 0.6**2))
+        G_2 = np.exp(-((self.lnsigma - 0.75) ** 2) / (2 * 0.2**2))
 
         c = self.params["c"]
         a = self.params["a"] / self.params["c"]
@@ -641,11 +641,11 @@ class Reed07(FittingFunction):
         return (
             A
             * np.sqrt(2.0 * a / np.pi)
-            * (1.0 + (1.0 / (a * self.nu ** 2)) ** p + 0.6 * G_1 + 0.4 * G_2)
+            * (1.0 + (1.0 / (a * self.nu**2)) ** p + 0.6 * G_1 + 0.4 * G_2)
             * self.nu
             * np.exp(
-                -c * a * self.nu ** 2 / 2.0
-                - 0.03 * self.nu ** 0.6 / (self.n_eff + 3) ** 2
+                -c * a * self.nu**2 / 2.0
+                - 0.03 * self.nu**0.6 / (self.n_eff + 3) ** 2
             )
         )
 
@@ -673,12 +673,12 @@ class Peacock(FittingFunction):
         b = self.params["b"]
         c = self.params["c"]
 
-        d = 1 + a * self.nu ** b
+        d = 1 + a * self.nu**b
         return (
             self.nu
             * np.exp(-c * self.nu2)
             * (2 * c * d * self.nu + b * a * self.nu ** (b - 1))
-            / d ** 2
+            / d**2
         )
 
     @property
@@ -695,7 +695,7 @@ class Angulo(FittingFunction):
 
     sim_definition = SimDetails(
         L=3000.0,
-        N=6720 ** 3,
+        N=6720**3,
         halo_finder_type="FoF",
         omegam=0.25,
         sigma_8=0.9,
@@ -718,7 +718,7 @@ class Angulo(FittingFunction):
         c = self.params["c"]
         d = self.params["d"]
 
-        return A * ((d / self.sigma) ** b + 1) * np.exp(-c / self.sigma ** 2)
+        return A * ((d / self.sigma) ** b + 1) * np.exp(-c / self.sigma**2)
 
     @property
     def cutmask(self):
@@ -739,7 +739,7 @@ class Watson_FoF(Warren):
 
     sim_definition = SimDetails(
         L=[11.4, 20, 114, 425, 1000, 3200, 6000],
-        N=[3072 ** 3, 5488 ** 3, 3072 ** 3, 5488 ** 3, 3456 ** 3, 4000 ** 3, 6000 ** 3],
+        N=[3072**3, 5488**3, 3072**3, 5488**3, 3456**3, 4000**3, 6000**3],
         halo_finder_type="FoF",
         omegam=0.27,
         sigma_8=0.8,
@@ -820,7 +820,7 @@ class Watson(FittingFunction):
         return (
             C
             * (delta_halo / 178) ** d
-            * np.exp(p * (1 - delta_halo / 178) / self.sigma ** q)
+            * np.exp(p * (1 - delta_halo / 178) / self.sigma**q)
         )
 
     @property
@@ -855,7 +855,7 @@ class Watson(FittingFunction):
             self.gamma()
             * A
             * ((beta / self.sigma) ** alpha + 1)
-            * np.exp(-gamma / self.sigma ** 2)
+            * np.exp(-gamma / self.sigma**2)
         )
 
     @property
@@ -882,7 +882,7 @@ class Crocce(Warren):
 
     sim_definition = SimDetails(
         L=[7680, 3072, 4500, 768, 384, 179],
-        N=[2048 ** 3, 2048 ** 3, 1200 ** 3, 1024 ** 3, 1024 ** 3, 1024 ** 3],
+        N=[2048**3, 2048**3, 1200**3, 1024**3, 1024**3, 1024**3],
         halo_finder_type="FoF",
         omegam=0.25,
         sigma_8=0.8,
@@ -908,7 +908,7 @@ class Crocce(Warren):
 
     @property
     def cutmask(self):
-        return np.logical_and(self.m > 10 ** 10.5, self.m < 10 ** 15.5)
+        return np.logical_and(self.m > 10**10.5, self.m < 10**15.5)
 
 
 class Courtin(SMT):
@@ -921,7 +921,7 @@ class Courtin(SMT):
 
     sim_definition = SimDetails(
         L=[162, 648, 1296],
-        N=[512 ** 3, 512 ** 3, 512 ** 3],
+        N=[512**3, 512**3, 512**3],
         halo_finder_type="FoF",
         omegam=0.26,
         sigma_8=0.79,
@@ -963,7 +963,7 @@ class Bhattacharya(SMT):
 
     sim_definition = SimDetails(
         L=[1000 * 0.72, 1736 * 0.72, 2778 * 0.72, 178 * 0.72, 1300 * 0.72],
-        N=[1500 ** 3, 1200 ** 3, 1024 ** 3, 512 ** 3, 1024 ** 3],
+        N=[1500**3, 1200**3, 1024**3, 512**3, 1024**3],
         halo_finder_type="FoF",
         omegam=None,  # what is lower case omega??
         sigma_8=0.8,
@@ -1019,7 +1019,7 @@ class Bhattacharya(SMT):
 
     @property
     def cutmask(self):
-        return np.logical_and(self.m > 6 * 10 ** 11, self.m < 3 * 10 ** 15)
+        return np.logical_and(self.m > 6 * 10**11, self.m < 3 * 10**15)
 
     def norm(self):
         if self.params["A"] is not None:
@@ -1028,7 +1028,7 @@ class Bhattacharya(SMT):
         p, q = self.params["p"], self.params["q"]
         return (
             2 ** (-1 / 2 - p + q / 2)
-            * (2 ** p * sp.gamma(q / 2) + sp.gamma(-p + q / 2))
+            * (2**p * sp.gamma(q / 2) + sp.gamma(-p + q / 2))
             / np.sqrt(np.pi)
         )
 
@@ -1063,24 +1063,24 @@ class Tinker08(FittingFunction):
             80,
         ],
         N=[
-            1024 ** 3,
-            1024 ** 3,
-            1024 ** 3,
-            1024 ** 3,
-            1024 ** 3,
-            640 ** 3,
-            1024 ** 3,
-            512 ** 3,
-            512 ** 3,
-            512 ** 3,
-            1024 ** 3,
-            512 ** 3,
-            512 ** 3,
-            512 ** 3,
-            1024 ** 3,
-            1024 ** 3,
-            1024 ** 3,
-            512 ** 3,
+            1024**3,
+            1024**3,
+            1024**3,
+            1024**3,
+            1024**3,
+            640**3,
+            1024**3,
+            512**3,
+            512**3,
+            512**3,
+            1024**3,
+            512**3,
+            512**3,
+            512**3,
+            1024**3,
+            1024**3,
+            1024**3,
+            512**3,
         ],
         halo_finder_type="SO",
         omegam=[
@@ -1344,7 +1344,7 @@ class Tinker08(FittingFunction):
         return (
             self.A
             * ((self.sigma / self.b) ** (-self.a) + 1)
-            * np.exp(-self.c / self.sigma ** 2)
+            * np.exp(-self.c / self.sigma**2)
         )
 
     @property
@@ -1519,10 +1519,10 @@ class Tinker10(FittingFunction):
                 * self.beta ** (-2 * self.phi)
                 * self.gamma ** (-0.5 - self.eta)
                 * (
-                    2 ** self.phi
+                    2**self.phi
                     * self.beta ** (2 * self.phi)
                     * sp.gamma(self.eta + 0.5)
-                    + self.gamma ** self.phi * sp.gamma(0.5 + self.eta - self.phi)
+                    + self.gamma**self.phi * sp.gamma(0.5 + self.eta - self.phi)
                 )
             )
 
@@ -1531,7 +1531,7 @@ class Tinker10(FittingFunction):
         fv = (
             (1 + (self.beta * self.nu) ** (-2 * self.phi))
             * self.nu ** (2 * self.eta)
-            * np.exp(-self.gamma * (self.nu ** 2) / 2)
+            * np.exp(-self.gamma * (self.nu**2) / 2)
         )
 
         return fv * self.normalise * self.nu
@@ -1569,7 +1569,7 @@ class Behroozi(Tinker10):
     normalized = False
     sim_definition = SimDetails(
         L=[250, 1000, 420],
-        N=[2048 ** 3, 2048 ** 3, 1400 ** 3],
+        N=[2048**3, 2048**3, 1400**3],
         halo_finder_type="SO",
         omegam=0.27,
         sigma_8=0.82,
@@ -1595,18 +1595,18 @@ class Behroozi(Tinker10):
         theta = (
             0.144
             / (1 + np.exp(14.79 * (a - 0.213)))
-            * (m / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)))
+            * (m / 10**11.5) ** (0.5 / (1 + np.exp(6.5 * a)))
         )
         ngtm_behroozi = 10 ** (theta + np.log10(ngtm_tinker))
         dthetadM = (
             0.144
             / (1 + np.exp(14.79 * (a - 0.213)))
             * (0.5 / (1 + np.exp(6.5 * a)))
-            * (m / 10 ** 11.5) ** (0.5 / (1 + np.exp(6.5 * a)) - 1)
-            / (10 ** 11.5)
+            * (m / 10**11.5) ** (0.5 / (1 + np.exp(6.5 * a)) - 1)
+            / (10**11.5)
         )
         # if ngtm_tinker is very small (ie. 0), dthetadM will be nan.
-        res = dndm * 10 ** theta - ngtm_behroozi * np.log(10) * dthetadM
+        res = dndm * 10**theta - ngtm_behroozi * np.log(10) * dthetadM
         res[np.isnan(res)] = 0
         return res
 
@@ -1621,7 +1621,7 @@ class Pillepich(Warren):
 
     sim_definition = SimDetails(
         L=[1200, 1200, 150],
-        N=[1024 ** 3, 1024 ** 3, 1024 ** 3],
+        N=[1024**3, 1024**3, 1024**3],
         halo_finder_type="FoF",
         omegam=[0.279, 0.24, 0.279],
         sigma_8=[0.817, 0.76, 0.817],
@@ -1651,7 +1651,7 @@ class Manera(SMT):
 
     sim_definition = SimDetails(
         L=1280.0,
-        N=640 ** 3,
+        N=640**3,
         halo_finder_type="FoF",
         omegam=0.27,
         sigma_8=0.9,
@@ -1682,7 +1682,7 @@ class Ishiyama(Warren):
 
     sim_definition = SimDetails(
         L=[1120, 560, 280, 140, 70],
-        N=[8192 ** 3, 4096 ** 3, 2048 ** 3, 2048 ** 3, 2048 ** 3],
+        N=[8192**3, 4096**3, 2048**3, 2048**3, 2048**3],
         halo_finder_type="FoF",
         omegam=0.31,
         sigma_8=0.83,
@@ -1772,7 +1772,7 @@ class Bocquet200mDMOnly(Warren):
         return (
             A
             * ((e / self.sigma) ** b + 1)
-            * np.exp(-d / self.sigma ** 2)
+            * np.exp(-d / self.sigma**2)
             * mass_conversion
         )
 
@@ -1822,7 +1822,7 @@ class Bocquet200cDMOnly(Bocquet200mDMOnly):
     sim_definition.halo_overdensity = "200c"
 
     def convert_mass(self):
-        g0 = 3.54e-2 + self.cosmo.Om0 ** 0.09
+        g0 = 3.54e-2 + self.cosmo.Om0**0.09
         g1 = 4.56e-2 + 2.68e-2 / self.cosmo.Om0
         g2 = 0.721 + 3.5e-2 / self.cosmo.Om0
         g3 = 0.628 + 0.164 / self.cosmo.Om0

@@ -63,9 +63,9 @@ def hmf_integral_gtm(M, dndm, mass_density=False):
         )
 
     # Calculate the mass function (and its integral) from the highest M up to 10**18
-    if m[-1] < m[0] * 10 ** 18 / m[3]:
+    if m[-1] < m[0] * 10**18 / m[3]:
         m_upper = np.arange(
-            np.log(m[-1]), np.log(10 ** 18), np.log(m[1]) - np.log(m[0])
+            np.log(m[-1]), np.log(10**18), np.log(m[1]) - np.log(m[0])
         )
         mf_func = _spline(np.log(m), np.log(dndlnm), k=1)
         mf = mf_func(m_upper)

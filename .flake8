@@ -14,6 +14,7 @@ ignore =
     D204  # TODO: remove
     D202  # TODO: remove
     D205  # TODO: remove
+    G004  # logging statement uses f-string
 max-line-length = 88
 # Should be 18.
 max-complexity = 25
@@ -21,7 +22,7 @@ exclude =
     development/*
 # Not ready for this yet.
 per-file-ignores =
-    tests/*:D,T001   # print statements allowed in tests
+    tests/*:D,T001,T201   # print statements allowed in tests
     scripts/*: F821, T001
     docs/conf.py:D,A
     */__init__.py:F401

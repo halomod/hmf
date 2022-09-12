@@ -183,11 +183,11 @@ class Filter(_framework.Component):
         s = self.sigma(r)
         rk = np.outer(r, self.k)
 
-        rest = self.power * self.k ** 3
+        rest = self.power * self.k**3
         w = self.k_space(rk)
         dw = self.dw_dlnkr(rk)
         integ = w * dw * rest
-        return intg.simps(integ, dx=dlnk, axis=-1) / (np.pi ** 2 * s ** 2)
+        return intg.simps(integ, dx=dlnk, axis=-1) / (np.pi**2 * s**2)
 
     def dlnr_dlnm(self, r):
         r"""
@@ -252,7 +252,7 @@ class Filter(_framework.Component):
         # we multiply by k because our steps are in logk.
         rest = self.power * self.k ** (3 + order * 2)
         integ = rest * self.k_space(rk) ** 2
-        sigma = (0.5 / np.pi ** 2) * intg.simps(integ, dx=dlnk, axis=-1)
+        sigma = (0.5 / np.pi**2) * intg.simps(integ, dx=dlnk, axis=-1)
         return np.sqrt(sigma)
 
     def nu(self, r, delta_c=1.686):
@@ -304,18 +304,18 @@ class TopHat(Filter):
         return np.where(r == R, 0.5, a)
 
     def k_space(self, kr):
-        return np.where(kr > 1.4e-6, (3 / kr ** 3) * (np.sin(kr) - kr * np.cos(kr)), 1)
+        return np.where(kr > 1.4e-6, (3 / kr**3) * (np.sin(kr) - kr * np.cos(kr)), 1)
 
     def mass_to_radius(self, m, rho_mean):
         return (3.0 * m / (4.0 * np.pi * rho_mean)) ** (1.0 / 3.0)
 
     def radius_to_mass(self, r, rho_mean):
-        return 4 * np.pi * r ** 3 * rho_mean / 3
+        return 4 * np.pi * r**3 * rho_mean / 3
 
     def dw_dlnkr(self, kr):
         return np.where(
             kr > 1e-3,
-            (9 * kr * np.cos(kr) + 3 * (kr ** 2 - 3) * np.sin(kr)) / kr ** 3,
+            (9 * kr * np.cos(kr) + 3 * (kr**2 - 3) * np.sin(kr)) / kr**3,
             0,
         )
 
@@ -350,19 +350,19 @@ class Gaussian(Filter):
     """
 
     def real_space(self, R, r):
-        return np.exp(-(r ** 2) / 2 / R ** 2) / (2 * np.pi) ** 1.5 / R ** 3
+        return np.exp(-(r**2) / 2 / R**2) / (2 * np.pi) ** 1.5 / R**3
 
     def k_space(self, kr):
-        return np.exp(-(kr ** 2) / 2.0)
+        return np.exp(-(kr**2) / 2.0)
 
     def mass_to_radius(self, m, rho_mean):
         return (m / rho_mean) ** (1.0 / 3.0) / np.sqrt(2 * np.pi)
 
     def radius_to_mass(self, r, rho_mean):
-        return (2 * np.pi) ** 1.5 * r ** 3 * rho_mean
+        return (2 * np.pi) ** 1.5 * r**3 * rho_mean
 
     def dw_dlnkr(self, kr):
-        return -(kr ** 2) * self.k_space(kr)
+        return -(kr**2) * self.k_space(kr)
 
 
 @_utils.inherit_docstrings
@@ -407,7 +407,7 @@ class SharpK(Filter):
         return np.where(kr == 1, 0.5, a)
 
     def real_space(self, R, r):
-        return (np.sin(r / R) - (r / R) * np.cos(r / R)) / (2 * np.pi ** 2 * r ** 3)
+        return (np.sin(r / R) - (r / R) * np.cos(r / R)) / (2 * np.pi**2 * r**3)
 
     def dw_dlnkr(self, kr):
         return np.where(kr == 1, 1.0, 0.0)
@@ -415,7 +415,7 @@ class SharpK(Filter):
     def dlnss_dlnr(self, r):
         sigma = self.sigma(r)
         power = _spline(self.k, self.power)(1 / r)
-        return -power / (2 * np.pi ** 2 * sigma ** 2 * r ** 3)
+        return -power / (2 * np.pi**2 * sigma**2 * r**3)
 
     def mass_to_radius(self, m, rho_mean):
         return (1.0 / self.params["c"]) * (3.0 * m / (4.0 * np.pi * rho_mean)) ** (
@@ -446,7 +446,7 @@ class SharpK(Filter):
             p = power(k)
             dlnk = np.log(k[1] / k[0])
             integ = p * k ** (3 + 2 * order)
-            sigma[i] = (0.5 / (np.pi ** 2)) * intg.simps(integ, dx=dlnk)
+            sigma[i] = (0.5 / (np.pi**2)) * intg.simps(integ, dx=dlnk)
 
         return np.sqrt(sigma)
 
@@ -472,23 +472,23 @@ class SharpKEllipsoid(SharpK):
 
         Equation A6. in Schneider et al. 2013
         """
-        top = 3 * (1 - g ** 2) + (1.1 - 0.9 * g ** 4) * np.exp(
-            -g * (1 - g ** 2) * (g * v / 2) ** 2
+        top = 3 * (1 - g**2) + (1.1 - 0.9 * g**4) * np.exp(
+            -g * (1 - g**2) * (g * v / 2) ** 2
         )
-        bot = (3 * (1 - g ** 2) + 0.45 + (g * v / 2) ** 2) ** 0.5 + g * v / 2
+        bot = (3 * (1 - g**2) + 0.45 + (g * v / 2) ** 2) ** 0.5 + g * v / 2
         return g * v + top / bot
 
     def em(self, xm):
         """
         The average ellipticity of a patch as a function of peak tensor
         """
-        return 1 / np.sqrt(5 * xm ** 2 + 6)
+        return 1 / np.sqrt(5 * xm**2 + 6)
 
     def pm(self, xm):
         """
         The average prolateness of a patch as a function of peak tensor
         """
-        return 30.0 / (5 * xm ** 2 + 6) ** 2
+        return 30.0 / (5 * xm**2 + 6) ** 2
 
     def a3a1(self, e, p):
         """
@@ -507,7 +507,7 @@ class SharpKEllipsoid(SharpK):
         sig_0 = self.sigma(r)
         sig_1 = self.sigma(r, order=1)
         sig_2 = self.sigma(r, order=2)
-        return sig_1 ** 2 / (sig_0 * sig_2)
+        return sig_1**2 / (sig_0 * sig_2)
 
     def xi(self, pm, em):
         return ((1 + 4 * pm) ** 2 / (1 - 3 * em + pm) / (1 - 2 * pm)) ** (1.0 / 6.0)
@@ -528,7 +528,7 @@ class SharpKEllipsoid(SharpK):
         a3 = self.a3(r)
         sigma = self.sigma(a3)
         power = _spline(self.k, self.power)(1 / a3)
-        return -power / (2 * np.pi ** 2 * sigma ** 2 * a3 ** 3)
+        return -power / (2 * np.pi**2 * sigma**2 * a3**3)
 
     def dlnr_dlnm(self, r):
         a3 = self.a3(r)

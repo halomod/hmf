@@ -244,7 +244,7 @@ class Transfer(cosmo.Cosmology):
         """
         Un-normalised CDM power at :math:`z=0` [units :math:`Mpc^3/h^3`]
         """
-        return self.k ** self.n * np.exp(self._unnormalised_lnT) ** 2
+        return self.k**self.n * np.exp(self._unnormalised_lnT) ** 2
 
     @cached_quantity
     def _unn_sig8(self):
@@ -269,7 +269,7 @@ class Transfer(cosmo.Cosmology):
         """
         Normalised power spectrum at z=0 [units :math:`Mpc^3/h^3`]
         """
-        return self._normalisation ** 2 * self._unnormalised_power
+        return self._normalisation**2 * self._unnormalised_power
 
     @cached_quantity
     def transfer_function(self):
@@ -297,14 +297,14 @@ class Transfer(cosmo.Cosmology):
     @cached_quantity
     def power(self):
         """Normalised log power spectrum [units :math:`Mpc^3/h^3`]."""
-        return self.growth_factor ** 2 * self._power0
+        return self.growth_factor**2 * self._power0
 
     @cached_quantity
     def delta_k(self):
         r"""
         Dimensionless power spectrum, :math:`\Delta_k = \frac{k^3 P(k)}{2\pi^2}`.
         """
-        return self.k ** 3 * self.power / (2 * np.pi ** 2)
+        return self.k**3 * self.power / (2 * np.pi**2)
 
     @cached_quantity
     def nonlinear_power(self):
@@ -313,7 +313,7 @@ class Transfer(cosmo.Cosmology):
 
         Non-linear corrections come from HALOFIT.
         """
-        return self.k ** -3 * self.nonlinear_delta_k * (2 * np.pi ** 2)
+        return self.k**-3 * self.nonlinear_delta_k * (2 * np.pi**2)
 
     @cached_quantity
     def nonlinear_delta_k(self):

@@ -51,8 +51,8 @@ class WDM(Component):
         self.mx = mx
         self.cosmo = cosmo
         self.rho_mean = (1 + z) ** 3 * (
-            self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2
-        ).to(u.solMass / u.Mpc ** 3).value
+            self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h**2
+        ).to(u.solMass / u.Mpc**3).value
         self.Oc0 = cosmo.Om0 - cosmo.Ob0
 
         super(WDM, self).__init__(**model_params)
@@ -116,7 +116,7 @@ class Viel05(WDM):
         """
         return (
             0.049
-            * self.mx ** -1.11
+            * self.mx**-1.11
             * (self.Oc0 / 0.25) ** 0.11
             * (self.cosmo.h / 0.7) ** 1.22
             * (1.5 / self.params["g_x"]) ** 0.29
