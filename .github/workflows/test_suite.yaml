@@ -31,32 +31,15 @@ jobs:
       - uses: actions/checkout@master
         with:
           fetch-depth: 1
-      - name: Get Miniconda MacOSX
-        if: matrix.os == 'macos-latest'
-        run: |
-          wget https://repo.continuum.io/miniconda/Miniconda3-latest-MacOSX-x86_64.sh -O $HOME/miniconda.sh;
-          bash $HOME/miniconda.sh -b -p $HOME/miniconda
-      - name: Get Miniconda Linux
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O $HOME/miniconda.sh;
-          bash $HOME/miniconda.sh -b -p $HOME/miniconda
-      - name: Setup Environment
-        run: |
-          export PATH="$HOME/miniconda/bin:$PATH"
-          ./ci/install_conda.sh
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
       - name: Install
-        run: |
-          export PATH="$HOME/miniconda/bin:$PATH"
-          source activate ${ENV_NAME}
-          conda install -c conda-forge camb
-          pip install .[dev]
+        run:  pip install .[dev]
       - name: Run Tests
         run: |
-          export PATH="$HOME/miniconda/bin:$PATH"
-          source activate $ENV_NAME
           python -m pytest --cov=hmf --cov-config=.coveragerc --cov-report xml:./coverage.xml --durations=25
-      - uses: codecov/codecov-action@v1.5.2
+      - uses: codecov/codecov-action@v3
         if: matrix.os == 'ubuntu-latest' && success() && !contains(github.event.pull_request.labels.*.name, 'auto-pr')
         with:
           file: ./coverage.xml # optional
