@@ -31,7 +31,7 @@ class MassDefinition(_framework.Component):
     @staticmethod
     def critical_density(z=0, cosmo=Planck15):
         """Get the critical density of the Universe at redshift z, [h^2 Msun/Mpc^3]."""
-        return (cosmo.critical_density(z) / cosmo.h ** 2).to(u.Msun / u.Mpc ** 3).value
+        return (cosmo.critical_density(z) / cosmo.h**2).to(u.Msun / u.Mpc**3).value
 
     @classmethod
     def mean_density(cls, z=0, cosmo=Planck15):
@@ -93,7 +93,7 @@ class MassDefinition(_framework.Component):
         Computed as :math:`\frac{4\pi r^3}{3} \rho_{\rm halo}`.
         """
         try:
-            return 4 * np.pi * r ** 3 * self.halo_density(z, cosmo) / 3
+            return 4 * np.pi * r**3 * self.halo_density(z, cosmo) / 3
         except AttributeError:
             raise AttributeError(
                 f"{self.__class__.__name__} cannot convert radius to mass."
@@ -270,7 +270,7 @@ class SOVirial(SphericalOverdensity):
     def halo_density(self, z=0, cosmo=Planck15):
         """The density of haloes under this definition."""
         x = cosmo.Om(z) - 1
-        overdensity = 18 * np.pi ** 2 + 82 * x - 39 * x ** 2
+        overdensity = 18 * np.pi**2 + 82 * x - 39 * x**2
         return overdensity * self.mean_density(z, cosmo) / cosmo.Om(z)
 
     @property
@@ -366,7 +366,7 @@ def _find_new_concentration(rho_s, halo_density, h=None, x_guess=5.0):
             return np.log(1.0 + x) - x / (1.0 + x)
 
     fnc = (
-        lambda x, rhos, density_threshold: rhos * h(x) * 3.0 / x ** 3
+        lambda x, rhos, density_threshold: rhos * h(x) * 3.0 / x**3
         - density_threshold
     )
 

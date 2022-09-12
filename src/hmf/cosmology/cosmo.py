@@ -122,8 +122,8 @@ class Cosmology(_framework.Framework):
         Mean density of universe at z=0, [Msun h^2 / Mpc**3]
         """
         return (
-            (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h ** 2)
-            .to(u.Msun / u.Mpc ** 3)
+            (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h**2)
+            .to(u.Msun / u.Mpc**3)
             .value
         )
 

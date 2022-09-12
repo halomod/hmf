@@ -272,8 +272,12 @@ class Framework(metaclass=_Validator):
                             K, name.replace("_params", "_model")
                         )._defaults
 
-                    except Exception as e:
-                        logger.info(e)
+                    except Exception:
+                        logger.info(
+                            f"Exception caught in getting defaults for {name}",
+                            exc_info=True,
+                        )
+
         return out
 
     @property

@@ -43,7 +43,7 @@ class TransferComponent(Component):
 
     def __init__(self, cosmo, **model_parameters):
         self.cosmo = cosmo
-        super(TransferComponent, self).__init__(**model_parameters)
+        super().__init__(**model_parameters)
 
     def lnt(self, lnk):
         r"""
@@ -168,7 +168,7 @@ if HAVE_CAMB:
         }
 
         def __init__(self, *args, **kwargs):
-            super(CAMB, self).__init__(*args, **kwargs)
+            super().__init__(*args, **kwargs)
 
             if not isinstance(
                 self.cosmo, (cosmology.LambdaCDM, cosmology.wCDM, cosmology.w0waCDM)
@@ -208,9 +208,9 @@ if HAVE_CAMB:
 
             self.params["camb_params"].set_cosmology(
                 H0=self.cosmo.H0.value,
-                ombh2=self.cosmo.Ob0 * self.cosmo.h ** 2,
+                ombh2=self.cosmo.Ob0 * self.cosmo.h**2,
                 omch2=(self.cosmo.Om0 - self.cosmo.Ob0 - self.cosmo.Onu0)
-                * self.cosmo.h ** 2,
+                * self.cosmo.h**2,
                 mnu=sum(self.cosmo.m_nu.value),
                 neutrino_hierarchy="degenerate",
                 omk=self.cosmo.Ok0,
@@ -446,15 +446,15 @@ class EH_BAO(TransferComponent):
     """
 
     def __init__(self, *args, **kwargs):
-        super(EH_BAO, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._set_params()
 
     def _set_params(self):
         """
         Port of ``TFset_parameters`` from original EH code.
         """
-        self.Obh2 = self.cosmo.Ob0 * self.cosmo.h ** 2
-        self.Omh2 = self.cosmo.Om0 * self.cosmo.h ** 2
+        self.Obh2 = self.cosmo.Ob0 * self.cosmo.h**2
+        self.Omh2 = self.cosmo.Om0 * self.cosmo.h**2
         self.f_baryon = self.cosmo.Ob0 / self.cosmo.Om0
 
         self.theta_cmb = self.cosmo.Tcmb0.value / 2.7
@@ -463,20 +463,20 @@ class EH_BAO(TransferComponent):
         self.k_eq = 7.46e-2 * self.Omh2 * self.theta_cmb ** (-2)  # units Mpc^-1 (no h!)
 
         self.z_drag_b1 = (
-            0.313 * self.Omh2 ** -0.419 * (1.0 + 0.607 * self.Omh2 ** 0.674)
+            0.313 * self.Omh2**-0.419 * (1.0 + 0.607 * self.Omh2**0.674)
         )
-        self.z_drag_b2 = 0.238 * self.Omh2 ** 0.223
+        self.z_drag_b2 = 0.238 * self.Omh2**0.223
         self.z_drag = (
             1291.0
-            * self.Omh2 ** 0.251
-            / (1.0 + 0.659 * self.Omh2 ** 0.828)
-            * (1.0 + self.z_drag_b1 * self.Obh2 ** self.z_drag_b2)
+            * self.Omh2**0.251
+            / (1.0 + 0.659 * self.Omh2**0.828)
+            * (1.0 + self.z_drag_b1 * self.Obh2**self.z_drag_b2)
         )
 
         self.r_drag = (
-            31.5 * self.Obh2 * self.theta_cmb ** -4 * (1000.0 / (1 + self.z_drag))
+            31.5 * self.Obh2 * self.theta_cmb**-4 * (1000.0 / (1 + self.z_drag))
         )
-        self.r_eq = 31.5 * self.Obh2 * self.theta_cmb ** -4 * (1000.0 / self.z_eq)
+        self.r_eq = 31.5 * self.Obh2 * self.theta_cmb**-4 * (1000.0 / self.z_eq)
 
         self.sound_horizon = (
             (2.0 / (3.0 * self.k_eq))
@@ -489,8 +489,8 @@ class EH_BAO(TransferComponent):
 
         self.k_silk = (
             1.6
-            * self.Obh2 ** 0.52
-            * self.Omh2 ** 0.73
+            * self.Obh2**0.52
+            * self.Omh2**0.73
             * (1.0 + (10.4 * self.Omh2) ** (-0.95))
         )
 
@@ -501,7 +501,7 @@ class EH_BAO(TransferComponent):
             1.0 + (45.0 * self.Omh2) ** (-0.582)
         )
         self.alpha_c = alpha_c_a1 ** (-self.f_baryon) * alpha_c_a2 ** (
-            -self.f_baryon ** 3
+            -self.f_baryon**3
         )
 
         beta_c_b1 = 0.944 / (1.0 + (458.0 * self.Omh2) ** -0.708)
@@ -521,7 +521,7 @@ class EH_BAO(TransferComponent):
             * alpha_b_G
         )
 
-        self.beta_node = 8.41 * self.Omh2 ** 0.435
+        self.beta_node = 8.41 * self.Omh2**0.435
         self.beta_b = (
             0.5
             + self.f_baryon
@@ -541,7 +541,7 @@ class EH_BAO(TransferComponent):
             self.cosmo.h
             * 44.5
             * np.log(9.83 / self.Omh2)
-            / np.sqrt(1 + 10 * (self.Obh2 ** 0.75))
+            / np.sqrt(1 + 10 * (self.Obh2**0.75))
         )
 
     def lnt(self, lnk):
@@ -566,13 +566,13 @@ class EH_BAO(TransferComponent):
 
         T_c_ln_beta = np.log(np.e + 1.8 * self.beta_c * q)
         T_c_ln_nobeta = np.log(np.e + 1.8 * q)
-        T_c_C_alpha = (14.2 / self.alpha_c) + 386.0 / (1.0 + 69.9 * q ** 1.08)
-        T_c_C_noalpha = 14.2 + 386.0 / (1.0 + 69.9 * q ** 1.08)
+        T_c_C_alpha = (14.2 / self.alpha_c) + 386.0 / (1.0 + 69.9 * q**1.08)
+        T_c_C_noalpha = 14.2 + 386.0 / (1.0 + 69.9 * q**1.08)
 
         T_c_f = 1.0 / (1.0 + (ks / 5.4) ** 4)
 
         def term(a, b):
-            return a / (a + b * q ** 2)
+            return a / (a + b * q**2)
 
         T_c = T_c_f * term(T_c_ln_beta, T_c_C_noalpha) + (1 - T_c_f) * term(
             T_c_ln_beta, T_c_C_alpha
@@ -611,7 +611,7 @@ class EH_NoBAO(EH_BAO):
         return (
             1
             - 0.328 * np.log(431 * self.Omh2) * self.f_baryon
-            + 0.38 * np.log(22.3 * self.Omh2) * self.f_baryon ** 2
+            + 0.38 * np.log(22.3 * self.Omh2) * self.f_baryon**2
         )
 
     def lnt(self, lnk):
@@ -777,7 +777,7 @@ class BondEfs(TransferComponent):
             The log of the transfer function at lnk.
         """
 
-        scale = (0.3 * 0.75 ** 2) / (self.cosmo.Om0 * self.cosmo.h)
+        scale = (0.3 * 0.75**2) / (self.cosmo.Om0 * self.cosmo.h)
 
         a = self.params["a"] * scale
         b = self.params["b"] * scale

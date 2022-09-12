@@ -460,7 +460,7 @@ class MassFunction(transfer.Transfer):
         The number density of haloes, ``len=len(m)`` [units :math:`h^4 M_\odot^{-1} Mpc^{-3}`]
         """
         # if self.z2 is None:  # #This is normally the case
-        dndm = self.fsigma * self.mean_density0 * np.abs(self._dlnsdlnm) / self.m ** 2
+        dndm = self.fsigma * self.mean_density0 * np.abs(self._dlnsdlnm) / self.m**2
         if isinstance(self.hmf, ff.Behroozi):
             ngtm_tinker = self._gtm(dndm)
             dndm = self.hmf._modify_dndm(self.m, dndm, self.z, ngtm_tinker)
@@ -517,7 +517,7 @@ class MassFunction(transfer.Transfer):
         # If the highest mass is very low, we try calculating it to higher masses
         # The dlog10m is NOT CHANGED, so the input needs to be finely spaced.
         # If the top value of dndm is NaN, don't try calculating higher masses.
-        if m[-1] < 10 ** 16.5 and not np.isnan(dndm[-1]) and not dndm[-1] == 0:
+        if m[-1] < 10**16.5 and not np.isnan(dndm[-1]) and not dndm[-1] == 0:
             # ff.Behroozi function won't work here.
             if not isinstance(self.hmf, ff.Behroozi):
                 new_mf = copy.deepcopy(self)

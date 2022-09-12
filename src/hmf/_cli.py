@@ -24,7 +24,7 @@ def _get_config(config=None):
     if config is None:
         return {}
 
-    with open(config, "r") as fl:
+    with open(config) as fl:
         cfg = toml.load(fl)
 
     # Import an actual framework.

@@ -22,6 +22,9 @@ def framework_to_dict(obj: Framework) -> dict:
                 val = getattr(obj.cosmo, key)
                 if isinstance(val, Quantity):
                     val = {"value": val.value, "unit": str(val.unit)}
+                if key == "meta":
+                    continue
+
                 params[key] = val
 
             out["params"][k] = params
