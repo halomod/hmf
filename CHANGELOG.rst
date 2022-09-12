@@ -4,6 +4,9 @@ Releases
 dev-version
 ----------------------
 
+v3.4.2 [12 Sep 2022]
+----------------------
+
 **Bugfixes**
 
 - Watson high-z parameters had a typo which is now fixed (#141)
