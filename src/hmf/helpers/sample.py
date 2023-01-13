@@ -17,13 +17,12 @@ def _prepare_mf(log_mmin, **mf_kwargs):
     return icdf, h
 
 
-def _choose_halo_masses_num(N, icdf):
+def _choose_halo_masses_num(N, icdf, xmin=0):
     # Generate random variates from 0 to maxcum
-    x = np.random.random(int(N))
+    x = np.random.random(low=xmin, high=1.0, size=int(N))
 
     # Generate halo masses from mf distribution
-    m = 10 ** icdf(x)
-    return m
+    return 10 ** icdf(x)
 
 
 def sample_mf(N, log_mmin, sort=False, **mf_kwargs):
@@ -61,7 +60,7 @@ def sample_mf(N, log_mmin, sort=False, **mf_kwargs):
     """
     icdf, h = _prepare_mf(log_mmin, **mf_kwargs)
 
-    m = _choose_halo_masses_num(N, icdf)
+    m = _choose_halo_masses_num(N, icdf, xmin=h.ngtm.min() / h.ngtm[0])
 
     if sort:
         m.sort()
