@@ -15,6 +15,7 @@ ignore =
     D202  # TODO: remove
     D205  # TODO: remove
     G004  # logging statement uses f-string
+    B028  # stuff manually surrounded by quotes.
 max-line-length = 88
 # Should be 18.
 max-complexity = 25
