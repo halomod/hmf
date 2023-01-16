@@ -26,7 +26,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: [3.8, 3.9, "3.10"]
+        python-version: [3.8, 3.9, "3.10", "3.11"]
     steps:
       - uses: actions/checkout@master
         with:
@@ -35,7 +35,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Setup GNU Fortran
-        uses: modflowpy/install-gfortran-action@v1
+        uses: modflowpy/install-gfortran-action@v1.0.1
       - name: Install
         run:  pip install .[dev]
       - name: Run Tests
