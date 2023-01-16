@@ -19,7 +19,7 @@ def _prepare_mf(log_mmin, **mf_kwargs):
 
 def _choose_halo_masses_num(N, icdf, xmin=0):
     # Generate random variates from 0 to maxcum
-    x = np.random.random(low=xmin, high=1.0, size=int(N))
+    x = np.random.uniform(low=xmin, high=1.0, size=int(N))
 
     # Generate halo masses from mf distribution
     return 10 ** icdf(x)
