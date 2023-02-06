@@ -82,7 +82,6 @@ class SimDetails:
         hmf_analysis_notes="",
         other_cosmo=None,
     ):
-
         # Possible multi-sims
         self.L = np.atleast_1d(L)
         self.N = np.atleast_1d(N)
@@ -229,7 +228,6 @@ class FittingFunction(_framework.Component):
         delta_c: float = 1.686,
         **model_parameters,
     ):
-
         super().__init__(**model_parameters)
 
         self.nu2 = nu2
@@ -255,7 +253,6 @@ class FittingFunction(_framework.Component):
 
     @classmethod
     def get_measured_mdef(cls):
-
         # Try to set the measured mass definition
         measured = None
         if cls.sim_definition is not None:

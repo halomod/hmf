@@ -42,6 +42,7 @@ def _get_spec(
     n_curv : float
         Curvature of the spectrum
     """
+
     # Initialize sigma spline
     def get_log_sigma2(lnr):
         R = np.exp(lnr)
