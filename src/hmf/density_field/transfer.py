@@ -55,7 +55,6 @@ class Transfer(cosmo.Cosmology):
         use_splined_growth=False,
         **kwargs,
     ):
-
         # Call Cosmology init
         super().__init__(**kwargs)
 
