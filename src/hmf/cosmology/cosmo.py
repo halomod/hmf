@@ -14,7 +14,15 @@ may be used as inputs.
 import astropy.units as u
 import deprecation
 import sys
-from astropy.cosmology import FLRW, WMAP5, WMAP7, WMAP9, Planck13, Planck15, Planck18  # noqa
+from astropy.cosmology import (  # noqa
+    FLRW,
+    WMAP5,
+    WMAP7,
+    WMAP9,
+    Planck13,
+    Planck15,
+    Planck18,
+)
 
 from .. import __version__
 from .._internals import _cache, _framework
