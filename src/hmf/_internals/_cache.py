@@ -217,7 +217,6 @@ def parameter(kind):
         name = f.__name__
 
         def _set_property(self, val):
-
             prop = hidden_loc(self, name)
 
             # The following does any complex setting that is written into the code
