@@ -173,7 +173,7 @@ class TestSharpK:
 class TestGaussian:
     @pytest.fixture(scope="class")
     def cls(self):
-        k = np.logspace(-6, 1, 80)
+        k = np.logspace(-6, 1, 151)
         pk = k**2
         return filters.Gaussian(k, pk)
 
