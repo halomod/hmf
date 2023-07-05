@@ -6,7 +6,7 @@ cosmology classes, while converting it to a :class:`hmf._framework.Framework`
 for use in this package.
 
 Also provided in the namespace are the pre-defined cosmologies from `astropy`:
-`WMAP5`, `WMAP7`, `WMAP9`, `Planck13` and `Planck15`, which may be used as arguments to the
+`WMAP5`, `WMAP7`, `WMAP9`, `Planck13`, `Planck15` and `Planck18`, which may be used as arguments to the
 Cosmology framework. All custom subclasses of :class:`astropy.cosmology.FLRW`
 may be used as inputs.
 """
@@ -14,7 +14,15 @@ may be used as inputs.
 import astropy.units as u
 import deprecation
 import sys
-from astropy.cosmology import FLRW, WMAP5, WMAP7, WMAP9, Planck13, Planck15  # noqa
+from astropy.cosmology import (  # noqa
+    FLRW,
+    WMAP5,
+    WMAP7,
+    WMAP9,
+    Planck13,
+    Planck15,
+    Planck18,
+)
 
 from .. import __version__
 from .._internals import _cache, _framework
@@ -61,7 +69,7 @@ class Cosmology(_framework.Framework):
     To see the actual defaults for each parameter, use ``Cosmology.get_all_parameter_defaults()``.
     """
 
-    def __init__(self, cosmo_model=Planck15, cosmo_params=None):
+    def __init__(self, cosmo_model=Planck18, cosmo_params=None):
         # Call Framework init
         super().__init__()
 
@@ -73,7 +81,7 @@ class Cosmology(_framework.Framework):
     def cosmo_model(self, val):
         """
         The basis for the cosmology -- see astropy documentation. Can be a custom
-        subclass. Defaults to Planck15.
+        subclass. Defaults to Planck18.
 
         :type: instance of `astropy.cosmology.FLRW` subclass
         """

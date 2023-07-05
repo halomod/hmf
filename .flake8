@@ -1,21 +1,36 @@
 [flake8]
 ignore =
-    E203  # No space before colon
+    # No space before colon
+    E203
     W503
-    D107  # Missing docstring in __init__ (we do it in the class)
-    D401  # "First line should be in imperative mood" -- this doesn't work for properties, see https://github.com/PyCQA/pydocstyle/issues/301
-    A003  # allow method names to be the same as python builtins
-    RST210  # inline strong start-string without end-string. This is OK in the case of **kwargs in parameters.
-    D102  # Ignore public methods without docstrings, because it doesn't check for inheritance :/
-    D200  # TODO: remove. (one-line docstring should fit on one line with quotes)
-    D400  # TODO: remove. (first line should end with a period)
-    E501  # TODO: remove (line too long)
-    D105  # TODO: remove
-    D204  # TODO: remove
-    D202  # TODO: remove
-    D205  # TODO: remove
-    G004  # logging statement uses f-string
-    B028  # stuff manually surrounded by quotes.
+    # Missing docstring in __init__ (we do it in the class)
+    D107
+    # "First line should be in imperative mood" -- this doesn't work for properties, see https://github.com/PyCQA/pydocstyle/issues/301
+    D401
+    # allow method names to be the same as python builtins
+    A003
+    # inline strong start-string without end-string. This is OK in the case of **kwargs in parameters.
+    RST210
+    # Ignore public methods without docstrings, because it doesn't check for inheritance :/
+    D102
+    # TODO: remove. (one-line docstring should fit on one line with quotes)
+    D200
+    # TODO: remove. (first line should end with a period)
+    D400
+    # TODO: remove (line too long)
+    E501
+    # TODO: remove
+    D105
+    # TODO: remove
+    D204
+    # TODO: remove
+    D202
+    # TODO: remove
+    D205
+    # logging statement uses f-string
+    G004
+    # No explicit stacklevel keyword argument in warn calls
+    B028
 max-line-length = 88
 # Should be 18.
 max-complexity = 25
