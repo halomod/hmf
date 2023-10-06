@@ -163,6 +163,7 @@ class GrowthFactor(_GrowthFactor):
     def growth_rate(self, z):
         """
         Growth rate, dln(d)/dln(a) from Hamilton 2000 eq. 4
+        Note that the growth function g in Hamilton 2000 is defined as g=D*(1+z).
 
         Parameters
         ----------
@@ -173,12 +174,12 @@ class GrowthFactor(_GrowthFactor):
             -1
             - self.cosmo.Om(z) / 2
             + self.cosmo.Ode(z)
-            + 5 * self.cosmo.Om(z) / (2 * self.growth_factor(z))
-        )
+            + 5 * self.cosmo.Om(z) / (2 * self.growth_factor(z) * (1 + z)))
 
     def growth_rate_fn(self, zmin=0):
         """
         Growth rate, dln(d)/dln(a) from Hamilton 2000 eq. 4, as callable.
+        Note that the growth function g in Hamilton 2000 is defined as g=D*(1+z).
 
         Parameters
         ----------
@@ -196,7 +197,7 @@ class GrowthFactor(_GrowthFactor):
             -1
             - self.cosmo.Om(z) / 2
             + self.cosmo.Ode(z)
-            + 5 * self.cosmo.Om(z) / (2 * gfn(z))
+            + 5 * self.cosmo.Om(z) / (2 * gfn(z) * (1 + z))
         )
 
 
