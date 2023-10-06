@@ -174,7 +174,8 @@ class GrowthFactor(_GrowthFactor):
             -1
             - self.cosmo.Om(z) / 2
             + self.cosmo.Ode(z)
-            + 5 * self.cosmo.Om(z) / (2 * self.growth_factor(z) * (1 + z)))
+            + 5 * self.cosmo.Om(z) / (2 * self.growth_factor(z) * (1 + z))
+        )
 
     def growth_rate_fn(self, zmin=0):
         """
