@@ -33,7 +33,7 @@ repos:
           - flake8-comprehensions
           - flake8-print
 -   repo: https://github.com/psf/black
-    rev: 23.10.0
+    rev: 23.10.1
     hooks:
     - id: black
 -   repo: https://github.com/pre-commit/pygrep-hooks
