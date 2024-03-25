@@ -5,6 +5,7 @@ This module contains a single class, `Transfer`, which provides methods to
 calculate the transfer function, matter power spectrum and several other
 related quantities.
 """
+
 import numpy as np
 
 from .._internals._cache import cached_quantity, parameter

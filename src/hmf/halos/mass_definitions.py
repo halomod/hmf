@@ -3,6 +3,7 @@
 This is primarily inspired by Benedikt Diemer's COLOSSUS code:
 https://bdiemer.bitbucket.io/colossus/halo_mass_defs.html
 """
+
 import astropy.units as u
 import numpy as np
 import scipy as sp
@@ -366,8 +367,7 @@ def _find_new_concentration(rho_s, halo_density, h=None, x_guess=5.0):
             return np.log(1.0 + x) - x / (1.0 + x)
 
     fnc = (
-        lambda x, rhos, density_threshold: rhos * h(x) * 3.0 / x**3
-        - density_threshold
+        lambda x, rhos, density_threshold: rhos * h(x) * 3.0 / x**3 - density_threshold
     )
 
     while x is None and i < len(XDELTA_GUESS_FACTORS):
