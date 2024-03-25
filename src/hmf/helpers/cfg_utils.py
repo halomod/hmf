@@ -1,4 +1,5 @@
 """Utilities for interacting with hmf TOML configs."""
+
 from astropy.units import Quantity
 from datetime import datetime
 from inspect import signature

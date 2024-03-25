@@ -1,4 +1,5 @@
 """A package for producing halo mass functions under Spherical Collapse."""
+
 try:
     from importlib.metadata import PackageNotFoundError, version
 except ImportError:

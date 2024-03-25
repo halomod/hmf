@@ -4,6 +4,7 @@ Various models for computing the transfer function.
 Note that these are not transfer function "frameworks". The framework is found
 in :mod:`hmf.transfer`.
 """
+
 import numpy as np
 import pickle
 import warnings
@@ -462,9 +463,7 @@ class EH_BAO(TransferComponent):
         self.z_eq = 2.5e4 * self.Omh2 * self.theta_cmb ** (-4)  # really 1+z
         self.k_eq = 7.46e-2 * self.Omh2 * self.theta_cmb ** (-2)  # units Mpc^-1 (no h!)
 
-        self.z_drag_b1 = (
-            0.313 * self.Omh2**-0.419 * (1.0 + 0.607 * self.Omh2**0.674)
-        )
+        self.z_drag_b1 = 0.313 * self.Omh2**-0.419 * (1.0 + 0.607 * self.Omh2**0.674)
         self.z_drag_b2 = 0.238 * self.Omh2**0.223
         self.z_drag = (
             1291.0
@@ -686,6 +685,7 @@ class BBKS(TransferComponent):
     .. math:: \Gamma \rightarrow \Gamma
               \exp\left(-\Omega_{b,0}(1 + \sqrt{2h}/\Omega_{m,0})\right).
     """
+
     _defaults = {
         "a": 2.34,
         "b": 3.89,
@@ -760,6 +760,7 @@ class BondEfs(TransferComponent):
 
     .. math:: \alpha = \frac{0.3\times 0.75^2}{\Omega_{m,0} h^2}.
     """
+
     _defaults = {"a": 37.1, "b": 21.1, "c": 10.8, "nu": 1.12}
 
     def lnt(self, lnk):
