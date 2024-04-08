@@ -6,6 +6,7 @@ They are both designed to cache class properties, but have the added
 functionality of being automatically updated when a parent property is
 updated.
 """
+
 import warnings
 from copy import deepcopy
 from functools import update_wrapper
@@ -104,9 +105,9 @@ def cached_quantity(f):
         # if name is already there, can only be because the method has been supered.
         supered = name in activeq
         if not supered:
-            recalc_prpa[
-                name
-            ] = set()  # Empty set to which parameter names will be added
+            recalc_prpa[name] = (
+                set()
+            )  # Empty set to which parameter names will be added
             activeq.add(name)
 
         # Go ahead and calculate the value -- each parameter accessed will add itself to the index.
