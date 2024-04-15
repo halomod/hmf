@@ -1543,7 +1543,7 @@ class Tinker10(FittingFunction):
             )
 
 
-class Behroozi(Tinker10):
+class Behroozi(Tinker08):
     _ref = r"""Behroozi, P., Weschler, R. and Conroy, C., ApJ, 2013, http://arxiv.org/abs/1207.6105"""
     __doc__ = r"""
     Behroozi mass function fit [1]_.
@@ -1586,6 +1586,11 @@ class Behroozi(Tinker10):
     )
 
     def _modify_dndm(self, m, dndm, z, ngtm_tinker):
+        """
+        Apply modifications to dndm in Appendix G of Behroozi+13.
+
+        Note that the mass here is assumed to be in Msun, NOT Msun/h.
+        """
         a = 1 / (1 + z)
         theta = (
             0.144
