@@ -6,6 +6,7 @@ This code was heavily influenced by the `HaloFit` class from the
 and Michael Schneider (https://code.google.com/p/chomp/). It has
 been modified to improve its integration with this package.
 """
+
 import numpy as np
 import warnings
 from scipy.integrate import simps as _simps

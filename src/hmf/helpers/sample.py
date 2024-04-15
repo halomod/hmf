@@ -3,6 +3,7 @@ Module for dealing with sampled mass functions.
 
 Provides routines for sampling theoretical functions, and for binning sampled data.
 """
+
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as _spline
 

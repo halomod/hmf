@@ -1,4 +1,5 @@
 """Tests of HMF."""
+
 from pytest import raises
 
 import numpy as np
