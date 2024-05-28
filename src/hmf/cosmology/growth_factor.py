@@ -30,6 +30,7 @@ class _GrowthFactor(Cmpt):
     r"""
     General class for a growth factor calculation.
     """
+
     supported_cosmos = (cosmology.LambdaCDM,)
 
     def __init__(self, cosmo, **model_parameters):
@@ -64,6 +65,7 @@ class GrowthFactor(_GrowthFactor):
     ----------
     .. [1] Lukic et. al., ApJ, 2007, http://adsabs.harvard.edu/abs/2007ApJ...671.1160L
     """
+
     _defaults = {"dlna": 0.01, "amin": 1e-8}
 
     def __init__(self, *args, **kwargs):
@@ -108,7 +110,7 @@ class GrowthFactor(_GrowthFactor):
             raise ValueError("Redshifts <0 not supported")
         if np.any(a < a_min):
             raise ValueError(
-                f"Cannot compute integral for z > {1/a_min - 1}. Set amin lower."
+                f"Cannot compute integral for z > {1 / a_min - 1}. Set amin lower."
             )
 
         return (self.integral(a) - self.integral(a_min)) * self.cosmo.efunc(z)

@@ -1,4 +1,5 @@
 """Classes defining the overall structure of the hmf framework."""
+
 import copy
 import deprecation
 import logging
