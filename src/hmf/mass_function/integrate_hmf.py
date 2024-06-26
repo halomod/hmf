@@ -70,9 +70,9 @@ def hmf_integral_gtm(M, dndm, mass_density=False):
         mf = mf_func(m_upper)
 
         if not mass_density:
-            int_upper = intg.simps(np.exp(mf), dx=m_upper[2] - m_upper[1], even="first")
+            int_upper = intg.simpson(np.exp(mf), dx=m_upper[2] - m_upper[1], even="first")
         else:
-            int_upper = intg.simps(
+            int_upper = intg.simpson(
                 np.exp(m_upper + mf), dx=m_upper[2] - m_upper[1], even="first"
             )
     else:

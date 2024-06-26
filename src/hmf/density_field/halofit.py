@@ -9,7 +9,7 @@ been modified to improve its integration with this package.
 
 import numpy as np
 import warnings
-from scipy.integrate import simps as _simps
+from scipy.integrate import simpson as _simps
 from scipy.interpolate import InterpolatedUnivariateSpline as _spline
 from scipy.optimize import minimize
 from typing import Tuple
