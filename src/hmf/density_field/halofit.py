@@ -48,7 +48,7 @@ def _get_spec(
     def get_log_sigma2(lnr):
         R = np.exp(lnr)
         integrand = delta_k * np.exp(-((k * R) ** 2))
-        return np.log(_simps(integrand, np.log(k)))
+        return np.log(_simps(integrand, x=np.log(k)))
 
     def get_sigma_abs(lnr):
         return np.abs(get_log_sigma2(lnr))
@@ -77,7 +77,7 @@ def _get_spec(
     return knl, n_eff, n_curv
 
 
-def halofit(k, delta_k, sigma_8=None, z=0, cosmo=None, takahashi=True):
+def halofit(k, delta_k, *, sigma_8=None, z=0, cosmo=None, takahashi=True):
     """
     Implementation of HALOFIT (Smith+2003).
 

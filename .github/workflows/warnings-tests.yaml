@@ -1,0 +1,53 @@
+name: Warnings Tests
+
+# Test on all pushes, except when the push is literally just a tag (because we
+# tag automatically via CI, and therefore there's no extra code in that push).
+# Also, only test on pull requests into master/dev.
+on:
+  push:
+    tags-ignore:
+      - 'v*'
+  pull_request:
+    branches:
+      - 'master'
+      - 'dev'
+
+jobs:
+  tests:
+    if: "!contains(github.event.pull_request.labels.*.name, 'auto-pr')"
+    env:
+      ENV_NAME: tests
+      PYTHON: ${{ matrix.python-version }}
+      OS: ${{ matrix.os }}
+    name: Testing
+    #    needs: [linter]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.11"]
+    steps:
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: fortran-lang/setup-fortran@v1
+        id: setup-fortran
+        with:
+          compiler: gcc
+          version: 13
+      - name: Install
+        run:  pip install .[dev]
+      - name: Run Tests
+        run: |
+          python -m pytest -Werror --cov=hmf --cov-config=.coveragerc --cov-report xml:./coverage.xml --durations=25
+      - uses: codecov/codecov-action@v3
+        if: matrix.os == 'ubuntu-latest' && success() && !contains(github.event.pull_request.labels.*.name, 'auto-pr')
+        with:
+          file: ./coverage.xml # optional
+          fail_ci_if_error: true
+          verbose: true
+          token: ${{ secrets.CODECOV_TOKEN }}

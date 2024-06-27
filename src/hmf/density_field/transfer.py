@@ -323,5 +323,5 @@ class Transfer(cosmo.Cosmology):
         .. math:: \Delta_k = \frac{k^3 P_{\rm nl}(k)}{2\pi^2}
         """
         return _hfit(
-            self.k, self.delta_k, self.sigma_8, self.z, self.cosmo, self.takahashi
+            self.k, self.delta_k, z=self.z, cosmo=self.cosmo, takahashi=self.takahashi
         )
