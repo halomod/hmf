@@ -5,17 +5,6 @@ import numpy as np
 from astropy.cosmology import LambdaCDM, w0waCDM, wCDM
 
 from hmf.density_field.transfer import Transfer
-from hmf.density_field.transfer_models import EH_BAO
-
-# def rms(a):
-#     print(a)
-#     print("RMS: ", np.sqrt(np.mean(np.square(a))))
-#     return np.sqrt(np.mean(np.square(a)))
-
-#
-# def check_close(t, t2, fit):
-#     t.update(transfer_model=fit)
-#     assert np.mean(np.abs((t.power - t2.power) / t.power)) < 1
 
 
 @pytest.fixture
@@ -41,8 +30,6 @@ def test_updates(transfers, name, val):
 
 def test_halofit():
     t = Transfer(lnk_min=-20, lnk_max=20, dlnk=0.05, transfer_model="EH")
-    print(EH_BAO._defaults)
-    print("in test_transfer, params are: ", t.transfer_params)
     assert np.isclose(t.power[0], t.nonlinear_power[0])
     assert 5 * t.power[-1] < t.nonlinear_power[-1]
 

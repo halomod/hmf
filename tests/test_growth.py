@@ -28,7 +28,6 @@ def test_gf(z, gf, genf):
 
 @pytest.mark.parametrize("z", np.arange(0, 8, 0.5))
 def test_gr(z, gf, genf):
-    gf.growth_rate(z), genf.growth_rate(z)
     assert np.isclose(gf.growth_rate(z), genf.growth_rate(z), rtol=1e-2 + z / 100.0)
 
 

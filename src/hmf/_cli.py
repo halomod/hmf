@@ -1,4 +1,5 @@
 """Module that contains the command line app."""
+
 import click
 import importlib
 import numpy as np

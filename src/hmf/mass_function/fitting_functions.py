@@ -82,7 +82,6 @@ class SimDetails:
         hmf_analysis_notes="",
         other_cosmo=None,
     ):
-
         # Possible multi-sims
         self.L = np.atleast_1d(L)
         self.N = np.atleast_1d(N)
@@ -179,6 +178,7 @@ class FittingFunction(_framework.Component):
 
     In that example, we did not specify :attr:`cutmask`.
     """
+
     _pdocs = r"""
 
     Parameters
@@ -229,7 +229,6 @@ class FittingFunction(_framework.Component):
         delta_c: float = 1.686,
         **model_parameters,
     ):
-
         super().__init__(**model_parameters)
 
         self.nu2 = nu2
@@ -255,7 +254,6 @@ class FittingFunction(_framework.Component):
 
     @classmethod
     def get_measured_mdef(cls):
-
         # Try to set the measured mass definition
         measured = None
         if cls.sim_definition is not None:
@@ -644,8 +642,7 @@ class Reed07(FittingFunction):
             * (1.0 + (1.0 / (a * self.nu**2)) ** p + 0.6 * G_1 + 0.4 * G_2)
             * self.nu
             * np.exp(
-                -c * a * self.nu**2 / 2.0
-                - 0.03 * self.nu**0.6 / (self.n_eff + 3) ** 2
+                -c * a * self.nu**2 / 2.0 - 0.03 * self.nu**0.6 / (self.n_eff + 3) ** 2
             )
         )
 
@@ -1519,9 +1516,7 @@ class Tinker10(FittingFunction):
                 * self.beta ** (-2 * self.phi)
                 * self.gamma ** (-0.5 - self.eta)
                 * (
-                    2**self.phi
-                    * self.beta ** (2 * self.phi)
-                    * sp.gamma(self.eta + 0.5)
+                    2**self.phi * self.beta ** (2 * self.phi) * sp.gamma(self.eta + 0.5)
                     + self.gamma**self.phi * sp.gamma(0.5 + self.eta - self.phi)
                 )
             )

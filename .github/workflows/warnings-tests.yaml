@@ -1,4 +1,4 @@
-name: Tests
+name: Warnings Tests
 
 # Test on all pushes, except when the push is literally just a tag (because we
 # tag automatically via CI, and therefore there's no extra code in that push).
@@ -11,7 +11,6 @@ on:
 
 jobs:
   tests:
-    if: "!contains(github.event.pull_request.labels.*.name, 'auto-pr')"
     env:
       ENV_NAME: tests
       PYTHON: ${{ matrix.python-version }}
@@ -22,8 +21,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        python-version: [3.8, 3.9, "3.10", "3.11"]
+        os: [ubuntu-latest]
+        python-version: ["3.11"]
     steps:
       - uses: actions/checkout@master
         with:
@@ -40,9 +39,9 @@ jobs:
         run:  pip install .[dev]
       - name: Run Tests
         run: |
-          python -m pytest --cov=hmf --cov-config=.coveragerc --cov-report xml:./coverage.xml --durations=25
+          python -m pytest -Werror --cov=hmf --cov-config=.coveragerc --cov-report xml:./coverage.xml --durations=25
       - uses: codecov/codecov-action@v3
-        if: matrix.os == 'ubuntu-latest' && success() && !contains(github.event.pull_request.labels.*.name, 'auto-pr')
+        if: matrix.os == 'ubuntu-latest' && success()
         with:
           file: ./coverage.xml # optional
           fail_ci_if_error: true

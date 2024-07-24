@@ -1,6 +1,7 @@
 """
 A supporting module that provides a routine to integrate the differential hmf in a robust manner.
 """
+
 import numpy as np
 import scipy.integrate as intg
 from scipy.interpolate import InterpolatedUnivariateSpline as _spline
@@ -12,7 +13,7 @@ class NaNException(Exception):
     pass
 
 
-def hmf_integral_gtm(M, dndm, mass_density=False):
+def hmf_integral_gtm(m, dndm, mass_density=False):
     """
     Cumulatively integrate dn/dm.
 
@@ -51,31 +52,29 @@ def hmf_integral_gtm(M, dndm, mass_density=False):
     True
 
     """
+    n = len(m)
+
     # Eliminate NaN's
-    m = M[np.logical_not(np.isnan(dndm))]
-    dndm = dndm[np.logical_not(np.isnan(dndm))]
+    mask = np.isfinite(dndm)
+    m = m[mask]
+    dndm = dndm[mask]
     dndlnm = m * dndm
 
     if len(m) < 4:
         raise NaNException(
-            "There are too few real numbers in dndm: len(dndm) = %s, #NaN's = %s"
-            % (len(M), len(M) - len(dndm))
+            f"There are too few real numbers in dndm: len(dndm) = {n}, #NaN's = {n - len(m)}"
         )
 
     # Calculate the mass function (and its integral) from the highest M up to 10**18
     if m[-1] < m[0] * 10**18 / m[3]:
-        m_upper = np.arange(
-            np.log(m[-1]), np.log(10**18), np.log(m[1]) - np.log(m[0])
-        )
+        m_upper = np.arange(np.log(m[-1]), np.log(10**18), np.log(m[1]) - np.log(m[0]))
         mf_func = _spline(np.log(m), np.log(dndlnm), k=1)
         mf = mf_func(m_upper)
 
         if not mass_density:
-            int_upper = intg.simps(np.exp(mf), dx=m_upper[2] - m_upper[1], even="first")
+            int_upper = intg.simpson(np.exp(mf), dx=m_upper[2] - m_upper[1])
         else:
-            int_upper = intg.simps(
-                np.exp(m_upper + mf), dx=m_upper[2] - m_upper[1], even="first"
-            )
+            int_upper = intg.simpson(np.exp(m_upper + mf), dx=m_upper[2] - m_upper[1])
     else:
         int_upper = 0
 
@@ -83,16 +82,16 @@ def hmf_integral_gtm(M, dndm, mass_density=False):
     if not mass_density:
         ngtm = np.concatenate(
             (
-                intg.cumtrapz(dndlnm[::-1], dx=np.log(m[1]) - np.log(m[0]))[::-1],
+                intg.cumulative_trapezoid(dndlnm[::-1], dx=np.log(m[1] / m[0]))[::-1],
                 np.zeros(1),
             )
         )
     else:
         ngtm = np.concatenate(
             (
-                intg.cumtrapz(m[::-1] * dndlnm[::-1], dx=np.log(m[1]) - np.log(m[0]))[
-                    ::-1
-                ],
+                intg.cumulative_trapezoid(
+                    m[::-1] * dndlnm[::-1], dx=np.log(m[1]) - np.log(m[0])
+                )[::-1],
                 np.zeros(1),
             )
         )

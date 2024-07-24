@@ -3,6 +3,7 @@ Module for dealing with sampled mass functions.
 
 Provides routines for sampling theoretical functions, and for binning sampled data.
 """
+
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as _spline
 
@@ -12,20 +13,24 @@ from ..mass_function import hmf
 def _prepare_mf(log_mmin, **mf_kwargs):
     h = hmf.MassFunction(Mmin=log_mmin, **mf_kwargs)
     mask = h.ngtm > 0
-    icdf = _spline((h.ngtm[mask] / h.ngtm[0])[::-1], np.log10(h.m[mask][::-1]), k=3)
+    _icdf = np.log10(h.ngtm[mask] / h.ngtm[0])
+    icdf = _spline(_icdf[::-1], np.log10(h.m[mask][::-1]), k=3)
 
     return icdf, h
 
 
-def _choose_halo_masses_num(N, icdf, xmin=0):
+def _choose_halo_masses_num(N, icdf, xmin=0, rng=None):
     # Generate random variates from 0 to maxcum
-    x = np.random.uniform(low=xmin, high=1.0, size=int(N))
+    if rng is None:
+        rng = np.random.default_rng()
 
+    x = rng.uniform(low=xmin, high=1.0, size=int(N))
+    logm = icdf(np.log10(x))
     # Generate halo masses from mf distribution
-    return 10 ** icdf(x)
+    return 10**logm
 
 
-def sample_mf(N, log_mmin, sort=False, **mf_kwargs):
+def sample_mf(N, log_mmin, sort=False, rng=None, **mf_kwargs):
     """
     Create a sample of halo masses from a theoretical mass function.
 
@@ -59,8 +64,7 @@ def sample_mf(N, log_mmin, sort=False, **mf_kwargs):
     >>> m,hmf = sample_mf(1e6,10.0,hmf_model="PS",Mmax=17)
     """
     icdf, h = _prepare_mf(log_mmin, **mf_kwargs)
-
-    m = _choose_halo_masses_num(N, icdf, xmin=h.ngtm.min() / h.ngtm[0])
+    m = _choose_halo_masses_num(N, icdf, xmin=h.ngtm.min() / h.ngtm[0], rng=rng)
 
     if sort:
         m.sort()

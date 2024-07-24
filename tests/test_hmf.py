@@ -1,8 +1,9 @@
 """Tests of HMF."""
+
+import pytest
 from pytest import raises
 
 import numpy as np
-import warnings
 
 from hmf import MassFunction
 
@@ -46,6 +47,5 @@ def test_str_filter():
 
 def test_mass_nonlinear_outside_range():
     h = MassFunction(Mmin=8, Mmax=9)
-    with warnings.catch_warnings(record=True) as w:
+    with pytest.warns(UserWarning):
         assert h.mass_nonlinear > 0
-        assert len(w)
