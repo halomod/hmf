@@ -5,12 +5,9 @@ name: Tests
 # Also, only test on pull requests into master/dev.
 on:
   push:
-    tags-ignore:
-      - 'v*'
   pull_request:
     branches:
-      - 'master'
-      - 'dev'
+      - 'main'
 
 jobs:
   tests:

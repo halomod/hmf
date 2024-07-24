@@ -5,16 +5,12 @@ name: Warnings Tests
 # Also, only test on pull requests into master/dev.
 on:
   push:
-    tags-ignore:
-      - 'v*'
   pull_request:
     branches:
-      - 'master'
-      - 'dev'
+      - 'main'
 
 jobs:
   tests:
-    if: "!contains(github.event.pull_request.labels.*.name, 'auto-pr')"
     env:
       ENV_NAME: tests
       PYTHON: ${{ matrix.python-version }}
@@ -45,7 +41,7 @@ jobs:
         run: |
           python -m pytest -Werror --cov=hmf --cov-config=.coveragerc --cov-report xml:./coverage.xml --durations=25
       - uses: codecov/codecov-action@v3
-        if: matrix.os == 'ubuntu-latest' && success() && !contains(github.event.pull_request.labels.*.name, 'auto-pr')
+        if: matrix.os == 'ubuntu-latest' && success()
         with:
           file: ./coverage.xml # optional
           fail_ci_if_error: true
