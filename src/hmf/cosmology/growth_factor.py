@@ -110,7 +110,7 @@ class GrowthFactor(_GrowthFactor):
             raise ValueError("Redshifts <0 not supported")
         if np.any(a < a_min):
             raise ValueError(
-                f"Cannot compute integral for z > {1/a_min - 1}. Set amin lower."
+                f"Cannot compute integral for z > {1 / a_min - 1}. Set amin lower."
             )
 
         return (self.integral(a) - self.integral(a_min)) * self.cosmo.efunc(z)
