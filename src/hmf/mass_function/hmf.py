@@ -463,7 +463,11 @@ class MassFunction(transfer.Transfer):
         dndm = self.fsigma * self.mean_density0 * np.abs(self._dlnsdlnm) / self.m**2
         if isinstance(self.hmf, ff.Behroozi):
             ngtm_tinker = self._gtm(dndm)
-            dndm = self.hmf._modify_dndm(self.m, dndm, self.z, ngtm_tinker)
+
+            # THe Behroozi paper corrections assume masses in Msun, not Msun/h
+            dndm = self.hmf._modify_dndm(
+                self.m * self.cosmo.h, dndm, self.z, ngtm_tinker
+            )
 
         # Alter the mass definition
         if (

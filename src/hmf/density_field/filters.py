@@ -187,7 +187,7 @@ class Filter(_framework.Component):
         w = self.k_space(rk)
         dw = self.dw_dlnkr(rk)
         integ = w * dw * rest
-        return intg.simps(integ, dx=dlnk, axis=-1) / (np.pi**2 * s**2)
+        return intg.simpson(integ, dx=dlnk, axis=-1) / (np.pi**2 * s**2)
 
     def dlnr_dlnm(self, r):
         r"""
@@ -252,7 +252,7 @@ class Filter(_framework.Component):
         # we multiply by k because our steps are in logk.
         rest = self.power * self.k ** (3 + order * 2)
         integ = rest * self.k_space(rk) ** 2
-        sigma = (0.5 / np.pi**2) * intg.simps(integ, dx=dlnk, axis=-1)
+        sigma = (0.5 / np.pi**2) * intg.simpson(integ, dx=dlnk, axis=-1)
         return np.sqrt(sigma)
 
     def nu(self, r, delta_c=1.686):
@@ -446,7 +446,7 @@ class SharpK(Filter):
             p = power(k)
             dlnk = np.log(k[1] / k[0])
             integ = p * k ** (3 + 2 * order)
-            sigma[i] = (0.5 / (np.pi**2)) * intg.simps(integ, dx=dlnk)
+            sigma[i] = (0.5 / (np.pi**2)) * intg.simpson(integ, dx=dlnk)
 
         return np.sqrt(sigma)
 

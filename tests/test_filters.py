@@ -137,12 +137,10 @@ class TestSharpK:
         t = 2 + 2 + 1
         true = 1.0 / (2 * pi**2 * t * thisr**t)
 
-        with warnings.catch_warnings(record=True) as w:
+        with pytest.warns(UserWarning):
             # should also raise a warning
             R = 0.5
             s2 = cls.sigma(R)[0] ** 2
-            assert w
-        print(s2, true)
         assert np.isclose(s2, true)
 
     def test_sigma1_Rhalf(self, cls):
@@ -151,13 +149,10 @@ class TestSharpK:
         t = 4 + 2 + 1
         true = 1.0 / (2 * pi**2 * t * thisr**t)
 
-        with warnings.catch_warnings(record=True) as w:
+        with pytest.warns(UserWarning):
             # should also raise a warning
             R = 0.5
             s2 = cls.sigma(R, 1)[0] ** 2
-            assert w
-
-        print(s2, true)
         assert np.isclose(s2, true)
 
     def test_dlnssdlnr_Rhalf(self, cls):

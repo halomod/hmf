@@ -180,6 +180,8 @@ class MassDefinition(_framework.Component):
 
         if not hasattr(rhos, "__len__"):
             rhos = [rhos]
+
+        if not hasattr(c, "__len__"):
             c = [c]
 
         c_new = np.array(
@@ -356,7 +358,7 @@ def _find_new_concentration(rho_s, halo_density, h=None, x_guess=5.0):
     # provide lower and upper limits for the root finder. To balance stability and
     # performance, we do so iteratively: if there is no result within relatively
     # aggressive limits, we try again with more conservative limits.
-    args = rho_s, halo_density
+    target = halo_density / rho_s
     x = None
     i = 0
     XDELTA_GUESS_FACTORS = [5.0, 10.0, 20.0, 100.0, 10000.0]
@@ -366,22 +368,23 @@ def _find_new_concentration(rho_s, halo_density, h=None, x_guess=5.0):
         def h(x):
             return np.log(1.0 + x) - x / (1.0 + x)
 
-    fnc = (
-        lambda x, rhos, density_threshold: rhos * h(x) * 3.0 / x**3 - density_threshold
-    )
+    def fnc(x):
+        return h(x) * 3.0 / x**3 - target
 
     while x is None and i < len(XDELTA_GUESS_FACTORS):
         try:
             xmin = x_guess / XDELTA_GUESS_FACTORS[i]
             xmax = x_guess * XDELTA_GUESS_FACTORS[i]
-            x = sp.optimize.brentq(fnc, xmin, xmax, args)
-        except Exception:
+            x = sp.optimize.brentq(fnc, xmin, xmax)
+        except Exception as e:
+            warnings.warn(f"raised following error: {e}")
             i += 1
 
     if x is None:
         raise OptimizationException(
-            "Could not determine x where the density threshold %.2f is satisfied."
-            % halo_density
+            "Could not determine x where the density threshold "
+            f"{halo_density / rho_s:.2f} is satisfied. Largest x-range tried was "
+            f"x={xmin} -- {xmax} which brackets {fnc(xmin)} -- {fnc(xmax)}"
         )
 
     return x

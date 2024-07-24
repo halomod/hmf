@@ -9,6 +9,13 @@ dev-version
 * Changed the ``CAMB`` transfer model to use ``extrapolate_with_eh=True`` by default,
   which improves the accuracy of the HMF at low mass.
 
+**Fixes**
+
+* The Behroozi mass function model has been corrected to modify the Tinker08 mass
+  function, rather than Tinker10, and also fixes a small normalization bug where the
+  masses were assumed to be Msun/h instead of Msun (which is what the Behroozi paper
+  assumes).
+
 v3.4.4 [16 Jan 2023]
 ----------------------
 
