@@ -4,6 +4,11 @@ Releases
 dev-version
 ----------------------
 
+**Changes**
+
+* Changed the ``CAMB`` transfer model to use ``extrapolate_with_eh=True`` by default,
+  which improves the accuracy of the HMF at low mass.
+
 **Fixes**
 
 * The Behroozi mass function model has been corrected to modify the Tinker08 mass
@@ -18,7 +23,6 @@ v3.4.3 [12 Sep 2022]
 ----------------------
 
 **Changes**
------------
 
 - No longer supporting <py38
 - Fixes to setup.cfg (#150)

@@ -164,7 +164,7 @@ if HAVE_CAMB:
         _defaults = {
             "camb_params": None,
             "dark_energy_params": {},
-            "extrapolate_with_eh": False,
+            "extrapolate_with_eh": None,
             "kmax": None,
         }
 
@@ -228,6 +228,14 @@ if HAVE_CAMB:
                 self.params["camb_params"].set_dark_energy(
                     w=self.cosmo.w0, wa=self.cosmo.wa
                 )
+
+            if self.params["extrapolate_with_eh"] is None:
+                warnings.warn(
+                    "'extrapolate_with_eh' was not set. Defaulting to True, which is "
+                    "different behaviour than versions <=3.4.4. This warning may be "
+                    "removed in v4.0. Silence it by setting extrapolate_with_eh explicitly."
+                )
+                self.params["extrapolate_with_eh"] = True
 
             if self.params["extrapolate_with_eh"]:
                 # Create an EH transfer to extrapolate to at high k.
