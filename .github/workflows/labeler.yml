@@ -1,0 +1,19 @@
+name: Labeler
+
+on: push
+
+jobs:
+  labeler:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      content: read
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Run Labeler
+        uses: crazy-max/ghaction-github-labeler@v5.0.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
