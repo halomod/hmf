@@ -25,6 +25,7 @@ def test_order():
             z=list(range(3)),
             hmf_model=["ST", "PS"],
             sigma_8=[0.7, 0.8],
+            transfer_model="EH",
         )
     ):
         print(i)

@@ -112,11 +112,13 @@ def test_change_dndm_bocquet():
         mdef_model="SOMean",
         mdef_params={"overdensity": 200},
         hmf_model="Bocquet200mDMOnly",
+        transfer_model="EH",
     )
     h200c = MassFunction(
         mdef_model="SOCritical",
         mdef_params={"overdensity": 200},
         hmf_model="Bocquet200cDMOnly",
+        transfer_model="EH",
     )
 
     np.testing.assert_allclose(h200m.fsigma / h200c.fsigma, h200m.dndm / h200c.dndm)

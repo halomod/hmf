@@ -12,6 +12,7 @@ def tmpdir(tmp_path_factory) -> Path:
     return tmp_path_factory.mktemp("cli-tests")
 
 
+@pytest.mark.filterwarnings("ignore:'extrapolate_with_eh' was not set")
 def test_no_config_or_args(tmpdir: Path):
     runner = CliRunner()
     result = runner.invoke(main, ["run", "--outdir", str(tmpdir)])

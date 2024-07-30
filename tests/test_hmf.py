@@ -46,6 +46,6 @@ def test_str_filter():
 
 
 def test_mass_nonlinear_outside_range():
-    h = MassFunction(Mmin=8, Mmax=9)
+    h = MassFunction(Mmin=8, Mmax=9, transfer_model="EH")
     with pytest.warns(UserWarning):
         assert h.mass_nonlinear > 0
