@@ -96,6 +96,7 @@ def test_camb_w0wa():
         cosmo_model=w0waCDM(
             Om0=0.3, Ode0=0.7, w0=-1, wa=0.03, Ob0=0.05, H0=70.0, Tcmb0=2.7
         ),
+        transfer_params={"extrapolate_with_eh": True},
     )
     assert t.transfer_function.shape == t.k.shape
 
@@ -105,11 +106,13 @@ def test_camb_wCDM():
     t = Transfer(
         transfer_model="CAMB",
         cosmo_model=wCDM(Om0=0.3, Ode0=0.7, w0=-1, Ob0=0.05, H0=70.0, Tcmb0=2.7),
+        transfer_params={"extrapolate_with_eh": True},
     )
 
     t2 = Transfer(
         transfer_model="CAMB",
         cosmo_model=LambdaCDM(Om0=0.3, Ode0=0.7, Ob0=0.05, H0=70.0, Tcmb0=2.7),
+        transfer_params={"extrapolate_with_eh": True},
     )
     np.testing.assert_array_almost_equal(t.transfer_function, t2.transfer_function)
 

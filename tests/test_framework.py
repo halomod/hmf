@@ -17,7 +17,7 @@ def test_incorrect_argument():
 
 def test_incorrect_update_arg():
     with raises(ValueError):
-        t = hmf.MassFunction()
+        t = hmf.MassFunction(transfer_model="EH")
         t.update(wrong_arg=3)
 
 
@@ -28,19 +28,22 @@ def cls():
 
 @pytest.fixture(scope="class")
 def inst(cls):
-    return cls(z=10)
+    return cls(z=10, transfer_model="EH")
 
 
+@pytest.mark.filterwarnings("ignore:'extrapolate_with_eh' was not set")
 def test_parameter_names(cls):
     assert "cosmo_model" in cls.get_all_parameter_names()
 
 
+@pytest.mark.filterwarnings("ignore:'extrapolate_with_eh' was not set")
 def test_parameter_defaults(cls):
     assert type(cls.get_all_parameter_defaults(recursive=False)) is dict
 
     assert cls.get_all_parameter_defaults()["z"] == 0
 
 
+@pytest.mark.filterwarnings("ignore:'extrapolate_with_eh' was not set")
 def test_parameter_default_rec(cls):
     pd = cls.get_all_parameter_defaults(recursive=True)
     assert type(pd["cosmo_params"]) is dict
@@ -51,10 +54,12 @@ def test_param_values(inst):
     assert inst.parameter_values["z"] == 10
 
 
+@pytest.mark.filterwarnings("ignore:'extrapolate_with_eh' was not set")
 def test_qnt_avail(cls):
     assert "dndm" in cls.quantities_available()
 
 
+@pytest.mark.filterwarnings("ignore:'extrapolate_with_eh' was not set")
 def test_parameter_info(cls):
     assert cls.parameter_info() is None
     assert cls.parameter_info(names=["z"]) is None
@@ -95,9 +100,9 @@ def test_growth_plugins():
 
 def test_validate_inputs():
     with pytest.raises(AssertionError):
-        MassFunction(Mmin=10, Mmax=9)
+        MassFunction(Mmin=10, Mmax=9, transfer_model="EH")
 
-    m = MassFunction(Mmin=10, Mmax=11)
+    m = MassFunction(Mmin=10, Mmax=11, transfer_model="EH")
     with pytest.raises(AssertionError):
         m.update(Mmax=9)
 
