@@ -195,7 +195,7 @@ if HAVE_CAMB:
                 if self.params["kmax"]:
                     self.params["camb_params"].Transfer.kmax = self.params["kmax"]
 
-            if self.cosmo.Ob0 is None:
+            if self.cosmo.Ob0 is None or self.cosmo.Ob0 == 0:
                 raise ValueError(
                     "To use CAMB, you must set the baryon density in the cosmology "
                     "explicitly."
