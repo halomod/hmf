@@ -40,7 +40,7 @@ jobs:
       - name: Run Tests
         run: |
           python -m pytest -Werror --cov=hmf --cov-config=.coveragerc --cov-report xml:./coverage.xml --durations=25
-      - uses: codecov/codecov-action@v4
+      - uses: codecov/codecov-action@v5
         if: matrix.os == 'ubuntu-latest' && success()
         with:
           file: ./coverage.xml # optional
