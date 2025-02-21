@@ -203,6 +203,99 @@ class GrowthFactor(_GrowthFactor):
 
 
 @_inherit
+class FromFile(GrowthFactor):
+    r"""
+    Import a growth factor from file.
+
+    .. note:: The file should be in the same format as output from CAMB,
+              or else in two-column ASCII format (z,d).
+
+    Parameters
+    ----------
+    \*\*model_parameters : unpack-dict
+        Parameters specific to this model. In this case, available
+        parameters are the following. To see their default values,
+        check the :attr:`_defaults` class attribute.
+
+        :fname: str
+            Location of the file to import.
+    """
+    
+    supported_cosmos = (cosmology.LambdaCDM, cosmology.w0waCDM, cosmology.wCDM)
+    _defaults = {"fname": ""}
+
+
+    def growth_factor(self, z):
+        r"""
+        The growth factor, :math:`d(a) = D^+(a)/D^+(a=1)`.
+
+        Parameters
+        ----------
+        z : array_like
+            Redshift.
+
+        Returns
+        -------
+        gf : array_like
+            The growth factor at `z`.
+        """
+        G = np.genfromtxt(self.params["fname"])[:, [0, 1]].T
+
+        z_out = G[0, :]
+        d_out = G[1, :]
+        return _spline(z_out, d_out, k=1)(z)
+
+
+@_inherit
+class FromArray(FromFile):
+    r"""
+    Use a spline over a given array to define the transfer function
+
+    Parameters
+    ----------
+    \*\*model_parameters : unpack-dict
+        Parameters specific to this model. In this case, available
+        parameters are the following. To see their default values,
+        check the :attr:`_defaults` class attribute.
+
+        :z: array
+            Redshifts
+
+        :d: array
+            The growth factor at `z`.
+    """
+    
+    supported_cosmos = (cosmology.LambdaCDM, cosmology.w0waCDM, cosmology.wCDM)
+    _defaults = {"z": None, "d": None}
+        
+    def growth_factor(self, z):
+        r"""
+        The growth factor, :math:`d(a) = D^+(a)/D^+(a=1)`.
+
+        Parameters
+        ----------
+        z : array_like
+            Redshift.
+
+        Returns
+        -------
+        gf : array_like
+            The growth factor at `z`.
+        """
+        z_out = self.params["z"]
+        d_out = self.params["d"]
+
+        if z_out is None or d_out is None:
+            raise ValueError(
+                "You must supply an array for both z and d for this Growth model"
+            )
+        if len(z_out) != len(d_out):
+            raise ValueError("z and d must have same length")
+
+        return _spline(z_out, d_out, k=1)(z)
+
+
+@_inherit
 class GenMFGrowth(GrowthFactor):
     r"""
     Port of growth factor routines found in the ``genmf`` code.
@@ -344,7 +437,7 @@ class Carroll1992(GrowthFactor):
 if HAVE_CAMB:
 
     @_inherit
-    class CambGrowth(_GrowthFactor):
+    class CambGrowth(GrowthFactor):
         """
         Uses CAMB to generate the growth factor, at k/h = 1.0. This class is recommended
         if the cosmology is not LambdaCDM (but instead wCDM), as it correctly deals with
