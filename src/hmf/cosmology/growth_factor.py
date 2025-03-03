@@ -220,10 +220,9 @@ class FromFile(GrowthFactor):
         :fname: str
             Location of the file to import.
     """
-    
+
     supported_cosmos = (cosmology.LambdaCDM, cosmology.w0waCDM, cosmology.wCDM)
     _defaults = {"fname": ""}
-
 
     def growth_factor(self, z):
         r"""
@@ -264,10 +263,10 @@ class FromArray(FromFile):
         :d: array
             The growth factor at `z`.
     """
-    
+
     supported_cosmos = (cosmology.LambdaCDM, cosmology.w0waCDM, cosmology.wCDM)
     _defaults = {"z": None, "d": None}
-        
+
     def growth_factor(self, z):
         r"""
         The growth factor, :math:`d(a) = D^+(a)/D^+(a=1)`.

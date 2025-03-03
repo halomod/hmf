@@ -356,7 +356,7 @@ class MassFunction(transfer.Transfer):
     def _sigma_0(self):
         r"""The normalised mass variance at z=0 :math:`\sigma`."""
         return self._normalisation * self._unn_sigma0
-        
+
     @cached_quantity
     def sigma8_z(self):
         """sigma(8) at redshif z"""
@@ -451,14 +451,14 @@ class MassFunction(transfer.Transfer):
         Uses eq. 42 in Lukic et. al 2007.
         """
         return -3.0 * (2.0 * self._dlnsdlnm + 1.0)
-        
+
     @cached_quantity
     def idx_n_eff(self):
         """
         Index of the effective spectral index at scale of halo radius at halo collapse.
         """
         return np.argmin(np.abs(self.nu - 1.0))
-    
+
     @cached_quantity
     def n_eff_at_collapse(self):
         """
