@@ -222,7 +222,7 @@ class FromFile(GrowthFactor):
     """
 
     supported_cosmos = (cosmology.LambdaCDM, cosmology.w0waCDM, cosmology.wCDM)
-    _defaults = {"fname": ""}
+    _defaults = {"dlna": 0.01, "amin": 1e-8, "fname": ""}
 
     def growth_factor(self, z):
         r"""
@@ -265,7 +265,7 @@ class FromArray(FromFile):
     """
 
     supported_cosmos = (cosmology.LambdaCDM, cosmology.w0waCDM, cosmology.wCDM)
-    _defaults = {"z": None, "d": None}
+    _defaults = {"dlna": 0.01, "amin": 1e-8, "z": None, "d": None}
 
     def growth_factor(self, z):
         r"""
