@@ -176,7 +176,6 @@ def obj_eq(ob1, ob2):
         return bool(ob1 == ob2)
     except ValueError:
         # Could be a numpy array.
-        #return np.array_equiv(ob1, ob2)#(ob1 == ob2).all()
         try:
             return array_equal(ob1, ob2)
         except ValueError:

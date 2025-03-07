@@ -451,20 +451,14 @@ class MassFunction(transfer.Transfer):
         Uses eq. 42 in Lukic et. al 2007.
         """
         return -3.0 * (2.0 * self._dlnsdlnm + 1.0)
-        
-    @cached_quantity
-    def idx_n_eff(self):
-        """
-        Index of the effective spectral index at scale of halo radius at halo collapse.
-        """
-        return np.argmin(np.abs(self.nu - 1.0))
     
     @cached_quantity
     def n_eff_at_collapse(self):
         """
         Effective spectral index at scale of halo radius at halo collapse.
         """
-        return self.n_eff[self.idx_n_eff]
+        fnc = spline(self.nu, self.n_eff)
+        return fnc(1)
 
     @cached_quantity
     def fsigma(self):
