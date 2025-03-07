@@ -356,7 +356,7 @@ class MassFunction(transfer.Transfer):
     def _sigma_0(self):
         r"""The normalised mass variance at z=0 :math:`\sigma`."""
         return self._normalisation * self._unn_sigma0
-        
+
     @cached_quantity
     def sigma8_z(self):
         """sigma(8) at redshif z"""
