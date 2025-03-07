@@ -451,7 +451,7 @@ class MassFunction(transfer.Transfer):
         Uses eq. 42 in Lukic et. al 2007.
         """
         return -3.0 * (2.0 * self._dlnsdlnm + 1.0)
-    
+
     @cached_quantity
     def n_eff_at_collapse(self):
         """
