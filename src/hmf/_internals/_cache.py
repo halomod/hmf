@@ -10,6 +10,7 @@ updated.
 import warnings
 from copy import deepcopy
 from functools import update_wrapper
+from numpy import array_equal
 
 
 def hidden_loc(obj, name):
@@ -175,7 +176,12 @@ def obj_eq(ob1, ob2):
         return bool(ob1 == ob2)
     except ValueError:
         # Could be a numpy array.
-        return (ob1 == ob2).all()
+        try:
+            return array_equal(ob1, ob2)
+        except ValueError:
+            if ob1.keys() != ob2.keys():
+                return False
+            return all(array_equal(ob1[key], ob2[key]) for key in ob1)
 
 
 def parameter(kind):
