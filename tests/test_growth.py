@@ -74,3 +74,23 @@ def test_carroll(gf):
 
     z = np.arange(6)
     np.testing.assert_allclose(gf.growth_rate(z), cgf.growth_rate(z), rtol=0.05)
+
+
+def test_from_file(datadir):
+    cosmo = w0waCDM(H0=70.0, Om0=0.3, Ode0=0.7, w0=-0.9, Ob0=0.05, Tcmb0=2.7)
+    gf = growth_factor.FromFile(cosmo=cosmo, fname=f"{datadir}/growth_for_hmf_tests.dat")
+    data_in = np.genfromtxt(f"{datadir}/growth_for_hmf_tests.dat")[:, [0, 1]]
+    z = data_in[:,0]
+    d = data_in[:,1]
+    
+    np.testing.assert_allclose(gf.growth_factor(z), d, rtol=0.05)
+
+
+def test_from_array(datadir):
+    cosmo = w0waCDM(H0=70.0, Om0=0.3, Ode0=0.7, w0=-0.9, Ob0=0.05, Tcmb0=2.7)
+    data_in = np.genfromtxt(f"{datadir}/growth_for_hmf_tests.dat")[:, [0, 1]]
+    z = data_in[:,0]
+    d = data_in[:,1]
+    
+    gf = growth_factor.FromArray(cosmo=cosmo, z=z, d=d)
+    np.testing.assert_allclose(gf.growth_factor(z), d, rtol=0.05)

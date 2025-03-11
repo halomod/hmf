@@ -393,6 +393,14 @@ class MassFunction(transfer.Transfer):
         The parameter :math:`\nu = \left(\frac{\delta_c}{\sigma}\right)^2`, ``len=len(m)``
         """
         return (self.delta_c / self.sigma) ** 2
+        
+    @cached_quantity
+    def nu_fn(self):
+        r"""
+        The parameter :math:`\nu = \left(\frac{\delta_c}{\sigma}\right)^2`, ``len=len(m)``
+        as a callable function
+        """
+        return spline(self.m, self.nu, k=5)
 
     @cached_quantity
     def mass_nonlinear(self):
