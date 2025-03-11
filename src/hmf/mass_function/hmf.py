@@ -393,7 +393,7 @@ class MassFunction(transfer.Transfer):
         The parameter :math:`\nu = \left(\frac{\delta_c}{\sigma}\right)^2`, ``len=len(m)``
         """
         return (self.delta_c / self.sigma) ** 2
-        
+
     @cached_quantity
     def nu_fn(self):
         r"""
