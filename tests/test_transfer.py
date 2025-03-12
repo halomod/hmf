@@ -26,13 +26,17 @@ def test_updates(transfers, name, val):
         np.mean(np.abs((t.power - t2.power) / t.power)) < 1
         and np.mean(np.abs((t.power - t2.power) / t.power)) > 1e-6
     )
-    
-    
+
+
 def test_updates_from_file_array(datadir):
     tdata = np.genfromtxt(f"{datadir}/transfer_for_hmf_tests.dat")
-    t = Transfer(transfer_model="FromArray", transfer_params={"k": tdata[:,0], "T": tdata[:,1]})
-    t2 = Transfer(transfer_model="FromArray", transfer_params={"k": tdata[:,0], "T": tdata[:,1]})
-    t2.update(transfer_params={"k": tdata[::2,0], "T": tdata[::2,1]})
+    t = Transfer(
+        transfer_model="FromArray", transfer_params={"k": tdata[:, 0], "T": tdata[:, 1]}
+    )
+    t2 = Transfer(
+        transfer_model="FromArray", transfer_params={"k": tdata[:, 0], "T": tdata[:, 1]}
+    )
+    t2.update(transfer_params={"k": tdata[::2, 0], "T": tdata[::2, 1]})
     # This test for both FromArray transfer model and caching of dictionaries
     assert (
         np.mean(np.abs((t.power - t2.power) / t.power)) < 1
