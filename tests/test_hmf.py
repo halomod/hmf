@@ -49,18 +49,20 @@ def test_mass_nonlinear_outside_range():
     h = MassFunction(Mmin=8, Mmax=9, transfer_model="EH")
     with pytest.warns(UserWarning):
         assert h.mass_nonlinear > 0
-        
+
 
 def test_nu():
     h = MassFunction(Mmin=8, Mmax=18, transfer_model="EH")
     assert np.allclose(h.nu_fn(h.m), h.nu)
-    
-    
+
+
 def test_sigma8z():
     h = MassFunction(z=0.0, sigma_8=0.8, Mmin=8, Mmax=18, transfer_model="EH")
     assert np.allclose(h.sigma8_z, 0.8)
-    
-    
+
+
 def test_neff_at_collapse():
     h = MassFunction(Mmin=8, Mmax=18, transfer_model="EH")
-    assert np.allclose(h.n_eff_at_collapse, h.n_eff[np.argmin(np.abs(h.nu - 1.0))], rtol=0.05)
+    assert np.allclose(
+        h.n_eff_at_collapse, h.n_eff[np.argmin(np.abs(h.nu - 1.0))], rtol=0.05
+    )
