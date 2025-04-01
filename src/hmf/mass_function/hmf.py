@@ -358,6 +358,11 @@ class MassFunction(transfer.Transfer):
         return self._normalisation * self._unn_sigma0
 
     @cached_quantity
+    def sigma8_z(self):
+        """sigma(8) at redshif z"""
+        return self.normalised_filter.sigma(8.0)
+
+    @cached_quantity
     def radii(self):
         """The radii corresponding to the masses `m`.
 
@@ -388,6 +393,14 @@ class MassFunction(transfer.Transfer):
         The parameter :math:`\nu = \left(\frac{\delta_c}{\sigma}\right)^2`, ``len=len(m)``
         """
         return (self.delta_c / self.sigma) ** 2
+
+    @cached_quantity
+    def nu_fn(self):
+        r"""
+        The parameter :math:`\nu = \left(\frac{\delta_c}{\sigma}\right)^2`, ``len=len(m)``
+        as a callable function
+        """
+        return spline(self.m, self.nu, k=5)
 
     @cached_quantity
     def mass_nonlinear(self):
@@ -446,6 +459,14 @@ class MassFunction(transfer.Transfer):
         Uses eq. 42 in Lukic et. al 2007.
         """
         return -3.0 * (2.0 * self._dlnsdlnm + 1.0)
+
+    @cached_quantity
+    def n_eff_at_collapse(self):
+        """
+        Effective spectral index at scale of halo radius at halo collapse.
+        """
+        fnc = spline(self.nu, self.n_eff)
+        return fnc(1)
 
     @cached_quantity
     def fsigma(self):
