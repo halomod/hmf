@@ -430,7 +430,7 @@ if HAVE_CAMB:
                 return growth
 
         def __getstate__(self):
-            dct = super().__getstate__()
+            dct = self.__dict__.copy()
 
             # Can't pickle/copy CAMBparams or CAMBResults
             del dct["p"]
