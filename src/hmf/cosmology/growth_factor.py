@@ -359,33 +359,39 @@ if HAVE_CAMB:
 
             # Save the CAMB object properly for use
             # Set the cosmology
-            self.p = camb.CAMBparams()
+            self.p = self._get_camb_params(self.cosmo)
 
-            if self.cosmo.Ob0 is None:
+        @classmethod
+        def _get_camb_params(cls, cosmo: cosmology.FLRW) -> camb.CAMBparams:
+            p = camb.CAMBparams()
+
+            if cosmo.Ob0 is None:
                 raise ValueError(
                     "If using CAMB, the baryon density must be set explicitly in the cosmology."
                 )
 
-            if self.cosmo.Tcmb0.value == 0:
+            if cosmo.Tcmb0.value == 0:
                 raise ValueError(
                     "If using CAMB, the CMB temperature must be set explicitly in the cosmology."
                 )
 
-            self.p.set_cosmology(
-                H0=self.cosmo.H0.value,
-                ombh2=self.cosmo.Ob0 * self.cosmo.h**2,
-                omch2=(self.cosmo.Om0 - self.cosmo.Ob0) * self.cosmo.h**2,
-                omk=self.cosmo.Ok0,
-                nnu=self.cosmo.Neff,
-                standard_neutrino_neff=self.cosmo.Neff,
-                TCMB=self.cosmo.Tcmb0.value,
+            p.set_cosmology(
+                H0=cosmo.H0.value,
+                ombh2=cosmo.Ob0 * cosmo.h**2,
+                omch2=(cosmo.Om0 - cosmo.Ob0) * cosmo.h**2,
+                omk=cosmo.Ok0,
+                nnu=cosmo.Neff,
+                standard_neutrino_neff=cosmo.Neff,
+                TCMB=cosmo.Tcmb0.value,
             )
 
-            self.p.WantTransfer = True
+            p.WantTransfer = True
 
             # Set the DE equation of state. We only support constant w.
-            if hasattr(self.cosmo, "w0"):
-                self.p.set_dark_energy(w=self.cosmo.w0)
+            if hasattr(cosmo, "w0"):
+                p.set_dark_energy(w=cosmo.w0)
+
+            return p
 
         @cached_property
         def _camb_transfers(self):
@@ -422,3 +428,18 @@ if HAVE_CAMB:
                 return growth[0]
             else:
                 return growth
+
+        def __getstate__(self):
+            dct = self.__dict__.copy()
+
+            # Can't pickle/copy CAMBparams or CAMBResults
+            del dct["p"]
+            if "_camb_transfers" in dct:
+                del dct["_camb_transfers"]
+
+            return dct
+
+        def __setstate__(self, state):
+            self.__dict__ = state
+
+            self.p = self._get_camb_params(self.cosmo)
