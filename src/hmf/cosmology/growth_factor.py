@@ -437,6 +437,8 @@ if HAVE_CAMB:
             if "_camb_transfers" in dct:
                 del dct["_camb_transfers"]
 
+            return dct
+
         def __setstate__(self, state):
             self.__dict__ = state
 

@@ -1,5 +1,6 @@
 import pytest
 
+import copy
 import numpy as np
 from astropy.cosmology import Planck13, w0waCDM
 
@@ -74,3 +75,12 @@ def test_carroll(gf):
 
     z = np.arange(6)
     np.testing.assert_allclose(gf.growth_rate(z), cgf.growth_rate(z), rtol=0.05)
+
+
+def test_pickleability_of_cambgrowth():
+    gf = growth_factor.CambGrowth(Planck13)
+    gf_at_1 = gf.growth_factor(1.0)
+
+    gf2 = copy.deepcopy(gf)
+
+    assert gf2.growth_factor(1.0) == gf_at_1
