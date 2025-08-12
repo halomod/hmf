@@ -158,9 +158,9 @@ class GrowthFactor(_GrowthFactor):
         if not inverse:
             return self.growth_factor
 
-        z = np.sort(self._zvec)[::-1]
-        gf = self.growth_factor(z)
-        return _spline(gf, z)
+        gf = self.growth_factor(self._zvec)
+        idx = np.argsort(gf)
+        return _spline(gf[idx], z[idx])
 
     def growth_rate(self, z):
         """
