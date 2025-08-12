@@ -160,7 +160,7 @@ class GrowthFactor(_GrowthFactor):
 
         gf = self.growth_factor(self._zvec)
         idx = np.argsort(gf)
-        return _spline(gf[idx], z[idx])
+        return _spline(gf[idx], self._zvec[idx])
 
     def growth_rate(self, z):
         """
