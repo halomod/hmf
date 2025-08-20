@@ -379,6 +379,8 @@ if HAVE_CAMB:
                 H0=cosmo.H0.value,
                 ombh2=cosmo.Ob0 * cosmo.h**2,
                 omch2=(cosmo.Om0 - cosmo.Ob0) * cosmo.h**2,
+                mnu=sum(cosmo.m_nu.value),
+                neutrino_hierarchy="degenerate",
                 omk=cosmo.Ok0,
                 nnu=cosmo.Neff,
                 standard_neutrino_neff=cosmo.Neff,
