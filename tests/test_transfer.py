@@ -2,7 +2,7 @@ import pytest
 
 import camb
 import numpy as np
-from astropy.cosmology import LambdaCDM, FlatLambdaCDM, w0waCDM, wCDM
+from astropy.cosmology import FlatLambdaCDM, LambdaCDM, w0waCDM, wCDM
 
 from hmf.density_field.transfer import Transfer
 
@@ -96,14 +96,16 @@ def test_camb_extrapolation():
 
 def test_camb_neutrinos():
     # Correct parameter settings:
-    cosmo_model = FlatLambdaCDM(Om0=0.3, H0=70.0, Ob0=0.05, m_nu=[0, 0, 0.06], Tcmb0=2.7255)
+    cosmo_model = FlatLambdaCDM(
+        Om0=0.3, H0=70.0, Ob0=0.05, m_nu=[0, 0, 0.06], Tcmb0=2.7255
+    )
 
     t_nu = Transfer(
         cosmo_model=cosmo_model,
         sigma_8=0.8,
         n=1,
         transfer_model="CAMB",
-        transfer_params={"extrapolate_with_eh": True}, 
+        transfer_params={"extrapolate_with_eh": True},
         lnk_min=np.log(1e-11),
         lnk_max=np.log(1e11),
     )
@@ -114,15 +116,14 @@ def test_camb_neutrinos():
         Want_CMB_lensing=False,
         WantCls=False,
         WantDerivedParameters=False,
-        WantTransfer = True,
+        WantTransfer=True,
     )
     pars.Transfer.high_precision = False
     pars.Transfer.k_per_logint = 0
     pars.set_cosmology(
         H0=cosmo_model.H0.value,
         ombh2=cosmo_model.Ob0 * cosmo_model.h**2,
-        omch2=(cosmo_model.Om0 - cosmo_model.Ob0)
-        * cosmo_model.h**2,
+        omch2=(cosmo_model.Om0 - cosmo_model.Ob0) * cosmo_model.h**2,
         mnu=sum(cosmo_model.m_nu.value),
         neutrino_hierarchy="degenerate",
         omk=cosmo_model.Ok0,
@@ -130,10 +131,10 @@ def test_camb_neutrinos():
         standard_neutrino_neff=cosmo_model.Neff,
         TCMB=cosmo_model.Tcmb0.value,
     )
-    
+
     t_nu_camb = t_nu.clone()
     t_nu_camb.transfer.params["camb_params"] = pars
-    
+
     k = np.logspace(-4, 2, 10)
     hmf_t = t_nu.transfer.lnt(np.log(k))[0]
     camb_t = t_nu_camb.transfer.lnt(np.log(k))[0]
@@ -141,12 +142,17 @@ def test_camb_neutrinos():
     diff = np.abs((camb_t - hmf_t) / camb_t)
 
     camb_cosmo = camb.get_background(t_nu.transfer.params["camb_params"])
-    sum_omega_astropy = t_nu.cosmo_model.Odm0 + t_nu.cosmo_model.Ob0 + t_nu.cosmo_model.Onu0
-    sum_omega_camb = camb_cosmo.get_Omega('tot') - camb_cosmo.get_Omega('photon') - camb_cosmo.omega_de
+    sum_omega_astropy = (
+        t_nu.cosmo_model.Odm0 + t_nu.cosmo_model.Ob0 + t_nu.cosmo_model.Onu0
+    )
+    sum_omega_camb = (
+        camb_cosmo.get_Omega("tot")
+        - camb_cosmo.get_Omega("photon")
+        - camb_cosmo.omega_de
+    )
 
     assert diff <= 1e-3
     assert np.isclose(sum_omega_astropy, sum_omega_camb, rtol=1e-2)
-
 
 
 def test_setting_kmax():
