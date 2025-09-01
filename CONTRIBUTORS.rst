@@ -8,6 +8,7 @@ Contributors
 * `@jlashner <https://github.com/jlashner>`_
 * `@liweitianux <https://github.com/liweitianux>`_
 * Jia Liu (UC Berkeley): `@liuxx479 <https://github.com/liuxx479>`_
+* Andrej Dvornik (RUB): `@andrejdvornik <https://github.com/andrejdvornik>`_
 
 Comments, corrections and suggestions
 -------------------------------------
