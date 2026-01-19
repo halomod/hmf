@@ -117,21 +117,19 @@ def _makedoc(pdocs, lname, sname, eq, ref):
     %s mass function fit.
 
     For details on attributes, see documentation for :class:`FittingFunction`.
-    """
-        % lname
+    """ % lname
         + pdocs
         + r"""
     Notes
     -----
-    The %s [1]_ form is:
+    The {} [1]_ form is:
 
-    .. math:: f_{\rm %s}(\sigma) = %s
+    .. math:: f_{{\rm {}}}(\sigma) = {}
 
     References
     ----------
-    .. [1] %s
-    """
-        % (lname, sname, eq, ref)
+    .. [1] {}
+    """.format(lname, sname, eq, ref)
     )
 
 
