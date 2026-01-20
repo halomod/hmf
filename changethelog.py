@@ -1,5 +1,6 @@
 #!/usr/bin/python
 """Automatically update changelog."""
+
 import sys
 from datetime import datetime
 
