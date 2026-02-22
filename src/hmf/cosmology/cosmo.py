@@ -41,10 +41,10 @@ def astropy_to_colossus(cosmo: FLRW, name: str = "custom", **kwargs):
         from colossus.cosmology import cosmology
 
         return cosmology.fromAstropy(astropy_cosmo=cosmo, cosmo_name=name, **kwargs)
-    except ImportError:  # pragma: nocover
+    except ImportError as e:  # pragma: nocover
         raise ImportError(
             "Cannot convert to COLOSSUS cosmology without installing COLOSSUS!"
-        )
+        ) from e
 
 
 class Cosmology(_framework.Framework):
@@ -81,10 +81,13 @@ class Cosmology(_framework.Framework):
     @_cache.parameter("model")
     def cosmo_model(self, val):
         """
-        The basis for the cosmology -- see astropy documentation. Can be a custom
-        subclass. Defaults to Planck18.
+        The cosmological model instance.
+
+        Basis for the cosmology with custom subclasses supported.
+        Defaults to Planck18. See astropy documentation for details.
 
         :type: instance of `astropy.cosmology.FLRW` subclass
+
         """
         if isinstance(val, str):
             return get_cosmo(val)
@@ -98,10 +101,11 @@ class Cosmology(_framework.Framework):
     @_cache.parameter("param")
     def cosmo_params(self, val):
         """
-        Parameters for the cosmology that deviate from the base cosmology passed.
-        This is useful for repeated updates of a single parameter (leaving others
-        the same). Default is the empty dict. The parameters passed must match
-        the allowed parameters of `cosmo_model`. For the basic class this is.
+        Parameters deviating from the base cosmology.
+
+        Useful for repeated updates of a single parameter, leaving others
+        the same. Default is the empty dict. Parameters passed must match
+        the allowed parameters of `cosmo_model`. For the basic class, these are:
 
         :Tcmb0: Temperature of the CMB at z=0
         :Neff: Number of massless neutrino species
@@ -110,6 +114,7 @@ class Cosmology(_framework.Framework):
         :Om0: The normalised matter density at z=0
 
         :type: dict
+
         """
         return val
 
@@ -119,8 +124,11 @@ class Cosmology(_framework.Framework):
     @_cache.cached_quantity
     def cosmo(self):
         """
-        Cosmographic object (:class:`astropy.cosmology.FLRW` object), with custom
-        cosmology from :attr:`~.cosmo_params` applied.
+        The cosmography object with custom parameters applied.
+
+        A :class:`astropy.cosmology.FLRW` instance with custom cosmology
+        from :attr:`~.cosmo_params` applied.
+
         """
         return self.cosmo_model.clone(**self.cosmo_params)
 

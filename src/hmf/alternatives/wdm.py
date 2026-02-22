@@ -7,6 +7,8 @@ into the standard CDM Frameworks, and provide an example of how one would go abo
 for other alternative cosmologies.
 """
 
+from typing import ClassVar, Final
+
 import astropy.units as u
 import numpy as np
 
@@ -100,7 +102,7 @@ class Viel05(WDM):
         :g_x:
     """
 
-    _defaults = {"mu": 1.12, "g_x": 1.5}
+    _defaults: ClassVar[Final[dict[str, float]]] = {"mu": 1.12, "g_x": 1.5}
 
     def transfer(self, k):
         """Compute the modified WDM transfer function."""
@@ -212,7 +214,7 @@ class Schneider12_vCDM(WDMRecalibrateMF):
         class attribute.
     """
 
-    _defaults = {"beta": 1.16}
+    _defaults: ClassVar[Final[dict[str, float]]] = {"beta": 1.16}
 
     def dndm_alter(self):
         return self.dndm0 * (1 + self.wdm.m_hm / self.m) ** (-self.params["beta"])
@@ -236,7 +238,7 @@ class Schneider12(WDMRecalibrateMF):
         class attribute.
     """
 
-    _defaults = {"alpha": 0.6}
+    _defaults: ClassVar[Final[dict[str, float]]] = {"alpha": 0.6}
 
     def dndm_alter(self):
         return self.dndm0 * (1 + self.wdm.m_hm / self.m) ** (-self.params["alpha"])
@@ -260,7 +262,7 @@ class Lovell14(WDMRecalibrateMF):
         class attribute.
     """
 
-    _defaults = {"beta": 0.99, "gamma": 2.7}
+    _defaults: ClassVar[Final[dict[str, float]]] = {"beta": 0.99, "gamma": 2.7}
 
     def dndm_alter(self):
         return self.dndm0 * (1 + self.params["gamma"] * self.wdm.m_hm / self.m) ** (
@@ -324,8 +326,8 @@ class TransferWDM(_Tr):
         """
         try:
             val = float(val)
-        except ValueError:
-            raise ValueError("wdm_mass must be a number (", val, ")")
+        except ValueError as e:
+            raise ValueError("wdm_mass must be a number (", val, ")") from e
 
         if val <= 0:
             raise ValueError("wdm_mass must be > 0 (", val, ")")

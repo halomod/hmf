@@ -4,6 +4,7 @@ import copy
 import logging
 import sys
 import warnings
+from typing import Any, ClassVar, Final
 
 import deprecation
 
@@ -24,7 +25,7 @@ class Component:
     the __init__ method.
     """
 
-    _defaults = {}
+    _defaults: ClassVar[Final[dict[str, Any]]] = {}
 
     def __init__(self, **model_params):
         # Check that all parameters passed are valid
@@ -78,8 +79,8 @@ def get_base_component(name: [str, type[Component]]) -> type[Component]:
     try:
         assert issubclass(name, Component)
         return name
-    except TypeError:
-        raise ValueError(f"{name} must be str or a Component subclass")
+    except TypeError as e:
+        raise ValueError(f"{name} must be str or a Component subclass") from e
 
 
 def pluggable(cls):
@@ -122,11 +123,11 @@ def get_mdl(
         if kind is not None:
             try:
                 return kind._plugins[name]
-            except KeyError:
+            except KeyError as e:
                 raise ValueError(
                     f"The model {name} is not a defined {kind} model. Available: "
                     f"{tuple(kind._plugins.keys())}"
-                )
+                ) from e
         else:
             # Try to get *any* model called by this name.
             avail_models = [
@@ -147,8 +148,8 @@ def get_mdl(
         try:
             assert issubclass(name, kind or Component)
             return name
-        except TypeError:
-            raise ValueError(f"{name} must be str or Component subclass")
+        except TypeError as e:
+            raise ValueError(f"{name} must be str or Component subclass") from e
 
 
 @deprecation.deprecated(

@@ -5,6 +5,7 @@ https://bdiemer.bitbucket.io/colossus/halo_mass_defs.html
 """
 
 import warnings
+from typing import ClassVar, Final
 
 import astropy.units as u
 import numpy as np
@@ -74,10 +75,10 @@ class MassDefinition(_framework.Component):
         """
         try:
             return (3 * m / (4 * np.pi * self.halo_density(z, cosmo))) ** (1.0 / 3.0)
-        except AttributeError:
+        except AttributeError as e:
             raise AttributeError(
                 f"{self.__class__.__name__} cannot convert mass to radius."
-            )
+            ) from e
 
     def r_to_m(self, r, z=0, cosmo=Planck15):
         r"""
@@ -95,10 +96,10 @@ class MassDefinition(_framework.Component):
         """
         try:
             return 4 * np.pi * r**3 * self.halo_density(z, cosmo) / 3
-        except AttributeError:
+        except AttributeError as e:
             raise AttributeError(
                 f"{self.__class__.__name__} cannot convert radius to mass."
-            )
+            ) from e
 
     def _duffy_concentration(self, m, z=0):
         a, b, c, ms = 6.71, -0.091, 0.44, 2e12
@@ -160,10 +161,10 @@ class MassDefinition(_framework.Component):
                 profile = NFW(
                     cm_relation=Duffy08(cosmo=Cosmology(cosmo)), mdef=self, z=z
                 )
-            except ImportError:
+            except ImportError as e:
                 raise ImportError(
                     "Cannot change mass definitions without halomod installed!"
-                )
+                ) from e
 
         if profile.z != z:
             warnings.warn(
@@ -237,7 +238,7 @@ class SOGeneric(SphericalOverdensity):
 class SOMean(SphericalOverdensity):
     """A mass definition based on spherical overdensity wrt mean background density."""
 
-    _defaults = {"overdensity": 200}
+    _defaults: ClassVar[Final[dict[str, float]]] = {"overdensity": 200}
 
     def halo_density(self, z=0, cosmo=Planck15):
         """The density of haloes under this definition."""
@@ -251,7 +252,7 @@ class SOMean(SphericalOverdensity):
 class SOCritical(SphericalOverdensity):
     """A mass definition based on spherical overdensity wrt critical density."""
 
-    _defaults = {"overdensity": 200}
+    _defaults: ClassVar[Final[dict[str, float]]] = {"overdensity": 200}
 
     def halo_density(self, z=0, cosmo=Planck15):
         """The density of haloes under this definition."""
@@ -286,7 +287,7 @@ class SOVirial(SphericalOverdensity):
 class FOF(MassDefinition):
     """A mass definition based on FroF networks with given linking length."""
 
-    _defaults = {"linking_length": 0.2}
+    _defaults: ClassVar[Final[dict[str, float]]] = {"linking_length": 0.2}
 
     def halo_density(self, z=0, cosmo=Planck15):
         r"""

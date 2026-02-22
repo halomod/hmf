@@ -34,7 +34,7 @@ def test_with_config(tmpdir: Path):
     transfer_model = 'EH'
     """
 
-    with open(tmpdir / "cfg.toml", "w") as fl:
+    with (tmpdir / "cfg.toml").open("w") as fl:
         fl.write(cfg)
 
     result = runner.invoke(
@@ -62,7 +62,7 @@ def test_config_vs_cli(tmpdir: Path):
     transfer_model = 'EH'
     """
 
-    with open(tmpdir / "cfg.toml", "w") as fl:
+    with (tmpdir / "cfg.toml").open("w") as fl:
         fl.write(cfg)
 
     result_cfg = runner.invoke(
@@ -106,7 +106,7 @@ def test_roundtrip_cfg(tmpdir):
         transfer_model = 'EH'
         """
 
-    with open(tmpdir / "cfg.toml", "w") as fl:
+    with (tmpdir / "cfg.toml").open("w") as fl:
         fl.write(cfg)
 
     result = runner.invoke(

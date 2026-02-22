@@ -1,7 +1,8 @@
 """
+Defines caching and parameter decorators for property management.
+
 This module defines two decorators, based on the code from
 http://forrst.com/posts/Yet_another_caching_property_decorator_for_Pytho-PBy.
-
 They are both designed to cache class properties, but have the added
 functionality of being automatically updated when a parent property is
 updated.
@@ -78,10 +79,10 @@ def cached_quantity(f):
             for pr in activeq:
                 try:
                     recalc_prpa[pr].update(recalc_prpa[name])
-                except KeyError:
+                except KeyError as e:
                     raise KeyError(
                         f"When getting {name}, couldn't find {pr} in recalc_prpa. Had {list(recalc_prpa.keys())}."
-                    )
+                    ) from e
 
             # check all quantities for dependence on subframeworks and update their entries
             for s in subframeworks:

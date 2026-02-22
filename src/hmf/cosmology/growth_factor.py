@@ -8,6 +8,7 @@ may be implemented.
 """
 
 from functools import cached_property
+from typing import Any, ClassVar, Final
 
 import numpy as np
 from astropy import cosmology
@@ -64,7 +65,7 @@ class GrowthFactor(_GrowthFactor):
     .. [1] Lukic et. al., ApJ, 2007, http://adsabs.harvard.edu/abs/2007ApJ...671.1160L
     """
 
-    _defaults = {"dlna": 0.01, "amin": 1e-8}
+    _defaults: ClassVar[Final[dict[str, float]]] = {"dlna": 0.01, "amin": 1e-8}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -219,7 +220,7 @@ class FromFile(GrowthFactor):
     """
 
     supported_cosmos = (cosmology.LambdaCDM, cosmology.w0waCDM, cosmology.wCDM)
-    _defaults = {"dlna": 0.01, "amin": 1e-8, "fname": ""}
+    _defaults: ClassVar[Final[dict[str, Any]]] = {"dlna": 0.01, "amin": 1e-8, "fname": ""}
 
     def growth_factor(self, z):
         r"""
@@ -262,7 +263,7 @@ class FromArray(FromFile):
     """
 
     supported_cosmos = (cosmology.LambdaCDM, cosmology.w0waCDM, cosmology.wCDM)
-    _defaults = {"dlna": 0.01, "amin": 1e-8, "z": None, "d": None}
+    _defaults: ClassVar[Final[dict[str, Any]]] = {"dlna": 0.01, "amin": 1e-8, "z": None, "d": None}
 
     def growth_factor(self, z):
         r"""
@@ -309,7 +310,7 @@ class GenMFGrowth(GrowthFactor):
         :zmax: Maximum redshift to integrate to. Only used for :meth:`growth_factor_fn`.
     """
 
-    _defaults = {"dz": 0.01, "zmax": 1000.0}
+    _defaults: ClassVar[Final[dict[str, float]]] = {"dz": 0.01, "zmax": 1000.0}
 
     @cached_property
     def _lna(self):
@@ -321,8 +322,11 @@ class GenMFGrowth(GrowthFactor):
 
     def _d_plus(self, z):
         """
-        This is not implemented in this class. It is not
-        required to calculate :meth:`growth_factor`.
+        Unnormalized growth factor (not implemented in this class).
+
+        This is not required to calculate :meth:`growth_factor`.
+        Subclasses must implement this method.
+
         """
         raise NotImplementedError  # pragma: nocover
 
@@ -401,7 +405,7 @@ class Carroll1992(GrowthFactor):
         :zmax: Maximum redshift of spline. Only used for :meth:`growth_factor_fn`, when `inverse=True`.
     """
 
-    _defaults = {"dz": 0.01, "zmax": 1000.0}
+    _defaults: ClassVar[Final[dict[str, float]]] = {"dz": 0.01, "zmax": 1000.0}
 
     @cached_property
     def _lna(self):
@@ -413,9 +417,11 @@ class Carroll1992(GrowthFactor):
 
     def _d_plus(self, z):
         """
-        Calculate un-normalised growth factor as a function
-        of redshift. Note that the `getvec` argument is not
-        used in this function.
+        Calculate the unnormalized growth factor.
+
+        Function of redshift. The `getvec` argument is not used
+        in this function.
+
         """
         a = 1 / (1 + z)
 
@@ -434,10 +440,12 @@ if HAVE_CAMB:
     @_inherit
     class CambGrowth(GrowthFactor):
         """
-        Uses CAMB to generate the growth factor, at k/h = 1.0. This class is recommended
-        if the cosmology is not LambdaCDM (but instead wCDM), as it correctly deals with
-        the growth in this case. However, it standard LCDM is used, other classes are
-        preferred, as this class needs to re-calculate the transfer function.
+        Growth factor computed using CAMB at k/h = 1.0.
+
+        Recommended for non-LambdaCDM cosmologies (e.g., wCDM) as it correctly
+        deals with their growth evolution. For standard LCDM, other classes are
+        preferred since this class requires re-calculating the transfer function.
+
         """
 
         supported_cosmos = (cosmology.LambdaCDM, cosmology.w0waCDM, cosmology.wCDM)

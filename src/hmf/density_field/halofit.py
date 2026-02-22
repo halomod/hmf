@@ -21,7 +21,9 @@ def _get_spec(
     k: np.ndarray, delta_k: np.ndarray, sigma_8=None
 ) -> tuple[float, float, float]:
     """
-    Calculate nonlinear wavenumber, effective spectral index and curvature
+    Calculate spectral parameters from power spectrum.
+
+    Computes the nonlinear wavenumber, effective spectral index, and curvature
     of the power spectrum.
 
     Parameters
@@ -31,8 +33,8 @@ def _get_spec(
     delta_k : array_like
         Dimensionless power spectrum at `k`
     sigma_8 : scalar
-        RMS linear density fluctuations in spheres of radius 8 Mpc/h at z=0. Not
-        used any more at all!
+        RMS linear density fluctuations in spheres of radius 8 Mpc/h at z=0.
+        Not used any more at all!
 
     Returns
     -------
@@ -42,6 +44,7 @@ def _get_spec(
         Effective spectral index
     n_curv : float
         Curvature of the spectrum
+
     """
 
     # Initialize sigma spline

@@ -8,6 +8,7 @@ in :mod:`hmf.transfer`.
 import pickle
 import warnings
 from copy import deepcopy
+from typing import Any, ClassVar, Final
 
 import numpy as np
 from astropy import cosmology
@@ -41,7 +42,7 @@ class TransferComponent(Component):
         Any model-specific parameters.
     """
 
-    _defaults = {}
+    _defaults: ClassVar[Final[dict[str, Any]]] = {}
 
     def __init__(self, cosmo, **model_parameters):
         self.cosmo = cosmo
@@ -83,7 +84,7 @@ class FromFile(TransferComponent):
             Location of the file to import.
     """
 
-    _defaults = {"fname": ""}
+    _defaults: ClassVar[Final[dict[str, str]]] = {"fname": ""}
 
     def _check_low_k(self, lnk, lnT, lnkmin):
         """
@@ -161,7 +162,7 @@ if HAVE_CAMB:
                                      approximation.
         """
 
-        _defaults = {
+        _defaults: ClassVar[Final[dict[str, Any]]] = {
             "camb_params": None,
             "dark_energy_params": {},
             "extrapolate_with_eh": None,
@@ -403,7 +404,7 @@ class FromArray(FromFile):
             Transfer function
     """
 
-    _defaults = {"k": None, "T": None}
+    _defaults: ClassVar[Final[dict[str, Any]]] = {"k": None, "T": None}
 
     def lnt(self, lnk):
         r"""
@@ -688,7 +689,7 @@ class BBKS(TransferComponent):
               \exp\left(-\Omega_{b,0}(1 + \sqrt{2h}/\Omega_{m,0})\right).
     """
 
-    _defaults = {
+    _defaults: ClassVar[Final[dict[str, Any]]] = {
         "a": 2.34,
         "b": 3.89,
         "c": 16.1,
@@ -763,7 +764,7 @@ class BondEfs(TransferComponent):
     .. math:: \alpha = \frac{0.3\times 0.75^2}{\Omega_{m,0} h^2}.
     """
 
-    _defaults = {"a": 37.1, "b": 21.1, "c": 10.8, "nu": 1.12}
+    _defaults: ClassVar[Final[dict[str, float]]] = {"a": 37.1, "b": 21.1, "c": 10.8, "nu": 1.12}
 
     def lnt(self, lnk):
         """

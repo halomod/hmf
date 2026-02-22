@@ -26,7 +26,7 @@ def _get_config(config=None):
     if config is None:
         return {}
 
-    with open(config) as fl:
+    with Path(config).open() as fl:
         cfg = toml.load(fl)
 
     # Import an actual framework.
@@ -195,7 +195,7 @@ def run_cli(config, pkg_name, args, outdir, label, pkgs, default_framework):
         # Write out parameters
         dct = framework_to_dict(obj)
         dct["quantities"] = quantities
-        with open(outdir / f"{lab}_cfg.toml", "w") as fl:
+        with (outdir / f"{lab}_cfg.toml").open("w") as fl:
             toml.dump(dct, fl, encoder=toml.TomlNumpyEncoder())
 
         console.print(

@@ -209,8 +209,8 @@ class Transfer(cosmo.Cosmology):
         """
         try:
             val = float(val)
-        except ValueError:
-            raise ValueError("z must be a number (", val, ")")
+        except ValueError as e:
+            raise ValueError("z must be a number (", val, ")") from e
 
         if val < 0:
             raise ValueError("z must be > 0 (", val, ")")

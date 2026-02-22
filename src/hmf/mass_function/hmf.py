@@ -199,8 +199,8 @@ class MassFunction(transfer.Transfer):
         """
         try:
             val = float(val)
-        except ValueError:
-            raise ValueError("delta_c must be a number: ", val)
+        except ValueError as e:
+            raise ValueError("delta_c must be a number: ", val) from e
 
         if val <= 0:
             raise ValueError("delta_c must be > 0 (", val, ")")
@@ -244,6 +244,7 @@ class MassFunction(transfer.Transfer):
     def mdef_params(self, val):
         """
         Model parameters for `mdef_model`.
+
         :type: dict.
         """
         return val
@@ -396,8 +397,11 @@ class MassFunction(transfer.Transfer):
     @cached_quantity
     def nu_fn(self):
         r"""
-        The parameter :math:`\nu = \left(\frac{\delta_c}{\sigma}\right)^2`, ``len=len(m)``
-        as a callable function.
+        The nu parameter as a callable function.
+
+        The parameter :math:`\nu = \left(\frac{\delta_c}{\sigma}\right)^2`,
+        with length equal to ``len(m)``.
+
         """
         return spline(self.m, self.nu, k=5)
 
@@ -604,7 +608,10 @@ class MassFunction(transfer.Transfer):
     @cached_quantity
     def how_big(self):
         r"""
-        Size of simulation volume in which to expect one halo of mass m (with 95% probability), `
-        `len=len(m)`` [units :math:`Mpch^{-1}`].
+        Expected simulation volume per halo.
+
+        Size of simulation volume in which to expect one halo of mass m
+        (with 95% probability), in units :math:`Mpch^{-1}`, with length ``len(m)``.
+
         """
         return (0.366362 / self.ngtm) ** (1.0 / 3.0)

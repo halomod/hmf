@@ -2,6 +2,7 @@
 
 import collections
 import warnings
+from typing import ClassVar, Final
 
 import numpy as np
 import scipy.integrate as intg
@@ -396,7 +397,7 @@ class SharpK(Filter):
     .. math:: \frac{d\ln \sigma^2}{d \ln R} = -\frac{P(1/R)}{2\pi^2\sigma^2(R)R^3}.
     """
 
-    _defaults = {"c": 2.5}
+    _defaults: ClassVar[Final[dict[str, float]]] = {"c": 2.5}
 
     def k_space(self, kr):
         a = np.where(kr > 1, 0, 1)
@@ -457,7 +458,7 @@ class SharpKEllipsoid(SharpK):
     Refer to :class:`~Filter` for more details.
     """
 
-    _defaults = {"c": 2.0}
+    _defaults: ClassVar[Final[dict[str, float]]] = {"c": 2.0}
 
     def xm(self, g, v):
         """
