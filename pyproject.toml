@@ -8,7 +8,7 @@ source = "uv-dynamic-versioning"
 [project]
 name = "hmf"
 description = "A halo mass function calculator"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 authors = [{name = "Steven Murray", email = "murray.steveng@gmail.com"}]
 license = "MIT"
 urls = {Documentation = "https://hmf.readthedocs.org"}
@@ -17,9 +17,9 @@ urls = {Documentation = "https://hmf.readthedocs.org"}
 # https://pypi.python.org/pypi?%3Aaction=list_classifiers
 classifiers = [
     "Development Status :: 6 - Mature",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved",
     "License :: OSI Approved :: MIT License",
@@ -98,7 +98,7 @@ exclude = [
   "development/*.ipynb",
 ]
 line-length=100
-target-version="py311"
+target-version="py312"
 
 [tool.ruff.lint]
 extend-select = [
