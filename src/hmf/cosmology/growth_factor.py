@@ -409,7 +409,8 @@ class Carroll1992(GrowthFactor):
         the :attr:`_defaults` class attribute.
 
         :dz: Step-size for redshift spline
-        :zmax: Maximum redshift of spline. Only used for :meth:`growth_factor_fn`, when `inverse=True`.
+        :zmax: Maximum redshift of spline. Only used for :meth:`growth_factor_fn`, when
+               `inverse=True`.
     """
 
     _defaults: ClassVar[Final[dict[str, float]]] = {"dz": 0.01, "zmax": 1000.0}

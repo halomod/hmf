@@ -487,7 +487,9 @@ class Warren(FittingFunction):
     )
     __doc__ = _makedoc(FittingFunction._pdocs, "Warren", "Warren", _eq, _ref)
 
-    _defaults: ClassVar[Final[dict[str, float]]] = {"A": 0.7234, "b": 1.625, "c": 0.2538, "d": 1.1982, "e": 1}
+    _defaults: ClassVar[Final[dict[str, float]]] = {
+        "A": 0.7234, "b": 1.625, "c": 0.2538, "d": 1.1982, "e": 1
+    }
     normalized = False
 
     uncertainties: ClassVar[Final[dict[str, float]]] = {
@@ -595,8 +597,14 @@ class Reed07(FittingFunction):
     req_neff = True
     req_z = False
 
-    _eq = r"A\sqrt{2a/\pi}\left[1+(\frac{1}{a\nu^2})^p+0.6G_1+0.4G_2\right]\nu\exp\left(-ca\nu^2/2-\frac{0.03\nu^{0.6}}{(n_{\rm eff}+3)^2}\right)"
-    _ref = """Reed, D. S., et al., Jan. 2007. MNRAS 374 (1), 2-15. http://adsabs.harvard.edu/abs/2007MNRAS.374....2R"""
+    _eq = (
+        r"A\sqrt{2a/\pi}\left[1+(\frac{1}{a\nu^2})^p+0.6G_1+0.4G_2\right]\nu"
+        r"\exp\left(-ca\nu^2/2-\frac{0.03\nu^{0.6}}{(n_{\rm eff}+3)^2}\right)"
+    )
+    _ref = (
+        """Reed, D. S., et al., Jan. 2007. MNRAS 374 (1), 2-15. """
+        """http://adsabs.harvard.edu/abs/2007MNRAS.374....2R"""
+    )
     __doc__ = _makedoc(FittingFunction._pdocs, "Reed07", "R07", _eq, _ref)
 
     _defaults: ClassVar[Final[dict[str, float]]] = {"A": 0.3222, "p": 0.3, "c": 1.08, "a": 0.764}
@@ -765,9 +773,14 @@ class Watson_FoF(Warren):
 
     req_mass = False
 
-    _ref = """Watson, W. A., et al., MNRAS, 2013. http://adsabs.harvard.edu/abs/2013MNRAS.433.1230W """
+    _ref = (
+        """Watson, W. A., et al., MNRAS, 2013. """
+        """http://adsabs.harvard.edu/abs/2013MNRAS.433.1230W """
+    )
     __doc__ = _makedoc(FittingFunction._pdocs, "Watson FoF", "WatF", Warren._eq, _ref)
-    _defaults: ClassVar[Final[dict[str, float]]] = {"A": 0.282, "b": 2.163, "c": 1, "d": 1.21, "e": 1.406}
+    _defaults: ClassVar[Final[dict[str, float]]] = {
+        "A": 0.282, "b": 2.163, "c": 1, "d": 1.21, "e": 1.406
+    }
 
     sim_definition = SimDetails(
         L=[11.4, 20, 114, 425, 1000, 3200, 6000],
@@ -800,7 +813,10 @@ class Watson(FittingFunction):
     req_dhalo = True
     req_omz = True
 
-    _ref = """Watson, W. A., et al., MNRAS, 2013. http://adsabs.harvard.edu/abs/2013MNRAS.433.1230W """
+    _ref = (
+        """Watson, W. A., et al., MNRAS, 2013. """
+        """http://adsabs.harvard.edu/abs/2013MNRAS.433.1230W """
+    )
     _eq = r"\Gamma A \left((\frac{\beta}{\sigma}^\alpha+1\right)\exp(-\gamma/\sigma^2)"
     __doc__ = _makedoc(FittingFunction._pdocs, "Watson", "WatS", _eq, Watson_FoF._ref)
 
@@ -1668,7 +1684,9 @@ class Pillepich(Warren):
     __doc__ = _makedoc(
         FittingFunction._pdocs, "Pillepich", "Pillepich", Warren._eq, _ref
     )
-    _defaults: ClassVar[Final[dict[str, float]]] = {"A": 0.6853, "b": 1.868, "c": 0.3324, "d": 1.2266, "e": 1}
+    _defaults: ClassVar[Final[dict[str, float]]] = {
+        "A": 0.6853, "b": 1.868, "c": 0.3324, "d": 1.2266, "e": 1
+    }
     normalized = False
 
     sim_definition = SimDetails(
@@ -1734,7 +1752,9 @@ class Ishiyama(Warren):
     _ref = r"""Ishiyama, T., et al., 2015, arxiv:1412.2860"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Ishiyama", "Ishiyama", _eq, _ref)
 
-    _defaults: ClassVar[Final[dict[str, float]]] = {"A": 0.193, "b": 1.550, "c": 1, "d": 1.186, "e": 2.184}
+    _defaults: ClassVar[Final[dict[str, float]]] = {
+        "A": 0.193, "b": 1.550, "c": 1, "d": 1.186, "e": 2.184
+    }
 
     sim_definition = SimDetails(
         L=[1120, 560, 280, 140, 70],

@@ -81,7 +81,8 @@ def cached_quantity(f):
                     recalc_prpa[pr].update(recalc_prpa[name])
                 except KeyError as e:
                     raise KeyError(
-                        f"When getting {name}, couldn't find {pr} in recalc_prpa. Had {list(recalc_prpa.keys())}."
+                        f"When getting {name}, couldn't find {pr} in recalc_prpa. "
+                        f"Had {list(recalc_prpa.keys())}."
                     ) from e
 
             # check all quantities for dependence on subframeworks and update their entries
@@ -198,9 +199,10 @@ def parameter(kind):
     Parameters
     ----------
     kind : str
-        Either "param", "option", "model", "switch" or "res". Changes the behaviour of the parameter.
-        "param", "option", "model" and "res" all behave the same currently, while when a "switch" is modified,
-        all dependent quantities have their dependencies re-indexed.
+        Either "param", "option", "model", "switch" or "res". Changes the behaviour of the
+        parameter. "param", "option", "model" and "res" all behave the same currently,
+        while when a "switch" is modified, all dependent quantities have their dependencies
+        re-indexed.
 
     Examples
     --------
@@ -295,8 +297,10 @@ def parameter(kind):
                         warnings.warn(
                             f"You are setting {name} directly. This is unstable, as less "
                             f"validation is performed. You can turn on extra validation "
-                            f"for directly set parameters by setting framework._validate_every_param_set=True."
-                            f"However, this can be brittle, since intermediate states may not be valid.",
+                            f"for directly set parameters by setting "
+                            f"framework._validate_every_param_set=True. "
+                            f"However, this can be brittle, since intermediate states "
+                            f"may not be valid.",
                             stacklevel=2, category=DeprecationWarning,
                         )
 

@@ -6,8 +6,8 @@ cosmology classes, while converting it to a :class:`hmf._framework.Framework`
 for use in this package.
 
 Also provided in the namespace are the pre-defined cosmologies from `astropy`:
-`WMAP5`, `WMAP7`, `WMAP9`, `Planck13`, `Planck15` and `Planck18`, which may be used as arguments to the
-Cosmology framework. All custom subclasses of :class:`astropy.cosmology.FLRW`
+`WMAP5`, `WMAP7`, `WMAP9`, `Planck13`, `Planck15` and `Planck18`, which may be used as
+arguments to the Cosmology framework. All custom subclasses of :class:`astropy.cosmology.FLRW`
 may be used as inputs.
 """
 
@@ -66,8 +66,9 @@ class Cosmology(_framework.Framework):
     update will *update* the dictionary, rather than replacing it.
 
     To read a standard documented list of parameters, use ``Cosmology.parameter_info()``.
-    If you want to just see the plain list of available parameters, use ``Cosmology.get_all_parameters()``.
-    To see the actual defaults for each parameter, use ``Cosmology.get_all_parameter_defaults()``.
+    If you want to just see the plain list of available parameters, use
+    ``Cosmology.get_all_parameters()``. To see the actual defaults for each parameter, use
+    ``Cosmology.get_all_parameter_defaults()``.
     """
 
     def __init__(self, cosmo_model=Planck18, cosmo_params=None):

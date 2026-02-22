@@ -233,7 +233,8 @@ if HAVE_CAMB:
                 warnings.warn(
                     "'extrapolate_with_eh' was not set. Defaulting to True, which is "
                     "different behaviour than versions <=3.4.4. This warning may be "
-                    "removed in v4.0. Silence it by setting extrapolate_with_eh explicitly.", stacklevel=2
+                    "removed in v4.0. Silence it by setting extrapolate_with_eh explicitly.",
+                    stacklevel=2
                 )
                 self.params["extrapolate_with_eh"] = True
 

@@ -302,7 +302,9 @@ class MassFunction(transfer.Transfer):
                 warnings.warn(
                     f"Your input mass definition '{mdef}' does not match the mass "
                     f"definition in which the hmf fit {self.hmf_model.__name__} was measured:"
-                    f"'{self.hmf_model.get_measured_mdef()}'. {extra_msg if not self.disable_mass_conversion else ''}", stacklevel=2
+                    f"'{self.hmf_model.get_measured_mdef()}'. "
+                    f"{extra_msg if not self.disable_mass_conversion else ''}",
+                    stacklevel=2
                 )
 
         return mdef
@@ -381,7 +383,8 @@ class MassFunction(transfer.Transfer):
 
         Notes
         -----
-        .. math:: frac{d\ln\sigma}{d\ln m} = \frac{3}{2\sigma^2\pi^2R^4}\int_0^\infty \frac{dW^2(kR)}{dM}\frac{P(k)}{k^2}dk
+        .. math:: frac{d\ln\sigma}{d\ln m} = \frac{3}{2\sigma^2\pi^2R^4}\int_0^\infty
+                  \frac{dW^2(kR)}{dM}\frac{P(k)}{k^2}dk
         """
         return 0.5 * self.filter.dlnss_dlnm(self.radii)
 
@@ -476,7 +479,9 @@ class MassFunction(transfer.Transfer):
 
     @cached_quantity
     def dndm(self):
-        r"""The number density of haloes, ``len=len(m)`` [units :math:`h^4 M_\odot^{-1} Mpc^{-3}`]."""
+        r"""The number density of haloes, ``len=len(m)`` [units :math:`h^4 M_\odot^{-1}
+        Mpc^{-3}`].
+        """
         # if self.z2 is None:  # #This is normally the case
         dndm = self.fsigma * self.mean_density0 * np.abs(self._dlnsdlnm) / self.m**2
         if isinstance(self.hmf, ff.Behroozi):
@@ -505,12 +510,16 @@ class MassFunction(transfer.Transfer):
 
     @cached_quantity
     def dndlnm(self):
-        r"""The differential mass function in terms of natural log of `m`, ``len=len(m)`` [units :math:`h^3 Mpc^{-3}`]."""
+        r"""The differential mass function in terms of natural log of `m`, ``len=len(m)``
+        [units :math:`h^3 Mpc^{-3}`].
+        """
         return self.m * self.dndm
 
     @cached_quantity
     def dndlog10m(self):
-        r"""The differential mass function in terms of log of `m`, ``len=len(m)`` [units :math:`h^3 Mpc^{-3}`]."""
+        r"""The differential mass function in terms of log of `m`, ``len=len(m)``
+        [units :math:`h^3 Mpc^{-3}`].
+        """
         return self.m * self.dndm * np.log(10)
 
     def _gtm(self, dndm, mass_density=False):

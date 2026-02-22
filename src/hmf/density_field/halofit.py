@@ -63,7 +63,9 @@ def _get_spec(
     if not res.success:
         warnings.warn(
             f"Could not determine non-linear scale! Failed with error: {res.message}. "
-            f"Continuing with best-fit non-linear scale: r_nl={np.exp(res.x)}, with log_sigma^2 = {res.fun}", stacklevel=2
+            f"Continuing with best-fit non-linear scale: r_nl={np.exp(res.x)}, with "
+            f"log_sigma^2 = {res.fun}",
+            stacklevel=2
         )
 
     rnl = np.exp(res.x)

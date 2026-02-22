@@ -501,7 +501,8 @@ class SharpKEllipsoid(SharpK):
         return 30.0 / (5 * xm**2 + 6) ** 2
 
     def a3a1(self, e, p):
-        """Compute the short:long axis ratio of an ellipsoid given its ellipticity and prolateness."""
+        """Compute the short:long axis ratio of an ellipsoid given its ellipticity and prolateness.
+        """
         return np.sqrt((1 - 3 * e + p) / (1 + 3 * e + p))
 
     def a3a2(self, e, p):
