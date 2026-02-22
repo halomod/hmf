@@ -276,7 +276,7 @@ W291 Trailing whitespace
  --> docs/examples/your_first_plot.ipynb:cell 3:6:19
   |
 5 | # This just serves to render plots inline in the notebook. Do not use in a script.
-6 | %matplotlib inline               
+6 | %matplotlib inline
   |                   ^^^^^^^^^^^^^^^
   |
 help: Remove trailing whitespace
@@ -309,7 +309,7 @@ W293 Blank line contains whitespace
   |
 4 |     mf.update(z=z)
 5 |     plt.plot(mf.m,mf.dndm,color="darkblue",alpha=1-z)
-6 |     
+6 |
   | ^^^^
 7 | plt.xscale('log')
 8 | plt.yscale('log')
