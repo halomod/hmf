@@ -109,5 +109,8 @@ def test_validate_inputs():
         m.Mmin = 8
 
     # Ensure that validation still runs.
-    with pytest.raises(AssertionError, match="Mmin > Mmax: 8, 7"):
+    with (
+        pytest.warns(UserWarning, match="You are setting Mmax directly."),
+        pytest.raises(AssertionError, match="Mmin > Mmax: 8, 7"),
+    ):
         m.Mmax = 7

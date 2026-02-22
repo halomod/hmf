@@ -98,7 +98,12 @@ def test_change_dndm(colossus_cosmo):
         UserWarning,
         match=r"Your input mass definition 'SOVirial' does not match the mass definition",
     ):
-        h = MassFunction(mdef_model="SOVirial", hmf_model="Warren", disable_mass_conversion=False)
+        h = MassFunction(
+            mdef_model="SOVirial",
+            hmf_model="Warren",
+            disable_mass_conversion=False,
+            extrapolate_with_eh=True,
+        )
 
     dndm = h.dndm
 
