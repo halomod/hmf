@@ -8,7 +8,7 @@ may be implemented.
 """
 
 from functools import cached_property
-from typing import Any, ClassVar, Final
+from typing import Any, ClassVar
 
 import numpy as np
 from astropy import cosmology
@@ -65,7 +65,7 @@ class GrowthFactor(_GrowthFactor):
     .. [1] Lukic et. al., ApJ, 2007, http://adsabs.harvard.edu/abs/2007ApJ...671.1160L
     """
 
-    _defaults: ClassVar[Final[dict[str, float]]] = {"dlna": 0.01, "amin": 1e-8}
+    _defaults: ClassVar[dict[str, float]] = {"dlna": 0.01, "amin": 1e-8}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -222,7 +222,7 @@ class FromFile(GrowthFactor):
     """
 
     supported_cosmos = (cosmology.LambdaCDM, cosmology.w0waCDM, cosmology.wCDM)
-    _defaults: ClassVar[Final[dict[str, Any]]] = {"dlna": 0.01, "amin": 1e-8, "fname": ""}
+    _defaults: ClassVar[dict[str, Any]] = {"dlna": 0.01, "amin": 1e-8, "fname": ""}
 
     def growth_factor(self, z):
         r"""
@@ -265,7 +265,7 @@ class FromArray(FromFile):
     """
 
     supported_cosmos = (cosmology.LambdaCDM, cosmology.w0waCDM, cosmology.wCDM)
-    _defaults: ClassVar[Final[dict[str, Any]]] = {"dlna": 0.01, "amin": 1e-8, "z": None, "d": None}
+    _defaults: ClassVar[dict[str, Any]] = {"dlna": 0.01, "amin": 1e-8, "z": None, "d": None}
 
     def growth_factor(self, z):
         r"""
@@ -310,7 +310,7 @@ class GenMFGrowth(GrowthFactor):
         :zmax: Maximum redshift to integrate to. Only used for :meth:`growth_factor_fn`.
     """
 
-    _defaults: ClassVar[Final[dict[str, float]]] = {"dz": 0.01, "zmax": 1000.0}
+    _defaults: ClassVar[dict[str, float]] = {"dz": 0.01, "zmax": 1000.0}
 
     @cached_property
     def _lna(self):
@@ -398,7 +398,7 @@ class Carroll1992(GrowthFactor):
                `inverse=True`.
     """
 
-    _defaults: ClassVar[Final[dict[str, float]]] = {"dz": 0.01, "zmax": 1000.0}
+    _defaults: ClassVar[dict[str, float]] = {"dz": 0.01, "zmax": 1000.0}
 
     @cached_property
     def _lna(self):

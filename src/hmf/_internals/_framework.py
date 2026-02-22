@@ -4,7 +4,7 @@ import copy
 import logging
 import sys
 import warnings
-from typing import Any, ClassVar, Final
+from typing import Any, ClassVar
 
 import deprecation
 
@@ -25,7 +25,7 @@ class Component:
     the __init__ method.
     """
 
-    _defaults: ClassVar[Final[dict[str, Any]]] = {}
+    _defaults: ClassVar[dict[str, Any]] = {}
 
     def __init__(self, **model_params):
         # Check that all parameters passed are valid

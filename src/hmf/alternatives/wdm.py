@@ -7,7 +7,7 @@ into the standard CDM Frameworks, and provide an example of how one would go abo
 for other alternative cosmologies.
 """
 
-from typing import ClassVar, Final, override
+from typing import ClassVar, override
 
 import astropy.units as u
 import numpy as np
@@ -101,7 +101,7 @@ class Viel05(WDM):
         :g_x:
     """
 
-    _defaults: ClassVar[Final[dict[str, float]]] = {"mu": 1.12, "g_x": 1.5}
+    _defaults: ClassVar[dict[str, float]] = {"mu": 1.12, "g_x": 1.5}
 
     def transfer(self, k):
         """Compute the modified WDM transfer function."""
@@ -210,7 +210,7 @@ class Schneider12_vCDM(WDMRecalibrateMF):
         class attribute.
     """
 
-    _defaults: ClassVar[Final[dict[str, float]]] = {"beta": 1.16}
+    _defaults: ClassVar[dict[str, float]] = {"beta": 1.16}
 
     @override
     def dndm_alter(self):
@@ -235,7 +235,7 @@ class Schneider12(WDMRecalibrateMF):
         class attribute.
     """
 
-    _defaults: ClassVar[Final[dict[str, float]]] = {"alpha": 0.6}
+    _defaults: ClassVar[dict[str, float]] = {"alpha": 0.6}
 
     @override
     def dndm_alter(self):
@@ -260,7 +260,7 @@ class Lovell14(WDMRecalibrateMF):
         class attribute.
     """
 
-    _defaults: ClassVar[Final[dict[str, float]]] = {"beta": 0.99, "gamma": 2.7}
+    _defaults: ClassVar[dict[str, float]] = {"beta": 0.99, "gamma": 2.7}
 
     @override
     def dndm_alter(self):

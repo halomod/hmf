@@ -5,7 +5,7 @@ https://bdiemer.bitbucket.io/colossus/halo_mass_defs.html
 """
 
 import warnings
-from typing import ClassVar, Final, override
+from typing import ClassVar, override
 
 import astropy.units as u
 import numpy as np
@@ -221,7 +221,7 @@ class SOGeneric(SphericalOverdensity):
 class SOMean(SphericalOverdensity):
     """A mass definition based on spherical overdensity wrt mean background density."""
 
-    _defaults: ClassVar[Final[dict[str, float]]] = {"overdensity": 200}
+    _defaults: ClassVar[dict[str, float]] = {"overdensity": 200}
 
     def halo_density(self, z=0, cosmo=Planck15):
         """The density of haloes under this definition."""
@@ -236,7 +236,7 @@ class SOMean(SphericalOverdensity):
 class SOCritical(SphericalOverdensity):
     """A mass definition based on spherical overdensity wrt critical density."""
 
-    _defaults: ClassVar[Final[dict[str, float]]] = {"overdensity": 200}
+    _defaults: ClassVar[dict[str, float]] = {"overdensity": 200}
 
     def halo_density(self, z=0, cosmo=Planck15):
         """The density of haloes under this definition."""
@@ -273,7 +273,7 @@ class SOVirial(SphericalOverdensity):
 class FOF(MassDefinition):
     """A mass definition based on FroF networks with given linking length."""
 
-    _defaults: ClassVar[Final[dict[str, float]]] = {"linking_length": 0.2}
+    _defaults: ClassVar[dict[str, float]] = {"linking_length": 0.2}
 
     def halo_density(self, z=0, cosmo=Planck15):
         r"""

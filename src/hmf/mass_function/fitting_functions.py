@@ -7,7 +7,7 @@ listed here, please advise via GitHub.
 
 import warnings
 from copy import copy
-from typing import Any, ClassVar, Final, override
+from typing import Any, ClassVar, override
 
 import numpy as np
 import scipy.special as sp
@@ -205,7 +205,7 @@ class FittingFunction(_framework.Component):
 
     """
     __doc__ += _pdocs
-    _defaults: ClassVar[Final[dict[str, Any]]] = {}
+    _defaults: ClassVar[dict[str, Any]] = {}
 
     # Subclass requirements
     req_neff = False  #: Whether `n_eff` is required for this subclass
@@ -361,7 +361,7 @@ class SMT(FittingFunction):
     )
     __doc__ = _makedoc(FittingFunction._pdocs, "Sheth-Mo-Tormen", "SMT", _eq, _ref)
 
-    _defaults: ClassVar[Final[dict[str, Any]]] = {"a": 0.707, "p": 0.3, "A": None}
+    _defaults: ClassVar[dict[str, Any]] = {"a": 0.707, "p": 0.3, "A": None}
     normalized = True
 
     sim_definition = SimDetails(
@@ -430,7 +430,7 @@ class Jenkins(FittingFunction):
         r"http://doi.wiley.com/10.1046/j.1365-8711.2001.04029.x"
     )
     __doc__ = _makedoc(FittingFunction._pdocs, "Jenkins", "Jenkins", _eq, _ref)
-    _defaults: ClassVar[Final[dict[str, float]]] = {"A": 0.315, "b": 0.61, "c": 3.8}
+    _defaults: ClassVar[dict[str, float]] = {"A": 0.315, "b": 0.61, "c": 3.8}
     normalized = False
 
     sim_definition = SimDetails(
@@ -484,7 +484,7 @@ class Warren(FittingFunction):
     )
     __doc__ = _makedoc(FittingFunction._pdocs, "Warren", "Warren", _eq, _ref)
 
-    _defaults: ClassVar[Final[dict[str, float]]] = {
+    _defaults: ClassVar[dict[str, float]] = {
         "A": 0.7234,
         "b": 1.625,
         "c": 0.2538,
@@ -493,7 +493,7 @@ class Warren(FittingFunction):
     }
     normalized = False
 
-    uncertainties: ClassVar[Final[dict[str, float]]] = {
+    uncertainties: ClassVar[dict[str, float]] = {
         "A": 0.0073,
         "a": 0.028,
         "b": 0.0051,
@@ -557,7 +557,7 @@ class Reed03(SMT):
     _ref = r"""Reed, D., et al., Dec. 2003. MNRAS 346 (2), 565-572. http://adsabs.harvard.edu/abs/2003MNRAS.346..565R"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Reed03", "R03", _eq, _ref)
 
-    _defaults: ClassVar[Final[dict[str, float]]] = {"a": 0.707, "p": 0.3, "A": 0.3222, "c": 0.7}
+    _defaults: ClassVar[dict[str, float]] = {"a": 0.707, "p": 0.3, "A": 0.3222, "c": 0.7}
     normalized = False
 
     sim_definition = SimDetails(
@@ -606,7 +606,7 @@ class Reed07(FittingFunction):
     )
     __doc__ = _makedoc(FittingFunction._pdocs, "Reed07", "R07", _eq, _ref)
 
-    _defaults: ClassVar[Final[dict[str, float]]] = {"A": 0.3222, "p": 0.3, "c": 1.08, "a": 0.764}
+    _defaults: ClassVar[dict[str, float]] = {"A": 0.3222, "p": 0.3, "c": 1.08, "a": 0.764}
 
     sim_definition = SimDetails(
         L=[1.0, 2.5, 2.5, 2.5, 2.5, 4.64, 11.6, 20, 50, 100, 500, 1340, 3000],
@@ -688,7 +688,7 @@ class Peacock(FittingFunction):
     _eq = r"\nu\exp(-c\nu^2)(2cd\nu+ba\nu^{b-1})/d^2"
     _ref = """Peacock, J. A., Aug. 2007. MNRAS 379 (3), 1067-1074. http://adsabs.harvard.edu/abs/2007MNRAS.379.1067P"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Peacock", "Pck", _eq, _ref)
-    _defaults: ClassVar[Final[dict[str, float]]] = {"a": 1.529, "b": 0.704, "c": 0.412}
+    _defaults: ClassVar[dict[str, float]] = {"a": 1.529, "b": 0.704, "c": 0.412}
 
     sim_definition = copy(Warren.sim_definition)
     sim_definition.hmf_analysis_notes = "Fit directly to Warren+2006 fit."
@@ -722,7 +722,7 @@ class Angulo(FittingFunction):
     _ref = """Angulo, R. E., et al., 2012. arXiv:1203.3216v1"""
     _eq = r"$A \left[\left(\frac{d}{\sigma}\right)^b + 1 \right] \exp(-c/\sigma^2)$"
     __doc__ = _makedoc(FittingFunction._pdocs, "Angulo", "Ang", _eq, _ref)
-    _defaults: ClassVar[Final[dict[str, float]]] = {"A": 0.201, "b": 1.7, "c": 1.172, "d": 2.08}
+    _defaults: ClassVar[dict[str, float]] = {"A": 0.201, "b": 1.7, "c": 1.172, "d": 2.08}
 
     sim_definition = SimDetails(
         L=3000.0,
@@ -762,7 +762,7 @@ class AnguloBound(Angulo):
     """Bounded version of Angulo mass function fit."""
 
     __doc__ = Angulo.__doc__
-    _defaults: ClassVar[Final[dict[str, float]]] = {"A": 0.265, "b": 1.9, "c": 1.4, "d": 1.675}
+    _defaults: ClassVar[dict[str, float]] = {"A": 0.265, "b": 1.9, "c": 1.4, "d": 1.675}
 
 
 class Watson_FoF(Warren):
@@ -775,7 +775,7 @@ class Watson_FoF(Warren):
         """http://adsabs.harvard.edu/abs/2013MNRAS.433.1230W """
     )
     __doc__ = _makedoc(FittingFunction._pdocs, "Watson FoF", "WatF", Warren._eq, _ref)
-    _defaults: ClassVar[Final[dict[str, float]]] = {
+    _defaults: ClassVar[dict[str, float]] = {
         "A": 0.282,
         "b": 2.163,
         "c": 1,
@@ -826,7 +826,7 @@ class Watson(FittingFunction):
     sim_definition.halo_finder = "AHF"
     sim_definition.halo_overdensity = "*(vir)"
 
-    _defaults: ClassVar[Final[dict[str, Any]]] = {
+    _defaults: ClassVar[dict[str, Any]] = {
         "C_a": 0.023,
         "d_a": 0.456,
         "d_b": 0.139,
@@ -914,7 +914,7 @@ class Crocce(Warren):
 
     _ref = """Crocce, M., et al. MNRAS 403 (3), 1353-1367. http://doi.wiley.com/10.1111/j.1365-2966.2009.16194.x"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Crocce", "Cro", Warren._eq, _ref)
-    _defaults: ClassVar[Final[dict[str, Any]]] = {
+    _defaults: ClassVar[dict[str, Any]] = {
         "A_a": 0.58,
         "A_b": 0.13,
         "b_a": 1.37,
@@ -964,7 +964,7 @@ class Courtin(SMT):
     req_sigma = True
     _ref = """Courtin, J., et al., Oct. 2010. MNRAS 1931. http://doi.wiley.com/10.1111/j.1365-2966.2010.17573.x"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Courtin", "Ctn", SMT._eq, _ref)
-    _defaults: ClassVar[Final[dict[str, float]]] = {"A": 0.348, "a": 0.695, "p": 0.1}
+    _defaults: ClassVar[dict[str, float]] = {"A": 0.348, "a": 0.695, "p": 0.1}
 
     normalized = False
 
@@ -1001,7 +1001,7 @@ class Bhattacharya(SMT):
     _eq = r"f_{\rm SMT}(\sigma) (\nu\sqrt{a})^{q-1}"
     _ref = """Bhattacharya, S., et al., May 2011. ApJ 732 (2), 122. http://labs.adsabs.harvard.edu/ui/abs/2011ApJ...732..122B"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Bhattacharya", "Btc", _eq, _ref)
-    _defaults: ClassVar[Final[dict[str, Any]]] = {
+    _defaults: ClassVar[dict[str, Any]] = {
         "A_a": 0.333,
         "A_b": 0.11,
         "a_a": 0.788,
@@ -1312,7 +1312,7 @@ class Tinker08(FittingFunction):
         },
     )
 
-    _defaults: ClassVar[Final[dict[str, Any]]] = {  # -- A
+    _defaults: ClassVar[dict[str, Any]] = {  # -- A
         "A_200": 1.858659e-01,
         "A_300": 1.995973e-01,
         "A_400": 2.115659e-01,
@@ -1418,7 +1418,7 @@ class Tinker10(FittingFunction):
 
     sim_definition = copy(Tinker08.sim_definition)
 
-    _defaults: ClassVar[Final[dict[str, Any]]] = {  # --- alpha
+    _defaults: ClassVar[dict[str, Any]] = {  # --- alpha
         "alpha_200": 0.368,
         "alpha_300": 0.363,
         "alpha_400": 0.385,
@@ -1646,7 +1646,7 @@ class Pillepich(Warren):
 
     _ref = r"""Pillepich, A., et al., 2010, arxiv:0811.4176"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Pillepich", "Pillepich", Warren._eq, _ref)
-    _defaults: ClassVar[Final[dict[str, float]]] = {
+    _defaults: ClassVar[dict[str, float]] = {
         "A": 0.6853,
         "b": 1.868,
         "c": 0.3324,
@@ -1685,7 +1685,7 @@ class Manera(SMT):
     _ref = r"""Manera, M., et al., 2010, arxiv:0906.1314"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Manera", "Man", SMT._eq, _ref)
     # These are for z=0, new ML method, l_linnk = 0.2
-    _defaults: ClassVar[Final[dict[str, Any]]] = {"A": None, "a": 0.709, "p": 0.289}
+    _defaults: ClassVar[dict[str, Any]] = {"A": None, "a": 0.709, "p": 0.289}
 
     sim_definition = SimDetails(
         L=1280.0,
@@ -1718,7 +1718,7 @@ class Ishiyama(Warren):
     _ref = r"""Ishiyama, T., et al., 2015, arxiv:1412.2860"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Ishiyama", "Ishiyama", _eq, _ref)
 
-    _defaults: ClassVar[Final[dict[str, float]]] = {
+    _defaults: ClassVar[dict[str, float]] = {
         "A": 0.193,
         "b": 1.550,
         "c": 1,
@@ -1761,7 +1761,7 @@ class Bocquet200mDMOnly(Warren):
     _eq = r"A\left[\left(\frac{e}{\sigma}\right)^b + 1\right]\exp(-\frac{d}{\sigma^2})"
     _ref = r"""Bocuet, S., et al., 2016, MNRAS 456 2361"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Bocquet", "Bocquet", _eq, _ref)
-    _defaults: ClassVar[Final[dict[str, Any]]] = {
+    _defaults: ClassVar[dict[str, Any]] = {
         "A": 0.216,
         "b": 1.87,
         "c": 1,
@@ -1832,7 +1832,7 @@ class Bocquet200mHydro(Bocquet200mDMOnly):
         Bocquet200mDMOnly._eq,
         Bocquet200mDMOnly._ref,
     )
-    _defaults: ClassVar[Final[dict[str, Any]]] = {
+    _defaults: ClassVar[dict[str, Any]] = {
         "A": 0.240,
         "b": 2.43,
         "c": 1,
@@ -1856,7 +1856,7 @@ class Bocquet200cDMOnly(Bocquet200mDMOnly):
         Bocquet200mDMOnly._ref,
     )
 
-    _defaults: ClassVar[Final[dict[str, Any]]] = {
+    _defaults: ClassVar[dict[str, Any]] = {
         "A": 0.256,
         "b": 2.01,
         "c": 1,
@@ -1895,7 +1895,7 @@ class Bocquet200cHydro(Bocquet200cDMOnly):
         Bocquet200mDMOnly._ref,
     )
 
-    _defaults: ClassVar[Final[dict[str, Any]]] = {
+    _defaults: ClassVar[dict[str, Any]] = {
         "A": 0.290,
         "b": 2.69,
         "c": 1,
@@ -1919,7 +1919,7 @@ class Bocquet500cDMOnly(Bocquet200cDMOnly):
         Bocquet200mDMOnly._ref,
     )
 
-    _defaults: ClassVar[Final[dict[str, Any]]] = {
+    _defaults: ClassVar[dict[str, Any]] = {
         "A": 0.390,
         "b": 3.05,
         "c": 1,
@@ -1954,7 +1954,7 @@ class Bocquet500cHydro(Bocquet500cDMOnly):
         Bocquet200mDMOnly._ref,
     )
 
-    _defaults: ClassVar[Final[dict[str, Any]]] = {
+    _defaults: ClassVar[dict[str, Any]] = {
         "A": 0.322,
         "b": 3.24,
         "c": 1,
