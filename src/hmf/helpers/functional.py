@@ -196,8 +196,10 @@ def get_hmf(
             for vv in v:
                 x.update(**{k: vv})
                 if get_label:
-                    yield [getattr(x, a) for a in req_qauntities], x, _make_label(
-                        {k: vv}, kind=label_kind, **label_kwargs
+                    yield (
+                        [getattr(x, a) for a in req_qauntities],
+                        x,
+                        _make_label({k: vv}, kind=label_kind, **label_kwargs),
                     )
                 else:
                     yield [getattr(x, a) for a in req_qauntities], x
@@ -220,7 +222,7 @@ def get_hmf(
 
         ordered_list = [ordered_kwargs[k] for k in ordered_kwargs]
         final_list = [
-            collections.OrderedDict(list(zip(list(ordered_kwargs.keys()), v)))
+            collections.OrderedDict(list(zip(list(ordered_kwargs.keys()), v, strict=True)))
             for v in itertools.product(*ordered_list)
         ]
 

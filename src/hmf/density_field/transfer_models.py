@@ -5,12 +5,14 @@ Note that these are not transfer function "frameworks". The framework is found
 in :mod:`hmf.transfer`.
 """
 
-import numpy as np
 import pickle
 import warnings
-from astropy import cosmology
 from copy import deepcopy
-from scipy.interpolate import InterpolatedUnivariateSpline as spline
+from typing import Any, ClassVar
+
+import numpy as np
+from astropy import cosmology
+from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 
 from .._internals._framework import Component, pluggable
 
@@ -40,7 +42,7 @@ class TransferComponent(Component):
         Any model-specific parameters.
     """
 
-    _defaults = {}
+    _defaults: ClassVar[dict[str, Any]] = {}
 
     def __init__(self, cosmo, **model_parameters):
         self.cosmo = cosmo
@@ -48,7 +50,7 @@ class TransferComponent(Component):
 
     def lnt(self, lnk):
         r"""
-        Natural log of the transfer function
+        Natural log of the transfer function.
 
         Parameters
         ----------
@@ -60,7 +62,6 @@ class TransferComponent(Component):
         lnt : array_like
             The log of the transfer function at lnk.
         """
-        pass
 
 
 class FromFile(TransferComponent):
@@ -83,7 +84,7 @@ class FromFile(TransferComponent):
             Location of the file to import.
     """
 
-    _defaults = {"fname": ""}
+    _defaults: ClassVar[dict[str, str]] = {"fname": ""}
 
     def _check_low_k(self, lnk, lnT, lnkmin):
         """
@@ -112,7 +113,7 @@ class FromFile(TransferComponent):
 
     def lnt(self, lnk):
         r"""
-        Natural log of the transfer function
+        Natural log of the transfer function.
 
         Parameters
         ----------
@@ -134,7 +135,7 @@ class FromFile(TransferComponent):
         else:
             lnkout = T[0, :]
             lnT = T[1, :]
-        return spline(lnkout, lnT, k=1)(lnk)
+        return Spline(lnkout, lnT, k=1)(lnk)
 
 
 if HAVE_CAMB:
@@ -161,7 +162,7 @@ if HAVE_CAMB:
                                      approximation.
         """
 
-        _defaults = {
+        _defaults: ClassVar[dict[str, Any]] = {
             "camb_params": None,
             "dark_energy_params": {},
             "extrapolate_with_eh": None,
@@ -171,9 +172,7 @@ if HAVE_CAMB:
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
 
-            if not isinstance(
-                self.cosmo, (cosmology.LambdaCDM, cosmology.wCDM, cosmology.w0waCDM)
-            ):
+            if not isinstance(self.cosmo, (cosmology.LambdaCDM, cosmology.wCDM, cosmology.w0waCDM)):
                 raise ValueError("CAMB will only work with LCDM or wCDM cosmologies")
 
             # Save the CAMB object properly for use
@@ -197,14 +196,12 @@ if HAVE_CAMB:
 
             if self.cosmo.Ob0 is None or self.cosmo.Ob0 == 0.0:
                 raise ValueError(
-                    "To use CAMB, you must set the baryon density in the cosmology "
-                    "explicitly."
+                    "To use CAMB, you must set the baryon density in the cosmology explicitly."
                 )
 
             if self.cosmo.Tcmb0.value == 0:
                 raise ValueError(
-                    "If using CAMB, the CMB temperature must be set explicitly in the "
-                    "cosmology."
+                    "If using CAMB, the CMB temperature must be set explicitly in the cosmology."
                 )
 
             self.params["camb_params"].set_cosmology(
@@ -224,15 +221,14 @@ if HAVE_CAMB:
             if isinstance(self.cosmo, cosmology.wCDM):
                 self.params["camb_params"].set_dark_energy(w=self.cosmo.w0)
             elif isinstance(self.cosmo, cosmology.w0waCDM):
-                self.params["camb_params"].set_dark_energy(
-                    w=self.cosmo.w0, wa=self.cosmo.wa
-                )
+                self.params["camb_params"].set_dark_energy(w=self.cosmo.w0, wa=self.cosmo.wa)
 
             if self.params["extrapolate_with_eh"] is None:
                 warnings.warn(
                     "'extrapolate_with_eh' was not set. Defaulting to True, which is "
                     "different behaviour than versions <=3.4.4. This warning may be "
-                    "removed in v4.0. Silence it by setting extrapolate_with_eh explicitly."
+                    "removed in v4.0. Silence it by setting extrapolate_with_eh explicitly.",
+                    stacklevel=2,
                 )
                 self.params["extrapolate_with_eh"] = True
 
@@ -242,7 +238,7 @@ if HAVE_CAMB:
 
         def lnt(self, lnk):
             r"""
-            Natural log of the transfer function
+            Natural log of the transfer function.
 
             Parameters
             ----------
@@ -254,7 +250,6 @@ if HAVE_CAMB:
             lnt : array_like
                 The log of the transfer function at lnk.
             """
-
             camb_transfers = camb.get_transfer_functions(self.params["camb_params"])
             T = camb_transfers.get_matter_transfer_data().transfer_data
             T = np.log(T[[0, 6], :, 0])
@@ -268,7 +263,7 @@ if HAVE_CAMB:
             lnT -= lnT[0]
 
             if not self.params["extrapolate_with_eh"]:
-                return spline(lnkout, lnT, k=1)(lnk)
+                return Spline(lnkout, lnT, k=1)(lnk)
 
             # Now add a point one e-fold above the max, with an EH-generated transfer
             lnkout = np.concatenate((lnkout, [lnkout[-1] + 1]))
@@ -279,7 +274,7 @@ if HAVE_CAMB:
             lnkmin = lnkout.min()
             lnkmax = lnkout.max()
 
-            inner_spline = spline(lnkout, lnT, k=3)
+            inner_spline = Spline(lnkout, lnT, k=3)
 
             out = np.zeros_like(lnk)
             out[lnk < lnkmin] = 0
@@ -291,6 +286,7 @@ if HAVE_CAMB:
             return out
 
         def __getstate__(self):
+            """Get the state of the object, including converting the CAMBparams object to a dict."""
             # We need to get rid of the CAMBparams() object, as it cannot be pickled.
             p = self.params["camb_params"]
 
@@ -362,11 +358,12 @@ if HAVE_CAMB:
                     warnings.warn(
                         f"CAMB key '{pk}' is not an attribute. If you provided a "
                         f"custom CAMBparams, results may be inconsistent. Available: "
-                        f"{dir(p)}"
+                        f"{dir(p)}",
+                        stacklevel=2,
                     )
 
                 except Exception:
-                    warnings.warn(f"CAMB key {pk} is not pickle-able.")
+                    warnings.warn(f"CAMB key {pk} is not pickle-able.", stacklevel=2)
 
             # Deepcopy self
             this = {}
@@ -379,6 +376,7 @@ if HAVE_CAMB:
             return this
 
         def __setstate__(self, state):
+            """Set the state of the object, including reconstructing the CAMBparams object."""
             self.__dict__ = state
 
             self.params["camb_params"] = camb.CAMBparams(**self.params["camb_params"])
@@ -386,7 +384,7 @@ if HAVE_CAMB:
 
 class FromArray(FromFile):
     r"""
-    Use a spline over a given array to define the transfer function
+    Use a spline over a given array to define the transfer function.
 
     Parameters
     ----------
@@ -404,11 +402,11 @@ class FromArray(FromFile):
             Transfer function
     """
 
-    _defaults = {"k": None, "T": None}
+    _defaults: ClassVar[dict[str, Any]] = {"k": None, "T": None}
 
     def lnt(self, lnk):
         r"""
-        Natural log of the transfer function
+        Natural log of the transfer function.
 
         Parameters
         ----------
@@ -424,9 +422,7 @@ class FromArray(FromFile):
         T = self.params["T"]
 
         if k is None or T is None:
-            raise ValueError(
-                "You must supply an array for both k and T for this Transfer Model"
-            )
+            raise ValueError("You must supply an array for both k and T for this Transfer Model")
         if len(k) != len(T):
             raise ValueError("k and T must have same length")
 
@@ -435,12 +431,12 @@ class FromArray(FromFile):
         else:
             lnkout = np.log(k)
             lnT = np.log(T)
-        return spline(lnkout, lnT, k=1)(lnk)
+        return Spline(lnkout, lnT, k=1)(lnk)
 
 
 class EH_BAO(TransferComponent):
     r"""
-    Eisenstein & Hu (1998) fitting function with BAO wiggles
+    Eisenstein & Hu (1998) fitting function with BAO wiggles.
 
     From EH1998, Eqs. 26,28-31. Code adapted from CHOMP.
 
@@ -458,9 +454,7 @@ class EH_BAO(TransferComponent):
         self._set_params()
 
     def _set_params(self):
-        """
-        Port of ``TFset_parameters`` from original EH code.
-        """
+        """Port of ``TFset_parameters`` from original EH code."""
         self.Obh2 = self.cosmo.Ob0 * self.cosmo.h**2
         self.Omh2 = self.cosmo.Om0 * self.cosmo.h**2
         self.f_baryon = self.cosmo.Ob0 / self.cosmo.Om0
@@ -479,9 +473,7 @@ class EH_BAO(TransferComponent):
             * (1.0 + self.z_drag_b1 * self.Obh2**self.z_drag_b2)
         )
 
-        self.r_drag = (
-            31.5 * self.Obh2 * self.theta_cmb**-4 * (1000.0 / (1 + self.z_drag))
-        )
+        self.r_drag = 31.5 * self.Obh2 * self.theta_cmb**-4 * (1000.0 / (1 + self.z_drag))
         self.r_eq = 31.5 * self.Obh2 * self.theta_cmb**-4 * (1000.0 / self.z_eq)
 
         self.sound_horizon = (
@@ -494,21 +486,12 @@ class EH_BAO(TransferComponent):
         )
 
         self.k_silk = (
-            1.6
-            * self.Obh2**0.52
-            * self.Omh2**0.73
-            * (1.0 + (10.4 * self.Omh2) ** (-0.95))
+            1.6 * self.Obh2**0.52 * self.Omh2**0.73 * (1.0 + (10.4 * self.Omh2) ** (-0.95))
         )
 
-        alpha_c_a1 = (46.9 * self.Omh2) ** 0.670 * (
-            1.0 + (32.1 * self.Omh2) ** (-0.532)
-        )
-        alpha_c_a2 = (12.0 * self.Omh2) ** 0.424 * (
-            1.0 + (45.0 * self.Omh2) ** (-0.582)
-        )
-        self.alpha_c = alpha_c_a1 ** (-self.f_baryon) * alpha_c_a2 ** (
-            -self.f_baryon**3
-        )
+        alpha_c_a1 = (46.9 * self.Omh2) ** 0.670 * (1.0 + (32.1 * self.Omh2) ** (-0.532))
+        alpha_c_a2 = (12.0 * self.Omh2) ** 0.424 * (1.0 + (45.0 * self.Omh2) ** (-0.582))
+        self.alpha_c = alpha_c_a1 ** (-self.f_baryon) * alpha_c_a2 ** (-(self.f_baryon**3))
 
         beta_c_b1 = 0.944 / (1.0 + (458.0 * self.Omh2) ** -0.708)
         beta_c_b2 = (0.395 * self.Omh2) ** -0.0266
@@ -516,15 +499,10 @@ class EH_BAO(TransferComponent):
 
         y = self.z_eq / (1 + self.z_drag)
         alpha_b_G = y * (
-            -6 * np.sqrt(1 + y)
-            + (2 + 3 * y) * np.log((np.sqrt(1 + y) + 1) / (np.sqrt(1 + y) - 1))
+            -6 * np.sqrt(1 + y) + (2 + 3 * y) * np.log((np.sqrt(1 + y) + 1) / (np.sqrt(1 + y) - 1))
         )
         self.alpha_b = (
-            2.07
-            * self.k_eq
-            * self.sound_horizon
-            * (1.0 + self.r_drag) ** -0.75
-            * alpha_b_G
+            2.07 * self.k_eq * self.sound_horizon * (1.0 + self.r_drag) ** -0.75 * alpha_b_G
         )
 
         self.beta_node = 8.41 * self.Omh2**0.435
@@ -536,23 +514,17 @@ class EH_BAO(TransferComponent):
 
     @property
     def k_peak(self):
+        """The k_peak parameter from EH1998, Eq. 29, in units of Mpc^-1 (no h)."""
         return 2.5 * np.pi * (1 + 0.217 * self.Omh2) / self.sound_horizon
 
     @property
     def sound_horizon_fit(self):
-        """
-        Sound horizon in Mpc/h
-        """
-        return (
-            self.cosmo.h
-            * 44.5
-            * np.log(9.83 / self.Omh2)
-            / np.sqrt(1 + 10 * (self.Obh2**0.75))
-        )
+        """Sound horizon in Mpc/h."""
+        return self.cosmo.h * 44.5 * np.log(9.83 / self.Omh2) / np.sqrt(1 + 10 * (self.Obh2**0.75))
 
     def lnt(self, lnk):
         r"""
-        Natural log of the transfer function
+        Natural log of the transfer function.
 
         Parameters
         ----------
@@ -589,9 +561,7 @@ class EH_BAO(TransferComponent):
 
         T_b_T0 = term(T_c_ln_nobeta, T_c_C_noalpha)
         Tb1 = T_b_T0 / (1.0 + (ks / 5.2) ** 2)
-        Tb2 = (self.alpha_b / (1.0 + (self.beta_b / ks) ** 3)) * np.exp(
-            -((k / self.k_silk) ** 1.4)
-        )
+        Tb2 = (self.alpha_b / (1.0 + (self.beta_b / ks) ** 3)) * np.exp(-((k / self.k_silk) ** 1.4))
         T_b = np.sin(ks_tilde) / ks_tilde * (Tb1 + Tb2)
 
         return np.log(self.f_baryon * T_b + (1 - self.f_baryon) * T_c)
@@ -599,7 +569,7 @@ class EH_BAO(TransferComponent):
 
 class EH_NoBAO(EH_BAO):
     r"""
-    Eisenstein & Hu (1998) fitting function without BAO wiggles
+    Eisenstein & Hu (1998) fitting function without BAO wiggles.
 
     From EH 1998 Eqs. 26,28-31. Code adapted from CHOMP project.
 
@@ -614,6 +584,7 @@ class EH_NoBAO(EH_BAO):
 
     @property
     def alpha_gamma(self):
+        """The alpha_gamma parameter from EH1998, Eq. 31."""
         return (
             1
             - 0.328 * np.log(431 * self.Omh2) * self.f_baryon
@@ -622,7 +593,7 @@ class EH_NoBAO(EH_BAO):
 
     def lnt(self, lnk):
         r"""
-        Natural log of the transfer function
+        Natural log of the transfer function.
 
         Parameters
         ----------
@@ -638,9 +609,7 @@ class EH_NoBAO(EH_BAO):
 
         ks = k * self.sound_horizon_fit / self.cosmo.h  # need sound horizon in Mpc here
 
-        gamma_eff = self.Omh2 * (
-            self.alpha_gamma + (1 - self.alpha_gamma) / (1 + (0.43 * ks) ** 4)
-        )
+        gamma_eff = self.Omh2 * (self.alpha_gamma + (1 - self.alpha_gamma) / (1 + (0.43 * ks) ** 4))
         q = k / (13.4 * self.k_eq)
 
         q_eff = q * self.Omh2 / gamma_eff
@@ -693,7 +662,7 @@ class BBKS(TransferComponent):
               \exp\left(-\Omega_{b,0}(1 + \sqrt{2h}/\Omega_{m,0})\right).
     """
 
-    _defaults = {
+    _defaults: ClassVar[dict[str, Any]] = {
         "a": 2.34,
         "b": 3.89,
         "c": 16.1,
@@ -705,7 +674,7 @@ class BBKS(TransferComponent):
 
     def lnt(self, lnk):
         """
-        Natural log of the transfer function
+        Natural log of the transfer function.
 
         Parameters
         ----------
@@ -729,8 +698,7 @@ class BBKS(TransferComponent):
             Gamma *= np.exp(-self.cosmo.Ob0 * (1 + 1 / self.cosmo.Om0))
         elif self.params["use_liddle_baryons"]:
             Gamma *= np.exp(
-                -self.cosmo.Ob0
-                * (1 + np.sqrt(self.cosmo.Ob0 * self.cosmo.h) / self.cosmo.Om0)
+                -self.cosmo.Ob0 * (1 + np.sqrt(self.cosmo.Ob0 * self.cosmo.h) / self.cosmo.Om0)
             )
 
         q = np.exp(lnk) / Gamma
@@ -744,7 +712,7 @@ class BBKS(TransferComponent):
 
 class BondEfs(TransferComponent):
     r"""
-    Transfer function of Bond and Efstathiou
+    Transfer function of Bond and Efstathiou.
 
     Parameters
     ----------
@@ -768,11 +736,11 @@ class BondEfs(TransferComponent):
     .. math:: \alpha = \frac{0.3\times 0.75^2}{\Omega_{m,0} h^2}.
     """
 
-    _defaults = {"a": 37.1, "b": 21.1, "c": 10.8, "nu": 1.12}
+    _defaults: ClassVar[dict[str, float]] = {"a": 37.1, "b": 21.1, "c": 10.8, "nu": 1.12}
 
     def lnt(self, lnk):
         """
-        Natural log of the transfer function
+        Natural log of the transfer function.
 
         Parameters
         ----------
@@ -784,7 +752,6 @@ class BondEfs(TransferComponent):
         lnt : array_like
             The log of the transfer function at lnk.
         """
-
         scale = (0.3 * 0.75**2) / (self.cosmo.Om0 * self.cosmo.h)
 
         a = self.params["a"] * scale
@@ -797,5 +764,3 @@ class BondEfs(TransferComponent):
 
 class EH(EH_BAO):
     """Alias of :class:`EH_BAO`."""
-
-    pass

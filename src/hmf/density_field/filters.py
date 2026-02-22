@@ -1,10 +1,12 @@
 """A module containing various smoothing filter Component models."""
 
 import collections
+import warnings
+from typing import ClassVar, override
+
 import numpy as np
 import scipy.integrate as intg
-import warnings
-from scipy.interpolate import InterpolatedUnivariateSpline as _spline
+from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 
 from .._internals import _framework, _utils
 
@@ -74,7 +76,6 @@ class Filter(_framework.Component):
         r : array_like
             The radial co-ordinate
         """
-        pass
 
     def k_space(self, kr):
         r"""
@@ -90,7 +91,6 @@ class Filter(_framework.Component):
         w : array_like
             The filter in fourier space, ``len(kr)``
         """
-        pass
 
     def mass_to_radius(self, m, rho_mean):
         r"""
@@ -112,11 +112,10 @@ class Filter(_framework.Component):
         -----
         The units of `m` don't matter as long as they are consistent with `rho_mean`.
         """
-        pass
 
     def radius_to_mass(self, r, rho_mean):
         r"""
-        Return mass of a region of space given its radius
+        Return mass of a region of space given its radius.
 
         Parameters
         ----------
@@ -134,11 +133,10 @@ class Filter(_framework.Component):
         -----
         The units of `r` don't matter as long as they are consistent with `rho_mean`.
         """
-        pass
 
     def dw_dlnkr(self, kr):
         r"""
-        The derivative of the (fourier-transformed) filter with :math:`\ln(kr)`.
+        Compute the derivative of the (fourier-transformed) filter with :math:`\ln(kr)`.
 
         Parameters
         ----------
@@ -152,11 +150,10 @@ class Filter(_framework.Component):
 
         .. math:: w\frac{dw}{d\ln r} = \frac{2}{r}\frac{dw^2}{dm}\frac{dm}{dr}.
         """
-        pass
 
     def dlnss_dlnr(self, r):
         r"""
-        The derivative of the mass variance with radius.
+        Compute the derivative of the mass variance with radius.
 
         Parameters
         ----------
@@ -191,7 +188,7 @@ class Filter(_framework.Component):
 
     def dlnr_dlnm(self, r):
         r"""
-        The derivative of log radius with log mass.
+        Compute the derivative of log radius with log mass.
 
         For the usual :math:`m\propto r^3` mass assignment, this is just 1/3.
 
@@ -204,7 +201,7 @@ class Filter(_framework.Component):
 
     def dlnss_dlnm(self, r):
         r"""
-        The logarithmic slope of mass variance with mass.
+        Compute the logarithmic slope of mass variance with mass.
 
         This is an important quantity, and is used directly to calculate
         :math:`\frac{dn}{dm}`.
@@ -299,19 +296,24 @@ class TopHat(Filter):
     .. math:: \frac{dW}{d\ln x}(x=kR) = \frac{1}{x^3}[9x\cos x + 3(x^2-3)\sin x].
     """
 
+    @override
     def real_space(self, R, r):
         a = np.where(r < R, 1, 0)
         return np.where(r == R, 0.5, a)
 
+    @override
     def k_space(self, kr):
         return np.where(kr > 1.4e-6, (3 / kr**3) * (np.sin(kr) - kr * np.cos(kr)), 1)
 
+    @override
     def mass_to_radius(self, m, rho_mean):
         return (3.0 * m / (4.0 * np.pi * rho_mean)) ** (1.0 / 3.0)
 
+    @override
     def radius_to_mass(self, r, rho_mean):
         return 4 * np.pi * r**3 * rho_mean / 3
 
+    @override
     def dw_dlnkr(self, kr):
         return np.where(
             kr > 1e-3,
@@ -349,18 +351,23 @@ class Gaussian(Filter):
     .. math:: \frac{dW}{d\ln x}(x=kR) = -xW(x).
     """
 
+    @override
     def real_space(self, R, r):
         return np.exp(-(r**2) / 2 / R**2) / (2 * np.pi) ** 1.5 / R**3
 
+    @override
     def k_space(self, kr):
         return np.exp(-(kr**2) / 2.0)
 
+    @override
     def mass_to_radius(self, m, rho_mean):
         return (m / rho_mean) ** (1.0 / 3.0) / np.sqrt(2 * np.pi)
 
+    @override
     def radius_to_mass(self, r, rho_mean):
         return (2 * np.pi) ** 1.5 * r**3 * rho_mean
 
+    @override
     def dw_dlnkr(self, kr):
         return -(kr**2) * self.k_space(kr)
 
@@ -368,7 +375,7 @@ class Gaussian(Filter):
 @_utils.inherit_docstrings
 class SharpK(Filter):
     r"""
-    Fourier-space top-hat window function
+    Fourier-space top-hat window function.
 
     This class is based on :class:`~Filter`, which can be consulted for
     details of how to instantiate it.
@@ -400,42 +407,47 @@ class SharpK(Filter):
     .. math:: \frac{d\ln \sigma^2}{d \ln R} = -\frac{P(1/R)}{2\pi^2\sigma^2(R)R^3}.
     """
 
-    _defaults = {"c": 2.5}
+    _defaults: ClassVar[dict[str, float]] = {"c": 2.5}
 
+    @override
     def k_space(self, kr):
         a = np.where(kr > 1, 0, 1)
         return np.where(kr == 1, 0.5, a)
 
+    @override
     def real_space(self, R, r):
         return (np.sin(r / R) - (r / R) * np.cos(r / R)) / (2 * np.pi**2 * r**3)
 
+    @override
     def dw_dlnkr(self, kr):
         return np.where(kr == 1, 1.0, 0.0)
 
+    @override
     def dlnss_dlnr(self, r):
         sigma = self.sigma(r)
-        power = _spline(self.k, self.power)(1 / r)
+        power = Spline(self.k, self.power)(1 / r)
         return -power / (2 * np.pi**2 * sigma**2 * r**3)
 
+    @override
     def mass_to_radius(self, m, rho_mean):
-        return (1.0 / self.params["c"]) * (3.0 * m / (4.0 * np.pi * rho_mean)) ** (
-            1.0 / 3.0
-        )
+        return (1.0 / self.params["c"]) * (3.0 * m / (4.0 * np.pi * rho_mean)) ** (1.0 / 3.0)
 
+    @override
     def radius_to_mass(self, r, rho_mean):
         return 4 * np.pi * (self.params["c"] * r) ** 3 * rho_mean / 3
 
+    @override
     def sigma(self, r, order=0):
         if not isinstance(r, collections.abc.Iterable):
             r = np.atleast_1d(r)
 
         if self.k.max() < 1 / r.min():
-            warnings.warn("Warning: Maximum r*k less than 1!")
+            warnings.warn("Warning: Maximum r*k less than 1!", stacklevel=2)
 
         # # Need to re-define this because the integral needs to go exactly kr=1
         # # or else the function 'jitters'
         sigma = np.zeros(len(r))
-        power = _spline(self.k, self.power)
+        power = Spline(self.k, self.power)
         for i, rr in enumerate(r):
             k = np.logspace(
                 np.log10(self.k[0]),
@@ -454,14 +466,14 @@ class SharpK(Filter):
 @_utils.inherit_docstrings
 class SharpKEllipsoid(SharpK):
     """
-    Fourier-space top-hat window function with ellipsoidal correction
+    Fourier-space top-hat window function with ellipsoidal correction.
 
     See Schneider, Smith, Reed 2013.
 
     Refer to :class:`~Filter` for more details.
     """
 
-    _defaults = {"c": 2.0}
+    _defaults: ClassVar[dict[str, float]] = {"c": 2.0}
 
     def xm(self, g, v):
         """
@@ -472,34 +484,24 @@ class SharpKEllipsoid(SharpK):
 
         Equation A6. in Schneider et al. 2013
         """
-        top = 3 * (1 - g**2) + (1.1 - 0.9 * g**4) * np.exp(
-            -g * (1 - g**2) * (g * v / 2) ** 2
-        )
+        top = 3 * (1 - g**2) + (1.1 - 0.9 * g**4) * np.exp(-g * (1 - g**2) * (g * v / 2) ** 2)
         bot = (3 * (1 - g**2) + 0.45 + (g * v / 2) ** 2) ** 0.5 + g * v / 2
         return g * v + top / bot
 
     def em(self, xm):
-        """
-        The average ellipticity of a patch as a function of peak tensor
-        """
+        """Compute the average ellipticity of a patch as a function of peak tensor."""
         return 1 / np.sqrt(5 * xm**2 + 6)
 
     def pm(self, xm):
-        """
-        The average prolateness of a patch as a function of peak tensor
-        """
+        """Compute the average prolateness of a patch as a function of peak tensor."""
         return 30.0 / (5 * xm**2 + 6) ** 2
 
     def a3a1(self, e, p):
-        """
-        The short:long axis ratio of an ellipsoid given its ellipticity and prolateness
-        """
+        """Compute the short:long axis ratio of an ellipsoid."""
         return np.sqrt((1 - 3 * e + p) / (1 + 3 * e + p))
 
     def a3a2(self, e, p):
-        """
-        The short:medium axis ratio of an ellipsoid given its ellipticity/prolateness
-        """
+        """Compute the short:medium axis ratio of an ellipsoid given its ellipticity/prolateness."""
         return np.sqrt((1 - 2 * p) / (1 + 3 * e + p))
 
     def gamma(self, r):
@@ -510,9 +512,15 @@ class SharpKEllipsoid(SharpK):
         return sig_1**2 / (sig_0 * sig_2)
 
     def xi(self, pm, em):
+        """
+        Ellipsoid axis ratio correction factor.
+
+        Computed from ellipticity and prolateness parameters.
+        """
         return ((1 + 4 * pm) ** 2 / (1 - 3 * em + pm) / (1 - 2 * pm)) ** (1.0 / 6.0)
 
     def a3(self, r):
+        """Short-axis scale with ellipsoidal correction."""
         g = self.gamma(r)
         xm = self.xm(g, self.nu(r))
         em = self.em(xm)
@@ -520,18 +528,25 @@ class SharpKEllipsoid(SharpK):
         return r / self.xi(pm, em)
 
     def r_a3(self, rmin, rmax):
+        """
+        Spline interpolant for radius-to-axis ratio relationship.
+
+        Created from computed a3 values over the radius range.
+        """
         r = np.logspace(np.log(rmin), np.log(rmax), 200, base=np.e)
         a3 = self.a3(r)
-        return _spline(a3, r)
+        return Spline(a3, r)
 
+    @override
     def dlnss_dlnr(self, r):
         a3 = self.a3(r)
         sigma = self.sigma(a3)
-        power = _spline(self.k, self.power)(1 / a3)
+        power = Spline(self.k, self.power)(1 / a3)
         return -power / (2 * np.pi**2 * sigma**2 * a3**3)
 
+    @override
     def dlnr_dlnm(self, r):
         a3 = self.a3(r)
         xi = r / a3
-        drda = _spline(a3, r).derivative()(a3)
+        drda = Spline(a3, r).derivative()(a3)
         return xi / 3 / drda

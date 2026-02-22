@@ -7,11 +7,12 @@ which may be more efficient, or extensions to alternate cosmologies,
 may be implemented.
 """
 
+from functools import cached_property
+from typing import Any, ClassVar
+
 import numpy as np
 from astropy import cosmology
-from functools import cached_property
-from scipy.interpolate import InterpolatedUnivariateSpline as _spline
-from typing import Union
+from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 
 from .._internals._framework import Component as Cmpt
 from .._internals._framework import pluggable
@@ -27,9 +28,7 @@ except ImportError:  # pragma: nocover
 
 @pluggable
 class _GrowthFactor(Cmpt):
-    r"""
-    General class for a growth factor calculation.
-    """
+    r"""General class for a growth factor calculation."""
 
     supported_cosmos = (cosmology.LambdaCDM,)
 
@@ -66,7 +65,7 @@ class GrowthFactor(_GrowthFactor):
     .. [1] Lukic et. al., ApJ, 2007, http://adsabs.harvard.edu/abs/2007ApJ...671.1160L
     """
 
-    _defaults = {"dlna": 0.01, "amin": 1e-8}
+    _defaults: ClassVar[dict[str, float]] = {"dlna": 0.01, "amin": 1e-8}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -84,14 +83,21 @@ class GrowthFactor(_GrowthFactor):
 
     @cached_property
     def integral(self):
+        r"""The integral :math:`\int_0^a da' / (a'^3 E(a')^3)`.
+
+        Parameters
+        ----------
+        a : array_like
+            Scale factor(s) at which to evaluate the integral.
+        """
         a = np.exp(self._lna)
-        return _spline(
+        return Spline(
             a, 2.5 * self.cosmo.Om0 / (a * self.cosmo.efunc(self._zvec)) ** 3
         ).antiderivative()
 
-    def _d_plus(self, z: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
+    def _d_plus(self, z: float | np.ndarray) -> float | np.ndarray:
         r"""
-        Finds the factor :math:`D^+(a)`, from Lukic et. al. 2007, eq. 8.
+        Find the factor :math:`D^+(a)`, from Lukic et. al. 2007, eq. 8.
 
         Parameters
         ----------
@@ -109,9 +115,7 @@ class GrowthFactor(_GrowthFactor):
         if np.any(z < 0):
             raise ValueError("Redshifts <0 not supported")
         if np.any(a < a_min):
-            raise ValueError(
-                f"Cannot compute integral for z > {1 / a_min - 1}. Set amin lower."
-            )
+            raise ValueError(f"Cannot compute integral for z > {1 / a_min - 1}. Set amin lower.")
 
         return (self.integral(a) - self.integral(a_min)) * self.cosmo.efunc(z)
 
@@ -154,17 +158,16 @@ class GrowthFactor(_GrowthFactor):
             The normalised growth factor as a function of redshift, or
             redshift as a function of growth factor if ``inverse`` is True.
         """
-
         if not inverse:
             return self.growth_factor
 
         gf = self.growth_factor(self._zvec)
         idx = np.argsort(gf)
-        return _spline(gf[idx], self._zvec[idx])
+        return Spline(gf[idx], self._zvec[idx])
 
     def growth_rate(self, z):
         """
-        Growth rate, dln(d)/dln(a) from Hamilton 2000 eq. 4
+        Growth rate, dln(d)/dln(a) from Hamilton 2000 eq. 4.
 
         Parameters
         ----------
@@ -195,10 +198,7 @@ class GrowthFactor(_GrowthFactor):
         gfn = self.growth_factor_fn(zmin)
 
         return lambda z: (
-            -1
-            - self.cosmo.Om(z) / 2
-            + self.cosmo.Ode(z)
-            + 5 * self.cosmo.Om(z) / (2 * gfn(z))
+            -1 - self.cosmo.Om(z) / 2 + self.cosmo.Ode(z) + 5 * self.cosmo.Om(z) / (2 * gfn(z))
         )
 
 
@@ -222,11 +222,11 @@ class FromFile(GrowthFactor):
     """
 
     supported_cosmos = (cosmology.LambdaCDM, cosmology.w0waCDM, cosmology.wCDM)
-    _defaults = {"dlna": 0.01, "amin": 1e-8, "fname": ""}
+    _defaults: ClassVar[dict[str, Any]] = {"dlna": 0.01, "amin": 1e-8, "fname": ""}
 
     def growth_factor(self, z):
         r"""
-        The growth factor, :math:`d(a) = D^+(a)/D^+(a=1)`.
+        Compute the growth factor, :math:`d(a) = D^+(a)/D^+(a=1)`.
 
         Parameters
         ----------
@@ -242,13 +242,13 @@ class FromFile(GrowthFactor):
 
         z_out = G[0, :]
         d_out = G[1, :]
-        return _spline(z_out, d_out, k=1)(z)
+        return Spline(z_out, d_out, k=1)(z)
 
 
 @_inherit
 class FromArray(FromFile):
     r"""
-    Use a spline over a given array to define the transfer function
+    Use a spline over a given array to define the transfer function.
 
     Parameters
     ----------
@@ -265,11 +265,11 @@ class FromArray(FromFile):
     """
 
     supported_cosmos = (cosmology.LambdaCDM, cosmology.w0waCDM, cosmology.wCDM)
-    _defaults = {"dlna": 0.01, "amin": 1e-8, "z": None, "d": None}
+    _defaults: ClassVar[dict[str, Any]] = {"dlna": 0.01, "amin": 1e-8, "z": None, "d": None}
 
     def growth_factor(self, z):
         r"""
-        The growth factor, :math:`d(a) = D^+(a)/D^+(a=1)`.
+        Compute the growth factor, :math:`d(a) = D^+(a)/D^+(a=1)`.
 
         Parameters
         ----------
@@ -285,13 +285,11 @@ class FromArray(FromFile):
         d_out = self.params["d"]
 
         if z_out is None or d_out is None:
-            raise ValueError(
-                "You must supply an array for both z and d for this Growth model"
-            )
+            raise ValueError("You must supply an array for both z and d for this Growth model")
         if len(z_out) != len(d_out):
             raise ValueError("z and d must have same length")
 
-        return _spline(z_out, d_out, k=1)(z)
+        return Spline(z_out, d_out, k=1)(z)
 
 
 @_inherit
@@ -312,7 +310,7 @@ class GenMFGrowth(GrowthFactor):
         :zmax: Maximum redshift to integrate to. Only used for :meth:`growth_factor_fn`.
     """
 
-    _defaults = {"dz": 0.01, "zmax": 1000.0}
+    _defaults: ClassVar[dict[str, float]] = {"dz": 0.01, "zmax": 1000.0}
 
     @cached_property
     def _lna(self):
@@ -324,23 +322,26 @@ class GenMFGrowth(GrowthFactor):
 
     def _d_plus(self, z):
         """
-        This is not implemented in this class. It is not
-        required to calculate :meth:`growth_factor`.
+        Unnormalized growth factor (not implemented in this class).
+
+        This is not required to calculate :meth:`growth_factor`.
+        Subclasses must implement this method.
+
         """
-        raise NotImplementedError()  # pragma: nocover
+        raise NotImplementedError  # pragma: nocover
 
     def _general_case(self, w, x):
         x = np.atleast_1d(x)
         xn_vec = np.linspace(0, x.max(), 1000)
 
-        func = _spline(xn_vec, (xn_vec / (xn_vec**3 + 2)) ** 1.5)
+        func = Spline(xn_vec, (xn_vec / (xn_vec**3 + 2)) ** 1.5)
 
         g = np.array([func.integral(0, y) for y in x])
         return ((x**3.0 + 2.0) ** 0.5) * (g / x**1.5)
 
     def growth_factor(self, z):
         """
-        The growth factor, :math:`d(a) = D^+(a)/D^+(a=1)`.
+        Compute the growth factor, :math:`d(a) = D^+(a)/D^+(a=1)`.
 
         This uses an approximation only valid in closed or
         flat cosmologies, ported from ``genmf``.
@@ -365,24 +366,15 @@ class GenMFGrowth(GrowthFactor):
 
         if self.cosmo.Om0 == 1:
             return a
-        elif self.cosmo.Ode0 > 0:
+        if self.cosmo.Ode0 > 0:
             xn = (2.0 * w) ** (1.0 / 3)
             aofxn = self._general_case(w, xn)
             x = a * xn
             aofx = self._general_case(w, x)
             return aofx / aofxn
-        else:
-            dn = (
-                1
-                + 3 / w
-                + (3 * ((1 + w) ** 0.5) / w**1.5) * np.log((1 + w) ** 0.5 - w**0.5)
-            )
-            x = w * a
-            return (
-                1
-                + 3 / x
-                + (3 * ((1 + x) ** 0.5) / x**1.5) * np.log((1 + x) ** 0.5 - x**0.5)
-            ) / dn
+        dn = 1 + 3 / w + (3 * ((1 + w) ** 0.5) / w**1.5) * np.log((1 + w) ** 0.5 - w**0.5)
+        x = w * a
+        return (1 + 3 / x + (3 * ((1 + x) ** 0.5) / x**1.5) * np.log((1 + x) ** 0.5 - x**0.5)) / dn
 
 
 @_inherit
@@ -402,10 +394,11 @@ class Carroll1992(GrowthFactor):
         the :attr:`_defaults` class attribute.
 
         :dz: Step-size for redshift spline
-        :zmax: Maximum redshift of spline. Only used for :meth:`growth_factor_fn`, when `inverse=True`.
+        :zmax: Maximum redshift of spline. Only used for :meth:`growth_factor_fn`, when
+               `inverse=True`.
     """
 
-    _defaults = {"dz": 0.01, "zmax": 1000.0}
+    _defaults: ClassVar[dict[str, float]] = {"dz": 0.01, "zmax": 1000.0}
 
     @cached_property
     def _lna(self):
@@ -417,9 +410,11 @@ class Carroll1992(GrowthFactor):
 
     def _d_plus(self, z):
         """
-        Calculate un-normalised growth factor as a function
-        of redshift. Note that the `getvec` argument is not
-        used in this function.
+        Calculate the unnormalized growth factor.
+
+        Function of redshift. The `getvec` argument is not used
+        in this function.
+
         """
         a = 1 / (1 + z)
 
@@ -438,10 +433,12 @@ if HAVE_CAMB:
     @_inherit
     class CambGrowth(GrowthFactor):
         """
-        Uses CAMB to generate the growth factor, at k/h = 1.0. This class is recommended
-        if the cosmology is not LambdaCDM (but instead wCDM), as it correctly deals with
-        the growth in this case. However, it standard LCDM is used, other classes are
-        preferred, as this class needs to re-calculate the transfer function.
+        Growth factor computed using CAMB at k/h = 1.0.
+
+        Recommended for non-LambdaCDM cosmologies (e.g., wCDM) as it correctly
+        deals with their growth evolution. For standard LCDM, other classes are
+        preferred since this class requires re-calculating the transfer function.
+
         """
 
         supported_cosmos = (cosmology.LambdaCDM, cosmology.w0waCDM, cosmology.wCDM)
@@ -494,9 +491,7 @@ if HAVE_CAMB:
         @cached_property
         def _t0(self):
             """The Transfer function at z=0."""
-            return self._camb_transfers.get_redshift_evolution(1.0, 0.0, ["delta_tot"])[
-                0
-            ][0]
+            return self._camb_transfers.get_redshift_evolution(1.0, 0.0, ["delta_tot"])[0][0]
 
         def growth_factor(self, z):
             """
@@ -513,17 +508,15 @@ if HAVE_CAMB:
                 The normalised growth factor.
             """
             growth = (
-                self._camb_transfers.get_redshift_evolution(
-                    1.0, z, ["delta_tot"]
-                ).flatten()
+                self._camb_transfers.get_redshift_evolution(1.0, z, ["delta_tot"]).flatten()
                 / self._t0
             )
             if len(growth) == 1:
                 return growth[0]
-            else:
-                return growth
+            return growth
 
         def __getstate__(self):
+            """Get the state of the object, including converting the CAMBparams object to a dict."""
             dct = self.__dict__.copy()
 
             # Can't pickle/copy CAMBparams or CAMBResults
@@ -534,6 +527,7 @@ if HAVE_CAMB:
             return dct
 
         def __setstate__(self, state):
+            """Set the state of the object, including reconstructing the CAMBparams object."""
             self.__dict__ = state
 
             self.p = self._get_camb_params(self.cosmo)

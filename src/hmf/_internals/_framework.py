@@ -1,11 +1,12 @@
 """Classes defining the overall structure of the hmf framework."""
 
 import copy
-import deprecation
 import logging
 import sys
 import warnings
-from typing import Dict, List, Optional, Type, Union
+from typing import Any, ClassVar
+
+import deprecation
 
 logger = logging.getLogger(__name__)
 
@@ -24,32 +25,30 @@ class Component:
     the __init__ method.
     """
 
-    _defaults = {}
+    _defaults: ClassVar[dict[str, Any]] = {}
 
     def __init__(self, **model_params):
         # Check that all parameters passed are valid
         for k in model_params:
             if k not in self._defaults:
-                raise ValueError(
-                    f"{k} is not a valid argument for {self.__class__.__name__}."
-                )
+                raise ValueError(f"{k} is not a valid argument for {self.__class__.__name__}.")
 
         # Gather model parameters
         self.params = copy.copy(self._defaults)
         self.params.update(model_params)
 
     @classmethod
-    def get_models(cls) -> Dict[str, Type]:
+    def get_models(cls) -> dict[str, type]:
         """Get a dictionary of all implemented models for this component."""
         return cls._plugins
 
 
-def get_base_components() -> List[Type[Component]]:
+def get_base_components() -> list[type[Component]]:
     """Get a list of classes defining base components."""
     return Component.__subclasses__()
 
 
-def get_base_component(name: [str, Type[Component]]) -> Type[Component]:
+def get_base_component(name: [str, type[Component]]) -> type[Component]:
     """Return an actual class representing a component.
 
     Parameters
@@ -67,20 +66,18 @@ def get_base_component(name: [str, Type[Component]]) -> Type[Component]:
         avail = [cmp for cmp in get_base_components() if cmp.__name__ == name]
         if not avail:
             raise ValueError(
-                f"There are no components called '{name}'. Available: "
-                f"{get_base_components()}"
+                f"There are no components called '{name}'. Available: {get_base_components()}"
             )
         if len(avail) > 1:
             warnings.warn(
-                f"More than one component called '{name}'. Returning {avail[-1]}."
+                f"More than one component called '{name}'. Returning {avail[-1]}.", stacklevel=2
             )
         return avail[-1]
-    else:
-        try:
-            assert issubclass(name, Component)
-            return name
-        except TypeError:
-            raise ValueError(f"{name} must be str or a Component subclass")
+    try:
+        assert issubclass(name, Component)
+        return name
+    except TypeError as e:
+        raise ValueError(f"{name} must be str or a Component subclass") from e
 
 
 def pluggable(cls):
@@ -99,9 +96,9 @@ def pluggable(cls):
 
 
 def get_mdl(
-    name: Union[str, Type[Component]],
-    kind: Optional[Union[str, Type[Component]]] = None,
-) -> Type[Component]:
+    name: str | type[Component],
+    kind: str | type[Component] | None = None,
+) -> type[Component]:
     """Return a defined model with given name.
 
     Parameters
@@ -123,11 +120,11 @@ def get_mdl(
         if kind is not None:
             try:
                 return kind._plugins[name]
-            except KeyError:
+            except KeyError as e:
                 raise ValueError(
                     f"The model {name} is not a defined {kind} model. Available: "
                     f"{tuple(kind._plugins.keys())}"
-                )
+                ) from e
         else:
             # Try to get *any* model called by this name.
             avail_models = [
@@ -139,7 +136,8 @@ def get_mdl(
             if len(avail_models) > 1:
                 warnings.warn(
                     f"More than one model was found with name '{name}'. Returning "
-                    f"{avail_models[-1][1]}."
+                    f"{avail_models[-1][1]}.",
+                    stacklevel=2,
                 )
             if not avail_models:
                 raise ValueError(f"No model found with name '{name}'.")
@@ -148,13 +146,11 @@ def get_mdl(
         try:
             assert issubclass(name, kind or Component)
             return name
-        except TypeError:
-            raise ValueError(f"{name} must be str or Component subclass")
+        except TypeError as e:
+            raise ValueError(f"{name} must be str or Component subclass") from e
 
 
-@deprecation.deprecated(
-    "3.3.0", removed_in="4.0.0", details="Use get_mdl instead of get_model_"
-)
+@deprecation.deprecated("3.3.0", removed_in="4.0.0", details="Use get_mdl instead of get_model_")
 def get_model_(name, mod):
     """
     Returns a class ``name`` from the module ``mod``.
@@ -192,7 +188,7 @@ def get_model(name, mod, **kwargs):
 
 class _Validator(type):
     def __call__(cls, *args, **kwargs):
-        """Called when you call MyNewClass()"""
+        """Called when you call MyNewClass()."""
         obj = type.__call__(cls, *args, **kwargs)
         obj.validate()
         return obj
@@ -215,16 +211,12 @@ class Framework(metaclass=_Validator):
     """
 
     _validate = True
-    _validate_every_param_set = False
 
     def validate(self):
         """Perform validation of the input parameters as they relate to each other."""
-        pass
 
     def update(self, **kwargs):
-        """
-        Update parameters of the framework with kwargs.
-        """
+        """Update parameters of the framework with kwargs."""
         self._validate = False
         try:
             for k in list(kwargs.keys()):
@@ -234,9 +226,7 @@ class Framework(metaclass=_Validator):
 
                 # If key is a dictionary of parameters to a sub-framework,
                 # update the sub-framework
-                elif k.endswith("_params") and isinstance(
-                    getattr(self, k[:-7]), Framework
-                ):
+                elif k.endswith("_params") and isinstance(getattr(self, k[:-7]), Framework):
                     getattr(self, k[:-7]).update(**kwargs.pop(k))
             self._validate = True
             self.validate()
@@ -245,7 +235,7 @@ class Framework(metaclass=_Validator):
             raise
 
         if kwargs:
-            raise ValueError("Invalid arguments: %s" % kwargs)
+            raise ValueError(f"Invalid arguments: {kwargs}")
 
     def clone(self, **kwargs):
         """Create and return an updated clone of the current object."""
@@ -269,9 +259,7 @@ class Framework(metaclass=_Validator):
             for name, default in out.items():
                 if default == {} and name.endswith("_params"):
                     try:
-                        out[name] = getattr(
-                            K, name.replace("_params", "_model")
-                        )._defaults
+                        out[name] = getattr(K, name.replace("_params", "_model"))._defaults
 
                     except Exception:
                         logger.info(
@@ -283,12 +271,10 @@ class Framework(metaclass=_Validator):
 
     @property
     def parameter_values(self):
-        """Dictionary of all parameters and their current values"""
+        """Dictionary of all parameters and their current values."""
         return {
             name: getattr(self, name)
-            for name in getattr(
-                self, "_" + self.__class__.__name__ + "__recalc_par_prop"
-            )
+            for name in getattr(self, "_" + self.__class__.__name__ + "__recalc_par_prop")
         }
 
     @classmethod
@@ -298,14 +284,12 @@ class Framework(metaclass=_Validator):
         return [
             name
             for name in dir(cls)
-            if name not in all_names
-            and not name.startswith("__")
-            and name not in dir(Framework)
+            if name not in all_names and not name.startswith("__") and name not in dir(Framework)
         ]
 
     @classmethod
     def _get_all_parameters(cls):
-        """Yield all parameters as tuples of (name,obj)"""
+        """Yield all parameters as tuples of (name,obj)."""
         for name in cls.get_all_parameter_names():
             yield name, getattr(cls, name)
 
@@ -328,9 +312,7 @@ class Framework(metaclass=_Validator):
             getattr(self, quant)
 
             deps.update(
-                getattr(
-                    self, "_" + self.__class__.__name__ + "__recalc_prop_par_static"
-                )[quant]
+                getattr(self, "_" + self.__class__.__name__ + "__recalc_prop_par_static")[quant]
             )
 
         return deps

@@ -1,8 +1,9 @@
 """Utilities for interacting with hmf TOML configs."""
 
-from astropy.units import Quantity
-from datetime import datetime
+from datetime import UTC, datetime
 from inspect import signature
+
+from astropy.units import Quantity
 
 from hmf._internals._framework import Framework
 
@@ -11,15 +12,14 @@ from .. import __version__
 
 def framework_to_dict(obj: Framework) -> dict:
     """Serialize a framework instance to a simple TOML-able dictionary."""
-
-    out = {"created_on": datetime.now(), "hmf_version": __version__, "params": {}}
+    out = {"created_on": datetime.now(tz=UTC), "hmf_version": __version__, "params": {}}
 
     for k, v in obj.parameter_values.items():
         if k == "cosmo_model":
             out["params"][k] = v.name
         elif k == "cosmo_params":
             params = {}
-            for key in signature(obj.cosmo.__init__).parameters.keys():
+            for key in signature(obj.cosmo.__init__).parameters:
                 val = getattr(obj.cosmo, key)
                 if isinstance(val, Quantity):
                     val = {"value": val.value, "unit": str(val.unit)}
@@ -37,9 +37,7 @@ def framework_to_dict(obj: Framework) -> dict:
             val = getattr(obj, k)
             if val is None:
                 obj_val = getattr(obj, k.split("_model")[0])
-                out["params"][k] = (
-                    None if obj_val is None else obj_val.__class__.__name__
-                )
+                out["params"][k] = None if obj_val is None else obj_val.__class__.__name__
             else:
                 out["params"][k] = val.__name__
 

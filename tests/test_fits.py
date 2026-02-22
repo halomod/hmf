@@ -1,9 +1,8 @@
-import pytest
-from pytest import raises
-
 import inspect
 import itertools
+
 import numpy as np
+import pytest
 
 from hmf import MassFunction
 from hmf.mass_function import fitting_functions as ff
@@ -12,10 +11,12 @@ allfits = [
     o
     for n, o in inspect.getmembers(
         ff,
-        lambda member: inspect.isclass(member)
-        and issubclass(member, ff.FittingFunction)
-        and member is not ff.FittingFunction
-        and member is not ff.PS,
+        lambda member: (
+            inspect.isclass(member)
+            and issubclass(member, ff.FittingFunction)
+            and member is not ff.FittingFunction
+            and member is not ff.PS
+        ),
     )
 ]
 
@@ -44,15 +45,18 @@ def ps_max(hmf):
     return hmf.fsigma.max()
 
 
-@pytest.mark.parametrize("redshift, fit", itertools.product([0.0, 2.0], allfits))
+@pytest.mark.parametrize(("redshift", "fit"), itertools.product([0.0, 2.0], allfits))
 def test_allfits(hmf, ps_max, redshift, fit):
     """
-    This basically tests all implemented fits to check the form for three things:
-    1) whether the maximum fsigma is less than in the PS formula (which is known to overestimate)
-    2) whether the slope is positive below this maximum
-    3) whether the slope is negative above this maximum
+    Test all implemented fits for correct form and behavior.
+
+    Tests that:
+    1) the maximum fsigma is less than in the PS formula (which is known to overestimate)
+    2) the slope is positive below this maximum
+    3) the slope is negative above this maximum
 
     Since it calls each class, any blatant errors should also pop up.
+
     """
     hmf.update(z=redshift, hmf_model=fit)
     maxarg = np.argmax(hmf.fsigma)
@@ -91,23 +95,19 @@ def test_tinker10_dh():
 
 
 def test_tinker10_neg_gam():
-    with raises(ValueError):
-        h = MassFunction(
-            hmf_model="Tinker10", hmf_params={"gamma_200": -1}, transfer_model="EH"
-        )
+    with pytest.raises(ValueError):
+        h = MassFunction(hmf_model="Tinker10", hmf_params={"gamma_200": -1}, transfer_model="EH")
         h.fsigma
 
 
 def test_tinker10_neg_eta():
-    with raises(ValueError):
-        h = MassFunction(
-            hmf_model="Tinker10", hmf_params={"eta_200": -1}, transfer_model="EH"
-        )
+    with pytest.raises(ValueError):
+        h = MassFunction(hmf_model="Tinker10", hmf_params={"eta_200": -1}, transfer_model="EH")
         h.fsigma
 
 
 def test_tinker10_neg_etaphi():
-    with raises(ValueError):
+    with pytest.raises(ValueError):
         h = MassFunction(
             hmf_model="Tinker10",
             hmf_params={"eta_200": -1, "phi_200": 0},
@@ -117,8 +117,6 @@ def test_tinker10_neg_etaphi():
 
 
 def test_tinker10_neg_beta():
-    with raises(ValueError):
-        h = MassFunction(
-            hmf_model="Tinker10", hmf_params={"beta_200": -1}, transfer_model="EH"
-        )
+    with pytest.raises(ValueError):
+        h = MassFunction(hmf_model="Tinker10", hmf_params={"beta_200": -1}, transfer_model="EH")
         h.fsigma

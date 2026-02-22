@@ -1,16 +1,12 @@
-"""
-A supporting module that provides a routine to integrate the differential hmf in a robust manner.
-"""
+"""A supporting module with a routine to integrate the differential hmf in a robust manner."""
 
 import numpy as np
 import scipy.integrate as intg
-from scipy.interpolate import InterpolatedUnivariateSpline as _spline
+from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 
 
-class NaNException(Exception):
+class NaNError(Exception):
     """Integrator hit a NaN."""
-
-    pass
 
 
 def hmf_integral_gtm(m, dndm, mass_density=False):
@@ -61,14 +57,14 @@ def hmf_integral_gtm(m, dndm, mass_density=False):
     dndlnm = m * dndm
 
     if len(m) < 4:
-        raise NaNException(
+        raise NaNError(
             f"There are too few real numbers in dndm: len(dndm) = {n}, #NaN's = {n - len(m)}"
         )
 
     # Calculate the mass function (and its integral) from the highest M up to 10**18
     if m[-1] < m[0] * 10**18 / m[3]:
         m_upper = np.arange(np.log(m[-1]), np.log(10**18), np.log(m[1]) - np.log(m[0]))
-        mf_func = _spline(np.log(m), np.log(dndlnm), k=1)
+        mf_func = Spline(np.log(m), np.log(dndlnm), k=1)
         mf = mf_func(m_upper)
 
         if not mass_density:
@@ -89,9 +85,9 @@ def hmf_integral_gtm(m, dndm, mass_density=False):
     else:
         ngtm = np.concatenate(
             (
-                intg.cumulative_trapezoid(
-                    m[::-1] * dndlnm[::-1], dx=np.log(m[1]) - np.log(m[0])
-                )[::-1],
+                intg.cumulative_trapezoid(m[::-1] * dndlnm[::-1], dx=np.log(m[1]) - np.log(m[0]))[
+                    ::-1
+                ],
                 np.zeros(1),
             )
         )

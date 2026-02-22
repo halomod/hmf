@@ -1,40 +1,38 @@
 """Tests of HMF."""
 
-import pytest
-from pytest import raises
-
 import numpy as np
+import pytest
 
 from hmf import MassFunction
 
 
 def test_wrong_filter():
-    with raises(ValueError):
+    with pytest.raises(ValueError, match=r"2 must be str or Component subclass"):
         MassFunction(filter_model=2)
 
 
 def test_string_dc():
-    with raises(ValueError):
+    with pytest.raises(ValueError, match=r"delta_c must be a number"):
         MassFunction(delta_c="this")
 
 
 def test_neg_dc():
-    with raises(ValueError):
+    with pytest.raises(ValueError, match=r"delta_c must be > 0"):
         MassFunction(delta_c=-1)
 
 
 def test_big_dc():
-    with raises(ValueError):
+    with pytest.raises(ValueError, match=r"delta_c must be < 10.0"):
         MassFunction(delta_c=20.0)
 
 
 def test_wrong_fit():
-    with raises(ValueError):
+    with pytest.raises(ValueError, match=r"must be str or Component subclass"):
         MassFunction(hmf_model=1)
 
 
 def test_wrong_mf_par():
-    with raises(ValueError):
+    with pytest.raises(ValueError, match=r"hmf_params must be a dictionary"):
         MassFunction(hmf_params=2)
 
 
@@ -47,7 +45,7 @@ def test_str_filter():
 
 def test_mass_nonlinear_outside_range():
     h = MassFunction(Mmin=8, Mmax=9, transfer_model="EH")
-    with pytest.warns(UserWarning):
+    with pytest.warns(UserWarning, match="Nonlinear mass outside mass range"):
         assert h.mass_nonlinear > 0
 
 
@@ -63,6 +61,4 @@ def test_sigma8z():
 
 def test_neff_at_collapse():
     h = MassFunction(Mmin=8, Mmax=18, transfer_model="EH")
-    assert np.allclose(
-        h.n_eff_at_collapse, h.n_eff[np.argmin(np.abs(h.nu - 1.0))], rtol=0.05
-    )
+    assert np.allclose(h.n_eff_at_collapse, h.n_eff[np.argmin(np.abs(h.nu - 1.0))], rtol=0.05)

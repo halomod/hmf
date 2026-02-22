@@ -1,7 +1,6 @@
-import pytest
-
 import camb
 import numpy as np
+import pytest
 from astropy.cosmology import FlatLambdaCDM, LambdaCDM, w0waCDM, wCDM
 
 from hmf.density_field.transfer import Transfer
@@ -13,35 +12,24 @@ def transfers():
 
 
 @pytest.mark.parametrize(
-    [
-        "name",
-        "val",
-    ],
+    ("name", "val"),
     [("z", 0.1), ("sigma_8", 0.82), ("n", 0.95), ("cosmo_params", {"H0": 68.0})],
 )
 def test_updates(transfers, name, val):
     t, t2 = transfers
     t.update(**{name: val})
-    assert (
-        np.mean(np.abs((t.power - t2.power) / t.power)) < 1
-        and np.mean(np.abs((t.power - t2.power) / t.power)) > 1e-6
-    )
+    assert np.mean(np.abs((t.power - t2.power) / t.power)) < 1
+    assert np.mean(np.abs((t.power - t2.power) / t.power)) > 1e-6
 
 
 def test_updates_from_file_array(datadir):
     tdata = np.genfromtxt(f"{datadir}/transfer_for_hmf_tests.dat")
-    t = Transfer(
-        transfer_model="FromArray", transfer_params={"k": tdata[:, 0], "T": tdata[:, 1]}
-    )
-    t2 = Transfer(
-        transfer_model="FromArray", transfer_params={"k": tdata[:, 0], "T": tdata[:, 1]}
-    )
+    t = Transfer(transfer_model="FromArray", transfer_params={"k": tdata[:, 0], "T": tdata[:, 1]})
+    t2 = Transfer(transfer_model="FromArray", transfer_params={"k": tdata[:, 0], "T": tdata[:, 1]})
     t2.update(transfer_params={"k": tdata[::2, 0], "T": tdata[::2, 1]})
     # This test for both FromArray transfer model and caching of dictionaries
-    assert (
-        np.mean(np.abs((t.power - t2.power) / t.power)) < 1
-        and np.mean(np.abs((t.power - t2.power) / t.power)) > 1e-6
-    )
+    assert np.mean(np.abs((t.power - t2.power) / t.power)) < 1
+    assert np.mean(np.abs((t.power - t2.power) / t.power)) > 1e-6
 
 
 def test_halofit():
@@ -96,9 +84,7 @@ def test_camb_extrapolation():
 
 def test_camb_neutrinos():
     # Correct parameter settings:
-    cosmo_model = FlatLambdaCDM(
-        Om0=0.3, H0=70.0, Ob0=0.05, m_nu=[0, 0, 0.06], Tcmb0=2.7255
-    )
+    cosmo_model = FlatLambdaCDM(Om0=0.3, H0=70.0, Ob0=0.05, m_nu=[0, 0, 0.06], Tcmb0=2.7255)
 
     t_nu = Transfer(
         cosmo_model=cosmo_model,
@@ -142,13 +128,9 @@ def test_camb_neutrinos():
     diff = np.abs((camb_t - hmf_t) / camb_t)
 
     camb_cosmo = camb.get_background(t_nu.transfer.params["camb_params"])
-    sum_omega_astropy = (
-        t_nu.cosmo_model.Odm0 + t_nu.cosmo_model.Ob0 + t_nu.cosmo_model.Onu0
-    )
+    sum_omega_astropy = t_nu.cosmo_model.Odm0 + t_nu.cosmo_model.Ob0 + t_nu.cosmo_model.Onu0
     sum_omega_camb = (
-        camb_cosmo.get_Omega("tot")
-        - camb_cosmo.get_Omega("photon")
-        - camb_cosmo.omega_de
+        camb_cosmo.get_Omega("tot") - camb_cosmo.get_Omega("photon") - camb_cosmo.omega_de
     )
 
     assert diff <= 1e-3
@@ -170,15 +152,13 @@ def test_camb_w0wa():
     """Essentially just test that CAMB doesn't fall over with a w0wa model."""
     t = Transfer(
         transfer_model="CAMB",
-        cosmo_model=w0waCDM(
-            Om0=0.3, Ode0=0.7, w0=-1, wa=0.03, Ob0=0.05, H0=70.0, Tcmb0=2.7
-        ),
+        cosmo_model=w0waCDM(Om0=0.3, Ode0=0.7, w0=-1, wa=0.03, Ob0=0.05, H0=70.0, Tcmb0=2.7),
         transfer_params={"extrapolate_with_eh": True},
     )
     assert t.transfer_function.shape == t.k.shape
 
 
-def test_camb_wCDM():
+def test_camb_wcdm():
     """Essentially just test that CAMB doesn't fall over with a w0wa model."""
     t = Transfer(
         transfer_model="CAMB",
@@ -195,17 +175,19 @@ def test_camb_wCDM():
 
 
 def test_camb_unset_params():
-    with pytest.raises(ValueError):
-        Transfer(
-            transfer_model="CAMB",
-            cosmo_model=w0waCDM(Om0=0.3, Ode0=0.7, w0=-1, wa=0.03, Ob0=0.05, H0=70.0),
-        ).transfer
+    t = Transfer(
+        transfer_model="CAMB",
+        cosmo_model=w0waCDM(Om0=0.3, Ode0=0.7, w0=-1, wa=0.03, Ob0=0.05, H0=70.0),
+    )
+    with pytest.raises(ValueError, match="the CMB temperature must be set explicitly"):
+        t.transfer
 
-    with pytest.raises(ValueError):
-        Transfer(
-            transfer_model="CAMB",
-            cosmo_model=w0waCDM(Om0=0.3, Ode0=0.7, w0=-1, wa=0.03, H0=70.0, Tcmb0=2.7),
-        ).transfer
+    t = Transfer(
+        transfer_model="CAMB",
+        cosmo_model=w0waCDM(Om0=0.3, Ode0=0.7, w0=-1, wa=0.03, H0=70.0, Tcmb0=2.7),
+    )
+    with pytest.raises(ValueError, match="you must set the baryon density"):
+        t.transfer
 
 
 def test_bbks_sugiyama():

@@ -1,7 +1,8 @@
 """
-This module defines two decorators, based on the code from
-http://forrst.com/posts/Yet_another_caching_property_decorator_for_Pytho-PBy
+Defines caching and parameter decorators for property management.
 
+This module defines two decorators, based on the code from
+http://forrst.com/posts/Yet_another_caching_property_decorator_for_Pytho-PBy.
 They are both designed to cache class properties, but have the added
 functionality of being automatically updated when a parent property is
 updated.
@@ -10,6 +11,7 @@ updated.
 import warnings
 from copy import deepcopy
 from functools import update_wrapper
+
 from numpy import array_equal
 
 
@@ -77,10 +79,11 @@ def cached_quantity(f):
             for pr in activeq:
                 try:
                     recalc_prpa[pr].update(recalc_prpa[name])
-                except KeyError:
+                except KeyError as e:
                     raise KeyError(
-                        f"When getting {name}, couldn't find {pr} in recalc_prpa. Had {list(recalc_prpa.keys())}."
-                    )
+                        f"When getting {name}, couldn't find {pr} in recalc_prpa. "
+                        f"Had {list(recalc_prpa.keys())}."
+                    ) from e
 
             # check all quantities for dependence on subframeworks and update their entries
             for s in subframeworks:
@@ -93,7 +96,7 @@ def cached_quantity(f):
             return getattr(self, prop)
 
         # Otherwise, if its in recalc, and needs updating, just update it
-        elif name in recalc:
+        if name in recalc:
             value = f(self)
             setattr(self, prop, value)
 
@@ -106,9 +109,7 @@ def cached_quantity(f):
         # if name is already there, can only be because the method has been supered.
         supered = name in activeq
         if not supered:
-            recalc_prpa[name] = (
-                set()
-            )  # Empty set to which parameter names will be added
+            recalc_prpa[name] = set()  # Empty set to which parameter names will be added
             activeq.add(name)
 
         # Go ahead and calculate the value -- each parameter accessed will add itself to the index.
@@ -160,12 +161,12 @@ def cached_quantity(f):
         try:
             del getattr(self, recalc)[name]
         except KeyError:
-            warnings.warn(f"{name} not found in recalc cache.")
+            warnings.warn(f"{name} not found in recalc cache.", stacklevel=2)
 
         try:
             del getattr(self, recalc_prpa)[name]
         except KeyError:
-            warnings.warn(f"{name} not found in recalc_prop_par cache")
+            warnings.warn(f"{name} not found in recalc_prop_par cache", stacklevel=2)
 
     return property(_get_property, None, _del_property)
 
@@ -196,9 +197,10 @@ def parameter(kind):
     Parameters
     ----------
     kind : str
-        Either "param", "option", "model", "switch" or "res". Changes the behaviour of the parameter.
-        "param", "option", "model" and "res" all behave the same currently, while when a "switch" is modified,
-        all dependent quantities have their dependencies re-indexed.
+        Either "param", "option", "model", "switch" or "res". Changes the behaviour of the
+        parameter. "param", "option", "model" and "res" all behave the same currently,
+        while when a "switch" is modified, all dependent quantities have their dependencies
+        re-indexed.
 
     Examples
     --------
@@ -230,11 +232,7 @@ def parameter(kind):
             val = f(self, val)
 
             # Here put any custom code that should be run, dependent on the type of parameter
-            if (
-                name.endswith("_params")
-                and not isinstance(val, dict)
-                and val is not None
-            ):
+            if name.endswith("_params") and not isinstance(val, dict) and val is not None:
                 raise ValueError(f"{name} must be a dictionary")
 
             # Locations of indexes
@@ -287,16 +285,14 @@ def parameter(kind):
                         delattr(self, pr)
 
                 if not doset and self._validate:
-                    if self._validate_every_param_set:
-                        self.validate()
-                    else:
-                        warnings.warn(
-                            f"You are setting {name} directly. This is unstable, as less "
-                            f"validation is performed. You can turn on extra validation "
-                            f"for directly set parameters by setting framework._validate_every_param_set=True."
-                            f"However, this can be brittle, since intermediate states may not be valid.",
-                            category=DeprecationWarning,
-                        )
+                    warnings.warn(
+                        f"You are setting {name} directly. This is not recommended, "
+                        f"as validation is required on every change. Please use the update "
+                        f"method instead.Setting directly will become an error in v4.",
+                        stacklevel=2,
+                    )
+
+                    self.validate()
 
         update_wrapper(_set_property, f)
 
@@ -322,14 +318,7 @@ def parameter(kind):
 
 
 def subframework(f):
-    """
-    A quantity that is essentially a sub-framework
-    Parameters
-    ----------
-    f
-    Returns
-    -------
-    """
+    """Define a decorator that creates quantities that are essentially a sub-framework."""
     name = f.__name__
 
     def _get_property(self):

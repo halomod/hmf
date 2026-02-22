@@ -5,7 +5,7 @@ Provides routines for sampling theoretical functions, and for binning sampled da
 """
 
 import numpy as np
-from scipy.interpolate import InterpolatedUnivariateSpline as _spline
+from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 
 from ..mass_function import hmf
 
@@ -14,7 +14,7 @@ def _prepare_mf(log_mmin, **mf_kwargs):
     h = hmf.MassFunction(Mmin=log_mmin, **mf_kwargs)
     mask = h.ngtm > 0
     _icdf = np.log10(h.ngtm[mask] / h.ngtm[0])
-    icdf = _spline(_icdf[::-1], np.log10(h.m[mask][::-1]), k=3)
+    icdf = Spline(_icdf[::-1], np.log10(h.m[mask][::-1]), k=3)
 
     return icdf, h
 

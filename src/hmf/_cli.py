@@ -1,17 +1,18 @@
 """Module that contains the command line app."""
 
-import click
 import importlib
+from pathlib import Path
+from time import time
+
+import click
 import numpy as np
 import toml
 from astropy.units import Quantity
-from pathlib import Path
 from rich import box
 from rich.console import Console
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.table import Table
-from time import time
 
 import hmf
 from hmf.helpers.functional import get_hmf
@@ -25,7 +26,7 @@ def _get_config(config=None):
     if config is None:
         return {}
 
-    with open(config) as fl:
+    with Path(config).open() as fl:
         cfg = toml.load(fl)
 
     # Import an actual framework.
@@ -184,22 +185,18 @@ def run_cli(config, pkg_name, args, outdir, label, pkgs, default_framework):
         t = time()
 
         # Write out quantities
-        for qname, q in zip(quantities, quants):
+        for qname, q in zip(quantities, quants, strict=True):
             np.savetxt(outdir / f"{lab}_{qname}.txt", q)
 
-        console.print(
-            f"   Writing quantities to [cyan]{outdir}/{lab}_<quantity>.txt[/cyan]."
-        )
+        console.print(f"   Writing quantities to [cyan]{outdir}/{lab}_<quantity>.txt[/cyan].")
 
         # Write out parameters
         dct = framework_to_dict(obj)
         dct["quantities"] = quantities
-        with open(outdir / f"{lab}_cfg.toml", "w") as fl:
+        with (outdir / f"{lab}_cfg.toml").open("w") as fl:
             toml.dump(dct, fl, encoder=toml.TomlNumpyEncoder())
 
-        console.print(
-            f"   Writing full config to [cyan]{outdir}/{lab}_cfg.toml[/cyan]."
-        )
+        console.print(f"   Writing full config to [cyan]{outdir}/{lab}_cfg.toml[/cyan].")
         console.print()
 
     console.print(Rule("Finished!", style="grey53"), style="bold green")
