@@ -5,12 +5,12 @@ from .fitting_functions import PS, SMT, FittingFunction, Tinker08
 from .hmf import MassFunction
 
 __all__ = [
-    "fitting_functions",
-    "hmf",
-    "integrate_hmf",
     "PS",
     "SMT",
     "FittingFunction",
-    "Tinker08",
     "MassFunction",
+    "Tinker08",
+    "fitting_functions",
+    "hmf",
+    "integrate_hmf",
 ]

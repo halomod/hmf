@@ -12,12 +12,12 @@ from .transfer import Transfer
 from .transfer_models import CAMB, EH
 
 __all__ = [
-    "filters",
-    "transfer",
-    "transfer_models",
-    "Filter",
-    "halofit",
-    "Transfer",
     "CAMB",
     "EH",
+    "Filter",
+    "Transfer",
+    "filters",
+    "halofit",
+    "transfer",
+    "transfer_models",
 ]

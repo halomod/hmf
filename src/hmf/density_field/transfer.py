@@ -6,8 +6,9 @@ calculate the transfer function, matter power spectrum and several other
 related quantities.
 """
 
-import numpy as np
 from typing import override
+
+import numpy as np
 
 from .._internals._cache import cached_quantity, parameter
 from .._internals._framework import get_mdl

@@ -8,11 +8,11 @@ may be implemented.
 """
 
 from functools import cached_property
-from typing import Any, ClassVar, Final, override
+from typing import Any, ClassVar, Final
 
 import numpy as np
 from astropy import cosmology
-from scipy.interpolate import InterpolatedUnivariateSpline as _spline
+from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 
 from .._internals._framework import Component as Cmpt
 from .._internals._framework import pluggable
@@ -83,7 +83,7 @@ class GrowthFactor(_GrowthFactor):
 
     @cached_property
     def integral(self):
-        """The integral :math:`\int_0^a da' / (a'^3 E(a')^3)`.
+        r"""The integral :math:`\int_0^a da' / (a'^3 E(a')^3)`.
         
         Parameters
         ----------
@@ -91,7 +91,7 @@ class GrowthFactor(_GrowthFactor):
             Scale factor(s) at which to evaluate the integral.
         """
         a = np.exp(self._lna)
-        return _spline(
+        return Spline(
             a, 2.5 * self.cosmo.Om0 / (a * self.cosmo.efunc(self._zvec)) ** 3
         ).antiderivative()
 
@@ -165,7 +165,7 @@ class GrowthFactor(_GrowthFactor):
 
         gf = self.growth_factor(self._zvec)
         idx = np.argsort(gf)
-        return _spline(gf[idx], self._zvec[idx])
+        return Spline(gf[idx], self._zvec[idx])
 
     def growth_rate(self, z):
         """
@@ -247,7 +247,7 @@ class FromFile(GrowthFactor):
 
         z_out = G[0, :]
         d_out = G[1, :]
-        return _spline(z_out, d_out, k=1)(z)
+        return Spline(z_out, d_out, k=1)(z)
 
 
 @_inherit
@@ -296,7 +296,7 @@ class FromArray(FromFile):
         if len(z_out) != len(d_out):
             raise ValueError("z and d must have same length")
 
-        return _spline(z_out, d_out, k=1)(z)
+        return Spline(z_out, d_out, k=1)(z)
 
 
 @_inherit
@@ -341,7 +341,7 @@ class GenMFGrowth(GrowthFactor):
         x = np.atleast_1d(x)
         xn_vec = np.linspace(0, x.max(), 1000)
 
-        func = _spline(xn_vec, (xn_vec / (xn_vec**3 + 2)) ** 1.5)
+        func = Spline(xn_vec, (xn_vec / (xn_vec**3 + 2)) ** 1.5)
 
         g = np.array([func.integral(0, y) for y in x])
         return ((x**3.0 + 2.0) ** 0.5) * (g / x**1.5)

@@ -11,7 +11,7 @@ from typing import Any, ClassVar, Final, override
 
 import numpy as np
 import scipy.special as sp
-from scipy.interpolate import InterpolatedUnivariateSpline as _spline
+from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 
 from .._internals import _framework
 from ..cosmology import cosmo as csm
@@ -328,6 +328,8 @@ class FittingFunction(_framework.Component):
 
 
 class PS(FittingFunction):
+    """Press-Schechter mass function fit."""
+
     # Subclass requirements
     req_sigma = False  #: Whether sigma is required to compute this model.
     req_z = False  #: Whether redshift is required for this model.
@@ -348,6 +350,8 @@ class PS(FittingFunction):
 
 
 class SMT(FittingFunction):
+    """Sheth-Mo-Tormen mass function fit."""
+
     # Subclass requirements
     req_sigma = False
     req_z = False
@@ -418,6 +422,8 @@ class ST(SMT):
 
 
 class Jenkins(FittingFunction):
+    """Jenkins mass function fit."""
+
     # Subclass requirements
     req_z = False
 
@@ -465,6 +471,8 @@ class Jenkins(FittingFunction):
 
 
 class Warren(FittingFunction):
+    """Warren mass function fit."""
+
     # Subclass requirements
     req_z = False
     req_mass = True
@@ -537,6 +545,8 @@ class Warren(FittingFunction):
 
 
 class Reed03(SMT):
+    """Reed 2003 mass function fit."""
+
     # Subclass requirements
     req_sigma = True
 
@@ -580,6 +590,8 @@ class Reed03(SMT):
 
 
 class Reed07(FittingFunction):
+    """Reed 2007 mass function fit."""
+
     req_neff = True
     req_z = False
 
@@ -663,6 +675,8 @@ class Reed07(FittingFunction):
 
 
 class Peacock(FittingFunction):
+    """Peacock mass function fit."""
+
     req_z = False
     req_mass = True
 
@@ -697,6 +711,8 @@ class Peacock(FittingFunction):
 
 
 class Angulo(FittingFunction):
+    """Angulo mass function fit."""
+
     req_mass = True
     _ref = """Angulo, R. E., et al., 2012. arXiv:1203.3216v1"""
     _eq = r"$A \left[\left(\frac{d}{\sigma}\right)^b + 1 \right] \exp(-c/\sigma^2)$"
@@ -738,11 +754,15 @@ class Angulo(FittingFunction):
 
 
 class AnguloBound(Angulo):
+    """Bounded version of Angulo mass function fit."""
+
     __doc__ = Angulo.__doc__
     _defaults: ClassVar[Final[dict[str, float]]] = {"A": 0.265, "b": 1.9, "c": 1.4, "d": 1.675}
 
 
 class Watson_FoF(Warren):
+    """Watson friend-of-friend mass function fit."""
+
     req_mass = False
 
     _ref = """Watson, W. A., et al., MNRAS, 2013. http://adsabs.harvard.edu/abs/2013MNRAS.433.1230W """
@@ -774,6 +794,8 @@ class Watson_FoF(Warren):
 
 
 class Watson(FittingFunction):
+    """Watson mass function fit."""
+
     req_cosmo = True
     req_dhalo = True
     req_omz = True
@@ -879,6 +901,8 @@ class Watson(FittingFunction):
 
 
 class Crocce(Warren):
+    """Crocce mass function fit."""
+
     req_z = True
 
     _ref = """Crocce, M., et al. MNRAS 403 (3), 1353-1367. http://doi.wiley.com/10.1111/j.1365-2966.2009.16194.x"""
@@ -928,6 +952,8 @@ class Crocce(Warren):
 
 
 class Courtin(SMT):
+    """Courtin mass function fit."""
+
     req_sigma = True
     _ref = """Courtin, J., et al., Oct. 2010. MNRAS 1931. http://doi.wiley.com/10.1111/j.1365-2966.2010.17573.x"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Courtin", "Ctn", SMT._eq, _ref)
@@ -960,6 +986,8 @@ class Courtin(SMT):
 
 
 class Bhattacharya(SMT):
+    """Bhattacharya mass function fit."""
+
     req_z = True
     req_mass = True
 
@@ -1054,6 +1082,8 @@ class Bhattacharya(SMT):
 
 
 class Tinker08(FittingFunction):
+    """Tinker 2008 mass function fit."""
+
     req_z = True
     req_dhalo = True
 
@@ -1337,10 +1367,10 @@ class Tinker08(FittingFunction):
             b_array = np.array([self.params[f"b_{d}"] for d in self.delta_virs])
             c_array = np.array([self.params[f"c_{d}"] for d in self.delta_virs])
 
-            A_func = _spline(self.delta_virs, A_array)
-            a_func = _spline(self.delta_virs, a_array)
-            b_func = _spline(self.delta_virs, b_array)
-            c_func = _spline(self.delta_virs, c_array)
+            A_func = Spline(self.delta_virs, A_array)
+            a_func = Spline(self.delta_virs, a_array)
+            b_func = Spline(self.delta_virs, b_array)
+            c_func = Spline(self.delta_virs, c_array)
 
             A_0 = A_func(delta_halo)
             a_0 = a_func(delta_halo)
@@ -1380,6 +1410,8 @@ class Tinker08(FittingFunction):
 
 
 class Tinker10(FittingFunction):
+    """Tinker 2010 mass function fit."""
+
     req_z = True
     req_dhalo = True
 
@@ -1473,10 +1505,10 @@ class Tinker10(FittingFunction):
             phi_array = np.array([self.params[f"phi_{d}"] for d in self.delta_virs])
             eta_array = np.array([self.params[f"eta_{d}"] for d in self.delta_virs])
 
-            beta_func = _spline(self.delta_virs, beta_array)
-            gamma_func = _spline(self.delta_virs, gamma_array)
-            phi_func = _spline(self.delta_virs, phi_array)
-            eta_func = _spline(self.delta_virs, eta_array)
+            beta_func = Spline(self.delta_virs, beta_array)
+            gamma_func = Spline(self.delta_virs, gamma_array)
+            phi_func = Spline(self.delta_virs, phi_array)
+            eta_func = Spline(self.delta_virs, eta_array)
 
             beta_0 = beta_func(delta_halo)
             gamma_0 = gamma_func(delta_halo)
@@ -1563,6 +1595,8 @@ class Tinker10(FittingFunction):
 
 
 class Behroozi(Tinker08):
+    """Behroozi mass function fit."""
+
     _ref = r"""Behroozi, P., Weschler, R. and Conroy, C., ApJ, 2013, http://arxiv.org/abs/1207.6105"""
     __doc__ = rf"""
     Behroozi mass function fit [1]_.
@@ -1628,6 +1662,8 @@ class Behroozi(Tinker08):
 
 
 class Pillepich(Warren):
+    """Pillepich mass function fit."""
+
     _ref = r"""Pillepich, A., et al., 2010, arxiv:0811.4176"""
     __doc__ = _makedoc(
         FittingFunction._pdocs, "Pillepich", "Pillepich", Warren._eq, _ref
@@ -1660,6 +1696,8 @@ class Pillepich(Warren):
 
 
 class Manera(SMT):
+    """Manera mass function fit."""
+
     _ref = r"""Manera, M., et al., 2010, arxiv:0906.1314"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Manera", "Man", SMT._eq, _ref)
     # These are for z=0, new ML method, l_linnk = 0.2
@@ -1690,6 +1728,8 @@ class Manera(SMT):
 
 
 class Ishiyama(Warren):
+    """Ishiyama mass function fit."""
+
     _eq = r"A\left[\left(\frac{e}{\sigma}\right)^b + 1\right]\exp(\frac{d}{\sigma^2})"
     _ref = r"""Ishiyama, T., et al., 2015, arxiv:1412.2860"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Ishiyama", "Ishiyama", _eq, _ref)
@@ -1726,6 +1766,8 @@ class Ishiyama(Warren):
 
 
 class Bocquet200mDMOnly(Warren):
+    """Bocquet mass function fit for 200m definition with dark matter only."""
+
     _eq = r"A\left[\left(\frac{e}{\sigma}\right)^b + 1\right]\exp(-\frac{d}{\sigma^2})"
     _ref = r"""Bocuet, S., et al., 2016, MNRAS 456 2361"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Bocquet", "Bocquet", _eq, _ref)
@@ -1796,6 +1838,8 @@ class Bocquet200mDMOnly(Warren):
 
 
 class Bocquet200mHydro(Bocquet200mDMOnly):
+    """Bocquet mass function fit for 200m definition with hydrodynamics."""
+
     __doc__ = _makedoc(
         FittingFunction._pdocs,
         "Bocquet",
@@ -1817,6 +1861,8 @@ class Bocquet200mHydro(Bocquet200mDMOnly):
 
 
 class Bocquet200cDMOnly(Bocquet200mDMOnly):
+    """Bocquet mass function fit for 200c definition with dark matter only."""
+
     __doc__ = _makedoc(
         FittingFunction._pdocs,
         "Bocquet",
@@ -1854,6 +1900,8 @@ class Bocquet200cDMOnly(Bocquet200mDMOnly):
 
 
 class Bocquet200cHydro(Bocquet200cDMOnly):
+    """Bocquet mass function fit for 200c definition with hydrodynamics."""
+
     __doc__ = _makedoc(
         FittingFunction._pdocs,
         "Bocquet",
@@ -1876,6 +1924,8 @@ class Bocquet200cHydro(Bocquet200cDMOnly):
 
 
 class Bocquet500cDMOnly(Bocquet200cDMOnly):
+    """Bocquet mass function fit for 500c definition with dark matter only."""
+
     __doc__ = _makedoc(
         FittingFunction._pdocs,
         "Bocquet",
@@ -1909,6 +1959,8 @@ class Bocquet500cDMOnly(Bocquet200cDMOnly):
 
 
 class Bocquet500cHydro(Bocquet500cDMOnly):
+    """Bocquet mass function fit for 500c definition with hydrodynamics."""
+
     __doc__ = _makedoc(
         FittingFunction._pdocs,
         "Bocquet",

@@ -1,6 +1,6 @@
 """Utilities for interacting with hmf TOML configs."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from inspect import signature
 
 from astropy.units import Quantity
@@ -12,7 +12,7 @@ from .. import __version__
 
 def framework_to_dict(obj: Framework) -> dict:
     """Serialize a framework instance to a simple TOML-able dictionary."""
-    out = {"created_on": datetime.now(tz=timezone.utc), "hmf_version": __version__, "params": {}}
+    out = {"created_on": datetime.now(tz=UTC), "hmf_version": __version__, "params": {}}
 
     for k, v in obj.parameter_values.items():
         if k == "cosmo_model":

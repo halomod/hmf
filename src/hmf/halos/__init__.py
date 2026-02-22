@@ -8,6 +8,6 @@ from . import mass_definitions
 from .mass_definitions import MassDefinition
 
 __all__ = [
-    "mass_definitions",
     "MassDefinition",
+    "mass_definitions",
 ]

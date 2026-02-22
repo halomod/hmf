@@ -10,14 +10,14 @@ import warnings
 from typing import Any, override
 
 import numpy as np
-from scipy.interpolate import InterpolatedUnivariateSpline as spline
+from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 from scipy.optimize import minimize
 
 from .._internals._cache import cached_quantity, parameter
 from .._internals._framework import get_mdl
 from ..density_field import transfer
 from ..density_field.filters import Filter, TopHat
-from ..halos.mass_definitions import MassDefinition as md
+from ..halos.mass_definitions import MassDefinition as MassDef
 from ..halos.mass_definitions import SOGeneric, SOMean
 from . import fitting_functions as ff
 from .integrate_hmf import hmf_integral_gtm as int_gtm
@@ -102,7 +102,7 @@ class MassFunction(transfer.Transfer):
         dlog10m: float = 0.01,
         hmf_model: str | ff.FittingFunction = ff.Tinker08,
         hmf_params: dict[str, Any] | None = None,
-        mdef_model: None | str | md = None,
+        mdef_model: None | str | MassDef = None,
         mdef_params: dict | None = None,
         delta_c: float = 1.686,
         filter_model: str | Filter = TopHat,
@@ -257,7 +257,7 @@ class MassFunction(transfer.Transfer):
         return self.mean_density0 * (1 + self.z) ** 3
 
     @cached_quantity
-    def mdef(self) -> md:
+    def mdef(self) -> MassDef:
         """The halo mass-definition model instance.
 
         Default mass definition is the one the chosen hmf model was measured with.
@@ -404,7 +404,7 @@ class MassFunction(transfer.Transfer):
         with length equal to ``len(m)``.
 
         """
-        return spline(self.m, self.nu, k=5)
+        return Spline(self.m, self.nu, k=5)
 
     @cached_quantity
     def mass_nonlinear(self):
@@ -439,7 +439,7 @@ class MassFunction(transfer.Transfer):
                 return self.filter.radius_to_mass(r, self.mean_density0)
             warnings.warn("Minimization failed :(", stacklevel=2)
             return 0
-        nu = spline(self.nu, self.m, k=5)
+        nu = Spline(self.nu, self.m, k=5)
         return nu(1)
 
     @cached_quantity
@@ -466,7 +466,7 @@ class MassFunction(transfer.Transfer):
     @cached_quantity
     def n_eff_at_collapse(self):
         """Effective spectral index at scale of halo radius at halo collapse."""
-        fnc = spline(self.nu, self.n_eff)
+        fnc = Spline(self.nu, self.n_eff)
         return fnc(1)
 
     @cached_quantity

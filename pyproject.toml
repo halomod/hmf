@@ -139,6 +139,8 @@ ignore = [
     # "A003",     # class attribute shadowing builtins
     # "RUF009",   # don;e perform function call in dataclass defaults
     "N806",  # Variable name should be lower case. We have some single-letter variables that make more sense to be caps.
+    "N803",  # Argument name should be lowercase. Scientific notation (N, L, R, Mmin, etc.) - changing would break API.
+    "N801",  # Class name should use CapWords. Names like Watson_FoF, EH_BAO are part of the public API.
     "D401",  # First line should be in imperative mood -- cached_properties and parameter descriptors don't fit this.
     # "N815",
     # "N807",  # Allow method names to start and end with __

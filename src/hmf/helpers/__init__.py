@@ -4,7 +4,7 @@ from . import sample
 from .functional import get_best_param_order, get_hmf
 
 __all__ = [
-    "sample",
     "get_best_param_order",
     "get_hmf",
+    "sample",
 ]

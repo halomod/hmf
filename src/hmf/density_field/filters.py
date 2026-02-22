@@ -6,7 +6,7 @@ from typing import ClassVar, Final, override
 
 import numpy as np
 import scipy.integrate as intg
-from scipy.interpolate import InterpolatedUnivariateSpline as _spline
+from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 
 from .._internals import _framework, _utils
 
@@ -425,7 +425,7 @@ class SharpK(Filter):
     @override
     def dlnss_dlnr(self, r):
         sigma = self.sigma(r)
-        power = _spline(self.k, self.power)(1 / r)
+        power = Spline(self.k, self.power)(1 / r)
         return -power / (2 * np.pi**2 * sigma**2 * r**3)
 
     @override
@@ -449,7 +449,7 @@ class SharpK(Filter):
         # # Need to re-define this because the integral needs to go exactly kr=1
         # # or else the function 'jitters'
         sigma = np.zeros(len(r))
-        power = _spline(self.k, self.power)
+        power = Spline(self.k, self.power)
         for i, rr in enumerate(r):
             k = np.logspace(
                 np.log10(self.k[0]),
@@ -539,18 +539,18 @@ class SharpKEllipsoid(SharpK):
         """
         r = np.logspace(np.log(rmin), np.log(rmax), 200, base=np.e)
         a3 = self.a3(r)
-        return _spline(a3, r)
+        return Spline(a3, r)
 
     @override
     def dlnss_dlnr(self, r):
         a3 = self.a3(r)
         sigma = self.sigma(a3)
-        power = _spline(self.k, self.power)(1 / a3)
+        power = Spline(self.k, self.power)(1 / a3)
         return -power / (2 * np.pi**2 * sigma**2 * a3**3)
 
     @override
     def dlnr_dlnm(self, r):
         a3 = self.a3(r)
         xi = r / a3
-        drda = _spline(a3, r).derivative()(a3)
+        drda = Spline(a3, r).derivative()(a3)
         return xi / 3 / drda

@@ -8,11 +8,11 @@ in :mod:`hmf.transfer`.
 import pickle
 import warnings
 from copy import deepcopy
-from typing import Any, ClassVar, Final, override
+from typing import Any, ClassVar, Final
 
 import numpy as np
 from astropy import cosmology
-from scipy.interpolate import InterpolatedUnivariateSpline as spline
+from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 
 from .._internals._framework import Component, pluggable
 
@@ -135,7 +135,7 @@ class FromFile(TransferComponent):
         else:
             lnkout = T[0, :]
             lnT = T[1, :]
-        return spline(lnkout, lnT, k=1)(lnk)
+        return Spline(lnkout, lnT, k=1)(lnk)
 
 
 if HAVE_CAMB:
@@ -268,7 +268,7 @@ if HAVE_CAMB:
             lnT -= lnT[0]
 
             if not self.params["extrapolate_with_eh"]:
-                return spline(lnkout, lnT, k=1)(lnk)
+                return Spline(lnkout, lnT, k=1)(lnk)
 
             # Now add a point one e-fold above the max, with an EH-generated transfer
             lnkout = np.concatenate((lnkout, [lnkout[-1] + 1]))
@@ -279,7 +279,7 @@ if HAVE_CAMB:
             lnkmin = lnkout.min()
             lnkmax = lnkout.max()
 
-            inner_spline = spline(lnkout, lnT, k=3)
+            inner_spline = Spline(lnkout, lnT, k=3)
 
             out = np.zeros_like(lnk)
             out[lnk < lnkmin] = 0
@@ -435,7 +435,7 @@ class FromArray(FromFile):
         else:
             lnkout = np.log(k)
             lnT = np.log(T)
-        return spline(lnkout, lnT, k=1)(lnk)
+        return Spline(lnkout, lnT, k=1)(lnk)
 
 
 class EH_BAO(TransferComponent):

@@ -11,10 +11,10 @@ import warnings
 
 import numpy as np
 from scipy.integrate import simpson as _simps
-from scipy.interpolate import InterpolatedUnivariateSpline as _spline
+from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 from scipy.optimize import minimize
 
-from ..cosmology.cosmo import Cosmology as csm
+from ..cosmology.cosmo import Cosmology as CosmologyClass
 
 
 def _get_spec(
@@ -71,7 +71,7 @@ def _get_spec(
 
     lnr = np.linspace(np.log(0.75 * rnl), np.log(1.25 * rnl), 20)
     lnsig = [get_log_sigma2(r) for r in lnr]
-    sig_of_r = _spline(lnr, lnsig, k=5)
+    sig_of_r = Spline(lnr, lnsig, k=5)
     dev1, dev2 = sig_of_r.derivatives(np.log(rnl))[1:3]
 
     n_eff = -dev1 - 3.0
@@ -112,7 +112,7 @@ def halofit(k, delta_k, *, sigma_8=None, z=0, cosmo=None, takahashi=True):
         warnings.warn("sigma_8 is not used any more, and will be removed in v4", stacklevel=2)
 
     if cosmo is None:
-        cosmo = csm()
+        cosmo = CosmologyClass()
 
     # Get physical parameters
     rknl, neff, rncur = _get_spec(k, delta_k)
