@@ -102,7 +102,7 @@ def test_change_dndm(colossus_cosmo):
             mdef_model="SOVirial",
             hmf_model="Warren",
             disable_mass_conversion=False,
-            extrapolate_with_eh=True,
+            transfer_params={"extrapolate_with_eh": True},
         )
 
     dndm = h.dndm
