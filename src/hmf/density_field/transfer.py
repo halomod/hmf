@@ -7,6 +7,7 @@ related quantities.
 """
 
 import numpy as np
+from typing import override
 
 from .._internals._cache import cached_quantity, parameter
 from .._internals._framework import get_mdl
@@ -86,6 +87,7 @@ class Transfer(cosmo.Cosmology):
     # ===========================================================================
     # Parameters
     # ===========================================================================
+    @override
     def validate(self):
         super().validate()
         assert self.lnk_min < self.lnk_max, (

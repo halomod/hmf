@@ -5,7 +5,7 @@ https://bdiemer.bitbucket.io/colossus/halo_mass_defs.html
 """
 
 import warnings
-from typing import ClassVar, Final
+from typing import ClassVar, Final, override
 
 import astropy.units as u
 import numpy as np
@@ -54,9 +54,11 @@ class MassDefinition(_framework.Component):
         return None
 
     def halo_overdensity_mean(self, z=0, cosmo=Planck15):
+        """Compute the halo overdensity with respect to the mean density."""
         return self.halo_density(z, cosmo) / self.mean_density(z, cosmo)
 
     def halo_overdensity_crit(self, z=0, cosmo=Planck15):
+        """Compute the halo overdensity with respect to the critical density."""
         return self.halo_density(z, cosmo) / self.critical_density(z, cosmo)
 
     def m_to_r(self, m, z=0, cosmo=Planck15):
@@ -244,6 +246,7 @@ class SOMean(SphericalOverdensity):
         """The density of haloes under this definition."""
         return self.params["overdensity"] * self.mean_density(z, cosmo)
 
+    @override
     @property
     def colossus_name(self):
         return f"{int(self.params['overdensity'])}m"
@@ -258,6 +261,7 @@ class SOCritical(SphericalOverdensity):
         """The density of haloes under this definition."""
         return self.params["overdensity"] * self.critical_density(z, cosmo)
 
+    @override
     @property
     def colossus_name(self):
         return f"{int(self.params['overdensity'])}c"
@@ -275,6 +279,7 @@ class SOVirial(SphericalOverdensity):
         overdensity = 18 * np.pi**2 + 82 * x - 39 * x**2
         return overdensity * self.mean_density(z, cosmo) / cosmo.Om(z)
 
+    @override
     @property
     def colossus_name(self):
         return "vir"
@@ -306,6 +311,7 @@ class FOF(MassDefinition):
         overdensity = 9 / (2 * np.pi * self.params["linking_length"] ** 3)
         return overdensity * self.mean_density(z, cosmo)
 
+    @override
     @property
     def colossus_name(self):
         return "fof"

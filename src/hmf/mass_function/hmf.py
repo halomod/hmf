@@ -7,7 +7,7 @@ functionality of :mod:`hmf` in an easy-to-use way.
 
 import copy
 import warnings
-from typing import Any
+from typing import Any, override
 
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
@@ -129,6 +129,7 @@ class MassFunction(transfer.Transfer):
     # ===========================================================================
     # PARAMETERS
     # ===========================================================================
+    @override
     def validate(self):
         super().validate()
         assert self.Mmin < self.Mmax, f"Mmin > Mmax: {self.Mmin}, {self.Mmax}"

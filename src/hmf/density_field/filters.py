@@ -2,7 +2,7 @@
 
 import collections
 import warnings
-from typing import ClassVar, Final
+from typing import ClassVar, Final, override
 
 import numpy as np
 import scipy.integrate as intg
@@ -296,19 +296,24 @@ class TopHat(Filter):
     .. math:: \frac{dW}{d\ln x}(x=kR) = \frac{1}{x^3}[9x\cos x + 3(x^2-3)\sin x].
     """
 
+    @override
     def real_space(self, R, r):
         a = np.where(r < R, 1, 0)
         return np.where(r == R, 0.5, a)
 
+    @override
     def k_space(self, kr):
         return np.where(kr > 1.4e-6, (3 / kr**3) * (np.sin(kr) - kr * np.cos(kr)), 1)
 
+    @override
     def mass_to_radius(self, m, rho_mean):
         return (3.0 * m / (4.0 * np.pi * rho_mean)) ** (1.0 / 3.0)
 
+    @override
     def radius_to_mass(self, r, rho_mean):
         return 4 * np.pi * r**3 * rho_mean / 3
 
+    @override
     def dw_dlnkr(self, kr):
         return np.where(
             kr > 1e-3,
@@ -346,18 +351,23 @@ class Gaussian(Filter):
     .. math:: \frac{dW}{d\ln x}(x=kR) = -xW(x).
     """
 
+    @override
     def real_space(self, R, r):
         return np.exp(-(r**2) / 2 / R**2) / (2 * np.pi) ** 1.5 / R**3
 
+    @override
     def k_space(self, kr):
         return np.exp(-(kr**2) / 2.0)
 
+    @override
     def mass_to_radius(self, m, rho_mean):
         return (m / rho_mean) ** (1.0 / 3.0) / np.sqrt(2 * np.pi)
 
+    @override
     def radius_to_mass(self, r, rho_mean):
         return (2 * np.pi) ** 1.5 * r**3 * rho_mean
 
+    @override
     def dw_dlnkr(self, kr):
         return -(kr**2) * self.k_space(kr)
 
@@ -399,29 +409,36 @@ class SharpK(Filter):
 
     _defaults: ClassVar[Final[dict[str, float]]] = {"c": 2.5}
 
+    @override
     def k_space(self, kr):
         a = np.where(kr > 1, 0, 1)
         return np.where(kr == 1, 0.5, a)
 
+    @override
     def real_space(self, R, r):
         return (np.sin(r / R) - (r / R) * np.cos(r / R)) / (2 * np.pi**2 * r**3)
 
+    @override
     def dw_dlnkr(self, kr):
         return np.where(kr == 1, 1.0, 0.0)
 
+    @override
     def dlnss_dlnr(self, r):
         sigma = self.sigma(r)
         power = _spline(self.k, self.power)(1 / r)
         return -power / (2 * np.pi**2 * sigma**2 * r**3)
 
+    @override
     def mass_to_radius(self, m, rho_mean):
         return (1.0 / self.params["c"]) * (3.0 * m / (4.0 * np.pi * rho_mean)) ** (
             1.0 / 3.0
         )
 
+    @override
     def radius_to_mass(self, r, rho_mean):
         return 4 * np.pi * (self.params["c"] * r) ** 3 * rho_mean / 3
 
+    @override
     def sigma(self, r, order=0):
         if not isinstance(r, collections.abc.Iterable):
             r = np.atleast_1d(r)
@@ -499,9 +516,15 @@ class SharpKEllipsoid(SharpK):
         return sig_1**2 / (sig_0 * sig_2)
 
     def xi(self, pm, em):
+        """
+        Ellipsoid axis ratio correction factor.
+
+        Computed from ellipticity and prolateness parameters.
+        """
         return ((1 + 4 * pm) ** 2 / (1 - 3 * em + pm) / (1 - 2 * pm)) ** (1.0 / 6.0)
 
     def a3(self, r):
+        """Short-axis scale with ellipsoidal correction."""
         g = self.gamma(r)
         xm = self.xm(g, self.nu(r))
         em = self.em(xm)
@@ -509,16 +532,23 @@ class SharpKEllipsoid(SharpK):
         return r / self.xi(pm, em)
 
     def r_a3(self, rmin, rmax):
+        """
+        Spline interpolant for radius-to-axis ratio relationship.
+
+        Created from computed a3 values over the radius range.
+        """
         r = np.logspace(np.log(rmin), np.log(rmax), 200, base=np.e)
         a3 = self.a3(r)
         return _spline(a3, r)
 
+    @override
     def dlnss_dlnr(self, r):
         a3 = self.a3(r)
         sigma = self.sigma(a3)
         power = _spline(self.k, self.power)(1 / a3)
         return -power / (2 * np.pi**2 * sigma**2 * a3**3)
 
+    @override
     def dlnr_dlnm(self, r):
         a3 = self.a3(r)
         xi = r / a3

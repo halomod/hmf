@@ -7,7 +7,7 @@ into the standard CDM Frameworks, and provide an example of how one would go abo
 for other alternative cosmologies.
 """
 
-from typing import ClassVar, Final
+from typing import ClassVar, Final, override
 
 import astropy.units as u
 import numpy as np
@@ -216,6 +216,7 @@ class Schneider12_vCDM(WDMRecalibrateMF):
 
     _defaults: ClassVar[Final[dict[str, float]]] = {"beta": 1.16}
 
+    @override
     def dndm_alter(self):
         return self.dndm0 * (1 + self.wdm.m_hm / self.m) ** (-self.params["beta"])
 
@@ -240,6 +241,7 @@ class Schneider12(WDMRecalibrateMF):
 
     _defaults: ClassVar[Final[dict[str, float]]] = {"alpha": 0.6}
 
+    @override
     def dndm_alter(self):
         return self.dndm0 * (1 + self.wdm.m_hm / self.m) ** (-self.params["alpha"])
 
@@ -264,6 +266,7 @@ class Lovell14(WDMRecalibrateMF):
 
     _defaults: ClassVar[Final[dict[str, float]]] = {"beta": 0.99, "gamma": 2.7}
 
+    @override
     def dndm_alter(self):
         return self.dndm0 * (1 + self.params["gamma"] * self.wdm.m_hm / self.m) ** (
             -self.params["beta"]
@@ -344,6 +347,7 @@ class TransferWDM(_Tr):
             mx=self.wdm_mass, cosmo=self.cosmo, z=self.z, **self.wdm_params
         )
 
+    @override
     @cached_quantity
     def _unnormalised_lnT(self):
         return super()._unnormalised_lnT + np.log(self.wdm.transfer(self.k))
@@ -384,6 +388,7 @@ class MassFunctionWDM(_MF, TransferWDM):
         """Model parameters for `alter_model`."""
         return val
 
+    @override
     @cached_quantity
     def dndm(self):
         r"""

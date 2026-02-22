@@ -8,7 +8,7 @@ in :mod:`hmf.transfer`.
 import pickle
 import warnings
 from copy import deepcopy
-from typing import Any, ClassVar, Final
+from typing import Any, ClassVar, Final, override
 
 import numpy as np
 from astropy import cosmology
@@ -534,6 +534,7 @@ class EH_BAO(TransferComponent):
 
     @property
     def k_peak(self):
+        """The k_peak parameter from EH1998, Eq. 29, in units of Mpc^-1 (no h)."""
         return 2.5 * np.pi * (1 + 0.217 * self.Omh2) / self.sound_horizon
 
     @property
@@ -610,6 +611,7 @@ class EH_NoBAO(EH_BAO):
 
     @property
     def alpha_gamma(self):
+        """The alpha_gamma parameter from EH1998, Eq. 31."""
         return (
             1
             - 0.328 * np.log(431 * self.Omh2) * self.f_baryon

@@ -7,7 +7,7 @@ listed here, please advise via GitHub.
 
 import warnings
 from copy import copy
-from typing import Any, ClassVar, Final
+from typing import Any, ClassVar, Final, override
 
 import numpy as np
 import scipy.special as sp
@@ -253,6 +253,7 @@ class FittingFunction(_framework.Component):
 
     @classmethod
     def get_measured_mdef(cls):
+        """Get the mass definition used in the defining simulation."""
         # Try to set the measured mass definition
         measured = None
         if cls.sim_definition is not None:
@@ -340,6 +341,7 @@ class PS(FittingFunction):
     __doc__ = _makedoc(FittingFunction._pdocs, "Press-Schechter", "PS", _eq, _ref)
     normalized = True
 
+    @override
     @property
     def fsigma(self):
         return np.sqrt(2.0 / np.pi) * self.nu * np.exp(-0.5 * self.nu2)
@@ -387,9 +389,10 @@ class SMT(FittingFunction):
             if self.params["a"] <= 0:
                 raise ValueError(f"a in SMT must be > 0. Got {self.params['a']}.")
 
+    @override
     @property
     def fsigma(self):
-        A = self.norm()
+        A = self._norm()
         a = self.params["a"]
         p = self.params["p"]
 
@@ -401,7 +404,7 @@ class SMT(FittingFunction):
             * (1 + (1.0 / (a * self.nu2)) ** p)
         )
 
-    def norm(self):
+    def _norm(self):
         if self.params["A"] is not None:
             return self.params["A"]
 
@@ -447,10 +450,12 @@ class Jenkins(FittingFunction):
         other_cosmo={"omegav": 0.7, "h": 0.7, "n": 1},
     )
 
+    @override
     @property
     def cutmask(self):
         return np.logical_and(self.lnsigma > -1.2, self.lnsigma < 1.05)
 
+    @override
     @property
     def fsigma(self):
         A = self.params["A"]
@@ -514,6 +519,7 @@ class Warren(FittingFunction):
         other_cosmo={"omegav": 0.7, "omegab": 0.04, "h": 0.7, "n": 1},
     )
 
+    @override
     @property
     def fsigma(self):
         A = self.params["A"]
@@ -524,6 +530,7 @@ class Warren(FittingFunction):
 
         return A * ((e / self.sigma) ** b + c) * np.exp(-d / self.sigma**2)
 
+    @override
     @property
     def cutmask(self):
         return np.logical_and(self.m > 1e10, self.m < 1e15)
@@ -558,6 +565,7 @@ class Reed03(SMT):
         other_cosmo={"omegav": 0.7, "omegab": 0.04, "h": None, "n": None},
     )
 
+    @override
     @property
     def fsigma(self):
         vfv = super().fsigma
@@ -565,6 +573,7 @@ class Reed03(SMT):
             -self.params["c"] / (self.sigma * np.cosh(2.0 * self.sigma) ** 5)
         )
 
+    @override
     @property
     def cutmask(self):
         return np.logical_and(self.lnsigma > -1.7, self.lnsigma < 0.9)
@@ -626,6 +635,7 @@ class Reed07(FittingFunction):
         other_cosmo={"omegav": 0.7, "omegab": None, "h": 0.7, "n": 1.0},
     )
 
+    @override
     @property
     def fsigma(self):
         G_1 = np.exp(-((self.lnsigma - 0.4) ** 2) / (2 * 0.6**2))
@@ -646,6 +656,7 @@ class Reed07(FittingFunction):
             )
         )
 
+    @override
     @property
     def cutmask(self):
         return np.logical_and(self.lnsigma > -0.5, self.lnsigma < 1.2)
@@ -664,6 +675,7 @@ class Peacock(FittingFunction):
     sim_definition.hmf_analysis_notes = "Fit directly to Warren+2006 fit."
     normalized = True
 
+    @override
     @property
     def fsigma(self):
         a = self.params["a"]
@@ -678,6 +690,7 @@ class Peacock(FittingFunction):
             / d**2
         )
 
+    @override
     @property
     def cutmask(self):
         return np.logical_and(self.m < 1e10, self.m > 1e15)
@@ -708,6 +721,7 @@ class Angulo(FittingFunction):
         other_cosmo={"omegav": 0.75, "omegab": 0.045, "h": 0.73, "n": 1.0},
     )
 
+    @override
     @property
     def fsigma(self):
         A = self.params["A"]
@@ -717,6 +731,7 @@ class Angulo(FittingFunction):
 
         return A * ((d / self.sigma) ** b + 1) * np.exp(-c / self.sigma**2)
 
+    @override
     @property
     def cutmask(self):
         return np.logical_and(self.m > 1e8, self.m < 1e16)
@@ -752,6 +767,7 @@ class Watson_FoF(Warren):
         other_cosmo={"omegav": 0.73, "omegab": 0.044, "h": 0.7, "n": 0.96},
     )
 
+    @override
     @property
     def cutmask(self):
         return np.logical_and(self.lnsigma > -0.55, self.lnsigma < 1.31)
@@ -820,6 +836,7 @@ class Watson(FittingFunction):
             * np.exp(p * (1 - delta_halo / 178) / self.sigma**q)
         )
 
+    @override
     @property
     def fsigma(self):
         if self.z == 0:
@@ -855,6 +872,7 @@ class Watson(FittingFunction):
             * np.exp(-gamma / self.sigma**2)
         )
 
+    @override
     @property
     def cutmask(self):
         return np.logical_and(self.lnsigma > -0.55, self.lnsigma < 1.05)
@@ -903,6 +921,7 @@ class Crocce(Warren):
         self.params["c"] = self.params["c_a"] * (1 + self.z) ** (-self.params["c_b"])
         self.params["d"] = self.params["d_a"] * (1 + self.z) ** (-self.params["d_b"])
 
+    @override
     @property
     def cutmask(self):
         return np.logical_and(self.m > 10**10.5, self.m < 10**15.5)
@@ -934,6 +953,7 @@ class Courtin(SMT):
         other_cosmo={"omegav": 0.74, "omegab": 0.044, "h": 0.72, "n": 0.963},
     )
 
+    @override
     @property
     def cutmask(self):
         return np.logical_and(self.lnsigma > -0.8, self.lnsigma < 0.7)
@@ -986,7 +1006,7 @@ class Bhattacharya(SMT):
         if not self.params["normed"]:
             self.params["A"] = self.params["A_a"] * (1 + self.z) ** -self.params["A_b"]
         else:
-            self.params["A"] = self.norm()
+            self.params["A"] = self._norm()
 
         self.params["a"] = self.params["a_a"] * (1 + self.z) ** -self.params["a_b"]
 
@@ -997,6 +1017,7 @@ class Bhattacharya(SMT):
             raise ValueError("2p in Bhattacharya must be < q")
 
     @property
+    @override
     def fsigma(self):
         r"""
         Calculate :math:`f(\sigma)` for Bhattacharya form.
@@ -1014,11 +1035,13 @@ class Bhattacharya(SMT):
         vfv = super().fsigma
         return vfv * (np.sqrt(self.params["a"]) * self.nu) ** (self.params["q"] - 1)
 
+    @override
     @property
     def cutmask(self):
         return np.logical_and(self.m > 6 * 10**11, self.m < 3 * 10**15)
 
-    def norm(self):
+    @override
+    def _norm(self):
         if self.params["A"] is not None:
             return self.params["A"]
 
@@ -1335,6 +1358,7 @@ class Tinker08(FittingFunction):
         self.b = b_0 * (1 + self.z) ** (-alpha)
         self.c = c_0
 
+    @override
     @property
     def fsigma(self):
         return (
@@ -1343,6 +1367,7 @@ class Tinker08(FittingFunction):
             * np.exp(-self.c / self.sigma**2)
         )
 
+    @override
     @property
     def cutmask(self):
         if self.z == 0.0:
@@ -1501,7 +1526,7 @@ class Tinker10(FittingFunction):
             self.beta = 1e-3
 
     @property
-    def normalise(self):
+    def _normalise(self):
         if int(self.delta_halo) in self.delta_virs and self.z == 0:
             return self.params[f"alpha_{int(self.delta_halo)}"]
         return 1 / (
@@ -1514,6 +1539,7 @@ class Tinker10(FittingFunction):
             )
         )
 
+    @override
     @property
     def fsigma(self):
         fv = (
@@ -1522,8 +1548,9 @@ class Tinker10(FittingFunction):
             * np.exp(-self.gamma * (self.nu**2) / 2)
         )
 
-        return fv * self.normalise * self.nu
+        return fv * self._normalise * self.nu
 
+    @override
     @property
     def cutmask(self):
         if self.z == 0.0:
@@ -1692,6 +1719,7 @@ class Ishiyama(Warren):
         },
     )
 
+    @override
     @property
     def cutmask(self):
         return np.logical_and(self.m > 1e8, self.m < 1e16)
@@ -1754,6 +1782,7 @@ class Bocquet200mDMOnly(Warren):
         """
         return 1
 
+    @override
     @property
     def fsigma(self):
         A, b, d, e = self.get_params()
@@ -1810,6 +1839,7 @@ class Bocquet200cDMOnly(Bocquet200mDMOnly):
     sim_definition = copy(Bocquet200mDMOnly.sim_definition)
     sim_definition.halo_overdensity = "200c"
 
+    @override
     def convert_mass(self):
         g0 = 3.54e-2 + self.cosmo.Om0**0.09
         g1 = 4.56e-2 + 2.68e-2 / self.cosmo.Om0
@@ -1868,6 +1898,7 @@ class Bocquet500cDMOnly(Bocquet200cDMOnly):
     sim_definition = copy(Bocquet200mDMOnly.sim_definition)
     sim_definition.halo_overdensity = "500c"
 
+    @override
     def convert_mass(self):
         alpha_0 = 0.880 + 0.329 * self.cosmo.Om0
         alpha_1 = 1.0 + 4.31 * 1e-2 / self.cosmo.Om0

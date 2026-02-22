@@ -8,7 +8,7 @@ may be implemented.
 """
 
 from functools import cached_property
-from typing import Any, ClassVar, Final
+from typing import Any, ClassVar, Final, override
 
 import numpy as np
 from astropy import cosmology
@@ -83,6 +83,13 @@ class GrowthFactor(_GrowthFactor):
 
     @cached_property
     def integral(self):
+        """The integral :math:`\int_0^a da' / (a'^3 E(a')^3)`.
+        
+        Parameters
+        ----------
+        a : array_like
+            Scale factor(s) at which to evaluate the integral.
+        """
         a = np.exp(self._lna)
         return _spline(
             a, 2.5 * self.cosmo.Om0 / (a * self.cosmo.efunc(self._zvec)) ** 3
