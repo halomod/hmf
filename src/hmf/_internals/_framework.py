@@ -31,9 +31,7 @@ class Component:
         # Check that all parameters passed are valid
         for k in model_params:
             if k not in self._defaults:
-                raise ValueError(
-                    f"{k} is not a valid argument for {self.__class__.__name__}."
-                )
+                raise ValueError(f"{k} is not a valid argument for {self.__class__.__name__}.")
 
         # Gather model parameters
         self.params = copy.copy(self._defaults)
@@ -68,8 +66,7 @@ def get_base_component(name: [str, type[Component]]) -> type[Component]:
         avail = [cmp for cmp in get_base_components() if cmp.__name__ == name]
         if not avail:
             raise ValueError(
-                f"There are no components called '{name}'. Available: "
-                f"{get_base_components()}"
+                f"There are no components called '{name}'. Available: {get_base_components()}"
             )
         if len(avail) > 1:
             warnings.warn(
@@ -139,7 +136,8 @@ def get_mdl(
             if len(avail_models) > 1:
                 warnings.warn(
                     f"More than one model was found with name '{name}'. Returning "
-                    f"{avail_models[-1][1]}.", stacklevel=2
+                    f"{avail_models[-1][1]}.",
+                    stacklevel=2,
                 )
             if not avail_models:
                 raise ValueError(f"No model found with name '{name}'.")
@@ -152,9 +150,7 @@ def get_mdl(
             raise ValueError(f"{name} must be str or Component subclass") from e
 
 
-@deprecation.deprecated(
-    "3.3.0", removed_in="4.0.0", details="Use get_mdl instead of get_model_"
-)
+@deprecation.deprecated("3.3.0", removed_in="4.0.0", details="Use get_mdl instead of get_model_")
 def get_model_(name, mod):
     """
     Returns a class ``name`` from the module ``mod``.
@@ -215,7 +211,6 @@ class Framework(metaclass=_Validator):
     """
 
     _validate = True
-    _validate_every_param_set = False
 
     def validate(self):
         """Perform validation of the input parameters as they relate to each other."""
@@ -231,9 +226,7 @@ class Framework(metaclass=_Validator):
 
                 # If key is a dictionary of parameters to a sub-framework,
                 # update the sub-framework
-                elif k.endswith("_params") and isinstance(
-                    getattr(self, k[:-7]), Framework
-                ):
+                elif k.endswith("_params") and isinstance(getattr(self, k[:-7]), Framework):
                     getattr(self, k[:-7]).update(**kwargs.pop(k))
             self._validate = True
             self.validate()
@@ -266,9 +259,7 @@ class Framework(metaclass=_Validator):
             for name, default in out.items():
                 if default == {} and name.endswith("_params"):
                     try:
-                        out[name] = getattr(
-                            K, name.replace("_params", "_model")
-                        )._defaults
+                        out[name] = getattr(K, name.replace("_params", "_model"))._defaults
 
                     except Exception:
                         logger.info(
@@ -283,9 +274,7 @@ class Framework(metaclass=_Validator):
         """Dictionary of all parameters and their current values."""
         return {
             name: getattr(self, name)
-            for name in getattr(
-                self, "_" + self.__class__.__name__ + "__recalc_par_prop"
-            )
+            for name in getattr(self, "_" + self.__class__.__name__ + "__recalc_par_prop")
         }
 
     @classmethod
@@ -295,9 +284,7 @@ class Framework(metaclass=_Validator):
         return [
             name
             for name in dir(cls)
-            if name not in all_names
-            and not name.startswith("__")
-            and name not in dir(Framework)
+            if name not in all_names and not name.startswith("__") and name not in dir(Framework)
         ]
 
     @classmethod
@@ -325,9 +312,7 @@ class Framework(metaclass=_Validator):
             getattr(self, quant)
 
             deps.update(
-                getattr(
-                    self, "_" + self.__class__.__name__ + "__recalc_prop_par_static"
-                )[quant]
+                getattr(self, "_" + self.__class__.__name__ + "__recalc_prop_par_static")[quant]
             )
 
         return deps

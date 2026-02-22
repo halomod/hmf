@@ -109,9 +109,7 @@ def cached_quantity(f):
         # if name is already there, can only be because the method has been supered.
         supered = name in activeq
         if not supered:
-            recalc_prpa[name] = (
-                set()
-            )  # Empty set to which parameter names will be added
+            recalc_prpa[name] = set()  # Empty set to which parameter names will be added
             activeq.add(name)
 
         # Go ahead and calculate the value -- each parameter accessed will add itself to the index.
@@ -234,11 +232,7 @@ def parameter(kind):
             val = f(self, val)
 
             # Here put any custom code that should be run, dependent on the type of parameter
-            if (
-                name.endswith("_params")
-                and not isinstance(val, dict)
-                and val is not None
-            ):
+            if name.endswith("_params") and not isinstance(val, dict) and val is not None:
                 raise ValueError(f"{name} must be a dictionary")
 
             # Locations of indexes
@@ -291,18 +285,14 @@ def parameter(kind):
                         delattr(self, pr)
 
                 if not doset and self._validate:
-                    if self._validate_every_param_set:
-                        self.validate()
-                    else:
-                        warnings.warn(
-                            f"You are setting {name} directly. This is unstable, as less "
-                            f"validation is performed. You can turn on extra validation "
-                            f"for directly set parameters by setting "
-                            f"framework._validate_every_param_set=True. "
-                            f"However, this can be brittle, since intermediate states "
-                            f"may not be valid.",
-                            stacklevel=2, category=DeprecationWarning,
-                        )
+                    warnings.warn(
+                        f"You are setting {name} directly. This is not recommended, "
+                        f"as validation is required on every change. Please use the update "
+                        f"method instead.Setting directly will become an error in v4.",
+                        stacklevel=2,
+                    )
+
+                    self.validate()
 
         update_wrapper(_set_property, f)
 
@@ -328,16 +318,7 @@ def parameter(kind):
 
 
 def subframework(f):
-    """
-    A quantity that is essentially a sub-framework.
-
-    Parameters
-    ----------
-    f
-
-    Returns
-    -------
-    """
+    """Define a decorator that creates quantities that are essentially a sub-framework."""
     name = f.__name__
 
     def _get_property(self):

@@ -37,9 +37,7 @@ def test_with_config(tmpdir: Path):
     with (tmpdir / "cfg.toml").open("w") as fl:
         fl.write(cfg)
 
-    result = runner.invoke(
-        main, ["run", "-i", str(tmpdir / "cfg.toml"), "-o", str(tmpdir)]
-    )
+    result = runner.invoke(main, ["run", "-i", str(tmpdir / "cfg.toml"), "-o", str(tmpdir)])
     print(result.stdout)
     assert result.exit_code == 0
 
@@ -65,9 +63,7 @@ def test_config_vs_cli(tmpdir: Path):
     with (tmpdir / "cfg.toml").open("w") as fl:
         fl.write(cfg)
 
-    result_cfg = runner.invoke(
-        main, ["run", "-i", str(tmpdir / "cfg.toml"), "-o", str(cfgdir)]
-    )
+    result_cfg = runner.invoke(main, ["run", "-i", str(tmpdir / "cfg.toml"), "-o", str(cfgdir)])
     result_cli = runner.invoke(
         main, ["run", "-o", str(clidir), "--", "--z=1.0", '--transfer_model="EH"']
     )
@@ -109,18 +105,14 @@ def test_roundtrip_cfg(tmpdir):
     with (tmpdir / "cfg.toml").open("w") as fl:
         fl.write(cfg)
 
-    result = runner.invoke(
-        main, ["run", "-i", str(tmpdir / "cfg.toml"), "-o", str(tmpdir)]
-    )
+    result = runner.invoke(main, ["run", "-i", str(tmpdir / "cfg.toml"), "-o", str(tmpdir)])
 
     assert result.exit_code == 0
 
     clidir = tmpdir / "cli"
     clidir.mkdir()
 
-    result2 = runner.invoke(
-        main, ["run", "-i", str(tmpdir / "hmf_cfg.toml"), "-o", str(clidir)]
-    )
+    result2 = runner.invoke(main, ["run", "-i", str(tmpdir / "hmf_cfg.toml"), "-o", str(clidir)])
 
     assert result2.exit_code == 0
 

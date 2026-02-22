@@ -1,13 +1,13 @@
 import numpy as np
-from pytest import raises
+import pytest
 
 import hmf
 from hmf.alternatives import wdm
 
 
 def test_null():
-    with raises(NotImplementedError):
-        w = wdm.WDM(mx=1.0)
+    w = wdm.WDM(mx=1.0)
+    with pytest.raises(NotImplementedError):
         w.transfer(1.0)
 
 
@@ -68,16 +68,14 @@ class TestLovell14(TestSchneider12_vCDM):
 
 class TestTransfer:
     def setup_class(self):
-        self.wdm = wdm.TransferWDM(
-            wdm_mass=3.0, wdm_model=wdm.Viel05, transfer_model="EH"
-        )
+        self.wdm = wdm.TransferWDM(wdm_mass=3.0, wdm_model=wdm.Viel05, transfer_model="EH")
         self.cdm = hmf.MassFunction(transfer_model="EH")
 
     def test_wdm_model(self):
         assert isinstance(self.wdm.wdm, wdm.Viel05)
 
     def test_wrong_model_type(self):
-        with raises(ValueError):
+        with pytest.raises(ValueError, match="must be str or Component subclass"):
             wdm.TransferWDM(wdm_mass=3.0, wdm_model=3, transfer_model="EH")
 
     def test_power(self):

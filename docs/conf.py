@@ -1,3 +1,4 @@
+"""Documentation config."""
 #
 # hmf documentation build configuration file, created by
 # sphinx-quickstart on Mon Dec  2 10:40:08 2013.
@@ -278,6 +279,4 @@ intersphinx_mapping = {
 }
 
 
-mathjax_path = (
-    "http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
-)
+mathjax_path = "http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"

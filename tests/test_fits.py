@@ -3,7 +3,6 @@ import itertools
 
 import numpy as np
 import pytest
-from pytest import raises
 
 from hmf import MassFunction
 from hmf.mass_function import fitting_functions as ff
@@ -96,23 +95,19 @@ def test_tinker10_dh():
 
 
 def test_tinker10_neg_gam():
-    with raises(ValueError):
-        h = MassFunction(
-            hmf_model="Tinker10", hmf_params={"gamma_200": -1}, transfer_model="EH"
-        )
+    with pytest.raises(ValueError):
+        h = MassFunction(hmf_model="Tinker10", hmf_params={"gamma_200": -1}, transfer_model="EH")
         h.fsigma
 
 
 def test_tinker10_neg_eta():
-    with raises(ValueError):
-        h = MassFunction(
-            hmf_model="Tinker10", hmf_params={"eta_200": -1}, transfer_model="EH"
-        )
+    with pytest.raises(ValueError):
+        h = MassFunction(hmf_model="Tinker10", hmf_params={"eta_200": -1}, transfer_model="EH")
         h.fsigma
 
 
 def test_tinker10_neg_etaphi():
-    with raises(ValueError):
+    with pytest.raises(ValueError):
         h = MassFunction(
             hmf_model="Tinker10",
             hmf_params={"eta_200": -1, "phi_200": 0},
@@ -122,8 +117,6 @@ def test_tinker10_neg_etaphi():
 
 
 def test_tinker10_neg_beta():
-    with raises(ValueError):
-        h = MassFunction(
-            hmf_model="Tinker10", hmf_params={"beta_200": -1}, transfer_model="EH"
-        )
+    with pytest.raises(ValueError):
+        h = MassFunction(hmf_model="Tinker10", hmf_params={"beta_200": -1}, transfer_model="EH")
         h.fsigma

@@ -37,9 +37,7 @@ def framework_to_dict(obj: Framework) -> dict:
             val = getattr(obj, k)
             if val is None:
                 obj_val = getattr(obj, k.split("_model")[0])
-                out["params"][k] = (
-                    None if obj_val is None else obj_val.__class__.__name__
-                )
+                out["params"][k] = None if obj_val is None else obj_val.__class__.__name__
             else:
                 out["params"][k] = val.__name__
 

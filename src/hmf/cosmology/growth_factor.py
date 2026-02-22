@@ -84,7 +84,7 @@ class GrowthFactor(_GrowthFactor):
     @cached_property
     def integral(self):
         r"""The integral :math:`\int_0^a da' / (a'^3 E(a')^3)`.
-        
+
         Parameters
         ----------
         a : array_like
@@ -115,9 +115,7 @@ class GrowthFactor(_GrowthFactor):
         if np.any(z < 0):
             raise ValueError("Redshifts <0 not supported")
         if np.any(a < a_min):
-            raise ValueError(
-                f"Cannot compute integral for z > {1 / a_min - 1}. Set amin lower."
-            )
+            raise ValueError(f"Cannot compute integral for z > {1 / a_min - 1}. Set amin lower.")
 
         return (self.integral(a) - self.integral(a_min)) * self.cosmo.efunc(z)
 
@@ -200,10 +198,7 @@ class GrowthFactor(_GrowthFactor):
         gfn = self.growth_factor_fn(zmin)
 
         return lambda z: (
-            -1
-            - self.cosmo.Om(z) / 2
-            + self.cosmo.Ode(z)
-            + 5 * self.cosmo.Om(z) / (2 * gfn(z))
+            -1 - self.cosmo.Om(z) / 2 + self.cosmo.Ode(z) + 5 * self.cosmo.Om(z) / (2 * gfn(z))
         )
 
 
@@ -290,9 +285,7 @@ class FromArray(FromFile):
         d_out = self.params["d"]
 
         if z_out is None or d_out is None:
-            raise ValueError(
-                "You must supply an array for both z and d for this Growth model"
-            )
+            raise ValueError("You must supply an array for both z and d for this Growth model")
         if len(z_out) != len(d_out):
             raise ValueError("z and d must have same length")
 
@@ -379,17 +372,9 @@ class GenMFGrowth(GrowthFactor):
             x = a * xn
             aofx = self._general_case(w, x)
             return aofx / aofxn
-        dn = (
-            1
-            + 3 / w
-            + (3 * ((1 + w) ** 0.5) / w**1.5) * np.log((1 + w) ** 0.5 - w**0.5)
-        )
+        dn = 1 + 3 / w + (3 * ((1 + w) ** 0.5) / w**1.5) * np.log((1 + w) ** 0.5 - w**0.5)
         x = w * a
-        return (
-            1
-            + 3 / x
-            + (3 * ((1 + x) ** 0.5) / x**1.5) * np.log((1 + x) ** 0.5 - x**0.5)
-        ) / dn
+        return (1 + 3 / x + (3 * ((1 + x) ** 0.5) / x**1.5) * np.log((1 + x) ** 0.5 - x**0.5)) / dn
 
 
 @_inherit
@@ -506,9 +491,7 @@ if HAVE_CAMB:
         @cached_property
         def _t0(self):
             """The Transfer function at z=0."""
-            return self._camb_transfers.get_redshift_evolution(1.0, 0.0, ["delta_tot"])[
-                0
-            ][0]
+            return self._camb_transfers.get_redshift_evolution(1.0, 0.0, ["delta_tot"])[0][0]
 
         def growth_factor(self, z):
             """
@@ -525,9 +508,7 @@ if HAVE_CAMB:
                 The normalised growth factor.
             """
             growth = (
-                self._camb_transfers.get_redshift_evolution(
-                    1.0, z, ["delta_tot"]
-                ).flatten()
+                self._camb_transfers.get_redshift_evolution(1.0, z, ["delta_tot"]).flatten()
                 / self._t0
             )
             if len(growth) == 1:
@@ -535,6 +516,7 @@ if HAVE_CAMB:
             return growth
 
         def __getstate__(self):
+            """Get the state of the object, including converting the CAMBparams object to a dict."""
             dct = self.__dict__.copy()
 
             # Can't pickle/copy CAMBparams or CAMBResults
@@ -545,6 +527,7 @@ if HAVE_CAMB:
             return dct
 
         def __setstate__(self, state):
+            """Set the state of the object, including reconstructing the CAMBparams object."""
             self.__dict__ = state
 
             self.p = self._get_camb_params(self.cosmo)

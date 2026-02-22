@@ -1,5 +1,5 @@
 """
-This module provides some tests of mgtm/mean_density0 against analytic f_coll.
+Provides some tests of mgtm/mean_density0 against analytic f_coll.
 
 As such, it is the best test of all calculations after sigma.
 """

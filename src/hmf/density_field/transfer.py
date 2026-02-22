@@ -91,9 +91,7 @@ class Transfer(cosmo.Cosmology):
     @override
     def validate(self):
         super().validate()
-        assert self.lnk_min < self.lnk_max, (
-            f"lnk_min >= lnk_max: {self.lnk_min}, {self.lnk_max}"
-        )
+        assert self.lnk_min < self.lnk_max, f"lnk_min >= lnk_max: {self.lnk_min}, {self.lnk_max}"
         assert len(self.k) > 1, f"len(k) < 2: {len(self.k)}"
 
     @parameter("model")
@@ -125,9 +123,7 @@ class Transfer(cosmo.Cosmology):
         :type: str or :class:`hmf.transfer_models.TransferComponent` subclass, optional
         """
         if not HAVE_CAMB and val in ["CAMB", tm.CAMB]:
-            raise ValueError(
-                "You cannot use the CAMB transfer since pycamb isn't installed"
-            )
+            raise ValueError("You cannot use the CAMB transfer since pycamb isn't installed")
         return get_mdl(val, "TransferComponent")
 
     @parameter("param")
@@ -314,6 +310,4 @@ class Transfer(cosmo.Cosmology):
 
         .. math:: \Delta_k = \frac{k^3 P_{\rm nl}(k)}{2\pi^2}
         """
-        return _hfit(
-            self.k, self.delta_k, z=self.z, cosmo=self.cosmo, takahashi=self.takahashi
-        )
+        return _hfit(self.k, self.delta_k, z=self.z, cosmo=self.cosmo, takahashi=self.takahashi)

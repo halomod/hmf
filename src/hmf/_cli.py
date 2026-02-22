@@ -188,9 +188,7 @@ def run_cli(config, pkg_name, args, outdir, label, pkgs, default_framework):
         for qname, q in zip(quantities, quants, strict=True):
             np.savetxt(outdir / f"{lab}_{qname}.txt", q)
 
-        console.print(
-            f"   Writing quantities to [cyan]{outdir}/{lab}_<quantity>.txt[/cyan]."
-        )
+        console.print(f"   Writing quantities to [cyan]{outdir}/{lab}_<quantity>.txt[/cyan].")
 
         # Write out parameters
         dct = framework_to_dict(obj)
@@ -198,9 +196,7 @@ def run_cli(config, pkg_name, args, outdir, label, pkgs, default_framework):
         with (outdir / f"{lab}_cfg.toml").open("w") as fl:
             toml.dump(dct, fl, encoder=toml.TomlNumpyEncoder())
 
-        console.print(
-            f"   Writing full config to [cyan]{outdir}/{lab}_cfg.toml[/cyan]."
-        )
+        console.print(f"   Writing full config to [cyan]{outdir}/{lab}_cfg.toml[/cyan].")
         console.print()
 
     console.print(Rule("Finished!", style="grey53"), style="bold green")

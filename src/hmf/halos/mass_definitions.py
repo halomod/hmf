@@ -18,7 +18,7 @@ from ..cosmology import Cosmology
 __all__ = [
     "FOF",
     "MassDefinition",
-    "OptimizationException",
+    "OptimizationError",
     "SOCritical",
     "SOMean",
     "SOVirial",
@@ -78,9 +78,7 @@ class MassDefinition(_framework.Component):
         try:
             return (3 * m / (4 * np.pi * self.halo_density(z, cosmo))) ** (1.0 / 3.0)
         except AttributeError as e:
-            raise AttributeError(
-                f"{self.__class__.__name__} cannot convert mass to radius."
-            ) from e
+            raise AttributeError(f"{self.__class__.__name__} cannot convert mass to radius.") from e
 
     def r_to_m(self, r, z=0, cosmo=Planck15):
         r"""
@@ -99,17 +97,13 @@ class MassDefinition(_framework.Component):
         try:
             return 4 * np.pi * r**3 * self.halo_density(z, cosmo) / 3
         except AttributeError as e:
-            raise AttributeError(
-                f"{self.__class__.__name__} cannot convert radius to mass."
-            ) from e
+            raise AttributeError(f"{self.__class__.__name__} cannot convert radius to mass.") from e
 
     def _duffy_concentration(self, m, z=0):
         a, b, c, ms = 6.71, -0.091, 0.44, 2e12
         return a / (1 + z) ** c * (m / ms) ** b
 
-    def change_definition(
-        self, m: np.ndarray, mdef, profile=None, c=None, z=0, cosmo=Planck15
-    ):
+    def change_definition(self, m: np.ndarray, mdef, profile=None, c=None, z=0, cosmo=Planck15):
         r"""
         Change the spherical overdensity mass definition.
 
@@ -138,15 +132,8 @@ class MassDefinition(_framework.Component):
         c_f : float or array_like
             The concentrations of the halos in the new definition.
         """
-        if (
-            c is not None
-            and not np.isscalar(c)
-            and not np.isscalar(m)
-            and len(m) != len(c)
-        ):
-            raise ValueError(
-                "If both m and c are arrays, they must be of the same length"
-            )
+        if c is not None and not np.isscalar(c) and not np.isscalar(m) and len(m) != len(c):
+            raise ValueError("If both m and c are arrays, they must be of the same length")
         if c is not None and np.isscalar(c) and not np.isscalar(m):
             c = np.ones_like(m) * c
         if c is not None and np.isscalar(m) and not np.isscalar(c):
@@ -160,9 +147,7 @@ class MassDefinition(_framework.Component):
                 from halomod.concentration import Duffy08
                 from halomod.profiles import NFW
 
-                profile = NFW(
-                    cm_relation=Duffy08(cosmo=Cosmology(cosmo)), mdef=self, z=z
-                )
+                profile = NFW(cm_relation=Duffy08(cosmo=Cosmology(cosmo)), mdef=self, z=z)
             except ImportError as e:
                 raise ImportError(
                     "Cannot change mass definitions without halomod installed!"
@@ -171,7 +156,8 @@ class MassDefinition(_framework.Component):
         if profile.z != z:
             warnings.warn(
                 f"Redshift of given profile ({profile.z})does not match redshift "
-                f"passed to change_definition(). Using the redshift directly passed.", stacklevel=2
+                f"passed to change_definition(). Using the redshift directly passed.",
+                stacklevel=2,
             )
             profile.z = z
 
@@ -189,9 +175,7 @@ class MassDefinition(_framework.Component):
 
         c_new = np.array(
             [
-                _find_new_concentration(
-                    rho, mdef.halo_density(z, cosmo), profile._h, cc
-                )
+                _find_new_concentration(rho, mdef.halo_density(z, cosmo), profile._h, cc)
                 for rho, cc in zip(rhos, c, strict=True)
             ]
         )
@@ -208,10 +192,7 @@ class MassDefinition(_framework.Component):
 
     def __eq__(self, other):
         """Test equality with another object."""
-        return (
-            self.__class__.__name__ == other.__class__.__name__
-            and self.params == other.params
-        )
+        return self.__class__.__name__ == other.__class__.__name__ and self.params == other.params
 
 
 class SphericalOverdensity(MassDefinition):
@@ -306,7 +287,7 @@ class FOF(MassDefinition):
         ----------
         .. [1] White, Martin, Lars Hernquist, and Volker Springel. “The Halo Model and
            Numerical Simulations.” The Astrophysical Journal 550, no. 2 (April 2001):
-           L129–32. https://doi.org/10.1086/319644.
+           L129-32. https://doi.org/10.1086/319644.
         """
         overdensity = 9 / (2 * np.pi * self.params["linking_length"] ** 3)
         return overdensity * self.mean_density(z, cosmo)
@@ -384,7 +365,7 @@ def _find_new_concentration(rho_s, halo_density, h=None, x_guess=5.0):
             i += 1
 
     if x is None:
-        raise OptimizationException(
+        raise OptimizationError(
             "Could not determine x where the density threshold "
             f"{halo_density / rho_s:.2f} is satisfied. Largest x-range tried was "
             f"x={xmin} -- {xmax} which brackets {fnc(xmin)} -- {fnc(xmax)}"
@@ -393,6 +374,5 @@ def _find_new_concentration(rho_s, halo_density, h=None, x_guess=5.0):
     return x
 
 
-class OptimizationException(Exception):
+class OptimizationError(Exception):
     """Exception class related to failed optimization."""
-

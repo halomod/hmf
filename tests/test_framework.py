@@ -1,6 +1,5 @@
 import pytest
 from deprecation import fail_if_not_removed
-from pytest import raises
 
 import hmf
 from hmf import GrowthFactor, MassFunction
@@ -10,12 +9,12 @@ from hmf.density_field.transfer_models import TransferComponent
 
 
 def test_incorrect_argument():
-    with raises(TypeError):
+    with pytest.raises(TypeError):
         hmf.MassFunction(wrong_arg=3)
 
 
 def test_incorrect_update_arg():
-    with raises(ValueError):
+    with pytest.raises(ValueError):
         t = hmf.MassFunction(transfer_model="EH")
         t.update(wrong_arg=3)
 
@@ -98,19 +97,17 @@ def test_growth_plugins():
 
 
 def test_validate_inputs():
-    with pytest.raises(AssertionError):
+    with pytest.raises(AssertionError, match=r"Mmin > Mmax: 10, 9"):
         MassFunction(Mmin=10, Mmax=9, transfer_model="EH")
 
     m = MassFunction(Mmin=10, Mmax=11, transfer_model="EH")
-    with pytest.raises(AssertionError):
+    with pytest.raises(AssertionError, match="Mmin > Mmax: 10, 9"):
         m.update(Mmax=9)
 
     # Without checking on, we can still manually set it, but it will warn us
-    with pytest.warns(DeprecationWarning):
-        m.Mmax = 9
+    with pytest.warns(UserWarning, match="You are setting Mmin directly."):
         m.Mmin = 8
 
-    # But with checking on, we can't
-    m._validate_every_param_set = True
-    with pytest.raises(AssertionError):
+    # Ensure that validation still runs.
+    with pytest.raises(AssertionError, match="Mmin > Mmax: 8, 7"):
         m.Mmax = 7

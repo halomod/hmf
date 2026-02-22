@@ -172,9 +172,7 @@ if HAVE_CAMB:
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
 
-            if not isinstance(
-                self.cosmo, (cosmology.LambdaCDM, cosmology.wCDM, cosmology.w0waCDM)
-            ):
+            if not isinstance(self.cosmo, (cosmology.LambdaCDM, cosmology.wCDM, cosmology.w0waCDM)):
                 raise ValueError("CAMB will only work with LCDM or wCDM cosmologies")
 
             # Save the CAMB object properly for use
@@ -198,14 +196,12 @@ if HAVE_CAMB:
 
             if self.cosmo.Ob0 is None or self.cosmo.Ob0 == 0.0:
                 raise ValueError(
-                    "To use CAMB, you must set the baryon density in the cosmology "
-                    "explicitly."
+                    "To use CAMB, you must set the baryon density in the cosmology explicitly."
                 )
 
             if self.cosmo.Tcmb0.value == 0:
                 raise ValueError(
-                    "If using CAMB, the CMB temperature must be set explicitly in the "
-                    "cosmology."
+                    "If using CAMB, the CMB temperature must be set explicitly in the cosmology."
                 )
 
             self.params["camb_params"].set_cosmology(
@@ -225,16 +221,14 @@ if HAVE_CAMB:
             if isinstance(self.cosmo, cosmology.wCDM):
                 self.params["camb_params"].set_dark_energy(w=self.cosmo.w0)
             elif isinstance(self.cosmo, cosmology.w0waCDM):
-                self.params["camb_params"].set_dark_energy(
-                    w=self.cosmo.w0, wa=self.cosmo.wa
-                )
+                self.params["camb_params"].set_dark_energy(w=self.cosmo.w0, wa=self.cosmo.wa)
 
             if self.params["extrapolate_with_eh"] is None:
                 warnings.warn(
                     "'extrapolate_with_eh' was not set. Defaulting to True, which is "
                     "different behaviour than versions <=3.4.4. This warning may be "
                     "removed in v4.0. Silence it by setting extrapolate_with_eh explicitly.",
-                    stacklevel=2
+                    stacklevel=2,
                 )
                 self.params["extrapolate_with_eh"] = True
 
@@ -292,6 +286,7 @@ if HAVE_CAMB:
             return out
 
         def __getstate__(self):
+            """Get the state of the object, including converting the CAMBparams object to a dict."""
             # We need to get rid of the CAMBparams() object, as it cannot be pickled.
             p = self.params["camb_params"]
 
@@ -363,7 +358,8 @@ if HAVE_CAMB:
                     warnings.warn(
                         f"CAMB key '{pk}' is not an attribute. If you provided a "
                         f"custom CAMBparams, results may be inconsistent. Available: "
-                        f"{dir(p)}", stacklevel=2
+                        f"{dir(p)}",
+                        stacklevel=2,
                     )
 
                 except Exception:
@@ -380,6 +376,7 @@ if HAVE_CAMB:
             return this
 
         def __setstate__(self, state):
+            """Set the state of the object, including reconstructing the CAMBparams object."""
             self.__dict__ = state
 
             self.params["camb_params"] = camb.CAMBparams(**self.params["camb_params"])
@@ -425,9 +422,7 @@ class FromArray(FromFile):
         T = self.params["T"]
 
         if k is None or T is None:
-            raise ValueError(
-                "You must supply an array for both k and T for this Transfer Model"
-            )
+            raise ValueError("You must supply an array for both k and T for this Transfer Model")
         if len(k) != len(T):
             raise ValueError("k and T must have same length")
 
@@ -478,9 +473,7 @@ class EH_BAO(TransferComponent):
             * (1.0 + self.z_drag_b1 * self.Obh2**self.z_drag_b2)
         )
 
-        self.r_drag = (
-            31.5 * self.Obh2 * self.theta_cmb**-4 * (1000.0 / (1 + self.z_drag))
-        )
+        self.r_drag = 31.5 * self.Obh2 * self.theta_cmb**-4 * (1000.0 / (1 + self.z_drag))
         self.r_eq = 31.5 * self.Obh2 * self.theta_cmb**-4 * (1000.0 / self.z_eq)
 
         self.sound_horizon = (
@@ -493,21 +486,12 @@ class EH_BAO(TransferComponent):
         )
 
         self.k_silk = (
-            1.6
-            * self.Obh2**0.52
-            * self.Omh2**0.73
-            * (1.0 + (10.4 * self.Omh2) ** (-0.95))
+            1.6 * self.Obh2**0.52 * self.Omh2**0.73 * (1.0 + (10.4 * self.Omh2) ** (-0.95))
         )
 
-        alpha_c_a1 = (46.9 * self.Omh2) ** 0.670 * (
-            1.0 + (32.1 * self.Omh2) ** (-0.532)
-        )
-        alpha_c_a2 = (12.0 * self.Omh2) ** 0.424 * (
-            1.0 + (45.0 * self.Omh2) ** (-0.582)
-        )
-        self.alpha_c = alpha_c_a1 ** (-self.f_baryon) * alpha_c_a2 ** (
-            -(self.f_baryon**3)
-        )
+        alpha_c_a1 = (46.9 * self.Omh2) ** 0.670 * (1.0 + (32.1 * self.Omh2) ** (-0.532))
+        alpha_c_a2 = (12.0 * self.Omh2) ** 0.424 * (1.0 + (45.0 * self.Omh2) ** (-0.582))
+        self.alpha_c = alpha_c_a1 ** (-self.f_baryon) * alpha_c_a2 ** (-(self.f_baryon**3))
 
         beta_c_b1 = 0.944 / (1.0 + (458.0 * self.Omh2) ** -0.708)
         beta_c_b2 = (0.395 * self.Omh2) ** -0.0266
@@ -515,15 +499,10 @@ class EH_BAO(TransferComponent):
 
         y = self.z_eq / (1 + self.z_drag)
         alpha_b_G = y * (
-            -6 * np.sqrt(1 + y)
-            + (2 + 3 * y) * np.log((np.sqrt(1 + y) + 1) / (np.sqrt(1 + y) - 1))
+            -6 * np.sqrt(1 + y) + (2 + 3 * y) * np.log((np.sqrt(1 + y) + 1) / (np.sqrt(1 + y) - 1))
         )
         self.alpha_b = (
-            2.07
-            * self.k_eq
-            * self.sound_horizon
-            * (1.0 + self.r_drag) ** -0.75
-            * alpha_b_G
+            2.07 * self.k_eq * self.sound_horizon * (1.0 + self.r_drag) ** -0.75 * alpha_b_G
         )
 
         self.beta_node = 8.41 * self.Omh2**0.435
@@ -541,12 +520,7 @@ class EH_BAO(TransferComponent):
     @property
     def sound_horizon_fit(self):
         """Sound horizon in Mpc/h."""
-        return (
-            self.cosmo.h
-            * 44.5
-            * np.log(9.83 / self.Omh2)
-            / np.sqrt(1 + 10 * (self.Obh2**0.75))
-        )
+        return self.cosmo.h * 44.5 * np.log(9.83 / self.Omh2) / np.sqrt(1 + 10 * (self.Obh2**0.75))
 
     def lnt(self, lnk):
         r"""
@@ -587,9 +561,7 @@ class EH_BAO(TransferComponent):
 
         T_b_T0 = term(T_c_ln_nobeta, T_c_C_noalpha)
         Tb1 = T_b_T0 / (1.0 + (ks / 5.2) ** 2)
-        Tb2 = (self.alpha_b / (1.0 + (self.beta_b / ks) ** 3)) * np.exp(
-            -((k / self.k_silk) ** 1.4)
-        )
+        Tb2 = (self.alpha_b / (1.0 + (self.beta_b / ks) ** 3)) * np.exp(-((k / self.k_silk) ** 1.4))
         T_b = np.sin(ks_tilde) / ks_tilde * (Tb1 + Tb2)
 
         return np.log(self.f_baryon * T_b + (1 - self.f_baryon) * T_c)
@@ -637,9 +609,7 @@ class EH_NoBAO(EH_BAO):
 
         ks = k * self.sound_horizon_fit / self.cosmo.h  # need sound horizon in Mpc here
 
-        gamma_eff = self.Omh2 * (
-            self.alpha_gamma + (1 - self.alpha_gamma) / (1 + (0.43 * ks) ** 4)
-        )
+        gamma_eff = self.Omh2 * (self.alpha_gamma + (1 - self.alpha_gamma) / (1 + (0.43 * ks) ** 4))
         q = k / (13.4 * self.k_eq)
 
         q_eff = q * self.Omh2 / gamma_eff
@@ -728,8 +698,7 @@ class BBKS(TransferComponent):
             Gamma *= np.exp(-self.cosmo.Ob0 * (1 + 1 / self.cosmo.Om0))
         elif self.params["use_liddle_baryons"]:
             Gamma *= np.exp(
-                -self.cosmo.Ob0
-                * (1 + np.sqrt(self.cosmo.Ob0 * self.cosmo.h) / self.cosmo.Om0)
+                -self.cosmo.Ob0 * (1 + np.sqrt(self.cosmo.Ob0 * self.cosmo.h) / self.cosmo.Om0)
             )
 
         q = np.exp(lnk) / Gamma
@@ -795,4 +764,3 @@ class BondEfs(TransferComponent):
 
 class EH(EH_BAO):
     """Alias of :class:`EH_BAO`."""
-

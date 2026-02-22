@@ -94,9 +94,9 @@ testpaths = [
 
 
 [tool.ruff]
-# exclude = [
-#   "*.ipynb",  # for now
-# ]
+exclude = [
+  "development/*.ipynb",
+]
 line-length=100
 target-version="py311"
 
@@ -141,7 +141,9 @@ ignore = [
     "N806",  # Variable name should be lower case. We have some single-letter variables that make more sense to be caps.
     "N803",  # Argument name should be lowercase. Scientific notation (N, L, R, Mmin, etc.) - changing would break API.
     "N801",  # Class name should use CapWords. Names like Watson_FoF, EH_BAO are part of the public API.
+    "N802",  # Function name should be lowercase. Test functions often use capitals for scientific notation.
     "D401",  # First line should be in imperative mood -- cached_properties and parameter descriptors don't fit this.
+    "B018",  # Picks up "useless" expressions that are properties.
     # "N815",
     # "N807",  # Allow method names to start and end with __
     # "RUF012", # mutable class attributes annotation
@@ -156,6 +158,10 @@ ignore = [
 "tests/*.py" = [
     "D1",
     "T",     # print statements
+    "N802",  # function names - test functions often use capitals for scientific notation
+    "PT011", # pytest.raises too broad - acceptable in tests
+    "PT012", # pytest.raises with multiple statements - acceptable in tests
+    "PT030", # pytest.warns too broad - acceptable in tests
 ]
 "docs/conf.py" = [
     "A",  # conf.py can shadow builtins

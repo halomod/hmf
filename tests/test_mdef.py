@@ -89,15 +89,16 @@ def test_from_colossus_name(colossus_cosmo):
     assert md.from_colossus_name("800c") == md.SOCritical(overdensity=800)
     assert md.from_colossus_name("vir") == md.SOVirial()
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"name 'derp' is an unknown mass definition to colossus"):
         md.from_colossus_name("derp")
 
 
 def test_change_dndm(colossus_cosmo):
-    with pytest.warns(UserWarning):
-        h = MassFunction(
-            mdef_model="SOVirial", hmf_model="Warren", disable_mass_conversion=False
-        )
+    with pytest.warns(
+        UserWarning,
+        match=r"Your input mass definition 'SOVirial' does not match the mass definition",
+    ):
+        h = MassFunction(mdef_model="SOVirial", hmf_model="Warren", disable_mass_conversion=False)
 
     dndm = h.dndm
 

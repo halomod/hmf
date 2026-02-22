@@ -17,9 +17,7 @@ from scipy.optimize import minimize
 from ..cosmology.cosmo import Cosmology as CosmologyClass
 
 
-def _get_spec(
-    k: np.ndarray, delta_k: np.ndarray, sigma_8=None
-) -> tuple[float, float, float]:
+def _get_spec(k: np.ndarray, delta_k: np.ndarray, sigma_8=None) -> tuple[float, float, float]:
     """
     Calculate spectral parameters from power spectrum.
 
@@ -56,16 +54,14 @@ def _get_spec(
     def get_sigma_abs(lnr):
         return np.abs(get_log_sigma2(lnr))
 
-    res = minimize(
-        get_sigma_abs, x0=[1.0], options={"xatol": np.log(1.1)}, method="Nelder-Mead"
-    )
+    res = minimize(get_sigma_abs, x0=[1.0], options={"xatol": np.log(1.1)}, method="Nelder-Mead")
 
     if not res.success:
         warnings.warn(
             f"Could not determine non-linear scale! Failed with error: {res.message}. "
             f"Continuing with best-fit non-linear scale: r_nl={np.exp(res.x)}, with "
             f"log_sigma^2 = {res.fun}",
-            stacklevel=2
+            stacklevel=2,
         )
 
     rnl = np.exp(res.x)
@@ -202,19 +198,10 @@ def halofit(k, delta_k, *, sigma_8=None, z=0, cosmo=None, takahashi=True):
     y = k / rknl
 
     ph = a * y ** (f1 * 3) / (1 + b * y**f2 + (f3 * c * y) ** (3 - gam))
-    ph = (
-        ph
-        / (1 + xmu / y + xnu * y**-2)
-        * (1 + fnu * (0.977 - 18.015 * (cosmo.Om0 - 0.3)))
-    )
+    ph = ph / (1 + xmu / y + xnu * y**-2) * (1 + fnu * (0.977 - 18.015 * (cosmo.Om0 - 0.3)))
 
     plinaa = plin * (1 + fnu * 47.48 * k**2 / (1 + 1.5 * k**2))
-    pq = (
-        plin
-        * (1 + plinaa) ** beta
-        / (1 + plinaa * alpha)
-        * np.exp(-y / 4.0 - y**2 / 8.0)
-    )
+    pq = plin * (1 + plinaa) ** beta / (1 + plinaa * alpha) * np.exp(-y / 4.0 - y**2 / 8.0)
     pnl = pq + ph
 
     # We have to copy so the original data is not overwritten, giving unexpected results.

@@ -1,15 +1,10 @@
 """A package for producing halo mass functions under Spherical Collapse."""
 
-try:
-    from importlib.metadata import PackageNotFoundError, version
-except ImportError:
-    from importlib_metadata import PackageNotFoundError, version
+import contextlib
+from importlib.metadata import PackageNotFoundError, version
 
-try:
+with contextlib.suppress(PackageNotFoundError):
     __version__ = version(__name__)
-except PackageNotFoundError:
-    # package is not installed
-    pass
 
 from ._internals import (
     Component,

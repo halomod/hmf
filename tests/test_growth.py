@@ -37,9 +37,7 @@ def test_gfunc(gf, genf):
     genf_func = genf.growth_factor_fn(0.0)
 
     print(gf_func(np.linspace(0, 5, 10)), genf_func(np.linspace(0, 5, 10)))
-    assert np.allclose(
-        gf_func(np.linspace(0, 5, 10)), genf_func(np.linspace(0, 5, 10)), rtol=1e-2
-    )
+    assert np.allclose(gf_func(np.linspace(0, 5, 10)), genf_func(np.linspace(0, 5, 10)), rtol=1e-2)
 
 
 def test_gr_func(gf, genf):
@@ -47,9 +45,7 @@ def test_gr_func(gf, genf):
     genf_func = genf.growth_rate_fn(0.0)
 
     print(gr_func(np.linspace(0, 5, 10)), genf_func(np.linspace(0, 5, 10)))
-    assert np.allclose(
-        gr_func(np.linspace(0, 5, 10)), genf_func(np.linspace(0, 5, 10)), rtol=1e-2
-    )
+    assert np.allclose(gr_func(np.linspace(0, 5, 10)), genf_func(np.linspace(0, 5, 10)), rtol=1e-2)
 
 
 def test_inverse(gf, genf):
@@ -63,7 +59,7 @@ def test_inverse(gf, genf):
 
 def test_unsupported_cosmo():
     cosmo = w0waCDM(H0=70.0, Om0=0.3, Ode0=0.7, w0=-0.9, Ob0=0.05, Tcmb0=2.7)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="not supported by GenMFGrowth"):
         growth_factor.GenMFGrowth(cosmo=cosmo)
 
     # But shouldn't raise error for CAMBGrowth
@@ -88,9 +84,7 @@ def test_pickleability_of_cambgrowth():
 
 def test_from_file(datadir):
     cosmo = w0waCDM(H0=70.0, Om0=0.3, Ode0=0.7, w0=-0.9, Ob0=0.05, Tcmb0=2.7)
-    gf = growth_factor.FromFile(
-        cosmo=cosmo, fname=f"{datadir}/growth_for_hmf_tests.dat"
-    )
+    gf = growth_factor.FromFile(cosmo=cosmo, fname=f"{datadir}/growth_for_hmf_tests.dat")
     data_in = np.genfromtxt(f"{datadir}/growth_for_hmf_tests.dat")[:, [0, 1]]
     z = data_in[:, 0]
     d = data_in[:, 1]

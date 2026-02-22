@@ -1,15 +1,12 @@
-"""A supporting module that provides a routine to integrate the differential hmf in a robust
-manner.
-"""
+"""A supporting module with a routine to integrate the differential hmf in a robust manner."""
 
 import numpy as np
 import scipy.integrate as intg
 from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 
 
-class NaNException(Exception):
+class NaNError(Exception):
     """Integrator hit a NaN."""
-
 
 
 def hmf_integral_gtm(m, dndm, mass_density=False):
@@ -60,7 +57,7 @@ def hmf_integral_gtm(m, dndm, mass_density=False):
     dndlnm = m * dndm
 
     if len(m) < 4:
-        raise NaNException(
+        raise NaNError(
             f"There are too few real numbers in dndm: len(dndm) = {n}, #NaN's = {n - len(m)}"
         )
 
@@ -88,9 +85,9 @@ def hmf_integral_gtm(m, dndm, mass_density=False):
     else:
         ngtm = np.concatenate(
             (
-                intg.cumulative_trapezoid(
-                    m[::-1] * dndlnm[::-1], dx=np.log(m[1]) - np.log(m[0])
-                )[::-1],
+                intg.cumulative_trapezoid(m[::-1] * dndlnm[::-1], dx=np.log(m[1]) - np.log(m[0]))[
+                    ::-1
+                ],
                 np.zeros(1),
             )
         )

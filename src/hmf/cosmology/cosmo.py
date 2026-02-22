@@ -94,9 +94,7 @@ class Cosmology(_framework.Framework):
             return get_cosmo(val)
 
         if not isinstance(val, FLRW):
-            raise ValueError(
-                "cosmo_model must be an instance of astropy.cosmology.FLRW"
-            )
+            raise ValueError("cosmo_model must be an instance of astropy.cosmology.FLRW")
         return val
 
     @_cache.parameter("param")

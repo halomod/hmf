@@ -304,7 +304,7 @@ class MassFunction(transfer.Transfer):
                     f"definition in which the hmf fit {self.hmf_model.__name__} was measured:"
                     f"'{self.hmf_model.get_measured_mdef()}'. "
                     f"{extra_msg if not self.disable_mass_conversion else ''}",
-                    stacklevel=2
+                    stacklevel=2,
                 )
 
         return mdef
@@ -414,21 +414,14 @@ class MassFunction(transfer.Transfer):
         """The nonlinear mass, nu(Mstar) = 1."""
         if self.nu.min() > 1 or self.nu.max() < 1:
             warnings.warn("Nonlinear mass outside mass range", stacklevel=2)
-            if self.nu.min() > 1:
-                startr = np.log(self.radii.min())
-            else:
-                startr = np.log(self.radii.max())
+
+            startr = np.log(self.radii.min()) if self.nu.min() > 1 else np.log(self.radii.max())
 
             def model(lnr):
                 return (
-                            (
-                                self.filter.sigma(np.exp(lnr))
-                                * self._normalisation
-                                * self.growth_factor
-                                - self.delta_c
-                            )
-                            ** 2
-                        )
+                    self.filter.sigma(np.exp(lnr)) * self._normalisation * self.growth_factor
+                    - self.delta_c
+                ) ** 2
 
             res = minimize(
                 model,
@@ -479,8 +472,9 @@ class MassFunction(transfer.Transfer):
 
     @cached_quantity
     def dndm(self):
-        r"""The number density of haloes, ``len=len(m)`` [units :math:`h^4 M_\odot^{-1}
-        Mpc^{-3}`].
+        r"""The number density of haloes, ``len=len(m)``.
+
+        Units: :math:`h^4 M_\odot^{-1} Mpc^{-3}`].
         """
         # if self.z2 is None:  # #This is normally the case
         dndm = self.fsigma * self.mean_density0 * np.abs(self._dlnsdlnm) / self.m**2
@@ -488,9 +482,7 @@ class MassFunction(transfer.Transfer):
             ngtm_tinker = self._gtm(dndm)
 
             # THe Behroozi paper corrections assume masses in Msun, not Msun/h
-            dndm = self.hmf._modify_dndm(
-                self.m * self.cosmo.h, dndm, self.z, ngtm_tinker
-            )
+            dndm = self.hmf._modify_dndm(self.m * self.cosmo.h, dndm, self.z, ngtm_tinker)
 
         # Alter the mass definition
         if (
@@ -510,15 +502,17 @@ class MassFunction(transfer.Transfer):
 
     @cached_quantity
     def dndlnm(self):
-        r"""The differential mass function in terms of natural log of `m`, ``len=len(m)``
-        [units :math:`h^3 Mpc^{-3}`].
+        r"""The differential mass function in terms of natural log of `m`, ``len=len(m)``.
+
+        Units: :math:`h^3 Mpc^{-3}`
         """
         return self.m * self.dndm
 
     @cached_quantity
     def dndlog10m(self):
-        r"""The differential mass function in terms of log of `m`, ``len=len(m)``
-        [units :math:`h^3 Mpc^{-3}`].
+        r"""The differential mass function in terms of log of `m`, ``len=len(m)``.
+
+        Units: :math:`h^3 Mpc^{-3}`
         """
         return self.m * self.dndm * np.log(10)
 
@@ -544,14 +538,14 @@ class MassFunction(transfer.Transfer):
         # If the highest mass is very low, we try calculating it to higher masses
         # The dlog10m is NOT CHANGED, so the input needs to be finely spaced.
         # If the top value of dndm is NaN, don't try calculating higher masses.
-        if m[-1] < 10**16.5 and not np.isnan(dndm[-1]) and dndm[-1] != 0:
-            # ff.Behroozi function won't work here.
-            if not isinstance(self.hmf, ff.Behroozi):
-                new_mf = copy.deepcopy(self)
-                new_mf.update(Mmin=np.log10(self.m[-1]) + self.dlog10m, Mmax=18)
-                dndm = np.concatenate((dndm, new_mf.dndm))
+        if (m[-1] < 10**16.5 and not np.isnan(dndm[-1]) and dndm[-1] != 0) and not isinstance(
+            self.hmf, ff.Behroozi
+        ):
+            new_mf = copy.deepcopy(self)
+            new_mf.update(Mmin=np.log10(self.m[-1]) + self.dlog10m, Mmax=18)
+            dndm = np.concatenate((dndm, new_mf.dndm))
 
-                m = np.concatenate((m, new_mf.m))
+            m = np.concatenate((m, new_mf.m))
 
         ngtm = int_gtm(m[dndm > 0], dndm[dndm > 0], mass_density)
 
@@ -559,7 +553,6 @@ class MassFunction(transfer.Transfer):
         # they were originally
         if len(ngtm) < len(m):  # Will happen if some dndlnm are NaN
             ngtm_temp = np.zeros(len(dndm))
-            # ngtm_temp[:] = np.nan
             ngtm_temp[dndm > 0] = ngtm
             ngtm = ngtm_temp
 

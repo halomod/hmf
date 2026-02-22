@@ -430,9 +430,7 @@ class SharpK(Filter):
 
     @override
     def mass_to_radius(self, m, rho_mean):
-        return (1.0 / self.params["c"]) * (3.0 * m / (4.0 * np.pi * rho_mean)) ** (
-            1.0 / 3.0
-        )
+        return (1.0 / self.params["c"]) * (3.0 * m / (4.0 * np.pi * rho_mean)) ** (1.0 / 3.0)
 
     @override
     def radius_to_mass(self, r, rho_mean):
@@ -486,9 +484,7 @@ class SharpKEllipsoid(SharpK):
 
         Equation A6. in Schneider et al. 2013
         """
-        top = 3 * (1 - g**2) + (1.1 - 0.9 * g**4) * np.exp(
-            -g * (1 - g**2) * (g * v / 2) ** 2
-        )
+        top = 3 * (1 - g**2) + (1.1 - 0.9 * g**4) * np.exp(-g * (1 - g**2) * (g * v / 2) ** 2)
         bot = (3 * (1 - g**2) + 0.45 + (g * v / 2) ** 2) ** 0.5 + g * v / 2
         return g * v + top / bot
 
@@ -501,8 +497,7 @@ class SharpKEllipsoid(SharpK):
         return 30.0 / (5 * xm**2 + 6) ** 2
 
     def a3a1(self, e, p):
-        """Compute the short:long axis ratio of an ellipsoid given its ellipticity and prolateness.
-        """
+        """Compute the short:long axis ratio of an ellipsoid."""
         return np.sqrt((1 - 3 * e + p) / (1 + 3 * e + p))
 
     def a3a2(self, e, p):

@@ -1,4 +1,9 @@
-"""Analytic functions for this test are defined in "analytic_filter.ipynb" in the development/ directory."""
+"""
+Tests of the filters module.
+
+Analytic functions for this test are defined in "analytic_filter.ipynb"
+in the development/ directory.
+"""
 
 import warnings
 
@@ -135,9 +140,9 @@ class TestSharpK:
         t = 2 + 2 + 1
         true = 1.0 / (2 * pi**2 * t * thisr**t)
 
-        with pytest.warns(UserWarning):
-            # should also raise a warning
-            R = 0.5
+        # should also raise a warning
+        R = 0.5
+        with pytest.warns(UserWarning, match=""):
             s2 = cls.sigma(R)[0] ** 2
         assert np.isclose(s2, true)
 
@@ -147,9 +152,9 @@ class TestSharpK:
         t = 4 + 2 + 1
         true = 1.0 / (2 * pi**2 * t * thisr**t)
 
-        with pytest.warns(UserWarning):
-            # should also raise a warning
-            R = 0.5
+        # should also raise a warning
+        R = 0.5
+        with pytest.warns(UserWarning, match=""):
             s2 = cls.sigma(R, 1)[0] ** 2
         assert np.isclose(s2, true)
 

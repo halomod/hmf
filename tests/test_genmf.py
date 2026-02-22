@@ -1,5 +1,5 @@
 """
-This module contains a number of tests that check hmf's results against those of genmf.
+A module containing a number of tests that check hmf's results against those of genmf.
 
 We check results for sigma, lnsigma, and the differential and cumulative mass functions against
 genmf for two different redshifts (0 and 2). We use precisely the same transfer function here
@@ -52,9 +52,7 @@ from hmf import MassFunction
 
 
 def rms_diff(vec1, vec2, tol):
-    mask = np.logical_and(
-        np.logical_not(np.isnan(vec1)), np.logical_not(np.isnan(vec2))
-    )
+    mask = np.logical_and(np.logical_not(np.isnan(vec1)), np.logical_not(np.isnan(vec2)))
     vec1 = vec1[mask]
     vec2 = vec2[mask]
     err = np.sqrt(np.mean(((vec1 - vec2) / vec2) ** 2))
@@ -63,9 +61,7 @@ def rms_diff(vec1, vec2, tol):
 
 
 def max_diff_rel(vec1, vec2, tol):
-    mask = np.logical_and(
-        np.logical_not(np.isnan(vec1)), np.logical_not(np.isnan(vec2))
-    )
+    mask = np.logical_and(np.logical_not(np.isnan(vec1)), np.logical_not(np.isnan(vec2)))
     vec1 = vec1[mask]
     vec2 = vec2[mask]
     err = np.max(np.abs((vec1 - vec2) / vec2))
@@ -74,9 +70,7 @@ def max_diff_rel(vec1, vec2, tol):
 
 
 def max_diff(vec1, vec2, tol):
-    mask = np.logical_and(
-        np.logical_not(np.isnan(vec1)), np.logical_not(np.isnan(vec2))
-    )
+    mask = np.logical_and(np.logical_not(np.isnan(vec1)), np.logical_not(np.isnan(vec2)))
     vec1 = vec1[mask]
     vec2 = vec2[mask]
     err = np.max(np.abs(vec1 - vec2))
@@ -110,9 +104,7 @@ class TestGenMF:
     @staticmethod
     def check_col(pert, fit, redshift, col):
         """Able to check all columns."""
-        data = np.genfromtxt("tests/data/" + fit + "_" + str(int(redshift)))[::-1][
-            400:1201
-        ]
+        data = np.genfromtxt("tests/data/" + fit + "_" + str(int(redshift)))[::-1][400:1201]
 
         # We have to do funky stuff to the data if its been cut by genmf
         if col == "sigma":
