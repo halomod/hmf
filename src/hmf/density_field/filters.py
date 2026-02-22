@@ -136,7 +136,7 @@ class Filter(_framework.Component):
 
     def dw_dlnkr(self, kr):
         r"""
-        The derivative of the (fourier-transformed) filter with :math:`\ln(kr)`.
+        Compute the derivative of the (fourier-transformed) filter with :math:`\ln(kr)`.
 
         Parameters
         ----------
@@ -153,7 +153,7 @@ class Filter(_framework.Component):
 
     def dlnss_dlnr(self, r):
         r"""
-        The derivative of the mass variance with radius.
+        Compute the derivative of the mass variance with radius.
 
         Parameters
         ----------
@@ -188,7 +188,7 @@ class Filter(_framework.Component):
 
     def dlnr_dlnm(self, r):
         r"""
-        The derivative of log radius with log mass.
+        Compute the derivative of log radius with log mass.
 
         For the usual :math:`m\propto r^3` mass assignment, this is just 1/3.
 
@@ -201,7 +201,7 @@ class Filter(_framework.Component):
 
     def dlnss_dlnm(self, r):
         r"""
-        The logarithmic slope of mass variance with mass.
+        Compute the logarithmic slope of mass variance with mass.
 
         This is an important quantity, and is used directly to calculate
         :math:`\frac{dn}{dm}`.
@@ -493,19 +493,19 @@ class SharpKEllipsoid(SharpK):
         return g * v + top / bot
 
     def em(self, xm):
-        """The average ellipticity of a patch as a function of peak tensor."""
+        """Compute the average ellipticity of a patch as a function of peak tensor."""
         return 1 / np.sqrt(5 * xm**2 + 6)
 
     def pm(self, xm):
-        """The average prolateness of a patch as a function of peak tensor."""
+        """Compute the average prolateness of a patch as a function of peak tensor."""
         return 30.0 / (5 * xm**2 + 6) ** 2
 
     def a3a1(self, e, p):
-        """The short:long axis ratio of an ellipsoid given its ellipticity and prolateness."""
+        """Compute the short:long axis ratio of an ellipsoid given its ellipticity and prolateness."""
         return np.sqrt((1 - 3 * e + p) / (1 + 3 * e + p))
 
     def a3a2(self, e, p):
-        """The short:medium axis ratio of an ellipsoid given its ellipticity/prolateness."""
+        """Compute the short:medium axis ratio of an ellipsoid given its ellipticity/prolateness."""
         return np.sqrt((1 - 2 * p) / (1 + 3 * e + p))
 
     def gamma(self, r):

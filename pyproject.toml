@@ -97,7 +97,7 @@ testpaths = [
 # exclude = [
 #   "*.ipynb",  # for now
 # ]
-line-length=88
+line-length=100
 target-version="py311"
 
 [tool.ruff.lint]
@@ -131,24 +131,24 @@ extend-select = [
   "RSE",  # exception raises
   "TRY201", # verbose raise
 ]
-# ignore = [
-#     # "DTZ007",   # use %z in strptime
-#     # "DTZ001",   # require tzinfo in datetime
-#     # "B008",     # do not performa function call in argument defaults
-#     # "PTH207",   # allow glob.glob() because when we use it, it's necessary
-#     # "A003",     # class attribute shadowing builtins
-#     # "RUF009",   # don;e perform function call in dataclass defaults
-#     # "N806",  # Variable name should be lower case. We have some single-letter variables that make more sense to be caps.
-#     # "D401",  # First line should be in imperative mood -- cached_properties don't fit this bill.
-#     # "N815",
-#     # "N807",  # Allow method names to start and end with __
-#     # "RUF012", # mutable class attributes annotation
-#     # # The rest should be un-commented when possible...
-#     # "PTH123",
-#     # "PT011",
-#     # "A005",  # module name shadows builtin
-#     # "RUF067",  # allow defining new variables in __Init__ files
-# ]
+ignore = [
+    # "DTZ007",   # use %z in strptime
+    # "DTZ001",   # require tzinfo in datetime
+    # "B008",     # do not performa function call in argument defaults
+    # "PTH207",   # allow glob.glob() because when we use it, it's necessary
+    # "A003",     # class attribute shadowing builtins
+    # "RUF009",   # don;e perform function call in dataclass defaults
+    "N806",  # Variable name should be lower case. We have some single-letter variables that make more sense to be caps.
+    "D401",  # First line should be in imperative mood -- cached_properties and parameter descriptors don't fit this.
+    # "N815",
+    # "N807",  # Allow method names to start and end with __
+    # "RUF012", # mutable class attributes annotation
+    # # The rest should be un-commented when possible...
+    # "PTH123",
+    # "PT011",
+    # "A005",  # module name shadows builtin
+    # "RUF067",  # allow defining new variables in __Init__ files
+]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*.py" = [
@@ -166,7 +166,13 @@ extend-select = [
 
 [tool.ruff.lint.pydocstyle]
 convention = 'numpy'
-property-decorators = ["pytest.fixture"]
+property-decorators = [
+    "pytest.fixture",
+    "property",
+    "cached_property",
+    "cached_quantity",
+    "parameter",
+]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 21

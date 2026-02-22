@@ -97,7 +97,7 @@ class GrowthFactor(_GrowthFactor):
 
     def _d_plus(self, z: float | np.ndarray) -> float | np.ndarray:
         r"""
-        Finds the factor :math:`D^+(a)`, from Lukic et. al. 2007, eq. 8.
+        Find the factor :math:`D^+(a)`, from Lukic et. al. 2007, eq. 8.
 
         Parameters
         ----------
@@ -231,7 +231,7 @@ class FromFile(GrowthFactor):
 
     def growth_factor(self, z):
         r"""
-        The growth factor, :math:`d(a) = D^+(a)/D^+(a=1)`.
+        Compute the growth factor, :math:`d(a) = D^+(a)/D^+(a=1)`.
 
         Parameters
         ----------
@@ -274,7 +274,7 @@ class FromArray(FromFile):
 
     def growth_factor(self, z):
         r"""
-        The growth factor, :math:`d(a) = D^+(a)/D^+(a=1)`.
+        Compute the growth factor, :math:`d(a) = D^+(a)/D^+(a=1)`.
 
         Parameters
         ----------
@@ -348,7 +348,7 @@ class GenMFGrowth(GrowthFactor):
 
     def growth_factor(self, z):
         """
-        The growth factor, :math:`d(a) = D^+(a)/D^+(a=1)`.
+        Compute the growth factor, :math:`d(a) = D^+(a)/D^+(a=1)`.
 
         This uses an approximation only valid in closed or
         flat cosmologies, ported from ``genmf``.
