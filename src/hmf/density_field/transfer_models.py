@@ -5,11 +5,12 @@ Note that these are not transfer function "frameworks". The framework is found
 in :mod:`hmf.transfer`.
 """
 
-import numpy as np
 import pickle
 import warnings
-from astropy import cosmology
 from copy import deepcopy
+
+import numpy as np
+from astropy import cosmology
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 
 from .._internals._framework import Component, pluggable
@@ -60,7 +61,6 @@ class TransferComponent(Component):
         lnt : array_like
             The log of the transfer function at lnk.
         """
-        pass
 
 
 class FromFile(TransferComponent):
@@ -254,7 +254,6 @@ if HAVE_CAMB:
             lnt : array_like
                 The log of the transfer function at lnk.
             """
-
             camb_transfers = camb.get_transfer_functions(self.params["camb_params"])
             T = camb_transfers.get_matter_transfer_data().transfer_data
             T = np.log(T[[0, 6], :, 0])
@@ -507,7 +506,7 @@ class EH_BAO(TransferComponent):
             1.0 + (45.0 * self.Omh2) ** (-0.582)
         )
         self.alpha_c = alpha_c_a1 ** (-self.f_baryon) * alpha_c_a2 ** (
-            -self.f_baryon**3
+            -(self.f_baryon**3)
         )
 
         beta_c_b1 = 0.944 / (1.0 + (458.0 * self.Omh2) ** -0.708)
@@ -784,7 +783,6 @@ class BondEfs(TransferComponent):
         lnt : array_like
             The log of the transfer function at lnk.
         """
-
         scale = (0.3 * 0.75**2) / (self.cosmo.Om0 * self.cosmo.h)
 
         a = self.params["a"] * scale
@@ -798,4 +796,3 @@ class BondEfs(TransferComponent):
 class EH(EH_BAO):
     """Alias of :class:`EH_BAO`."""
 
-    pass

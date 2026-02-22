@@ -1,9 +1,10 @@
 """A module containing various smoothing filter Component models."""
 
 import collections
+import warnings
+
 import numpy as np
 import scipy.integrate as intg
-import warnings
 from scipy.interpolate import InterpolatedUnivariateSpline as _spline
 
 from .._internals import _framework, _utils
@@ -74,7 +75,6 @@ class Filter(_framework.Component):
         r : array_like
             The radial co-ordinate
         """
-        pass
 
     def k_space(self, kr):
         r"""
@@ -90,7 +90,6 @@ class Filter(_framework.Component):
         w : array_like
             The filter in fourier space, ``len(kr)``
         """
-        pass
 
     def mass_to_radius(self, m, rho_mean):
         r"""
@@ -112,7 +111,6 @@ class Filter(_framework.Component):
         -----
         The units of `m` don't matter as long as they are consistent with `rho_mean`.
         """
-        pass
 
     def radius_to_mass(self, r, rho_mean):
         r"""
@@ -134,7 +132,6 @@ class Filter(_framework.Component):
         -----
         The units of `r` don't matter as long as they are consistent with `rho_mean`.
         """
-        pass
 
     def dw_dlnkr(self, kr):
         r"""
@@ -152,7 +149,6 @@ class Filter(_framework.Component):
 
         .. math:: w\frac{dw}{d\ln r} = \frac{2}{r}\frac{dw^2}{dm}\frac{dm}{dr}.
         """
-        pass
 
     def dlnss_dlnr(self, r):
         r"""

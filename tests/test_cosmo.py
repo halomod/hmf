@@ -1,7 +1,6 @@
-import pytest
-
 import deprecation
 import numpy as np
+import pytest
 from astropy.cosmology import WMAP7
 
 from hmf.cosmology.cosmo import Cosmology, astropy_to_colossus

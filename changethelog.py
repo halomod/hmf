@@ -17,7 +17,7 @@ if __name__ == "__main__":
         raise OSError("Couldn't Find 'dev-version' tag")
 
     lines.insert(_i + 2, "----------------------\n")
-    lines.insert(_i + 2, f'v{newversion} [{datetime.now().strftime("%d %b %Y")}]\n')
+    lines.insert(_i + 2, f"v{newversion} [{datetime.now().strftime('%d %b %Y')}]\n")
     lines.insert(_i + 2, "\n")
 
     with open("CHANGELOG.rst", "w") as fl:

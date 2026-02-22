@@ -7,19 +7,19 @@ and Michael Schneider (https://code.google.com/p/chomp/). It has
 been modified to improve its integration with this package.
 """
 
-import numpy as np
 import warnings
+
+import numpy as np
 from scipy.integrate import simpson as _simps
 from scipy.interpolate import InterpolatedUnivariateSpline as _spline
 from scipy.optimize import minimize
-from typing import Tuple
 
 from ..cosmology.cosmo import Cosmology as csm
 
 
 def _get_spec(
     k: np.ndarray, delta_k: np.ndarray, sigma_8=None
-) -> Tuple[float, float, float]:
+) -> tuple[float, float, float]:
     """
     Calculate nonlinear wavenumber, effective spectral index and curvature
     of the power spectrum.

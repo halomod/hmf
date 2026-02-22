@@ -1,11 +1,11 @@
 """Classes defining the overall structure of the hmf framework."""
 
 import copy
-import deprecation
 import logging
 import sys
 import warnings
-from typing import Dict, List, Optional, Type, Union
+
+import deprecation
 
 logger = logging.getLogger(__name__)
 
@@ -39,17 +39,17 @@ class Component:
         self.params.update(model_params)
 
     @classmethod
-    def get_models(cls) -> Dict[str, Type]:
+    def get_models(cls) -> dict[str, type]:
         """Get a dictionary of all implemented models for this component."""
         return cls._plugins
 
 
-def get_base_components() -> List[Type[Component]]:
+def get_base_components() -> list[type[Component]]:
     """Get a list of classes defining base components."""
     return Component.__subclasses__()
 
 
-def get_base_component(name: [str, Type[Component]]) -> Type[Component]:
+def get_base_component(name: [str, type[Component]]) -> type[Component]:
     """Return an actual class representing a component.
 
     Parameters
@@ -75,12 +75,11 @@ def get_base_component(name: [str, Type[Component]]) -> Type[Component]:
                 f"More than one component called '{name}'. Returning {avail[-1]}."
             )
         return avail[-1]
-    else:
-        try:
-            assert issubclass(name, Component)
-            return name
-        except TypeError:
-            raise ValueError(f"{name} must be str or a Component subclass")
+    try:
+        assert issubclass(name, Component)
+        return name
+    except TypeError:
+        raise ValueError(f"{name} must be str or a Component subclass")
 
 
 def pluggable(cls):
@@ -99,9 +98,9 @@ def pluggable(cls):
 
 
 def get_mdl(
-    name: Union[str, Type[Component]],
-    kind: Optional[Union[str, Type[Component]]] = None,
-) -> Type[Component]:
+    name: str | type[Component],
+    kind: str | type[Component] | None = None,
+) -> type[Component]:
     """Return a defined model with given name.
 
     Parameters
@@ -219,7 +218,6 @@ class Framework(metaclass=_Validator):
 
     def validate(self):
         """Perform validation of the input parameters as they relate to each other."""
-        pass
 
     def update(self, **kwargs):
         """

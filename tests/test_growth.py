@@ -1,7 +1,7 @@
-import pytest
-
 import copy
+
 import numpy as np
+import pytest
 from astropy.cosmology import Planck13, w0waCDM
 
 from hmf.cosmology import growth_factor

@@ -10,6 +10,7 @@ updated.
 import warnings
 from copy import deepcopy
 from functools import update_wrapper
+
 from numpy import array_equal
 
 
@@ -93,7 +94,7 @@ def cached_quantity(f):
             return getattr(self, prop)
 
         # Otherwise, if its in recalc, and needs updating, just update it
-        elif name in recalc:
+        if name in recalc:
             value = f(self)
             setattr(self, prop, value)
 
@@ -324,9 +325,11 @@ def parameter(kind):
 def subframework(f):
     """
     A quantity that is essentially a sub-framework
+
     Parameters
     ----------
     f
+
     Returns
     -------
     """

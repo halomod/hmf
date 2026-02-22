@@ -1,9 +1,9 @@
-import pytest
-from pytest import raises
-
 import inspect
 import itertools
+
 import numpy as np
+import pytest
+from pytest import raises
 
 from hmf import MassFunction
 from hmf.mass_function import fitting_functions as ff
@@ -12,10 +12,12 @@ allfits = [
     o
     for n, o in inspect.getmembers(
         ff,
-        lambda member: inspect.isclass(member)
-        and issubclass(member, ff.FittingFunction)
-        and member is not ff.FittingFunction
-        and member is not ff.PS,
+        lambda member: (
+            inspect.isclass(member)
+            and issubclass(member, ff.FittingFunction)
+            and member is not ff.FittingFunction
+            and member is not ff.PS
+        ),
     )
 ]
 

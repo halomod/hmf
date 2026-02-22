@@ -7,11 +7,11 @@ which may be more efficient, or extensions to alternate cosmologies,
 may be implemented.
 """
 
+from functools import cached_property
+
 import numpy as np
 from astropy import cosmology
-from functools import cached_property
 from scipy.interpolate import InterpolatedUnivariateSpline as _spline
-from typing import Union
 
 from .._internals._framework import Component as Cmpt
 from .._internals._framework import pluggable
@@ -89,7 +89,7 @@ class GrowthFactor(_GrowthFactor):
             a, 2.5 * self.cosmo.Om0 / (a * self.cosmo.efunc(self._zvec)) ** 3
         ).antiderivative()
 
-    def _d_plus(self, z: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
+    def _d_plus(self, z: float | np.ndarray) -> float | np.ndarray:
         r"""
         Finds the factor :math:`D^+(a)`, from Lukic et. al. 2007, eq. 8.
 
@@ -154,7 +154,6 @@ class GrowthFactor(_GrowthFactor):
             The normalised growth factor as a function of redshift, or
             redshift as a function of growth factor if ``inverse`` is True.
         """
-
         if not inverse:
             return self.growth_factor
 
@@ -327,7 +326,7 @@ class GenMFGrowth(GrowthFactor):
         This is not implemented in this class. It is not
         required to calculate :meth:`growth_factor`.
         """
-        raise NotImplementedError()  # pragma: nocover
+        raise NotImplementedError  # pragma: nocover
 
     def _general_case(self, w, x):
         x = np.atleast_1d(x)
@@ -365,24 +364,23 @@ class GenMFGrowth(GrowthFactor):
 
         if self.cosmo.Om0 == 1:
             return a
-        elif self.cosmo.Ode0 > 0:
+        if self.cosmo.Ode0 > 0:
             xn = (2.0 * w) ** (1.0 / 3)
             aofxn = self._general_case(w, xn)
             x = a * xn
             aofx = self._general_case(w, x)
             return aofx / aofxn
-        else:
-            dn = (
-                1
-                + 3 / w
-                + (3 * ((1 + w) ** 0.5) / w**1.5) * np.log((1 + w) ** 0.5 - w**0.5)
-            )
-            x = w * a
-            return (
-                1
-                + 3 / x
-                + (3 * ((1 + x) ** 0.5) / x**1.5) * np.log((1 + x) ** 0.5 - x**0.5)
-            ) / dn
+        dn = (
+            1
+            + 3 / w
+            + (3 * ((1 + w) ** 0.5) / w**1.5) * np.log((1 + w) ** 0.5 - w**0.5)
+        )
+        x = w * a
+        return (
+            1
+            + 3 / x
+            + (3 * ((1 + x) ** 0.5) / x**1.5) * np.log((1 + x) ** 0.5 - x**0.5)
+        ) / dn
 
 
 @_inherit
@@ -520,8 +518,7 @@ if HAVE_CAMB:
             )
             if len(growth) == 1:
                 return growth[0]
-            else:
-                return growth
+            return growth
 
         def __getstate__(self):
             dct = self.__dict__.copy()

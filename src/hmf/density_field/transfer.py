@@ -88,9 +88,9 @@ class Transfer(cosmo.Cosmology):
     # ===========================================================================
     def validate(self):
         super().validate()
-        assert (
-            self.lnk_min < self.lnk_max
-        ), f"lnk_min >= lnk_max: {self.lnk_min}, {self.lnk_max}"
+        assert self.lnk_min < self.lnk_max, (
+            f"lnk_min >= lnk_max: {self.lnk_min}, {self.lnk_max}"
+        )
         assert len(self.k) > 1, f"len(k) < 2: {len(self.k)}"
 
     @parameter("model")
@@ -291,8 +291,7 @@ class Transfer(cosmo.Cosmology):
         r"""The growth factor."""
         if self.use_splined_growth:
             return self._growth_factor_fn(self.z)
-        else:
-            return self.growth.growth_factor(self.z)
+        return self.growth.growth_factor(self.z)
 
     @cached_quantity
     def power(self):

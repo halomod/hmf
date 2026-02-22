@@ -1,9 +1,8 @@
 """Tests of HMF."""
 
+import numpy as np
 import pytest
 from pytest import raises
-
-import numpy as np
 
 from hmf import MassFunction
 

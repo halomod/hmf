@@ -1,7 +1,6 @@
 import pytest
-from pytest import raises
-
 from deprecation import fail_if_not_removed
+from pytest import raises
 
 import hmf
 from hmf import GrowthFactor, MassFunction

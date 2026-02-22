@@ -4,12 +4,12 @@ This is primarily inspired by Benedikt Diemer's COLOSSUS code:
 https://bdiemer.bitbucket.io/colossus/halo_mass_defs.html
 """
 
+import warnings
+
 import astropy.units as u
 import numpy as np
 import scipy as sp
-import warnings
 from astropy.cosmology import Planck15
-from typing import Optional
 
 from .._internals import _framework
 from ..cosmology import Cosmology
@@ -214,8 +214,6 @@ class MassDefinition(_framework.Component):
 class SphericalOverdensity(MassDefinition):
     """An abstract base class for all spherical overdensity mass definitions."""
 
-    pass
-
     def __str__(self):
         """Describe the overdensity in standard notation."""
         return f"{self.__class__.__name__}({self.params['overdensity']})"
@@ -224,7 +222,7 @@ class SphericalOverdensity(MassDefinition):
 class SOGeneric(SphericalOverdensity):
     """A generic SO definition which can claim equality with any SO."""
 
-    def __init__(self, preferred: Optional[SphericalOverdensity] = None, **kwargs):
+    def __init__(self, preferred: SphericalOverdensity | None = None, **kwargs):
         super().__init__(**kwargs)
         self.preferred = preferred
 
@@ -319,14 +317,13 @@ class FOF(MassDefinition):
 def from_colossus_name(name):
     if name == "vir":
         return SOVirial()
-    elif name.endswith("c"):
+    if name.endswith("c"):
         return SOCritical(overdensity=int(name[:-1]))
-    elif name.endswith("m"):
+    if name.endswith("m"):
         return SOMean(overdensity=int(name[:-1]))
-    elif name == "fof":
+    if name == "fof":
         return FOF()
-    else:
-        raise ValueError(f"name '{name}' is an unknown mass definition to colossus.")
+    raise ValueError(f"name '{name}' is an unknown mass definition to colossus.")
 
 
 def _find_new_concentration(rho_s, halo_density, h=None, x_guess=5.0):
@@ -353,7 +350,6 @@ def _find_new_concentration(rho_s, halo_density, h=None, x_guess=5.0):
         The radius in units of the scale radius, :math:`x=r/r_{\\rm s}`, where the
         enclosed density reaches ``density_threshold``.
     """
-
     # A priori, we have no idea at what radius the result will come out, but we need to
     # provide lower and upper limits for the root finder. To balance stability and
     # performance, we do so iteratively: if there is no result within relatively
@@ -393,4 +389,3 @@ def _find_new_concentration(rho_s, halo_density, h=None, x_guess=5.0):
 class OptimizationException(Exception):
     """Exception class related to failed optimization."""
 
-    pass

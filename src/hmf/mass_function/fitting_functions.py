@@ -5,12 +5,12 @@ Each fit is taken from the literature. If there are others out there that are no
 listed here, please advise via GitHub.
 """
 
-import numpy as np
-import scipy.special as sp
 import warnings
 from copy import copy
+
+import numpy as np
+import scipy.special as sp
 from scipy.interpolate import InterpolatedUnivariateSpline as _spline
-from typing import Union
 
 from .._internals import _framework
 from ..cosmology import cosmo as csm
@@ -117,19 +117,20 @@ def _makedoc(pdocs, lname, sname, eq, ref):
     %s mass function fit.
 
     For details on attributes, see documentation for :class:`FittingFunction`.
-    """ % lname
+    """
+        % lname
         + pdocs
-        + r"""
+        + rf"""
     Notes
     -----
-    The {} [1]_ form is:
+    The {lname} [1]_ form is:
 
-    .. math:: f_{{\rm {}}}(\sigma) = {}
+    .. math:: f_{{\rm {sname}}}(\sigma) = {eq}
 
     References
     ----------
-    .. [1] {}
-    """.format(lname, sname, eq, ref)
+    .. [1] {ref}
+    """
     )
 
 
@@ -219,10 +220,10 @@ class FittingFunction(_framework.Component):
     def __init__(
         self,
         nu2: np.ndarray,
-        m: Union[None, np.ndarray] = None,
+        m: None | np.ndarray = None,
         z: float = 0.0,
-        n_eff: Union[None, np.ndarray] = None,
-        mass_definition: Union[None, md.MassDefinition] = None,
+        n_eff: None | np.ndarray = None,
+        mass_definition: None | md.MassDefinition = None,
         cosmo: csm.FLRW = csm.Planck15,
         delta_c: float = 1.686,
         **model_parameters,
@@ -320,7 +321,6 @@ class FittingFunction(_framework.Component):
     @property
     def fsigma(self):
         r"""The function :math:`f(\sigma)\equiv\nu f(\nu)`."""
-        pass
 
 
 class PS(FittingFunction):
@@ -409,7 +409,6 @@ class SMT(FittingFunction):
 class ST(SMT):
     """Alias of :class:`SMT`."""
 
-    pass
 
 
 class Jenkins(FittingFunction):
@@ -454,7 +453,7 @@ class Jenkins(FittingFunction):
         A = self.params["A"]
         b = self.params["b"]
         c = self.params["c"]
-        return A * np.exp(-np.abs(self.lnsigma + b) ** c)
+        return A * np.exp(-(np.abs(self.lnsigma + b) ** c))
 
 
 class Warren(FittingFunction):
@@ -1304,8 +1303,7 @@ class Tinker08(FittingFunction):
             raise ValueError(
                 "The Tinker fitting function is a spherical-overdensity function."
             )
-        else:
-            delta_halo = self.mass_definition.halo_overdensity_mean(self.z, self.cosmo)
+        delta_halo = self.mass_definition.halo_overdensity_mean(self.z, self.cosmo)
 
         if delta_halo not in self.delta_virs:
             A_array = np.array([self.params["A_%s" % d] for d in self.delta_virs])
@@ -1348,10 +1346,9 @@ class Tinker08(FittingFunction):
             return np.logical_and(
                 self.lnsigma / np.log(10) > -0.6, self.lnsigma / np.log(10) < 0.4
             )
-        else:
-            return np.logical_and(
-                self.lnsigma / np.log(10) > -0.2, self.lnsigma / np.log(10) < 0.4
-            )
+        return np.logical_and(
+            self.lnsigma / np.log(10) > -0.2, self.lnsigma / np.log(10) < 0.4
+        )
 
 
 class Tinker10(FittingFunction):
@@ -1482,42 +1479,37 @@ class Tinker10(FittingFunction):
         if self.gamma <= 0:
             if self.terminate:
                 raise ValueError("gamma must be > 0, got " + str(self.gamma))
-            else:
-                self.gamma = 1e-3
+            self.gamma = 1e-3
         # eta >-0.5
         if self.eta <= -0.5:
             if self.terminate:
                 raise ValueError("eta must be > -0.5, got " + str(self.eta))
-            else:
-                self.eta = -0.499
+            self.eta = -0.499
         # eta-phi >-0.5
         if self.eta - self.phi <= -0.5:
             if self.terminate:
                 raise ValueError(
                     "eta-phi must be > -0.5, got " + str(self.eta - self.phi)
                 )
-            else:
-                self.phi = self.eta + 0.499
+            self.phi = self.eta + 0.499
         if self.beta <= 0:
             if self.terminate:
                 raise ValueError("beta must be > 0, got " + str(self.beta))
-            else:
-                self.beta = 1e-3
+            self.beta = 1e-3
 
     @property
     def normalise(self):
         if int(self.delta_halo) in self.delta_virs and self.z == 0:
             return self.params["alpha_%s" % (int(self.delta_halo))]
-        else:
-            return 1 / (
-                2 ** (self.eta - self.phi - 0.5)
-                * self.beta ** (-2 * self.phi)
-                * self.gamma ** (-0.5 - self.eta)
-                * (
-                    2**self.phi * self.beta ** (2 * self.phi) * sp.gamma(self.eta + 0.5)
-                    + self.gamma**self.phi * sp.gamma(0.5 + self.eta - self.phi)
-                )
+        return 1 / (
+            2 ** (self.eta - self.phi - 0.5)
+            * self.beta ** (-2 * self.phi)
+            * self.gamma ** (-0.5 - self.eta)
+            * (
+                2**self.phi * self.beta ** (2 * self.phi) * sp.gamma(self.eta + 0.5)
+                + self.gamma**self.phi * sp.gamma(0.5 + self.eta - self.phi)
             )
+        )
 
     @property
     def fsigma(self):
@@ -1535,29 +1527,25 @@ class Tinker10(FittingFunction):
             return np.logical_and(
                 self.lnsigma / np.log(10) > -0.6, self.lnsigma / np.log(10) < 0.4
             )
-        else:
-            return np.logical_and(
-                self.lnsigma / np.log(10) > -0.2, self.lnsigma / np.log(10) < 0.4
-            )
+        return np.logical_and(
+            self.lnsigma / np.log(10) > -0.2, self.lnsigma / np.log(10) < 0.4
+        )
 
 
 class Behroozi(Tinker08):
     _ref = r"""Behroozi, P., Weschler, R. and Conroy, C., ApJ, 2013, http://arxiv.org/abs/1207.6105"""
-    __doc__ = r"""
+    __doc__ = rf"""
     Behroozi mass function fit [1]_.
 
     This is an empirical modification to the :class:`Tinker08` fit, to improve
     accuracy at high redshift.
 
-    {}
+    {FittingFunction._pdocs}
 
     References
     ----------
-    .. [1] {}
-    """.format(
-        FittingFunction._pdocs,
-        _ref,
-    )
+    .. [1] {_ref}
+    """
 
     normalized = False
     sim_definition = SimDetails(

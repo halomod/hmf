@@ -1,17 +1,18 @@
 """Module that contains the command line app."""
 
-import click
 import importlib
+from pathlib import Path
+from time import time
+
+import click
 import numpy as np
 import toml
 from astropy.units import Quantity
-from pathlib import Path
 from rich import box
 from rich.console import Console
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.table import Table
-from time import time
 
 import hmf
 from hmf.helpers.functional import get_hmf

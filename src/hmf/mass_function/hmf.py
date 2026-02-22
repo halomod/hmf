@@ -6,11 +6,12 @@ functionality of :mod:`hmf` in an easy-to-use way.
 """
 
 import copy
-import numpy as np
 import warnings
+from typing import Any
+
+import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from scipy.optimize import minimize
-from typing import Any, Dict, Optional, Union
 
 from .._internals._cache import cached_quantity, parameter
 from .._internals._framework import get_mdl
@@ -99,13 +100,13 @@ class MassFunction(transfer.Transfer):
         Mmin: float = 10.0,
         Mmax: float = 15.0,
         dlog10m: float = 0.01,
-        hmf_model: Union[str, ff.FittingFunction] = ff.Tinker08,
-        hmf_params: Optional[Dict[str, Any]] = None,
-        mdef_model: Union[None, str, md] = None,
-        mdef_params: Union[dict, None] = None,
+        hmf_model: str | ff.FittingFunction = ff.Tinker08,
+        hmf_params: dict[str, Any] | None = None,
+        mdef_model: None | str | md = None,
+        mdef_params: dict | None = None,
         delta_c: float = 1.686,
-        filter_model: Union[str, Filter] = TopHat,
-        filter_params: Union[dict, None] = None,
+        filter_model: str | Filter = TopHat,
+        filter_params: dict | None = None,
         disable_mass_conversion: bool = True,
         **transfer_kwargs,
     ):
@@ -412,8 +413,8 @@ class MassFunction(transfer.Transfer):
             else:
                 startr = np.log(self.radii.max())
 
-            model = (
-                lambda lnr: (
+            model = lambda lnr: (
+                (
                     self.filter.sigma(np.exp(lnr))
                     * self._normalisation
                     * self.growth_factor
@@ -432,12 +433,10 @@ class MassFunction(transfer.Transfer):
             if res.success:
                 r = np.exp(res.x[0])
                 return self.filter.radius_to_mass(r, self.mean_density0)
-            else:
-                warnings.warn("Minimization failed :(")
-                return 0
-        else:
-            nu = spline(self.nu, self.m, k=5)
-            return nu(1)
+            warnings.warn("Minimization failed :(")
+            return 0
+        nu = spline(self.nu, self.m, k=5)
+        return nu(1)
 
     @cached_quantity
     def lnsigma(self):

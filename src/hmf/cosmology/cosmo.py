@@ -11,9 +11,10 @@ Cosmology framework. All custom subclasses of :class:`astropy.cosmology.FLRW`
 may be used as inputs.
 """
 
+import sys
+
 import astropy.units as u
 import deprecation
-import sys
 from astropy.cosmology import (  # noqa
     FLRW,
     WMAP5,
@@ -92,8 +93,7 @@ class Cosmology(_framework.Framework):
             raise ValueError(
                 "cosmo_model must be an instance of astropy.cosmology.FLRW"
             )
-        else:
-            return val
+        return val
 
     @_cache.parameter("param")
     def cosmo_params(self, val):
@@ -147,5 +147,4 @@ def get_cosmo(name):
     """
     if isinstance(getattr(sys.modules[__name__], name), FLRW):
         return getattr(sys.modules[__name__], name)
-    else:
-        raise ValueError("%s is not a valid cosmology" % name)
+    raise ValueError("%s is not a valid cosmology" % name)

@@ -1,6 +1,5 @@
-import pytest
-
 import numpy as np
+import pytest
 from colossus.cosmology.cosmology import setCosmology
 
 # require colossus for this test

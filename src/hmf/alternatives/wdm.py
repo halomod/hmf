@@ -158,7 +158,6 @@ class Viel05(WDM):
 class Bode01(Viel05):
     """The WDM model of Bode et al. (2001)."""
 
-    pass
 
 
 viel_model = Viel05(mx=1.0)
@@ -193,7 +192,6 @@ class WDMRecalibrateMF(Component):
 
     def dndm_alter(self):
         """Alter the CDM dn/dm to impose WDM modeling."""
-        pass
 
 
 class Schneider12_vCDM(WDMRecalibrateMF):

@@ -1,8 +1,9 @@
 """Utilities for interacting with hmf TOML configs."""
 
-from astropy.units import Quantity
 from datetime import datetime
 from inspect import signature
+
+from astropy.units import Quantity
 
 from hmf._internals._framework import Framework
 
@@ -11,7 +12,6 @@ from .. import __version__
 
 def framework_to_dict(obj: Framework) -> dict:
     """Serialize a framework instance to a simple TOML-able dictionary."""
-
     out = {"created_on": datetime.now(), "hmf_version": __version__, "params": {}}
 
     for k, v in obj.parameter_values.items():

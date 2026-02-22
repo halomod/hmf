@@ -2,10 +2,10 @@
 Analytic functions for this test are defined in "analytic_filter.ipynb" in the development/ directory.
 """
 
-import pytest
+import warnings
 
 import numpy as np
-import warnings
+import pytest
 from numpy import cos, pi, sin
 
 from hmf.density_field import filters

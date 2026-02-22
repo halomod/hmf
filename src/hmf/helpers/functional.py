@@ -196,8 +196,10 @@ def get_hmf(
             for vv in v:
                 x.update(**{k: vv})
                 if get_label:
-                    yield [getattr(x, a) for a in req_qauntities], x, _make_label(
-                        {k: vv}, kind=label_kind, **label_kwargs
+                    yield (
+                        [getattr(x, a) for a in req_qauntities],
+                        x,
+                        _make_label({k: vv}, kind=label_kind, **label_kwargs),
                     )
                 else:
                     yield [getattr(x, a) for a in req_qauntities], x

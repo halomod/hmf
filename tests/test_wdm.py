@@ -1,6 +1,5 @@
-from pytest import raises
-
 import numpy as np
+from pytest import raises
 
 import hmf
 from hmf.alternatives import wdm

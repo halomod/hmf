@@ -1,7 +1,6 @@
-import pytest
-
 import camb
 import numpy as np
+import pytest
 from astropy.cosmology import FlatLambdaCDM, LambdaCDM, w0waCDM, wCDM
 
 from hmf.density_field.transfer import Transfer

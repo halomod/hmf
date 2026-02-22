@@ -42,11 +42,11 @@ To be more explicit, the power spectrum in all cases is produced with the follow
     'transfer__kmax':100.0
 """
 
-import pytest
+from itertools import product
 
 import numpy as np
+import pytest
 from astropy.cosmology import LambdaCDM
-from itertools import product
 
 from hmf import MassFunction
 

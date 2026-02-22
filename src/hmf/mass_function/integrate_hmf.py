@@ -10,7 +10,6 @@ from scipy.interpolate import InterpolatedUnivariateSpline as _spline
 class NaNException(Exception):
     """Integrator hit a NaN."""
 
-    pass
 
 
 def hmf_integral_gtm(m, dndm, mass_density=False):
