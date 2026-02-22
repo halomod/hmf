@@ -63,7 +63,7 @@ master_doc = "index"
 
 # General information about the project.
 project = "hmf"
-copyright = "%s, Steven Murray" % (time.localtime()[0])
+copyright = f"{time.localtime()[0]}, Steven Murray"
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the

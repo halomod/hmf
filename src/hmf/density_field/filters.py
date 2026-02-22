@@ -114,7 +114,7 @@ class Filter(_framework.Component):
 
     def radius_to_mass(self, r, rho_mean):
         r"""
-        Return mass of a region of space given its radius
+        Return mass of a region of space given its radius.
 
         Parameters
         ----------
@@ -364,7 +364,7 @@ class Gaussian(Filter):
 @_utils.inherit_docstrings
 class SharpK(Filter):
     r"""
-    Fourier-space top-hat window function
+    Fourier-space top-hat window function.
 
     This class is based on :class:`~Filter`, which can be consulted for
     details of how to instantiate it.
@@ -426,7 +426,7 @@ class SharpK(Filter):
             r = np.atleast_1d(r)
 
         if self.k.max() < 1 / r.min():
-            warnings.warn("Warning: Maximum r*k less than 1!")
+            warnings.warn("Warning: Maximum r*k less than 1!", stacklevel=2)
 
         # # Need to re-define this because the integral needs to go exactly kr=1
         # # or else the function 'jitters'
@@ -450,7 +450,7 @@ class SharpK(Filter):
 @_utils.inherit_docstrings
 class SharpKEllipsoid(SharpK):
     """
-    Fourier-space top-hat window function with ellipsoidal correction
+    Fourier-space top-hat window function with ellipsoidal correction.
 
     See Schneider, Smith, Reed 2013.
 
@@ -475,27 +475,19 @@ class SharpKEllipsoid(SharpK):
         return g * v + top / bot
 
     def em(self, xm):
-        """
-        The average ellipticity of a patch as a function of peak tensor
-        """
+        """The average ellipticity of a patch as a function of peak tensor."""
         return 1 / np.sqrt(5 * xm**2 + 6)
 
     def pm(self, xm):
-        """
-        The average prolateness of a patch as a function of peak tensor
-        """
+        """The average prolateness of a patch as a function of peak tensor."""
         return 30.0 / (5 * xm**2 + 6) ** 2
 
     def a3a1(self, e, p):
-        """
-        The short:long axis ratio of an ellipsoid given its ellipticity and prolateness
-        """
+        """The short:long axis ratio of an ellipsoid given its ellipticity and prolateness."""
         return np.sqrt((1 - 3 * e + p) / (1 + 3 * e + p))
 
     def a3a2(self, e, p):
-        """
-        The short:medium axis ratio of an ellipsoid given its ellipticity/prolateness
-        """
+        """The short:medium axis ratio of an ellipsoid given its ellipticity/prolateness."""
         return np.sqrt((1 - 2 * p) / (1 + 3 * e + p))
 
     def gamma(self, r):

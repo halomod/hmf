@@ -60,7 +60,7 @@ def _get_spec(
     if not res.success:
         warnings.warn(
             f"Could not determine non-linear scale! Failed with error: {res.message}. "
-            f"Continuing with best-fit non-linear scale: r_nl={np.exp(res.x)}, with log_sigma^2 = {res.fun}"
+            f"Continuing with best-fit non-linear scale: r_nl={np.exp(res.x)}, with log_sigma^2 = {res.fun}", stacklevel=2
         )
 
     rnl = np.exp(res.x)
@@ -106,7 +106,7 @@ def halofit(k, delta_k, *, sigma_8=None, z=0, cosmo=None, takahashi=True):
         Dimensionless power at `k`, with nonlinear corrections applied.
     """
     if sigma_8 is not None:
-        warnings.warn("sigma_8 is not used any more, and will be removed in v4")
+        warnings.warn("sigma_8 is not used any more, and will be removed in v4", stacklevel=2)
 
     if cosmo is None:
         cosmo = csm()

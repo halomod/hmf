@@ -113,12 +113,11 @@ class SimDetails:
 
 def _makedoc(pdocs, lname, sname, eq, ref):
     return (
-        r"""
-    %s mass function fit.
+        rf"""
+    {lname} mass function fit.
 
     For details on attributes, see documentation for :class:`FittingFunction`.
     """
-        % lname
         + pdocs
         + rf"""
     Notes
@@ -281,12 +280,12 @@ class FittingFunction(_framework.Component):
                 else:
                     warnings.warn(
                         "Unrecognized overdensity criterion format. "
-                        "Changing mass definitions will be impossible."
+                        "Changing mass definitions will be impossible.", stacklevel=2
                     )
             else:
                 warnings.warn(
                     "Unknown halo finder type in the sim_definition. "
-                    "Changing mass definitions will be impossible."
+                    "Changing mass definitions will be impossible.", stacklevel=2
                 )
         return measured
 
@@ -1306,10 +1305,10 @@ class Tinker08(FittingFunction):
         delta_halo = self.mass_definition.halo_overdensity_mean(self.z, self.cosmo)
 
         if delta_halo not in self.delta_virs:
-            A_array = np.array([self.params["A_%s" % d] for d in self.delta_virs])
-            a_array = np.array([self.params["a_%s" % d] for d in self.delta_virs])
-            b_array = np.array([self.params["b_%s" % d] for d in self.delta_virs])
-            c_array = np.array([self.params["c_%s" % d] for d in self.delta_virs])
+            A_array = np.array([self.params[f"A_{d}"] for d in self.delta_virs])
+            a_array = np.array([self.params[f"a_{d}"] for d in self.delta_virs])
+            b_array = np.array([self.params[f"b_{d}"] for d in self.delta_virs])
+            c_array = np.array([self.params[f"c_{d}"] for d in self.delta_virs])
 
             A_func = _spline(self.delta_virs, A_array)
             a_func = _spline(self.delta_virs, a_array)
@@ -1321,10 +1320,10 @@ class Tinker08(FittingFunction):
             b_0 = b_func(delta_halo)
             c_0 = c_func(delta_halo)
         else:
-            A_0 = self.params["A_%s" % (int(delta_halo))]
-            a_0 = self.params["a_%s" % (int(delta_halo))]
-            b_0 = self.params["b_%s" % (int(delta_halo))]
-            c_0 = self.params["c_%s" % (int(delta_halo))]
+            A_0 = self.params[f"A_{int(delta_halo)}"]
+            a_0 = self.params[f"a_{int(delta_halo)}"]
+            b_0 = self.params[f"b_{int(delta_halo)}"]
+            c_0 = self.params[f"c_{int(delta_halo)}"]
 
         self.A = A_0 * (1 + self.z) ** (-self.params["A_exp"])
         self.a = a_0 * (1 + self.z) ** (-self.params["a_exp"])
@@ -1438,12 +1437,12 @@ class Tinker10(FittingFunction):
         self.delta_halo = delta_halo
 
         if int(delta_halo) not in self.delta_virs:
-            beta_array = np.array([self.params["beta_%s" % d] for d in self.delta_virs])
+            beta_array = np.array([self.params[f"beta_{d}"] for d in self.delta_virs])
             gamma_array = np.array(
-                [self.params["gamma_%s" % d] for d in self.delta_virs]
+                [self.params[f"gamma_{d}"] for d in self.delta_virs]
             )
-            phi_array = np.array([self.params["phi_%s" % d] for d in self.delta_virs])
-            eta_array = np.array([self.params["eta_%s" % d] for d in self.delta_virs])
+            phi_array = np.array([self.params[f"phi_{d}"] for d in self.delta_virs])
+            eta_array = np.array([self.params[f"eta_{d}"] for d in self.delta_virs])
 
             beta_func = _spline(self.delta_virs, beta_array)
             gamma_func = _spline(self.delta_virs, gamma_array)
@@ -1455,10 +1454,10 @@ class Tinker10(FittingFunction):
             phi_0 = phi_func(delta_halo)
             eta_0 = eta_func(delta_halo)
         else:
-            beta_0 = self.params["beta_%s" % (int(delta_halo))]
-            gamma_0 = self.params["gamma_%s" % (int(delta_halo))]
-            phi_0 = self.params["phi_%s" % (int(delta_halo))]
-            eta_0 = self.params["eta_%s" % (int(delta_halo))]
+            beta_0 = self.params[f"beta_{int(delta_halo)}"]
+            gamma_0 = self.params[f"gamma_{int(delta_halo)}"]
+            phi_0 = self.params[f"phi_{int(delta_halo)}"]
+            eta_0 = self.params[f"eta_{int(delta_halo)}"]
 
         self.beta = (
             beta_0 * (1 + min(self.z, self.params["max_z"])) ** self.params["beta_exp"]
@@ -1500,7 +1499,7 @@ class Tinker10(FittingFunction):
     @property
     def normalise(self):
         if int(self.delta_halo) in self.delta_virs and self.z == 0:
-            return self.params["alpha_%s" % (int(self.delta_halo))]
+            return self.params[f"alpha_{int(self.delta_halo)}"]
         return 1 / (
             2 ** (self.eta - self.phi - 0.5)
             * self.beta ** (-2 * self.phi)

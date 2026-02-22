@@ -185,7 +185,7 @@ def run_cli(config, pkg_name, args, outdir, label, pkgs, default_framework):
         t = time()
 
         # Write out quantities
-        for qname, q in zip(quantities, quants):
+        for qname, q in zip(quantities, quants, strict=True):
             np.savetxt(outdir / f"{lab}_{qname}.txt", q)
 
         console.print(

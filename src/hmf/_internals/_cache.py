@@ -1,6 +1,6 @@
 """
 This module defines two decorators, based on the code from
-http://forrst.com/posts/Yet_another_caching_property_decorator_for_Pytho-PBy
+http://forrst.com/posts/Yet_another_caching_property_decorator_for_Pytho-PBy.
 
 They are both designed to cache class properties, but have the added
 functionality of being automatically updated when a parent property is
@@ -161,12 +161,12 @@ def cached_quantity(f):
         try:
             del getattr(self, recalc)[name]
         except KeyError:
-            warnings.warn(f"{name} not found in recalc cache.")
+            warnings.warn(f"{name} not found in recalc cache.", stacklevel=2)
 
         try:
             del getattr(self, recalc_prpa)[name]
         except KeyError:
-            warnings.warn(f"{name} not found in recalc_prop_par cache")
+            warnings.warn(f"{name} not found in recalc_prop_par cache", stacklevel=2)
 
     return property(_get_property, None, _del_property)
 
@@ -296,7 +296,7 @@ def parameter(kind):
                             f"validation is performed. You can turn on extra validation "
                             f"for directly set parameters by setting framework._validate_every_param_set=True."
                             f"However, this can be brittle, since intermediate states may not be valid.",
-                            category=DeprecationWarning,
+                            stacklevel=2, category=DeprecationWarning,
                         )
 
         update_wrapper(_set_property, f)
@@ -324,7 +324,7 @@ def parameter(kind):
 
 def subframework(f):
     """
-    A quantity that is essentially a sub-framework
+    A quantity that is essentially a sub-framework.
 
     Parameters
     ----------

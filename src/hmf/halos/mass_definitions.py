@@ -60,7 +60,7 @@ class MassDefinition(_framework.Component):
 
     def m_to_r(self, m, z=0, cosmo=Planck15):
         r"""
-        Return the radius corresponding to m for this mass definition
+        Return the radius corresponding to m for this mass definition.
 
         Parameters
         ----------
@@ -81,7 +81,7 @@ class MassDefinition(_framework.Component):
 
     def r_to_m(self, r, z=0, cosmo=Planck15):
         r"""
-        Return the mass corresponding to r for this mass definition
+        Return the mass corresponding to r for this mass definition.
 
         Parameters
         ----------
@@ -168,7 +168,7 @@ class MassDefinition(_framework.Component):
         if profile.z != z:
             warnings.warn(
                 f"Redshift of given profile ({profile.z})does not match redshift "
-                f"passed to change_definition(). Using the redshift directly passed."
+                f"passed to change_definition(). Using the redshift directly passed.", stacklevel=2
             )
             profile.z = z
 
@@ -189,7 +189,7 @@ class MassDefinition(_framework.Component):
                 _find_new_concentration(
                     rho, mdef.halo_density(z, cosmo), profile._h, cc
                 )
-                for rho, cc in zip(rhos, c)
+                for rho, cc in zip(rhos, c, strict=True)
             ]
         )
 
@@ -373,7 +373,7 @@ def _find_new_concentration(rho_s, halo_density, h=None, x_guess=5.0):
             xmax = x_guess * XDELTA_GUESS_FACTORS[i]
             x = sp.optimize.brentq(fnc, xmin, xmax)
         except Exception as e:
-            warnings.warn(f"raised following error: {e}")
+            warnings.warn(f"raised following error: {e}", stacklevel=2)
             i += 1
 
     if x is None:

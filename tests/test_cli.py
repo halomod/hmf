@@ -7,7 +7,7 @@ from click.testing import CliRunner
 from hmf._cli import main
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def tmpdir(tmp_path_factory) -> Path:
     return tmp_path_factory.mktemp("cli-tests")
 

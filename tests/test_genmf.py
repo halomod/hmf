@@ -1,5 +1,5 @@
 """
-This module contains a number of tests that check hmf's results against those of genmf
+This module contains a number of tests that check hmf's results against those of genmf.
 
 We check results for sigma, lnsigma, and the differential and cumulative mass functions against
 genmf for two different redshifts (0 and 2). We use precisely the same transfer function here
@@ -109,7 +109,7 @@ class TestGenMF:
 
     @staticmethod
     def check_col(pert, fit, redshift, col):
-        """Able to check all columns"""
+        """Able to check all columns."""
         data = np.genfromtxt("tests/data/" + fit + "_" + str(int(redshift)))[::-1][
             400:1201
         ]
@@ -132,7 +132,7 @@ class TestGenMF:
             assert rms_diff(pert.ngtm, 10 ** data[:, 2], 0.047)
 
     @pytest.mark.parametrize(
-        ["redshift", "col"],
+        ("redshift", "col"),
         [
             (0.0, "sigma"),
             (0.0, "lnsigma"),
@@ -148,7 +148,7 @@ class TestGenMF:
         self.check_col(hmf, "ST", redshift, col)
 
     @pytest.mark.parametrize(
-        ["redshift", "fit", "col"],
+        ("redshift", "fit", "col"),
         product(
             [0.0, 2.0],
             ["ST", "PS", "Reed03", "Warren", "Jenkins", "Reed07"],

@@ -49,7 +49,7 @@ class TransferComponent(Component):
 
     def lnt(self, lnk):
         r"""
-        Natural log of the transfer function
+        Natural log of the transfer function.
 
         Parameters
         ----------
@@ -112,7 +112,7 @@ class FromFile(TransferComponent):
 
     def lnt(self, lnk):
         r"""
-        Natural log of the transfer function
+        Natural log of the transfer function.
 
         Parameters
         ----------
@@ -232,7 +232,7 @@ if HAVE_CAMB:
                 warnings.warn(
                     "'extrapolate_with_eh' was not set. Defaulting to True, which is "
                     "different behaviour than versions <=3.4.4. This warning may be "
-                    "removed in v4.0. Silence it by setting extrapolate_with_eh explicitly."
+                    "removed in v4.0. Silence it by setting extrapolate_with_eh explicitly.", stacklevel=2
                 )
                 self.params["extrapolate_with_eh"] = True
 
@@ -242,7 +242,7 @@ if HAVE_CAMB:
 
         def lnt(self, lnk):
             r"""
-            Natural log of the transfer function
+            Natural log of the transfer function.
 
             Parameters
             ----------
@@ -361,11 +361,11 @@ if HAVE_CAMB:
                     warnings.warn(
                         f"CAMB key '{pk}' is not an attribute. If you provided a "
                         f"custom CAMBparams, results may be inconsistent. Available: "
-                        f"{dir(p)}"
+                        f"{dir(p)}", stacklevel=2
                     )
 
                 except Exception:
-                    warnings.warn(f"CAMB key {pk} is not pickle-able.")
+                    warnings.warn(f"CAMB key {pk} is not pickle-able.", stacklevel=2)
 
             # Deepcopy self
             this = {}
@@ -385,7 +385,7 @@ if HAVE_CAMB:
 
 class FromArray(FromFile):
     r"""
-    Use a spline over a given array to define the transfer function
+    Use a spline over a given array to define the transfer function.
 
     Parameters
     ----------
@@ -407,7 +407,7 @@ class FromArray(FromFile):
 
     def lnt(self, lnk):
         r"""
-        Natural log of the transfer function
+        Natural log of the transfer function.
 
         Parameters
         ----------
@@ -439,7 +439,7 @@ class FromArray(FromFile):
 
 class EH_BAO(TransferComponent):
     r"""
-    Eisenstein & Hu (1998) fitting function with BAO wiggles
+    Eisenstein & Hu (1998) fitting function with BAO wiggles.
 
     From EH1998, Eqs. 26,28-31. Code adapted from CHOMP.
 
@@ -457,9 +457,7 @@ class EH_BAO(TransferComponent):
         self._set_params()
 
     def _set_params(self):
-        """
-        Port of ``TFset_parameters`` from original EH code.
-        """
+        """Port of ``TFset_parameters`` from original EH code."""
         self.Obh2 = self.cosmo.Ob0 * self.cosmo.h**2
         self.Omh2 = self.cosmo.Om0 * self.cosmo.h**2
         self.f_baryon = self.cosmo.Ob0 / self.cosmo.Om0
@@ -539,9 +537,7 @@ class EH_BAO(TransferComponent):
 
     @property
     def sound_horizon_fit(self):
-        """
-        Sound horizon in Mpc/h
-        """
+        """Sound horizon in Mpc/h."""
         return (
             self.cosmo.h
             * 44.5
@@ -551,7 +547,7 @@ class EH_BAO(TransferComponent):
 
     def lnt(self, lnk):
         r"""
-        Natural log of the transfer function
+        Natural log of the transfer function.
 
         Parameters
         ----------
@@ -598,7 +594,7 @@ class EH_BAO(TransferComponent):
 
 class EH_NoBAO(EH_BAO):
     r"""
-    Eisenstein & Hu (1998) fitting function without BAO wiggles
+    Eisenstein & Hu (1998) fitting function without BAO wiggles.
 
     From EH 1998 Eqs. 26,28-31. Code adapted from CHOMP project.
 
@@ -621,7 +617,7 @@ class EH_NoBAO(EH_BAO):
 
     def lnt(self, lnk):
         r"""
-        Natural log of the transfer function
+        Natural log of the transfer function.
 
         Parameters
         ----------
@@ -704,7 +700,7 @@ class BBKS(TransferComponent):
 
     def lnt(self, lnk):
         """
-        Natural log of the transfer function
+        Natural log of the transfer function.
 
         Parameters
         ----------
@@ -743,7 +739,7 @@ class BBKS(TransferComponent):
 
 class BondEfs(TransferComponent):
     r"""
-    Transfer function of Bond and Efstathiou
+    Transfer function of Bond and Efstathiou.
 
     Parameters
     ----------
@@ -771,7 +767,7 @@ class BondEfs(TransferComponent):
 
     def lnt(self, lnk):
         """
-        Natural log of the transfer function
+        Natural log of the transfer function.
 
         Parameters
         ----------

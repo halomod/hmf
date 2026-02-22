@@ -12,10 +12,7 @@ def transfers():
 
 
 @pytest.mark.parametrize(
-    [
-        "name",
-        "val",
-    ],
+    ("name", "val"),
     [("z", 0.1), ("sigma_8", 0.82), ("n", 0.95), ("cosmo_params", {"H0": 68.0})],
 )
 def test_updates(transfers, name, val):
@@ -23,7 +20,9 @@ def test_updates(transfers, name, val):
     t.update(**{name: val})
     assert (
         np.mean(np.abs((t.power - t2.power) / t.power)) < 1
-        and np.mean(np.abs((t.power - t2.power) / t.power)) > 1e-6
+    )
+    assert (
+        np.mean(np.abs((t.power - t2.power) / t.power)) > 1e-6
     )
 
 
@@ -39,7 +38,9 @@ def test_updates_from_file_array(datadir):
     # This test for both FromArray transfer model and caching of dictionaries
     assert (
         np.mean(np.abs((t.power - t2.power) / t.power)) < 1
-        and np.mean(np.abs((t.power - t2.power) / t.power)) > 1e-6
+    )
+    assert (
+        np.mean(np.abs((t.power - t2.power) / t.power)) > 1e-6
     )
 
 

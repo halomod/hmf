@@ -11,7 +11,7 @@ from hmf import MassFunction
 # Set COLOSSUS cosmology
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def colossus_cosmo():
     setCosmology("planck15")
 

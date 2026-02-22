@@ -19,7 +19,7 @@ def framework_to_dict(obj: Framework) -> dict:
             out["params"][k] = v.name
         elif k == "cosmo_params":
             params = {}
-            for key in signature(obj.cosmo.__init__).parameters.keys():
+            for key in signature(obj.cosmo.__init__).parameters:
                 val = getattr(obj.cosmo, key)
                 if isinstance(val, Quantity):
                     val = {"value": val.value, "unit": str(val.unit)}

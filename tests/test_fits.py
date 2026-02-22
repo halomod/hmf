@@ -46,13 +46,13 @@ def ps_max(hmf):
     return hmf.fsigma.max()
 
 
-@pytest.mark.parametrize("redshift, fit", itertools.product([0.0, 2.0], allfits))
+@pytest.mark.parametrize(("redshift", "fit"), itertools.product([0.0, 2.0], allfits))
 def test_allfits(hmf, ps_max, redshift, fit):
     """
     This basically tests all implemented fits to check the form for three things:
     1) whether the maximum fsigma is less than in the PS formula (which is known to overestimate)
     2) whether the slope is positive below this maximum
-    3) whether the slope is negative above this maximum
+    3) whether the slope is negative above this maximum.
 
     Since it calls each class, any blatant errors should also pop up.
     """

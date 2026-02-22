@@ -11,7 +11,7 @@ from scipy.special import erfc
 from hmf import MassFunction
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def getmf(request):
     # Note: if Mmax>15, starts going wrong because of numerics at high M
     return MassFunction(Mmin=10, Mmax=15, dlog10m=0.01, transfer_model="EH")
@@ -55,7 +55,7 @@ class TestCumulants:
         return MassFunction(hmf_model="Peacock", dlog10m=0.01, transfer_model="EH")
 
     @pytest.mark.parametrize(
-        ["Mmin", "Mmax"],
+        ("Mmin", "Mmax"),
         [
             (9, 14),
             (9, 15),

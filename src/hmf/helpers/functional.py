@@ -222,7 +222,7 @@ def get_hmf(
 
         ordered_list = [ordered_kwargs[k] for k in ordered_kwargs]
         final_list = [
-            collections.OrderedDict(list(zip(list(ordered_kwargs.keys()), v)))
+            collections.OrderedDict(list(zip(list(ordered_kwargs.keys()), v, strict=True)))
             for v in itertools.product(*ordered_list)
         ]
 

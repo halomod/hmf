@@ -139,25 +139,25 @@ class Transfer(cosmo.Cosmology):
     @parameter("param")
     def sigma_8(self, val):
         """
-        RMS linear density fluctuations in spheres of radius 8 Mpc/h
+        RMS linear density fluctuations in spheres of radius 8 Mpc/h.
 
         :type: float
         """
         if val < 0.1 or val > 10:
-            raise ValueError("sigma_8 out of bounds, %s" % val)
+            raise ValueError(f"sigma_8 out of bounds, {val}")
         return val
 
     @parameter("param")
     def n(self, val):
         """
-        Spectral index of fluctuations
+        Spectral index of fluctuations.
 
         Must be greater than -3 and less than 4.
 
         :type: float
         """
         if val < -3 or val > 4:
-            raise ValueError("n out of bounds, %s" % val)
+            raise ValueError(f"n out of bounds, {val}")
         return val
 
     @parameter("res")
@@ -181,7 +181,7 @@ class Transfer(cosmo.Cosmology):
     @parameter("res")
     def dlnk(self, val):
         """
-        Step-size of log wave-numbers
+        Step-size of log wave-numbers.
 
         :type: float
         """
@@ -222,28 +222,22 @@ class Transfer(cosmo.Cosmology):
     # ===========================================================================
     @cached_quantity
     def k(self):
-        """Wavenumbers, [h/Mpc]"""
+        """Wavenumbers, [h/Mpc]."""
         return np.exp(np.arange(self.lnk_min, self.lnk_max, self.dlnk))
 
     @cached_quantity
     def transfer(self):
-        """
-        The instantiated transfer model
-        """
+        """The instantiated transfer model."""
         return self.transfer_model(self.cosmo, **self.transfer_params)
 
     @cached_quantity
     def _unnormalised_lnT(self):
-        """
-        The un-normalised transfer function.
-        """
+        """The un-normalised transfer function."""
         return self.transfer.lnt(np.log(self.k))
 
     @cached_quantity
     def _unnormalised_power(self):
-        """
-        Un-normalised CDM power at :math:`z=0` [units :math:`Mpc^3/h^3`]
-        """
+        """Un-normalised CDM power at :math:`z=0` [units :math:`Mpc^3/h^3`]."""
         return self.k**self.n * np.exp(self._unnormalised_lnT) ** 2
 
     @cached_quantity
@@ -266,9 +260,7 @@ class Transfer(cosmo.Cosmology):
 
     @cached_quantity
     def _power0(self):
-        """
-        Normalised power spectrum at z=0 [units :math:`Mpc^3/h^3`]
-        """
+        """Normalised power spectrum at z=0 [units :math:`Mpc^3/h^3`]."""
         return self._normalisation**2 * self._unnormalised_power
 
     @cached_quantity
@@ -300,9 +292,7 @@ class Transfer(cosmo.Cosmology):
 
     @cached_quantity
     def delta_k(self):
-        r"""
-        Dimensionless power spectrum, :math:`\Delta_k = \frac{k^3 P(k)}{2\pi^2}`.
-        """
+        r"""Dimensionless power spectrum, :math:`\Delta_k = \frac{k^3 P(k)}{2\pi^2}`."""
         return self.k**3 * self.power / (2 * np.pi**2)
 
     @cached_quantity

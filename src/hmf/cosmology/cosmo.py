@@ -36,7 +36,7 @@ from .._internals import _cache, _framework
     details="Use the cosmology.fromAstropy function in COLOSSUS instead",
 )
 def astropy_to_colossus(cosmo: FLRW, name: str = "custom", **kwargs):
-    """Convert an astropy cosmology to a COLOSSUS cosmology"""
+    """Convert an astropy cosmology to a COLOSSUS cosmology."""
     try:
         from colossus.cosmology import cosmology
 
@@ -101,7 +101,7 @@ class Cosmology(_framework.Framework):
         Parameters for the cosmology that deviate from the base cosmology passed.
         This is useful for repeated updates of a single parameter (leaving others
         the same). Default is the empty dict. The parameters passed must match
-        the allowed parameters of `cosmo_model`. For the basic class this is
+        the allowed parameters of `cosmo_model`. For the basic class this is.
 
         :Tcmb0: Temperature of the CMB at z=0
         :Neff: Number of massless neutrino species
@@ -126,9 +126,7 @@ class Cosmology(_framework.Framework):
 
     @_cache.cached_quantity
     def mean_density0(self):
-        """
-        Mean density of universe at z=0, [Msun h^2 / Mpc**3]
-        """
+        """Mean density of universe at z=0, [Msun h^2 / Mpc**3]."""
         return (
             (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h**2)
             .to(u.Msun / u.Mpc**3)
@@ -147,4 +145,4 @@ def get_cosmo(name):
     """
     if isinstance(getattr(sys.modules[__name__], name), FLRW):
         return getattr(sys.modules[__name__], name)
-    raise ValueError("%s is not a valid cosmology" % name)
+    raise ValueError(f"{name} is not a valid cosmology")

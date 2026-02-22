@@ -1,6 +1,4 @@
-"""
-A supporting module that provides a routine to integrate the differential hmf in a robust manner.
-"""
+"""A supporting module that provides a routine to integrate the differential hmf in a robust manner."""
 
 import numpy as np
 import scipy.integrate as intg

@@ -72,7 +72,7 @@ def get_base_component(name: [str, type[Component]]) -> type[Component]:
             )
         if len(avail) > 1:
             warnings.warn(
-                f"More than one component called '{name}'. Returning {avail[-1]}."
+                f"More than one component called '{name}'. Returning {avail[-1]}.", stacklevel=2
             )
         return avail[-1]
     try:
@@ -138,7 +138,7 @@ def get_mdl(
             if len(avail_models) > 1:
                 warnings.warn(
                     f"More than one model was found with name '{name}'. Returning "
-                    f"{avail_models[-1][1]}."
+                    f"{avail_models[-1][1]}.", stacklevel=2
                 )
             if not avail_models:
                 raise ValueError(f"No model found with name '{name}'.")
@@ -191,7 +191,7 @@ def get_model(name, mod, **kwargs):
 
 class _Validator(type):
     def __call__(cls, *args, **kwargs):
-        """Called when you call MyNewClass()"""
+        """Called when you call MyNewClass()."""
         obj = type.__call__(cls, *args, **kwargs)
         obj.validate()
         return obj
@@ -220,9 +220,7 @@ class Framework(metaclass=_Validator):
         """Perform validation of the input parameters as they relate to each other."""
 
     def update(self, **kwargs):
-        """
-        Update parameters of the framework with kwargs.
-        """
+        """Update parameters of the framework with kwargs."""
         self._validate = False
         try:
             for k in list(kwargs.keys()):
@@ -243,7 +241,7 @@ class Framework(metaclass=_Validator):
             raise
 
         if kwargs:
-            raise ValueError("Invalid arguments: %s" % kwargs)
+            raise ValueError(f"Invalid arguments: {kwargs}")
 
     def clone(self, **kwargs):
         """Create and return an updated clone of the current object."""
@@ -281,7 +279,7 @@ class Framework(metaclass=_Validator):
 
     @property
     def parameter_values(self):
-        """Dictionary of all parameters and their current values"""
+        """Dictionary of all parameters and their current values."""
         return {
             name: getattr(self, name)
             for name in getattr(
@@ -303,7 +301,7 @@ class Framework(metaclass=_Validator):
 
     @classmethod
     def _get_all_parameters(cls):
-        """Yield all parameters as tuples of (name,obj)"""
+        """Yield all parameters as tuples of (name,obj)."""
         for name in cls.get_all_parameter_names():
             yield name, getattr(cls, name)
 

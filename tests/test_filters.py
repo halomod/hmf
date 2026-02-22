@@ -1,6 +1,4 @@
-"""
-Analytic functions for this test are defined in "analytic_filter.ipynb" in the development/ directory.
-"""
+"""Analytic functions for this test are defined in "analytic_filter.ipynb" in the development/ directory."""
 
 import warnings
 

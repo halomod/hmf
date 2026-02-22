@@ -27,9 +27,7 @@ except ImportError:  # pragma: nocover
 
 @pluggable
 class _GrowthFactor(Cmpt):
-    r"""
-    General class for a growth factor calculation.
-    """
+    r"""General class for a growth factor calculation."""
 
     supported_cosmos = (cosmology.LambdaCDM,)
 
@@ -163,7 +161,7 @@ class GrowthFactor(_GrowthFactor):
 
     def growth_rate(self, z):
         """
-        Growth rate, dln(d)/dln(a) from Hamilton 2000 eq. 4
+        Growth rate, dln(d)/dln(a) from Hamilton 2000 eq. 4.
 
         Parameters
         ----------
@@ -247,7 +245,7 @@ class FromFile(GrowthFactor):
 @_inherit
 class FromArray(FromFile):
     r"""
-    Use a spline over a given array to define the transfer function
+    Use a spline over a given array to define the transfer function.
 
     Parameters
     ----------
