@@ -178,7 +178,7 @@ def test_camb_w0wa():
     assert t.transfer_function.shape == t.k.shape
 
 
-def test_camb_wCDM():
+def test_camb_wcdm():
     """Essentially just test that CAMB doesn't fall over with a w0wa model."""
     t = Transfer(
         transfer_model="CAMB",
@@ -195,17 +195,19 @@ def test_camb_wCDM():
 
 
 def test_camb_unset_params():
-    with pytest.raises(ValueError):
-        Transfer(
-            transfer_model="CAMB",
-            cosmo_model=w0waCDM(Om0=0.3, Ode0=0.7, w0=-1, wa=0.03, Ob0=0.05, H0=70.0),
-        ).transfer
+    t = Transfer(
+        transfer_model="CAMB",
+        cosmo_model=w0waCDM(Om0=0.3, Ode0=0.7, w0=-1, wa=0.03, Ob0=0.05, H0=70.0),
+    )
+    with pytest.raises(ValueError, match="the CMB temperature must be set explicitly"):
+        t.transfer
 
-    with pytest.raises(ValueError):
-        Transfer(
-            transfer_model="CAMB",
-            cosmo_model=w0waCDM(Om0=0.3, Ode0=0.7, w0=-1, wa=0.03, H0=70.0, Tcmb0=2.7),
-        ).transfer
+    t = Transfer(
+        transfer_model="CAMB",
+        cosmo_model=w0waCDM(Om0=0.3, Ode0=0.7, w0=-1, wa=0.03, H0=70.0, Tcmb0=2.7),
+    )
+    with pytest.raises(ValueError, match="you must set the baryon density"):
+        t.transfer
 
 
 def test_bbks_sugiyama():
