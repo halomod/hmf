@@ -1077,7 +1077,7 @@ class Bhattacharya(SMT):
 
     @override
     def _norm(self):
-        if self.params["A"] is not None:
+        if self.params.get("A") is not None:
             return self.params["A"]
 
         p, q = self.params["p"], self.params["q"]
