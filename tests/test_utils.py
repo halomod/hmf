@@ -36,11 +36,11 @@ class _Child(_Base):
 
 
 def test_inherit_docstrings_sets_missing():
-    assert _Child.foo.__doc__ == "base foo"
+    assert _Child.foo.__doc__ == "Base foo."
 
 
 def test_inherit_docstrings_preserves_existing():
-    assert _Child.bar.__doc__ == "child bar"
+    assert _Child.bar.__doc__ == "Child bar."
 
 
 def test_inherit_docstrings_skips_dunder():
