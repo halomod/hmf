@@ -17,3 +17,4 @@ docs/_*/*
 .coverage
 pip-wheel-metadata/
 htmlcov/
+.qodo

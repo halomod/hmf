@@ -7,14 +7,16 @@ into the standard CDM Frameworks, and provide an example of how one would go abo
 for other alternative cosmologies.
 """
 
+from typing import ClassVar, override
+
 import astropy.units as u
 import numpy as np
 
 from .._internals._cache import cached_quantity, parameter
 from .._internals._framework import Component, get_mdl, pluggable
 from ..cosmology.cosmo import Planck15
-from ..density_field.transfer import Transfer as _Tr
-from ..mass_function.hmf import MassFunction as _MF
+from ..density_field.transfer import Transfer
+from ..mass_function.hmf import MassFunction
 
 
 # ===============================================================================
@@ -72,8 +74,7 @@ class WDM(Component):
 
         """
         raise NotImplementedError(
-            "You shouldn't call the WDM class, and any subclass should define the "
-            "transfer method."
+            "You shouldn't call the WDM class, and any subclass should define the transfer method."
         )
 
 
@@ -100,13 +101,11 @@ class Viel05(WDM):
         :g_x:
     """
 
-    _defaults = {"mu": 1.12, "g_x": 1.5}
+    _defaults: ClassVar[dict[str, float]] = {"mu": 1.12, "g_x": 1.5}
 
     def transfer(self, k):
         """Compute the modified WDM transfer function."""
-        return (1 + (self.lam_eff_fs * k) ** (2 * self.params["mu"])) ** (
-            -5.0 / self.params["mu"]
-        )
+        return (1 + (self.lam_eff_fs * k) ** (2 * self.params["mu"])) ** (-5.0 / self.params["mu"])
 
     @property
     def lam_eff_fs(self):
@@ -158,8 +157,6 @@ class Viel05(WDM):
 class Bode01(Viel05):
     """The WDM model of Bode et al. (2001)."""
 
-    pass
-
 
 viel_model = Viel05(mx=1.0)
 
@@ -193,7 +190,6 @@ class WDMRecalibrateMF(Component):
 
     def dndm_alter(self):
         """Alter the CDM dn/dm to impose WDM modeling."""
-        pass
 
 
 class Schneider12_vCDM(WDMRecalibrateMF):
@@ -214,8 +210,9 @@ class Schneider12_vCDM(WDMRecalibrateMF):
         class attribute.
     """
 
-    _defaults = {"beta": 1.16}
+    _defaults: ClassVar[dict[str, float]] = {"beta": 1.16}
 
+    @override
     def dndm_alter(self):
         return self.dndm0 * (1 + self.wdm.m_hm / self.m) ** (-self.params["beta"])
 
@@ -238,8 +235,9 @@ class Schneider12(WDMRecalibrateMF):
         class attribute.
     """
 
-    _defaults = {"alpha": 0.6}
+    _defaults: ClassVar[dict[str, float]] = {"alpha": 0.6}
 
+    @override
     def dndm_alter(self):
         return self.dndm0 * (1 + self.wdm.m_hm / self.m) ** (-self.params["alpha"])
 
@@ -262,8 +260,9 @@ class Lovell14(WDMRecalibrateMF):
         class attribute.
     """
 
-    _defaults = {"beta": 0.99, "gamma": 2.7}
+    _defaults: ClassVar[dict[str, float]] = {"beta": 0.99, "gamma": 2.7}
 
+    @override
     def dndm_alter(self):
         return self.dndm0 * (1 + self.params["gamma"] * self.wdm.m_hm / self.m) ** (
             -self.params["beta"]
@@ -273,7 +272,7 @@ class Lovell14(WDMRecalibrateMF):
 # ===============================================================================
 # Frameworks
 # ===============================================================================
-class TransferWDM(_Tr):
+class TransferWDM(Transfer):
     """
     A subclass of :class:`hmf.transfer.Transfer` that mixes in WDM capabilities.
 
@@ -286,9 +285,7 @@ class TransferWDM(_Tr):
     actual defaults for each parameter, use :meth:`get_all_parameter_defaults`.
     """
 
-    def __init__(
-        self, wdm_mass=3.0, wdm_model=Viel05, wdm_params=None, **transfer_kwargs
-    ):
+    def __init__(self, wdm_mass=3.0, wdm_model=Viel05, wdm_params=None, **transfer_kwargs):
         wdm_params = wdm_params or {}
 
         # Call standard transfer
@@ -326,8 +323,8 @@ class TransferWDM(_Tr):
         """
         try:
             val = float(val)
-        except ValueError:
-            raise ValueError("wdm_mass must be a number (", val, ")")
+        except ValueError as e:
+            raise ValueError("wdm_mass must be a number (", val, ")") from e
 
         if val <= 0:
             raise ValueError("wdm_mass must be > 0 (", val, ")")
@@ -340,16 +337,15 @@ class TransferWDM(_Tr):
 
         Contains quantities relevant to WDM.
         """
-        return self.wdm_model(
-            mx=self.wdm_mass, cosmo=self.cosmo, z=self.z, **self.wdm_params
-        )
+        return self.wdm_model(mx=self.wdm_mass, cosmo=self.cosmo, z=self.z, **self.wdm_params)
 
+    @override
     @cached_quantity
     def _unnormalised_lnT(self):
         return super()._unnormalised_lnT + np.log(self.wdm.transfer(self.k))
 
 
-class MassFunctionWDM(_MF, TransferWDM):
+class MassFunctionWDM(MassFunction, TransferWDM):
     """
     A subclass of :class:`hmf.MassFunction` that mixes in WDM capabilities.
 
@@ -384,6 +380,7 @@ class MassFunctionWDM(_MF, TransferWDM):
         """Model parameters for `alter_model`."""
         return val
 
+    @override
     @cached_quantity
     def dndm(self):
         r"""
@@ -394,9 +391,7 @@ class MassFunctionWDM(_MF, TransferWDM):
         dndm = super().dndm
 
         if self.alter_model is not None:
-            alter = self.alter_model(
-                m=self.m, dndm0=dndm, wdm=self.wdm, **self.alter_params
-            )
+            alter = self.alter_model(m=self.m, dndm0=dndm, wdm=self.wdm, **self.alter_params)
             dndm = alter.dndm_alter()
 
         return dndm

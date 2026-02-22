@@ -1,15 +1,10 @@
 """A package for producing halo mass functions under Spherical Collapse."""
 
-try:
-    from importlib.metadata import PackageNotFoundError, version
-except ImportError:
-    from importlib_metadata import PackageNotFoundError, version
+import contextlib
+from importlib.metadata import PackageNotFoundError, version
 
-try:
+with contextlib.suppress(PackageNotFoundError):
     __version__ = version(__name__)
-except PackageNotFoundError:
-    # package is not installed
-    pass
 
 from ._internals import (
     Component,
@@ -26,3 +21,33 @@ from .density_field import CAMB, Transfer, filters, halofit, transfer, transfer_
 from .halos import mass_definitions
 from .helpers import functional, get_best_param_order, get_hmf, sample
 from .mass_function import MassFunction, fitting_functions, hmf, integrate_hmf
+
+__all__ = [
+    "CAMB",
+    "Component",
+    "Cosmology",
+    "Framework",
+    "GrowthFactor",
+    "MassFunction",
+    "Transfer",
+    "cached_quantity",
+    "cosmo",
+    "filters",
+    "fitting_functions",
+    "functional",
+    "get_base_component",
+    "get_base_components",
+    "get_best_param_order",
+    "get_hmf",
+    "get_mdl",
+    "growth_factor",
+    "halofit",
+    "hmf",
+    "integrate_hmf",
+    "mass_definitions",
+    "parameter",
+    "sample",
+    "transfer",
+    "transfer_models",
+    "wdm",
+]

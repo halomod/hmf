@@ -5,12 +5,13 @@ Each fit is taken from the literature. If there are others out there that are no
 listed here, please advise via GitHub.
 """
 
-import numpy as np
-import scipy.special as sp
 import warnings
 from copy import copy
-from scipy.interpolate import InterpolatedUnivariateSpline as _spline
-from typing import Union
+from typing import Any, ClassVar, override
+
+import numpy as np
+import scipy.special as sp
+from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 
 from .._internals import _framework
 from ..cosmology import cosmo as csm
@@ -113,25 +114,23 @@ class SimDetails:
 
 def _makedoc(pdocs, lname, sname, eq, ref):
     return (
-        r"""
-    %s mass function fit.
+        rf"""
+    {lname} mass function fit.
 
     For details on attributes, see documentation for :class:`FittingFunction`.
     """
-        % lname
         + pdocs
-        + r"""
+        + rf"""
     Notes
     -----
-    The %s [1]_ form is:
+    The {lname} [1]_ form is:
 
-    .. math:: f_{\rm %s}(\sigma) = %s
+    .. math:: f_{{\rm {sname}}}(\sigma) = {eq}
 
     References
     ----------
-    .. [1] %s
+    .. [1] {ref}
     """
-        % (lname, sname, eq, ref)
     )
 
 
@@ -206,25 +205,23 @@ class FittingFunction(_framework.Component):
 
     """
     __doc__ += _pdocs
-    _defaults = {}
+    _defaults: ClassVar[dict[str, Any]] = {}
 
     # Subclass requirements
     req_neff = False  #: Whether `n_eff` is required for this subclass
     req_mass = False  #: Whether `m` is required for this subclass
 
-    sim_definition = (
-        None  #: Details of the defining simulation, instance of :class:`SimDetails`
-    )
+    sim_definition = None  #: Details of the defining simulation, instance of :class:`SimDetails`
 
     normalized = False  #: Whether this model is normalized so that all mass is in halos
 
     def __init__(
         self,
         nu2: np.ndarray,
-        m: Union[None, np.ndarray] = None,
+        m: None | np.ndarray = None,
         z: float = 0.0,
-        n_eff: Union[None, np.ndarray] = None,
-        mass_definition: Union[None, md.MassDefinition] = None,
+        n_eff: None | np.ndarray = None,
+        mass_definition: None | md.MassDefinition = None,
         cosmo: csm.FLRW = csm.Planck15,
         delta_c: float = 1.686,
         **model_parameters,
@@ -254,6 +251,7 @@ class FittingFunction(_framework.Component):
 
     @classmethod
     def get_measured_mdef(cls):
+        """Get the mass definition used in the defining simulation."""
         # Try to set the measured mass definition
         measured = None
         if cls.sim_definition is not None:
@@ -275,19 +273,19 @@ class FittingFunction(_framework.Component):
                     # A Generic SO that will accept any SO definition, but has a
                     # preferred one.
                     measured = md.SOGeneric(
-                        preferred=md.from_colossus_name(
-                            delta_h.split("(")[-1].split(")")[0]
-                        )
+                        preferred=md.from_colossus_name(delta_h.split("(")[-1].split(")")[0])
                     )
                 else:
                     warnings.warn(
                         "Unrecognized overdensity criterion format. "
-                        "Changing mass definitions will be impossible."
+                        "Changing mass definitions will be impossible.",
+                        stacklevel=2,
                     )
             else:
                 warnings.warn(
                     "Unknown halo finder type in the sim_definition. "
-                    "Changing mass definitions will be impossible."
+                    "Changing mass definitions will be impossible.",
+                    stacklevel=2,
                 )
         return measured
 
@@ -314,18 +312,22 @@ class FittingFunction(_framework.Component):
     @property
     def cutmask(self):
         r"""
-        A logical mask array specifying which elements of :attr:`fsigma` are within
+        Logical mask for elements within the fitted range.
+
+        Specifies which elements of :attr:`fsigma` are within
         the fitted range.
+
         """
         return np.ones(len(self.nu2), dtype=bool)
 
     @property
     def fsigma(self):
         r"""The function :math:`f(\sigma)\equiv\nu f(\nu)`."""
-        pass
 
 
 class PS(FittingFunction):
+    """Press-Schechter mass function fit."""
+
     # Subclass requirements
     req_sigma = False  #: Whether sigma is required to compute this model.
     req_z = False  #: Whether redshift is required for this model.
@@ -339,12 +341,15 @@ class PS(FittingFunction):
     __doc__ = _makedoc(FittingFunction._pdocs, "Press-Schechter", "PS", _eq, _ref)
     normalized = True
 
+    @override
     @property
     def fsigma(self):
         return np.sqrt(2.0 / np.pi) * self.nu * np.exp(-0.5 * self.nu2)
 
 
 class SMT(FittingFunction):
+    """Sheth-Mo-Tormen mass function fit."""
+
     # Subclass requirements
     req_sigma = False
     req_z = False
@@ -356,7 +361,7 @@ class SMT(FittingFunction):
     )
     __doc__ = _makedoc(FittingFunction._pdocs, "Sheth-Mo-Tormen", "SMT", _eq, _ref)
 
-    _defaults = {"a": 0.707, "p": 0.3, "A": None}
+    _defaults: ClassVar[dict[str, Any]] = {"a": 0.707, "p": 0.3, "A": None}
     normalized = True
 
     sim_definition = SimDetails(
@@ -386,9 +391,10 @@ class SMT(FittingFunction):
             if self.params["a"] <= 0:
                 raise ValueError(f"a in SMT must be > 0. Got {self.params['a']}.")
 
+    @override
     @property
     def fsigma(self):
-        A = self.norm()
+        A = self._norm()
         a = self.params["a"]
         p = self.params["p"]
 
@@ -400,7 +406,7 @@ class SMT(FittingFunction):
             * (1 + (1.0 / (a * self.nu2)) ** p)
         )
 
-    def norm(self):
+    def _norm(self):
         if self.params["A"] is not None:
             return self.params["A"]
 
@@ -411,10 +417,10 @@ class SMT(FittingFunction):
 class ST(SMT):
     """Alias of :class:`SMT`."""
 
-    pass
-
 
 class Jenkins(FittingFunction):
+    """Jenkins mass function fit."""
+
     # Subclass requirements
     req_z = False
 
@@ -424,7 +430,7 @@ class Jenkins(FittingFunction):
         r"http://doi.wiley.com/10.1046/j.1365-8711.2001.04029.x"
     )
     __doc__ = _makedoc(FittingFunction._pdocs, "Jenkins", "Jenkins", _eq, _ref)
-    _defaults = {"A": 0.315, "b": 0.61, "c": 3.8}
+    _defaults: ClassVar[dict[str, float]] = {"A": 0.315, "b": 0.61, "c": 3.8}
     normalized = False
 
     sim_definition = SimDetails(
@@ -447,19 +453,23 @@ class Jenkins(FittingFunction):
         other_cosmo={"omegav": 0.7, "h": 0.7, "n": 1},
     )
 
+    @override
     @property
     def cutmask(self):
         return np.logical_and(self.lnsigma > -1.2, self.lnsigma < 1.05)
 
+    @override
     @property
     def fsigma(self):
         A = self.params["A"]
         b = self.params["b"]
         c = self.params["c"]
-        return A * np.exp(-np.abs(self.lnsigma + b) ** c)
+        return A * np.exp(-(np.abs(self.lnsigma + b) ** c))
 
 
 class Warren(FittingFunction):
+    """Warren mass function fit."""
+
     # Subclass requirements
     req_z = False
     req_mass = True
@@ -474,10 +484,16 @@ class Warren(FittingFunction):
     )
     __doc__ = _makedoc(FittingFunction._pdocs, "Warren", "Warren", _eq, _ref)
 
-    _defaults = {"A": 0.7234, "b": 1.625, "c": 0.2538, "d": 1.1982, "e": 1}
+    _defaults: ClassVar[dict[str, float]] = {
+        "A": 0.7234,
+        "b": 1.625,
+        "c": 0.2538,
+        "d": 1.1982,
+        "e": 1,
+    }
     normalized = False
 
-    uncertainties = {
+    uncertainties: ClassVar[dict[str, float]] = {
         "A": 0.0073,
         "a": 0.028,
         "b": 0.0051,
@@ -514,6 +530,7 @@ class Warren(FittingFunction):
         other_cosmo={"omegav": 0.7, "omegab": 0.04, "h": 0.7, "n": 1},
     )
 
+    @override
     @property
     def fsigma(self):
         A = self.params["A"]
@@ -524,12 +541,15 @@ class Warren(FittingFunction):
 
         return A * ((e / self.sigma) ** b + c) * np.exp(-d / self.sigma**2)
 
+    @override
     @property
     def cutmask(self):
         return np.logical_and(self.m > 1e10, self.m < 1e15)
 
 
 class Reed03(SMT):
+    """Reed 2003 mass function fit."""
+
     # Subclass requirements
     req_sigma = True
 
@@ -537,7 +557,7 @@ class Reed03(SMT):
     _ref = r"""Reed, D., et al., Dec. 2003. MNRAS 346 (2), 565-572. http://adsabs.harvard.edu/abs/2003MNRAS.346..565R"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Reed03", "R03", _eq, _ref)
 
-    _defaults = {"a": 0.707, "p": 0.3, "A": 0.3222, "c": 0.7}
+    _defaults: ClassVar[dict[str, float]] = {"a": 0.707, "p": 0.3, "A": 0.3222, "c": 0.7}
     normalized = False
 
     sim_definition = SimDetails(
@@ -558,27 +578,35 @@ class Reed03(SMT):
         other_cosmo={"omegav": 0.7, "omegab": 0.04, "h": None, "n": None},
     )
 
+    @override
     @property
     def fsigma(self):
         vfv = super().fsigma
-        return vfv * np.exp(
-            -self.params["c"] / (self.sigma * np.cosh(2.0 * self.sigma) ** 5)
-        )
+        return vfv * np.exp(-self.params["c"] / (self.sigma * np.cosh(2.0 * self.sigma) ** 5))
 
+    @override
     @property
     def cutmask(self):
         return np.logical_and(self.lnsigma > -1.7, self.lnsigma < 0.9)
 
 
 class Reed07(FittingFunction):
+    """Reed 2007 mass function fit."""
+
     req_neff = True
     req_z = False
 
-    _eq = r"A\sqrt{2a/\pi}\left[1+(\frac{1}{a\nu^2})^p+0.6G_1+0.4G_2\right]\nu\exp\left(-ca\nu^2/2-\frac{0.03\nu^{0.6}}{(n_{\rm eff}+3)^2}\right)"
-    _ref = """Reed, D. S., et al., Jan. 2007. MNRAS 374 (1), 2-15. http://adsabs.harvard.edu/abs/2007MNRAS.374....2R"""
+    _eq = (
+        r"A\sqrt{2a/\pi}\left[1+(\frac{1}{a\nu^2})^p+0.6G_1+0.4G_2\right]\nu"
+        r"\exp\left(-ca\nu^2/2-\frac{0.03\nu^{0.6}}{(n_{\rm eff}+3)^2}\right)"
+    )
+    _ref = (
+        """Reed, D. S., et al., Jan. 2007. MNRAS 374 (1), 2-15. """
+        """http://adsabs.harvard.edu/abs/2007MNRAS.374....2R"""
+    )
     __doc__ = _makedoc(FittingFunction._pdocs, "Reed07", "R07", _eq, _ref)
 
-    _defaults = {"A": 0.3222, "p": 0.3, "c": 1.08, "a": 0.764}
+    _defaults: ClassVar[dict[str, float]] = {"A": 0.3222, "p": 0.3, "c": 1.08, "a": 0.764}
 
     sim_definition = SimDetails(
         L=[1.0, 2.5, 2.5, 2.5, 2.5, 4.64, 11.6, 20, 50, 100, 500, 1340, 3000],
@@ -626,6 +654,7 @@ class Reed07(FittingFunction):
         other_cosmo={"omegav": 0.7, "omegab": None, "h": 0.7, "n": 1.0},
     )
 
+    @override
     @property
     def fsigma(self):
         G_1 = np.exp(-((self.lnsigma - 0.4) ** 2) / (2 * 0.6**2))
@@ -641,29 +670,31 @@ class Reed07(FittingFunction):
             * np.sqrt(2.0 * a / np.pi)
             * (1.0 + (1.0 / (a * self.nu**2)) ** p + 0.6 * G_1 + 0.4 * G_2)
             * self.nu
-            * np.exp(
-                -c * a * self.nu**2 / 2.0 - 0.03 * self.nu**0.6 / (self.n_eff + 3) ** 2
-            )
+            * np.exp(-c * a * self.nu**2 / 2.0 - 0.03 * self.nu**0.6 / (self.n_eff + 3) ** 2)
         )
 
+    @override
     @property
     def cutmask(self):
         return np.logical_and(self.lnsigma > -0.5, self.lnsigma < 1.2)
 
 
 class Peacock(FittingFunction):
+    """Peacock mass function fit."""
+
     req_z = False
     req_mass = True
 
     _eq = r"\nu\exp(-c\nu^2)(2cd\nu+ba\nu^{b-1})/d^2"
     _ref = """Peacock, J. A., Aug. 2007. MNRAS 379 (3), 1067-1074. http://adsabs.harvard.edu/abs/2007MNRAS.379.1067P"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Peacock", "Pck", _eq, _ref)
-    _defaults = {"a": 1.529, "b": 0.704, "c": 0.412}
+    _defaults: ClassVar[dict[str, float]] = {"a": 1.529, "b": 0.704, "c": 0.412}
 
     sim_definition = copy(Warren.sim_definition)
     sim_definition.hmf_analysis_notes = "Fit directly to Warren+2006 fit."
     normalized = True
 
+    @override
     @property
     def fsigma(self):
         a = self.params["a"]
@@ -678,17 +709,20 @@ class Peacock(FittingFunction):
             / d**2
         )
 
+    @override
     @property
     def cutmask(self):
         return np.logical_and(self.m < 1e10, self.m > 1e15)
 
 
 class Angulo(FittingFunction):
+    """Angulo mass function fit."""
+
     req_mass = True
     _ref = """Angulo, R. E., et al., 2012. arXiv:1203.3216v1"""
     _eq = r"$A \left[\left(\frac{d}{\sigma}\right)^b + 1 \right] \exp(-c/\sigma^2)$"
     __doc__ = _makedoc(FittingFunction._pdocs, "Angulo", "Ang", _eq, _ref)
-    _defaults = {"A": 0.201, "b": 1.7, "c": 1.172, "d": 2.08}
+    _defaults: ClassVar[dict[str, float]] = {"A": 0.201, "b": 1.7, "c": 1.172, "d": 2.08}
 
     sim_definition = SimDetails(
         L=3000.0,
@@ -708,6 +742,7 @@ class Angulo(FittingFunction):
         other_cosmo={"omegav": 0.75, "omegab": 0.045, "h": 0.73, "n": 1.0},
     )
 
+    @override
     @property
     def fsigma(self):
         A = self.params["A"]
@@ -717,22 +752,36 @@ class Angulo(FittingFunction):
 
         return A * ((d / self.sigma) ** b + 1) * np.exp(-c / self.sigma**2)
 
+    @override
     @property
     def cutmask(self):
         return np.logical_and(self.m > 1e8, self.m < 1e16)
 
 
 class AnguloBound(Angulo):
+    """Bounded version of Angulo mass function fit."""
+
     __doc__ = Angulo.__doc__
-    _defaults = {"A": 0.265, "b": 1.9, "c": 1.4, "d": 1.675}
+    _defaults: ClassVar[dict[str, float]] = {"A": 0.265, "b": 1.9, "c": 1.4, "d": 1.675}
 
 
 class Watson_FoF(Warren):
+    """Watson friend-of-friend mass function fit."""
+
     req_mass = False
 
-    _ref = """Watson, W. A., et al., MNRAS, 2013. http://adsabs.harvard.edu/abs/2013MNRAS.433.1230W """
+    _ref = (
+        """Watson, W. A., et al., MNRAS, 2013. """
+        """http://adsabs.harvard.edu/abs/2013MNRAS.433.1230W """
+    )
     __doc__ = _makedoc(FittingFunction._pdocs, "Watson FoF", "WatF", Warren._eq, _ref)
-    _defaults = {"A": 0.282, "b": 2.163, "c": 1, "d": 1.21, "e": 1.406}
+    _defaults: ClassVar[dict[str, float]] = {
+        "A": 0.282,
+        "b": 2.163,
+        "c": 1,
+        "d": 1.21,
+        "e": 1.406,
+    }
 
     sim_definition = SimDetails(
         L=[11.4, 20, 114, 425, 1000, 3200, 6000],
@@ -752,17 +801,23 @@ class Watson_FoF(Warren):
         other_cosmo={"omegav": 0.73, "omegab": 0.044, "h": 0.7, "n": 0.96},
     )
 
+    @override
     @property
     def cutmask(self):
         return np.logical_and(self.lnsigma > -0.55, self.lnsigma < 1.31)
 
 
 class Watson(FittingFunction):
+    """Watson mass function fit."""
+
     req_cosmo = True
     req_dhalo = True
     req_omz = True
 
-    _ref = """Watson, W. A., et al., MNRAS, 2013. http://adsabs.harvard.edu/abs/2013MNRAS.433.1230W """
+    _ref = (
+        """Watson, W. A., et al., MNRAS, 2013. """
+        """http://adsabs.harvard.edu/abs/2013MNRAS.433.1230W """
+    )
     _eq = r"\Gamma A \left((\frac{\beta}{\sigma}^\alpha+1\right)\exp(-\gamma/\sigma^2)"
     __doc__ = _makedoc(FittingFunction._pdocs, "Watson", "WatS", _eq, Watson_FoF._ref)
 
@@ -771,7 +826,7 @@ class Watson(FittingFunction):
     sim_definition.halo_finder = "AHF"
     sim_definition.halo_overdensity = "*(vir)"
 
-    _defaults = {
+    _defaults: ClassVar[dict[str, Any]] = {
         "C_a": 0.023,
         "d_a": 0.456,
         "d_b": 0.139,
@@ -804,9 +859,7 @@ class Watson(FittingFunction):
             delta_halo = 178.0
 
         elif not isinstance(self.mass_definition, md.SphericalOverdensity):
-            raise ValueError(
-                "The Watson fitting function is a spherical-overdensity function."
-            )
+            raise ValueError("The Watson fitting function is a spherical-overdensity function.")
         else:
             delta_halo = self.mass_definition.halo_overdensity_mean(self.z, self.cosmo)
         C = np.exp(self.params["C_a"] * (delta_halo / 178 - 1))
@@ -814,12 +867,9 @@ class Watson(FittingFunction):
         p = self.params["p"]
         q = self.params["q"]
 
-        return (
-            C
-            * (delta_halo / 178) ** d
-            * np.exp(p * (1 - delta_halo / 178) / self.sigma**q)
-        )
+        return C * (delta_halo / 178) ** d * np.exp(p * (1 - delta_halo / 178) / self.sigma**q)
 
+    @override
     @property
     def fsigma(self):
         if self.z == 0:
@@ -835,8 +885,7 @@ class Watson(FittingFunction):
         else:
             omz = self.omegam_z
             A = omz * (
-                self.params["A_a"] * (1 + self.z) ** (-self.params["A_b"])
-                + self.params["A_c"]
+                self.params["A_a"] * (1 + self.z) ** (-self.params["A_b"]) + self.params["A_c"]
             )
             alpha = omz * (
                 self.params["alpha_a"] * (1 + self.z) ** (-self.params["alpha_b"])
@@ -849,23 +898,23 @@ class Watson(FittingFunction):
             gamma = self.params["gamma_z"]
 
         return (
-            self.gamma()
-            * A
-            * ((beta / self.sigma) ** alpha + 1)
-            * np.exp(-gamma / self.sigma**2)
+            self.gamma() * A * ((beta / self.sigma) ** alpha + 1) * np.exp(-gamma / self.sigma**2)
         )
 
+    @override
     @property
     def cutmask(self):
         return np.logical_and(self.lnsigma > -0.55, self.lnsigma < 1.05)
 
 
 class Crocce(Warren):
+    """Crocce mass function fit."""
+
     req_z = True
 
     _ref = """Crocce, M., et al. MNRAS 403 (3), 1353-1367. http://doi.wiley.com/10.1111/j.1365-2966.2009.16194.x"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Crocce", "Cro", Warren._eq, _ref)
-    _defaults = {
+    _defaults: ClassVar[dict[str, Any]] = {
         "A_a": 0.58,
         "A_b": 0.13,
         "b_a": 1.37,
@@ -903,16 +952,19 @@ class Crocce(Warren):
         self.params["c"] = self.params["c_a"] * (1 + self.z) ** (-self.params["c_b"])
         self.params["d"] = self.params["d_a"] * (1 + self.z) ** (-self.params["d_b"])
 
+    @override
     @property
     def cutmask(self):
         return np.logical_and(self.m > 10**10.5, self.m < 10**15.5)
 
 
 class Courtin(SMT):
+    """Courtin mass function fit."""
+
     req_sigma = True
     _ref = """Courtin, J., et al., Oct. 2010. MNRAS 1931. http://doi.wiley.com/10.1111/j.1365-2966.2010.17573.x"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Courtin", "Ctn", SMT._eq, _ref)
-    _defaults = {"A": 0.348, "a": 0.695, "p": 0.1}
+    _defaults: ClassVar[dict[str, float]] = {"A": 0.348, "a": 0.695, "p": 0.1}
 
     normalized = False
 
@@ -934,19 +986,22 @@ class Courtin(SMT):
         other_cosmo={"omegav": 0.74, "omegab": 0.044, "h": 0.72, "n": 0.963},
     )
 
+    @override
     @property
     def cutmask(self):
         return np.logical_and(self.lnsigma > -0.8, self.lnsigma < 0.7)
 
 
 class Bhattacharya(SMT):
+    """Bhattacharya mass function fit."""
+
     req_z = True
     req_mass = True
 
     _eq = r"f_{\rm SMT}(\sigma) (\nu\sqrt{a})^{q-1}"
     _ref = """Bhattacharya, S., et al., May 2011. ApJ 732 (2), 122. http://labs.adsabs.harvard.edu/ui/abs/2011ApJ...732..122B"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Bhattacharya", "Btc", _eq, _ref)
-    _defaults = {
+    _defaults: ClassVar[dict[str, Any]] = {
         "A_a": 0.333,
         "A_b": 0.11,
         "a_a": 0.788,
@@ -986,7 +1041,7 @@ class Bhattacharya(SMT):
         if not self.params["normed"]:
             self.params["A"] = self.params["A_a"] * (1 + self.z) ** -self.params["A_b"]
         else:
-            self.params["A"] = self.norm()
+            self.params["A"] = self._norm()
 
         self.params["a"] = self.params["a_a"] * (1 + self.z) ** -self.params["a_b"]
 
@@ -997,6 +1052,7 @@ class Bhattacharya(SMT):
             raise ValueError("2p in Bhattacharya must be < q")
 
     @property
+    @override
     def fsigma(self):
         r"""
         Calculate :math:`f(\sigma)` for Bhattacharya form.
@@ -1014,12 +1070,14 @@ class Bhattacharya(SMT):
         vfv = super().fsigma
         return vfv * (np.sqrt(self.params["a"]) * self.nu) ** (self.params["q"] - 1)
 
+    @override
     @property
     def cutmask(self):
         return np.logical_and(self.m > 6 * 10**11, self.m < 3 * 10**15)
 
-    def norm(self):
-        if self.params["A"] is not None:
+    @override
+    def _norm(self):
+        if self.params.get("A") is not None:
             return self.params["A"]
 
         p, q = self.params["p"], self.params["q"]
@@ -1031,6 +1089,8 @@ class Bhattacharya(SMT):
 
 
 class Tinker08(FittingFunction):
+    """Tinker 2008 mass function fit."""
+
     req_z = True
     req_dhalo = True
 
@@ -1252,7 +1312,7 @@ class Tinker08(FittingFunction):
         },
     )
 
-    _defaults = {  # -- A
+    _defaults: ClassVar[dict[str, Any]] = {  # -- A
         "A_200": 1.858659e-01,
         "A_300": 1.995973e-01,
         "A_400": 2.115659e-01,
@@ -1303,32 +1363,29 @@ class Tinker08(FittingFunction):
         super().__init__(**model_parameters)
 
         if not isinstance(self.mass_definition, md.SphericalOverdensity):
-            raise ValueError(
-                "The Tinker fitting function is a spherical-overdensity function."
-            )
-        else:
-            delta_halo = self.mass_definition.halo_overdensity_mean(self.z, self.cosmo)
+            raise ValueError("The Tinker fitting function is a spherical-overdensity function.")
+        delta_halo = self.mass_definition.halo_overdensity_mean(self.z, self.cosmo)
 
         if delta_halo not in self.delta_virs:
-            A_array = np.array([self.params["A_%s" % d] for d in self.delta_virs])
-            a_array = np.array([self.params["a_%s" % d] for d in self.delta_virs])
-            b_array = np.array([self.params["b_%s" % d] for d in self.delta_virs])
-            c_array = np.array([self.params["c_%s" % d] for d in self.delta_virs])
+            A_array = np.array([self.params[f"A_{d}"] for d in self.delta_virs])
+            a_array = np.array([self.params[f"a_{d}"] for d in self.delta_virs])
+            b_array = np.array([self.params[f"b_{d}"] for d in self.delta_virs])
+            c_array = np.array([self.params[f"c_{d}"] for d in self.delta_virs])
 
-            A_func = _spline(self.delta_virs, A_array)
-            a_func = _spline(self.delta_virs, a_array)
-            b_func = _spline(self.delta_virs, b_array)
-            c_func = _spline(self.delta_virs, c_array)
+            A_func = Spline(self.delta_virs, A_array)
+            a_func = Spline(self.delta_virs, a_array)
+            b_func = Spline(self.delta_virs, b_array)
+            c_func = Spline(self.delta_virs, c_array)
 
             A_0 = A_func(delta_halo)
             a_0 = a_func(delta_halo)
             b_0 = b_func(delta_halo)
             c_0 = c_func(delta_halo)
         else:
-            A_0 = self.params["A_%s" % (int(delta_halo))]
-            a_0 = self.params["a_%s" % (int(delta_halo))]
-            b_0 = self.params["b_%s" % (int(delta_halo))]
-            c_0 = self.params["c_%s" % (int(delta_halo))]
+            A_0 = self.params[f"A_{int(delta_halo)}"]
+            a_0 = self.params[f"a_{int(delta_halo)}"]
+            b_0 = self.params[f"b_{int(delta_halo)}"]
+            c_0 = self.params[f"c_{int(delta_halo)}"]
 
         self.A = A_0 * (1 + self.z) ** (-self.params["A_exp"])
         self.a = a_0 * (1 + self.z) ** (-self.params["a_exp"])
@@ -1336,27 +1393,22 @@ class Tinker08(FittingFunction):
         self.b = b_0 * (1 + self.z) ** (-alpha)
         self.c = c_0
 
+    @override
     @property
     def fsigma(self):
-        return (
-            self.A
-            * ((self.sigma / self.b) ** (-self.a) + 1)
-            * np.exp(-self.c / self.sigma**2)
-        )
+        return self.A * ((self.sigma / self.b) ** (-self.a) + 1) * np.exp(-self.c / self.sigma**2)
 
+    @override
     @property
     def cutmask(self):
         if self.z == 0.0:
-            return np.logical_and(
-                self.lnsigma / np.log(10) > -0.6, self.lnsigma / np.log(10) < 0.4
-            )
-        else:
-            return np.logical_and(
-                self.lnsigma / np.log(10) > -0.2, self.lnsigma / np.log(10) < 0.4
-            )
+            return np.logical_and(self.lnsigma / np.log(10) > -0.6, self.lnsigma / np.log(10) < 0.4)
+        return np.logical_and(self.lnsigma / np.log(10) > -0.2, self.lnsigma / np.log(10) < 0.4)
 
 
 class Tinker10(FittingFunction):
+    """Tinker 2010 mass function fit."""
+
     req_z = True
     req_dhalo = True
 
@@ -1366,7 +1418,7 @@ class Tinker10(FittingFunction):
 
     sim_definition = copy(Tinker08.sim_definition)
 
-    _defaults = {  # --- alpha
+    _defaults: ClassVar[dict[str, Any]] = {  # --- alpha
         "alpha_200": 0.368,
         "alpha_300": 0.363,
         "alpha_400": 0.385,
@@ -1435,92 +1487,73 @@ class Tinker10(FittingFunction):
             delta_halo = 200
 
         elif not isinstance(self.mass_definition, md.SphericalOverdensity):
-            raise ValueError(
-                "The Tinker10 fitting function is a spherical-overdensity function."
-            )
+            raise ValueError("The Tinker10 fitting function is a spherical-overdensity function.")
         else:
             delta_halo = self.mass_definition.halo_overdensity_mean(self.z, self.cosmo)
         self.delta_halo = delta_halo
 
         if int(delta_halo) not in self.delta_virs:
-            beta_array = np.array([self.params["beta_%s" % d] for d in self.delta_virs])
-            gamma_array = np.array(
-                [self.params["gamma_%s" % d] for d in self.delta_virs]
-            )
-            phi_array = np.array([self.params["phi_%s" % d] for d in self.delta_virs])
-            eta_array = np.array([self.params["eta_%s" % d] for d in self.delta_virs])
+            beta_array = np.array([self.params[f"beta_{d}"] for d in self.delta_virs])
+            gamma_array = np.array([self.params[f"gamma_{d}"] for d in self.delta_virs])
+            phi_array = np.array([self.params[f"phi_{d}"] for d in self.delta_virs])
+            eta_array = np.array([self.params[f"eta_{d}"] for d in self.delta_virs])
 
-            beta_func = _spline(self.delta_virs, beta_array)
-            gamma_func = _spline(self.delta_virs, gamma_array)
-            phi_func = _spline(self.delta_virs, phi_array)
-            eta_func = _spline(self.delta_virs, eta_array)
+            beta_func = Spline(self.delta_virs, beta_array)
+            gamma_func = Spline(self.delta_virs, gamma_array)
+            phi_func = Spline(self.delta_virs, phi_array)
+            eta_func = Spline(self.delta_virs, eta_array)
 
             beta_0 = beta_func(delta_halo)
             gamma_0 = gamma_func(delta_halo)
             phi_0 = phi_func(delta_halo)
             eta_0 = eta_func(delta_halo)
         else:
-            beta_0 = self.params["beta_%s" % (int(delta_halo))]
-            gamma_0 = self.params["gamma_%s" % (int(delta_halo))]
-            phi_0 = self.params["phi_%s" % (int(delta_halo))]
-            eta_0 = self.params["eta_%s" % (int(delta_halo))]
+            beta_0 = self.params[f"beta_{int(delta_halo)}"]
+            gamma_0 = self.params[f"gamma_{int(delta_halo)}"]
+            phi_0 = self.params[f"phi_{int(delta_halo)}"]
+            eta_0 = self.params[f"eta_{int(delta_halo)}"]
 
-        self.beta = (
-            beta_0 * (1 + min(self.z, self.params["max_z"])) ** self.params["beta_exp"]
-        )
-        self.phi = (
-            phi_0 * (1 + min(self.z, self.params["max_z"])) ** self.params["phi_exp"]
-        )
-        self.eta = (
-            eta_0 * (1 + min(self.z, self.params["max_z"])) ** self.params["eta_exp"]
-        )
-        self.gamma = (
-            gamma_0
-            * (1 + min(self.z, self.params["max_z"])) ** self.params["gamma_exp"]
-        )
+        self.beta = beta_0 * (1 + min(self.z, self.params["max_z"])) ** self.params["beta_exp"]
+        self.phi = phi_0 * (1 + min(self.z, self.params["max_z"])) ** self.params["phi_exp"]
+        self.eta = eta_0 * (1 + min(self.z, self.params["max_z"])) ** self.params["eta_exp"]
+        self.gamma = gamma_0 * (1 + min(self.z, self.params["max_z"])) ** self.params["gamma_exp"]
 
         # The normalisation only works with specific conditions
         # gamma > 0
         if self.gamma <= 0:
             if self.terminate:
                 raise ValueError("gamma must be > 0, got " + str(self.gamma))
-            else:
-                self.gamma = 1e-3
+            self.gamma = 1e-3
         # eta >-0.5
         if self.eta <= -0.5:
             if self.terminate:
                 raise ValueError("eta must be > -0.5, got " + str(self.eta))
-            else:
-                self.eta = -0.499
+            self.eta = -0.499
         # eta-phi >-0.5
         if self.eta - self.phi <= -0.5:
             if self.terminate:
-                raise ValueError(
-                    "eta-phi must be > -0.5, got " + str(self.eta - self.phi)
-                )
-            else:
-                self.phi = self.eta + 0.499
+                raise ValueError("eta-phi must be > -0.5, got " + str(self.eta - self.phi))
+            self.phi = self.eta + 0.499
         if self.beta <= 0:
             if self.terminate:
                 raise ValueError("beta must be > 0, got " + str(self.beta))
-            else:
-                self.beta = 1e-3
+            self.beta = 1e-3
 
     @property
-    def normalise(self):
+    def _normalise(self):
         if int(self.delta_halo) in self.delta_virs and self.z == 0:
-            return self.params["alpha_%s" % (int(self.delta_halo))]
-        else:
-            return 1 / (
-                2 ** (self.eta - self.phi - 0.5)
-                * self.beta ** (-2 * self.phi)
-                * self.gamma ** (-0.5 - self.eta)
-                * (
-                    2**self.phi * self.beta ** (2 * self.phi) * sp.gamma(self.eta + 0.5)
-                    + self.gamma**self.phi * sp.gamma(0.5 + self.eta - self.phi)
-                )
+            return self.params[f"alpha_{int(self.delta_halo)}"]
+        return 1 / (
+            2 ** (self.eta - self.phi - 0.5)
+            * self.beta ** (-2 * self.phi)
+            * self.gamma ** (-0.5 - self.eta)
+            * (
+                2**self.phi * self.beta ** (2 * self.phi) * sp.gamma(self.eta + 0.5)
+                + self.gamma**self.phi * sp.gamma(0.5 + self.eta - self.phi)
             )
+        )
 
+    @override
     @property
     def fsigma(self):
         fv = (
@@ -1529,37 +1562,34 @@ class Tinker10(FittingFunction):
             * np.exp(-self.gamma * (self.nu**2) / 2)
         )
 
-        return fv * self.normalise * self.nu
+        return fv * self._normalise * self.nu
 
+    @override
     @property
     def cutmask(self):
         if self.z == 0.0:
-            return np.logical_and(
-                self.lnsigma / np.log(10) > -0.6, self.lnsigma / np.log(10) < 0.4
-            )
-        else:
-            return np.logical_and(
-                self.lnsigma / np.log(10) > -0.2, self.lnsigma / np.log(10) < 0.4
-            )
+            return np.logical_and(self.lnsigma / np.log(10) > -0.6, self.lnsigma / np.log(10) < 0.4)
+        return np.logical_and(self.lnsigma / np.log(10) > -0.2, self.lnsigma / np.log(10) < 0.4)
 
 
-class Behroozi(Tinker10):
-    _ref = r"""Behroozi, P., Weschler, R. and Conroy, C., ApJ, 2013, http://arxiv.org/abs/1207.6105"""
-    __doc__ = r"""
+class Behroozi(Tinker08):
+    """Behroozi mass function fit."""
+
+    _ref = (
+        r"""Behroozi, P., Weschler, R. and Conroy, C., ApJ, 2013, http://arxiv.org/abs/1207.6105"""
+    )
+    __doc__ = rf"""
     Behroozi mass function fit [1]_.
 
     This is an empirical modification to the :class:`Tinker08` fit, to improve
     accuracy at high redshift.
 
-    {}
+    {FittingFunction._pdocs}
 
     References
     ----------
-    .. [1] {}
-    """.format(
-        FittingFunction._pdocs,
-        _ref,
-    )
+    .. [1] {_ref}
+    """
 
     normalized = False
     sim_definition = SimDetails(
@@ -1586,6 +1616,11 @@ class Behroozi(Tinker10):
     )
 
     def _modify_dndm(self, m, dndm, z, ngtm_tinker):
+        """
+        Apply modifications to dndm in Appendix G of Behroozi+13.
+
+        Note that the mass here is assumed to be in Msun, NOT Msun/h.
+        """
         a = 1 / (1 + z)
         theta = (
             0.144
@@ -1607,11 +1642,17 @@ class Behroozi(Tinker10):
 
 
 class Pillepich(Warren):
+    """Pillepich mass function fit."""
+
     _ref = r"""Pillepich, A., et al., 2010, arxiv:0811.4176"""
-    __doc__ = _makedoc(
-        FittingFunction._pdocs, "Pillepich", "Pillepich", Warren._eq, _ref
-    )
-    _defaults = {"A": 0.6853, "b": 1.868, "c": 0.3324, "d": 1.2266, "e": 1}
+    __doc__ = _makedoc(FittingFunction._pdocs, "Pillepich", "Pillepich", Warren._eq, _ref)
+    _defaults: ClassVar[dict[str, float]] = {
+        "A": 0.6853,
+        "b": 1.868,
+        "c": 0.3324,
+        "d": 1.2266,
+        "e": 1,
+    }
     normalized = False
 
     sim_definition = SimDetails(
@@ -1639,10 +1680,12 @@ class Pillepich(Warren):
 
 
 class Manera(SMT):
+    """Manera mass function fit."""
+
     _ref = r"""Manera, M., et al., 2010, arxiv:0906.1314"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Manera", "Man", SMT._eq, _ref)
     # These are for z=0, new ML method, l_linnk = 0.2
-    _defaults = {"A": None, "a": 0.709, "p": 0.289}
+    _defaults: ClassVar[dict[str, Any]] = {"A": None, "a": 0.709, "p": 0.289}
 
     sim_definition = SimDetails(
         L=1280.0,
@@ -1669,11 +1712,19 @@ class Manera(SMT):
 
 
 class Ishiyama(Warren):
+    """Ishiyama mass function fit."""
+
     _eq = r"A\left[\left(\frac{e}{\sigma}\right)^b + 1\right]\exp(\frac{d}{\sigma^2})"
     _ref = r"""Ishiyama, T., et al., 2015, arxiv:1412.2860"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Ishiyama", "Ishiyama", _eq, _ref)
 
-    _defaults = {"A": 0.193, "b": 1.550, "c": 1, "d": 1.186, "e": 2.184}
+    _defaults: ClassVar[dict[str, float]] = {
+        "A": 0.193,
+        "b": 1.550,
+        "c": 1,
+        "d": 1.186,
+        "e": 2.184,
+    }
 
     sim_definition = SimDetails(
         L=[1120, 560, 280, 140, 70],
@@ -1698,16 +1749,19 @@ class Ishiyama(Warren):
         },
     )
 
+    @override
     @property
     def cutmask(self):
         return np.logical_and(self.m > 1e8, self.m < 1e16)
 
 
 class Bocquet200mDMOnly(Warren):
+    """Bocquet mass function fit for 200m definition with dark matter only."""
+
     _eq = r"A\left[\left(\frac{e}{\sigma}\right)^b + 1\right]\exp(-\frac{d}{\sigma^2})"
     _ref = r"""Bocuet, S., et al., 2016, MNRAS 456 2361"""
     __doc__ = _makedoc(FittingFunction._pdocs, "Bocquet", "Bocquet", _eq, _ref)
-    _defaults = {
+    _defaults: ClassVar[dict[str, Any]] = {
         "A": 0.216,
         "b": 1.87,
         "c": 1,
@@ -1760,19 +1814,17 @@ class Bocquet200mDMOnly(Warren):
         """
         return 1
 
+    @override
     @property
     def fsigma(self):
         A, b, d, e = self.get_params()
         mass_conversion = self.convert_mass()
-        return (
-            A
-            * ((e / self.sigma) ** b + 1)
-            * np.exp(-d / self.sigma**2)
-            * mass_conversion
-        )
+        return A * ((e / self.sigma) ** b + 1) * np.exp(-d / self.sigma**2) * mass_conversion
 
 
 class Bocquet200mHydro(Bocquet200mDMOnly):
+    """Bocquet mass function fit for 200m definition with hydrodynamics."""
+
     __doc__ = _makedoc(
         FittingFunction._pdocs,
         "Bocquet",
@@ -1780,7 +1832,7 @@ class Bocquet200mHydro(Bocquet200mDMOnly):
         Bocquet200mDMOnly._eq,
         Bocquet200mDMOnly._ref,
     )
-    _defaults = {
+    _defaults: ClassVar[dict[str, Any]] = {
         "A": 0.240,
         "b": 2.43,
         "c": 1,
@@ -1794,6 +1846,8 @@ class Bocquet200mHydro(Bocquet200mDMOnly):
 
 
 class Bocquet200cDMOnly(Bocquet200mDMOnly):
+    """Bocquet mass function fit for 200c definition with dark matter only."""
+
     __doc__ = _makedoc(
         FittingFunction._pdocs,
         "Bocquet",
@@ -1802,7 +1856,7 @@ class Bocquet200cDMOnly(Bocquet200mDMOnly):
         Bocquet200mDMOnly._ref,
     )
 
-    _defaults = {
+    _defaults: ClassVar[dict[str, Any]] = {
         "A": 0.256,
         "b": 2.01,
         "c": 1,
@@ -1816,6 +1870,7 @@ class Bocquet200cDMOnly(Bocquet200mDMOnly):
     sim_definition = copy(Bocquet200mDMOnly.sim_definition)
     sim_definition.halo_overdensity = "200c"
 
+    @override
     def convert_mass(self):
         g0 = 3.54e-2 + self.cosmo.Om0**0.09
         g1 = 4.56e-2 + 2.68e-2 / self.cosmo.Om0
@@ -1830,6 +1885,8 @@ class Bocquet200cDMOnly(Bocquet200mDMOnly):
 
 
 class Bocquet200cHydro(Bocquet200cDMOnly):
+    """Bocquet mass function fit for 200c definition with hydrodynamics."""
+
     __doc__ = _makedoc(
         FittingFunction._pdocs,
         "Bocquet",
@@ -1838,7 +1895,7 @@ class Bocquet200cHydro(Bocquet200cDMOnly):
         Bocquet200mDMOnly._ref,
     )
 
-    _defaults = {
+    _defaults: ClassVar[dict[str, Any]] = {
         "A": 0.290,
         "b": 2.69,
         "c": 1,
@@ -1852,6 +1909,8 @@ class Bocquet200cHydro(Bocquet200cDMOnly):
 
 
 class Bocquet500cDMOnly(Bocquet200cDMOnly):
+    """Bocquet mass function fit for 500c definition with dark matter only."""
+
     __doc__ = _makedoc(
         FittingFunction._pdocs,
         "Bocquet",
@@ -1860,7 +1919,7 @@ class Bocquet500cDMOnly(Bocquet200cDMOnly):
         Bocquet200mDMOnly._ref,
     )
 
-    _defaults = {
+    _defaults: ClassVar[dict[str, Any]] = {
         "A": 0.390,
         "b": 3.05,
         "c": 1,
@@ -1874,6 +1933,7 @@ class Bocquet500cDMOnly(Bocquet200cDMOnly):
     sim_definition = copy(Bocquet200mDMOnly.sim_definition)
     sim_definition.halo_overdensity = "500c"
 
+    @override
     def convert_mass(self):
         alpha_0 = 0.880 + 0.329 * self.cosmo.Om0
         alpha_1 = 1.0 + 4.31 * 1e-2 / self.cosmo.Om0
@@ -1884,6 +1944,8 @@ class Bocquet500cDMOnly(Bocquet200cDMOnly):
 
 
 class Bocquet500cHydro(Bocquet500cDMOnly):
+    """Bocquet mass function fit for 500c definition with hydrodynamics."""
+
     __doc__ = _makedoc(
         FittingFunction._pdocs,
         "Bocquet",
@@ -1892,7 +1954,7 @@ class Bocquet500cHydro(Bocquet500cDMOnly):
         Bocquet200mDMOnly._ref,
     )
 
-    _defaults = {
+    _defaults: ClassVar[dict[str, Any]] = {
         "A": 0.322,
         "b": 3.24,
         "c": 1,

@@ -7,21 +7,21 @@ and Michael Schneider (https://code.google.com/p/chomp/). It has
 been modified to improve its integration with this package.
 """
 
-import numpy as np
 import warnings
-from scipy.integrate import simps as _simps
-from scipy.interpolate import InterpolatedUnivariateSpline as _spline
+
+import numpy as np
+from scipy.integrate import simpson as _simps
+from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 from scipy.optimize import minimize
-from typing import Tuple
 
-from ..cosmology.cosmo import Cosmology as csm
+from ..cosmology.cosmo import Cosmology as CosmologyClass
 
 
-def _get_spec(
-    k: np.ndarray, delta_k: np.ndarray, sigma_8=None
-) -> Tuple[float, float, float]:
+def _get_spec(k: np.ndarray, delta_k: np.ndarray, sigma_8=None) -> tuple[float, float, float]:
     """
-    Calculate nonlinear wavenumber, effective spectral index and curvature
+    Calculate spectral parameters from power spectrum.
+
+    Computes the nonlinear wavenumber, effective spectral index, and curvature
     of the power spectrum.
 
     Parameters
@@ -31,8 +31,8 @@ def _get_spec(
     delta_k : array_like
         Dimensionless power spectrum at `k`
     sigma_8 : scalar
-        RMS linear density fluctuations in spheres of radius 8 Mpc/h at z=0. Not
-        used any more at all!
+        RMS linear density fluctuations in spheres of radius 8 Mpc/h at z=0.
+        Not used any more at all!
 
     Returns
     -------
@@ -42,25 +42,26 @@ def _get_spec(
         Effective spectral index
     n_curv : float
         Curvature of the spectrum
+
     """
 
     # Initialize sigma spline
     def get_log_sigma2(lnr):
         R = np.exp(lnr)
         integrand = delta_k * np.exp(-((k * R) ** 2))
-        return np.log(_simps(integrand, np.log(k)))
+        return np.log(_simps(integrand, x=np.log(k)))
 
     def get_sigma_abs(lnr):
         return np.abs(get_log_sigma2(lnr))
 
-    res = minimize(
-        get_sigma_abs, x0=[1.0], options={"xatol": np.log(1.1)}, method="Nelder-Mead"
-    )
+    res = minimize(get_sigma_abs, x0=[1.0], options={"xatol": np.log(1.1)}, method="Nelder-Mead")
 
     if not res.success:
         warnings.warn(
             f"Could not determine non-linear scale! Failed with error: {res.message}. "
-            f"Continuing with best-fit non-linear scale: r_nl={np.exp(res.x)}, with log_sigma^2 = {res.fun}"
+            f"Continuing with best-fit non-linear scale: r_nl={np.exp(res.x)}, with "
+            f"log_sigma^2 = {res.fun}",
+            stacklevel=2,
         )
 
     rnl = np.exp(res.x)
@@ -68,7 +69,7 @@ def _get_spec(
 
     lnr = np.linspace(np.log(0.75 * rnl), np.log(1.25 * rnl), 20)
     lnsig = [get_log_sigma2(r) for r in lnr]
-    sig_of_r = _spline(lnr, lnsig, k=5)
+    sig_of_r = Spline(lnr, lnsig, k=5)
     dev1, dev2 = sig_of_r.derivatives(np.log(rnl))[1:3]
 
     n_eff = -dev1 - 3.0
@@ -77,7 +78,7 @@ def _get_spec(
     return knl, n_eff, n_curv
 
 
-def halofit(k, delta_k, sigma_8=None, z=0, cosmo=None, takahashi=True):
+def halofit(k, delta_k, *, sigma_8=None, z=0, cosmo=None, takahashi=True):
     """
     Implementation of HALOFIT (Smith+2003).
 
@@ -106,10 +107,10 @@ def halofit(k, delta_k, sigma_8=None, z=0, cosmo=None, takahashi=True):
         Dimensionless power at `k`, with nonlinear corrections applied.
     """
     if sigma_8 is not None:
-        warnings.warn("sigma_8 is not used any more, and will be removed in v4")
+        warnings.warn("sigma_8 is not used any more, and will be removed in v4", stacklevel=2)
 
     if cosmo is None:
-        cosmo = csm()
+        cosmo = CosmologyClass()
 
     # Get physical parameters
     rknl, neff, rncur = _get_spec(k, delta_k)
@@ -197,19 +198,10 @@ def halofit(k, delta_k, sigma_8=None, z=0, cosmo=None, takahashi=True):
     y = k / rknl
 
     ph = a * y ** (f1 * 3) / (1 + b * y**f2 + (f3 * c * y) ** (3 - gam))
-    ph = (
-        ph
-        / (1 + xmu / y + xnu * y**-2)
-        * (1 + fnu * (0.977 - 18.015 * (cosmo.Om0 - 0.3)))
-    )
+    ph = ph / (1 + xmu / y + xnu * y**-2) * (1 + fnu * (0.977 - 18.015 * (cosmo.Om0 - 0.3)))
 
     plinaa = plin * (1 + fnu * 47.48 * k**2 / (1 + 1.5 * k**2))
-    pq = (
-        plin
-        * (1 + plinaa) ** beta
-        / (1 + plinaa * alpha)
-        * np.exp(-y / 4.0 - y**2 / 8.0)
-    )
+    pq = plin * (1 + plinaa) ** beta / (1 + plinaa * alpha) * np.exp(-y / 4.0 - y**2 / 8.0)
     pnl = pq + ph
 
     # We have to copy so the original data is not overwritten, giving unexpected results.

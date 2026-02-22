@@ -1,17 +1,18 @@
-import pytest
+from pathlib import Path
 
 import numpy as np
+import pytest
 from click.testing import CliRunner
-from pathlib import Path
 
 from hmf._cli import main
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def tmpdir(tmp_path_factory) -> Path:
     return tmp_path_factory.mktemp("cli-tests")
 
 
+@pytest.mark.filterwarnings("ignore:'extrapolate_with_eh' was not set")
 def test_no_config_or_args(tmpdir: Path):
     runner = CliRunner()
     result = runner.invoke(main, ["run", "--outdir", str(tmpdir)])
@@ -33,12 +34,10 @@ def test_with_config(tmpdir: Path):
     transfer_model = 'EH'
     """
 
-    with open(tmpdir / "cfg.toml", "w") as fl:
+    with (tmpdir / "cfg.toml").open("w") as fl:
         fl.write(cfg)
 
-    result = runner.invoke(
-        main, ["run", "-i", str(tmpdir / "cfg.toml"), "-o", str(tmpdir)]
-    )
+    result = runner.invoke(main, ["run", "-i", str(tmpdir / "cfg.toml"), "-o", str(tmpdir)])
     print(result.stdout)
     assert result.exit_code == 0
 
@@ -61,12 +60,10 @@ def test_config_vs_cli(tmpdir: Path):
     transfer_model = 'EH'
     """
 
-    with open(tmpdir / "cfg.toml", "w") as fl:
+    with (tmpdir / "cfg.toml").open("w") as fl:
         fl.write(cfg)
 
-    result_cfg = runner.invoke(
-        main, ["run", "-i", str(tmpdir / "cfg.toml"), "-o", str(cfgdir)]
-    )
+    result_cfg = runner.invoke(main, ["run", "-i", str(tmpdir / "cfg.toml"), "-o", str(cfgdir)])
     result_cli = runner.invoke(
         main, ["run", "-o", str(clidir), "--", "--z=1.0", '--transfer_model="EH"']
     )
@@ -105,21 +102,17 @@ def test_roundtrip_cfg(tmpdir):
         transfer_model = 'EH'
         """
 
-    with open(tmpdir / "cfg.toml", "w") as fl:
+    with (tmpdir / "cfg.toml").open("w") as fl:
         fl.write(cfg)
 
-    result = runner.invoke(
-        main, ["run", "-i", str(tmpdir / "cfg.toml"), "-o", str(tmpdir)]
-    )
+    result = runner.invoke(main, ["run", "-i", str(tmpdir / "cfg.toml"), "-o", str(tmpdir)])
 
     assert result.exit_code == 0
 
     clidir = tmpdir / "cli"
     clidir.mkdir()
 
-    result2 = runner.invoke(
-        main, ["run", "-i", str(tmpdir / "hmf_cfg.toml"), "-o", str(clidir)]
-    )
+    result2 = runner.invoke(main, ["run", "-i", str(tmpdir / "hmf_cfg.toml"), "-o", str(clidir)])
 
     assert result2.exit_code == 0
 

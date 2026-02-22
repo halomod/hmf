@@ -1,6 +1,5 @@
-import pytest
-
 import numpy as np
+import pytest
 from astropy.cosmology import FlatLambdaCDM, FlatwCDM
 
 from hmf.cosmology.growth_factor import CambGrowth

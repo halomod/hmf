@@ -1,4 +1,4 @@
-name: Tests
+name: Warnings Tests
 
 # Test on all pushes, except when the push is literally just a tag (because we
 # tag automatically via CI, and therefore there's no extra code in that push).
@@ -21,8 +21,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        python-version: ["3.12", "3.13", "3.14"]
+        os: [ubuntu-latest]
+        python-version: ["3.14"]
     steps:
       - uses: actions/checkout@master
         with:
@@ -44,11 +44,11 @@ jobs:
         run:  uv sync --locked --all-extras --dev
       - name: Run Tests
         run: |
-          uv run pytest --cov-report xml:./coverage.xml --durations=25
+          uv run pytest -Werror --cov-report xml:./coverage.xml --durations=25
       - uses: codecov/codecov-action@v5
         if: matrix.os == 'ubuntu-latest' && success()
         with:
-          files: ./coverage.xml # optional
+          file: ./coverage.xml # optional
           fail_ci_if_error: true
           verbose: true
           token: ${{ secrets.CODECOV_TOKEN }}
