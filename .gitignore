@@ -20,7 +20,3 @@ htmlcov/
 .qodo
 
 docs/autoapi/*
-
-# For now, ignore the uv.lock because we specify the dependencies in the old way
-# When uv supports dynamic versioning, we'll upgrade to be everything uv.
-uv.lock
