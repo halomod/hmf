@@ -12,9 +12,13 @@ sphinx:
 conda:
   environment: docs/environment.yaml
 
+build:
+  os: ubuntu-24.04
+  tools:
+    python: mambaforge-latest
+
 python:
    version: 3.13
    install:
       - method: pip
         path: .
-   system_packages: true
