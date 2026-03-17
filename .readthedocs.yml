@@ -18,7 +18,6 @@ build:
     python: mambaforge-latest
 
 python:
-   version: 3.13
    install:
       - method: pip
         path: .
