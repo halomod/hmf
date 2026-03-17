@@ -47,6 +47,7 @@ docs = [
     "numpydoc>=0.8.0",
     "nbsphinx",
     "furo>=2025.12.19",
+    "autoapi"
 ]
 
 tests = [
@@ -70,8 +71,10 @@ cosmo = [
 fit = [
     "emcee>=3.0"
 ]
+extra = ["hmf[cosmo,fit]"]
+
 all = [
-    "hmf[dev,cosmo,fit]"
+    "hmf[dev,extra]"
 ]
 
 [project.scripts]

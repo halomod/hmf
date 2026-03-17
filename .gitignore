@@ -18,3 +18,5 @@ docs/_*/*
 pip-wheel-metadata/
 htmlcov/
 .qodo
+
+docs/autoapi/*

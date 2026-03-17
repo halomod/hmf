@@ -5,24 +5,28 @@
 
 .. include:: ../README.rst
 
-
-Contents
---------
 .. toctree::
    :maxdepth: 1
+   :hidden:
 
+   quickstart
    installation
    tutorials
-   license
-   api
    technical/index
+   attribution
+
+.. toctree::
+   :caption: API Reference
+   :hidden:
+
+   autoapi/hmf/index
+
+.. toctree::
+   :hidden:
+   :caption: Development
+
+   versioning
+   license
    changelog
    contributors
    developing
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`

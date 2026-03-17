@@ -40,6 +40,7 @@ extensions = extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.mathjax",
     "sphinx.ext.autosectionlabel",
+    "autoapi.extension",
     "numpydoc",
     "nbsphinx",
     "IPython.sphinxext.ipython_console_highlighting",
@@ -47,7 +48,28 @@ extensions = extensions = [
 ]
 
 numpydoc_show_class_members = False
-autosummary_generate = True
+
+# Auto-API settings
+autoapi_options=[ 
+    'members', 
+    'undoc-members', 
+    'show-inheritance', 
+    'show-module-summary', 
+    'special-members', 
+    'imported-members',
+    'inherited-members',
+]
+autoapi_dirs = ['../src/hmf']
+autoapi_add_toctree_entry = False  # We add it ourselves in index.rst
+autoapi_python_class_content = 'init'
+autoapi_member_order = 'groupwise'
+autoapi_own_page_level = 'class'
+autoapi_keep_files = True
+autodoc_typehints = 'description'
+
+autosummary_generate = False
+numpydoc_show_class_members = False
+
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["templates"]
