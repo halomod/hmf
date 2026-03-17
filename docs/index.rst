@@ -15,6 +15,7 @@ Contents
    tutorials
    license
    api
+   technical/index
    changelog
    contributors
    developing

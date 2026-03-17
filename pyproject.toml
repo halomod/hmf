@@ -45,7 +45,8 @@ dependencies = [
 docs = [
     "Sphinx>=1.7.5",
     "numpydoc>=0.8.0",
-    "nbsphinx"
+    "nbsphinx",
+    "furo>=2025.12.19",
 ]
 
 tests = [
@@ -75,6 +76,7 @@ all = [
 
 [project.scripts]
 hmf = "hmf._cli:main"
+
 
 [tool.pytest.ini_options]
 addopts = [
