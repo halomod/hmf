@@ -1,10 +1,25 @@
 """
-Module defining the growth factor.
+Module defining calculations of the cosmological growth factor and growth rate.
 
-The primary class, :class:`GrowthFactor`, executes a full
-numerical ODE calculation appropriate for any FLRW cosmology. Simplifications
-which may be more efficient, or extensions to alternate cosmologies,
-may be implemented.
+The primary class, :class:`GrowthFactor`, intelligently dispatches to a number of
+different methods for calculating the growth factor, depending on the cosmology and
+the parameters. The most general method, which is applicable for any FLRW cosmology, is
+:class:`ODEGrowthFactor`, which solves the full ODE for the growth factor. This is the
+most general method, but also the slowest. For cosmologies with negligible radiation
+density, the growth factor can be calculated using the integral form defined in
+:class:`IntegralGrowthFactor`. If the cosmology is also *flat*, then the growth factor
+can be calculated using the analytical formulae implemented in
+:class:`Eisensten97GrowthFactor`, which is the fastest method. Various other
+limiting cases and assumptions are also implemented. If using the base :class:`GrowthFactor` class,
+the appropriate method will be chosen automatically such that it uses the fastest
+available *correct* method.
+
+In addition, a couple of approximate formulae are included, for example
+:class:`Carroll1992` and :class:`GenMFGrowth`, which are not exact for any cosmology
+but are very fast to compute and quite accurate across a broad range of cosmologies.
+
+Full details of the formulae, their assumptions and limitations, and derivations, are
+given in the `technical documentation <https://hmf.readthedocs.io/en/latest/technical/growth_factors.html>`_.
 """
 
 import warnings
