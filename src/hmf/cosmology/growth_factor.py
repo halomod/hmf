@@ -400,7 +400,7 @@ class IntegralGrowthFactor(_GrowthFactor):
         a = 1 / (1 + z)
         lna = np.log(a)
 
-        if np.any(a < self.cosmo.Ogamma0 / self.cosmo.Om0 * 1000):
+        if np.any(a < self.cosmo.Ogamma0 / self.cosmo.Om0 * 50):
             warnings.warn(
                 f"The IntegralGrowthFactor is not accurate at high redshifts "
                 f"({np.max(z):.2f}) in cosmologies with radiation. Consider using the "
@@ -483,9 +483,9 @@ class Eisenstein97GrowthFactor(IntegralGrowthFactor):
     def _d_plus_unnormalized(self, z: float | np.ndarray) -> float | np.ndarray:
         from scipy.special import ellipeinc, ellipkinc
 
-        if np.any(z > 5) and self.cosmo.Ogamma0 > 0:
+        if np.any(z > 100) and self.cosmo.Ogamma0 > 0:
             warnings.warn(
-                "The Eisenstein97GrowthFactor is not accurate at high redshifts (z > 5)."
+                "The Eisenstein97GrowthFactor is not accurate at high redshifts (z > 100)."
                 " Consider using the ODEGrowthFactor instead.",
                 stacklevel=2,
             )
@@ -523,7 +523,9 @@ class Heath77GrowthFactor(IntegralGrowthFactor):
     """
 
     def _d_plus_unnormalized(self, z: float | np.ndarray) -> float | np.ndarray:
-        if np.any(z > 100 * self.cosmo.Ogamma0 / self.cosmo.Om0 - 1):
+        if self.cosmo.Ogamma0 > 0 and np.any(
+            z > 1 / (100 * self.cosmo.Ogamma0 / self.cosmo.Om0) - 1
+        ):
             warnings.warn(
                 "The Heath77GrowthFactor is not accurate at high redshifts (z > "
                 "100*Ogamma0/Om0 - 1) in cosmologies with radiation. Consider using the"
@@ -705,16 +707,6 @@ class Carroll1992(GrowthFactor):
 
     def _d_plus_unnormalized(self, z):
         """Calculate the unnormalized growth factor."""
-        if np.any(z > 0):
-            warnings.warn(
-                "The Carroll1992 growth factor is only accurate at z=0. Consider using "
-                "GrowthFactor instead.",
-                stacklevel=2,
-            )
-
-        # Despite the warning, this approximationformula is actually pretty accurate at
-        # non-zero redshifts, even for non-flat cosmologies. So we allow it to be used
-        # at z>0
         a = 1 / (1 + z)
         Omega_m = self.cosmo.Om(z)  # om / denom
         Omega_L = self.cosmo.Ode(z)  # / denom
@@ -733,13 +725,6 @@ class Carroll1992(GrowthFactor):
         z : float
             The redshift
         """
-        if np.any(z > 0):
-            warnings.warn(
-                "The Carroll1992 growth factor is only accurate at z=0. Consider using "
-                "GrowthFactor instead.",
-                stacklevel=2,
-            )
-
         Omega_m = self.cosmo.Om(z)
         Omega_L = self.cosmo.Ode(z)
 

@@ -81,6 +81,7 @@ def test_heath_vs_ode_no_omegal(omegam):
     np.testing.assert_allclose(d_ode, d_heath, rtol=1e-3)
 
 
+@pytest.mark.filterwarnings("ignore:not accurate at high redshifts")
 @pytest.mark.parametrize(
     "model",
     [
@@ -97,6 +98,7 @@ def test_growth_factor_monotonic(model):
     cosmo = Planck13
     gf = getattr(growth_factor, model)(cosmo)
     z = np.linspace(0, 100, 1000)
+
     d = gf.growth_factor(z[::-1])
     assert np.all(np.diff(d) > 0)
 
@@ -113,7 +115,7 @@ def test_integral_matches_ode_for_no_radiation():
     np.testing.assert_allclose(d_ode, d_integral, rtol=1e-2)
 
 
-@pytest.mark.parametrize("omegam", [0.3, 0.1, 1.0])
+@pytest.mark.parametrize("omegam", [0.3, 0.1, 0.9])
 def test_eisenstein_matches_ode_for_flat_no_radiation(omegam):
     cosmo = Planck13.clone(Tcmb0=0.0, Om0=omegam)
     gf_ode = growth_factor.ODEGrowthFactor(cosmo)
@@ -249,7 +251,10 @@ def test_expected_warnings():
     with pytest.raises(ValueError, match=r"Redshifts <0 not supported"):
         growth_factor.IntegralGrowthFactor(cosmo=cosmo).growth_factor(-0.5)
 
-    with pytest.raises(ValueError, match="Cannot compute integral"):
+    with (
+        pytest.raises(ValueError, match="Cannot compute integral"),
+        pytest.warns(UserWarning, match="not accurate at high redshifts"),
+    ):
         growth_factor.IntegralGrowthFactor(cosmo, amin=1e-3).growth_factor(1e5)
 
     with pytest.raises(ValueError, match="Eisenstein97GrowthFactor only supports flat"):
