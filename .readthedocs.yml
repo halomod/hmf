@@ -9,9 +9,6 @@ version: 2
 sphinx:
   configuration: docs/conf.py
 
-conda:
-  environment: docs/environment.yaml
-
 build:
   os: ubuntu-24.04
   tools:
@@ -21,3 +18,4 @@ python:
    install:
       - method: pip
         path: .
+        extra_requirements: docs
