@@ -260,7 +260,7 @@ def test_expected_warnings():
     with pytest.warns(
         UserWarning,
         match=(
-            "The Heath77GrowthFactor is only accurate for cosmologies with a constant dark energy",
+            "The Heath77GrowthFactor is only accurate for cosmologies with a constant dark energy"
         ),
     ):
         growth_factor.Heath77GrowthFactor(
