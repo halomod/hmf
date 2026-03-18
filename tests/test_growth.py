@@ -79,7 +79,12 @@ def test_heath_vs_ode_no_omegal(omegam):
     np.testing.assert_allclose(d_ode, d_heath, rtol=1e-3)
 
 
-@pytest.mark.filterwarnings("ignore:not accurate at high redshifts")
+@pytest.mark.filterwarnings(
+    "ignore:The IntegralGrowthFactor is not accurate when the radiation density"
+)
+@pytest.mark.filterwarnings(
+    "ignore:The Eisenstein97GrowthFactor is not accurate when the radiation density"
+)
 @pytest.mark.parametrize(
     "model",
     [
@@ -260,10 +265,14 @@ def test_expected_warnings():
             cosmo=Planck13.clone(Tcmb0=0.0, Om0=0.3, Ode0=0.8, to_nonflat=True)
         ).growth_factor(0)
 
-    with pytest.warns(
-        UserWarning,
-        match=(
-            "The Heath77GrowthFactor is only accurate for cosmologies with a constant dark energy"
+    with (
+        pytest.warns(
+            UserWarning,
+            match=("only accurate for cosmologies with a constant dark energy"),
+        ),
+        pytest.warns(
+            UserWarning,
+            match=("The Heath77GrowthFactor is only accurate for cosmologies with Lambda=0"),
         ),
     ):
         growth_factor.Heath77GrowthFactor(
