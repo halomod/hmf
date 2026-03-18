@@ -42,11 +42,22 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+cosmo = [
+    "colossus>=1.2.1"
+]
+fit = [
+    "emcee>=3.0"
+]
+extra = ["hmf[cosmo,fit]"]
+
+[dependency-groups]
 docs = [
     "Sphinx>=1.7.5",
     "numpydoc>=0.8.0",
-    "nbsphinx",
     "furo>=2025.12.19",
+    "sphinx-autoapi",
+    "nbsphinx>=0.9.8",
+    "ipython>=9.11.0",
 ]
 
 tests = [
@@ -56,22 +67,14 @@ tests = [
     "mpmath>=1.0.0",
     "colossus>=1.2.1",
     "halomod>=1.4.6",
-    "numba",
+    "numba>=0.64.0",
 ]
 
 dev = [
-    "hmf[docs,tests]",
-    "ruff",
-    "pre-commit",
-]
-cosmo = [
-    "colossus>=1.2.1"
-]
-fit = [
-    "emcee>=3.0"
-]
-all = [
-    "hmf[dev,cosmo,fit]"
+    {include-group = "docs"},
+    {include-group = "tests"},
+    "pre-commit>=4.5.1",
+    "ruff>=0.15.6",
 ]
 
 [project.scripts]

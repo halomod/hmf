@@ -1,10 +1,30 @@
 """
-Module defining the growth factor.
+Module defining calculations of the cosmological growth factor and growth rate.
 
-The primary class, :class:`GrowthFactor`, executes a full
-numerical ODE calculation appropriate for any FLRW cosmology. Simplifications
-which may be more efficient, or extensions to alternate cosmologies,
-may be implemented.
+The primary class, :class:`GrowthFactor`, intelligently dispatches to a number of
+different methods for calculating the growth factor, depending on the cosmology and
+the parameters. The most general method, which is applicable for any FLRW cosmology, is
+:class:`ODEGrowthFactor`, which solves the full ODE for the growth factor. This is the
+most general method, but also the slowest. For cosmologies with negligible radiation
+density, the growth factor can be calculated using the integral form defined in
+:class:`IntegralGrowthFactor`. If the cosmology is also *flat*, then the growth factor
+can be calculated using the analytical formulae implemented in
+:class:`Eisenstein97GrowthFactor`, which is the fastest method. Various other
+limiting cases and assumptions are also implemented. If using the base :class:`GrowthFactor` class,
+the appropriate method will be chosen automatically such that it uses the fastest
+available *correct* method.
+
+In addition, a couple of approximate formulae are included, for example
+:class:`Carroll1992` and :class:`GenMFGrowth`, which are not exact for any cosmology
+but are very fast to compute and quite accurate across a broad range of cosmologies.
+
+Full details of the formulae, their assumptions and limitations, and derivations, are
+given in the `technical documentation <https://hmf.readthedocs.io/en/latest/technical/growth_factors.html>`_.
+
+The main two functions that the model component provides are `growth_factor` and
+`growth_rate`. The growth rate is the logarithmic derivative of the growth factor. In
+all classes, the growth rate will be internally consistent with the growth factor (i.e.
+any approximations made to one will also be made to the other).
 """
 
 import warnings
@@ -30,8 +50,26 @@ except ImportError:  # pragma: nocover
 
 
 @pluggable
-class _GrowthFactor(Cmpt):
-    r"""General class for a growth factor calculation."""
+class BaseGrowthFactor(Cmpt):
+    r"""General class for a growth factor calculation.
+
+    Sub-classes must implement :method:`_d_plus_unnormalized`, which should take a
+    single argument -- the redshift, ``z`` -- and return an array or float (depending
+    on the input type) of the un-normalized growth factor, :math:`D^+(a)`. Most
+    typically, the normalization of this function is such that :math:`D^+(a) \approx a`
+    at early times, but this is not enforced, and does not affect the user-facing
+    methods of the class.
+
+    Sub-classes *may* also implement :method:`growth_rate`, which takes the same
+    argument and returns the growth rate:
+
+    .. math:: f(a) = d\ln D^+ / d\ln a.
+
+    If this is not implemented, then the growth rate will be calculated by taking the
+    derivative of a spline fitted to the growth factor numerically, and in which the
+    growth factor is evaluated on a logarithmic grid of the scale factor from ``amin``
+    to 1 in steps of ``dlna``.
+    """
 
     _defaults: ClassVar[dict[str, float]] = {"dlna": 0.01, "amin": 1e-8}
 
@@ -50,6 +88,53 @@ class _GrowthFactor(Cmpt):
     def _zvec(self):
         return 1.0 / np.exp(self._lna) - 1.0
 
+    def _validate_assumptions(self, z: float | np.ndarray):
+        """Validate the assumptions of the growth factor calculation.
+
+        This is called in the base class, and can be over-ridden by sub-classes to check
+        for specific assumptions. By default, it does nothing.
+        """
+
+    def radiation_density(self, z):
+        """The fractional radiation density as a function of redshift."""
+        # In astropy, the radiation density (i.e. the thing in front of the
+        # a^-4 term in the Friedmann equation) is has both neutrinos and photons:
+
+        Or = self.cosmo.Ogamma0 + (
+            self.cosmo.Onu0
+            if not self.cosmo._nu_info.has_massive_nu
+            else self.cosmo.Ogamma0 * self.cosmo.nu_relative_density(z)
+        )
+        return Or * (1 + z) ** 4 * self.cosmo.inv_efunc(z) ** 2
+
+    @cached_property
+    def Or0(self):
+        """The fractional radiation density at redshift zero."""
+        return self.radiation_density(0)
+
+    def dlne_dlna(self, z):
+        r"""Compute the derivative of ln(E(a)) with respect to ln(a).
+
+        This is useful for the growth factor, which has terms
+        :math:`E'(a)/E(a) \equiv (1/a)*dlnE/dlna` in its definition.
+
+        This implementation simply uses the exact definition from astropy of E(a)
+        and writes down the derivative analytically.
+        """
+        a = 1 / (1 + z)
+
+        Or = self.cosmo.Ogamma0 + (
+            self.cosmo.Onu0
+            if not self.cosmo._nu_info.has_massive_nu
+            else self.cosmo.Ogamma0 * self.cosmo.nu_relative_density(z)
+        )
+
+        Or = -4 * Or * a**-5
+        Om = -3 * self.cosmo.Om0 * a**-4
+        Ok = -2 * self.cosmo.Ok0 * a**-3
+
+        return a * 0.5 * (Or + Om + Ok) * self.cosmo.inv_efunc(z) ** 2
+
     @abstractmethod
     def _d_plus_unnormalized(self, z):
         """Compute the unnormalized growth factor, D^+(a)."""
@@ -62,7 +147,7 @@ class _GrowthFactor(Cmpt):
 
     def growth_factor(self, z):
         r"""
-        Compute the normalized growth factor, :math:`d(a) = D^+(a)/D^+(a=1)`.
+        Compute the normalized growth factor, :math:`D(a) = D^+(a)/D^+(a=1)`.
 
         Parameters
         ----------
@@ -74,6 +159,7 @@ class _GrowthFactor(Cmpt):
         gf : array_like
             The growth factor at `z`.
         """
+        self._validate_assumptions(z)
         return self._d_plus_unnormalized(z) / self._d_plus0
 
     @cached_property
@@ -99,11 +185,15 @@ class _GrowthFactor(Cmpt):
         gr : array_like
             The growth rate at `z`.
         """
+        self._validate_assumptions(z)
+        return self._growth_rate(z)
+
+    def _growth_rate(self, z) -> float | np.ndarray:
         # The bog standard method will just be numerical derivative.
         return self._growth_rate_spline(np.log(1 / (1 + z)))
 
 
-class GrowthFactor(_GrowthFactor):
+class GrowthFactor(BaseGrowthFactor):
     r"""Growth factor calculation that intelligently chooses which method to use.
 
     This class chooses which growth factor calculation to use based on the cosmology and
@@ -122,105 +212,75 @@ class GrowthFactor(_GrowthFactor):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # Create empty attributes for the different growth factor calculations,
-        # which will be filled in as needed.
-        self._ode_growth_factor = None
-        self._integral_growth_factor = None
-        self._eisenstein_growth_factor = None
+    @cached_property
+    def _ode_gf(self):
+        return ODEGrowthFactor(self.cosmo, **self.params)
+
+    @cached_property
+    def _integral_gf(self):
+        return IntegralGrowthFactor(self.cosmo, **self.params)
+
+    @cached_property
+    def _eisenstein_gf(self):
+        return Eisenstein97GrowthFactor(self.cosmo, **self.params)
+
+    @cached_property
+    def _heath_gf(self):
+        return Heath77GrowthFactor(self.cosmo, **self.params)
+
+    def _choose_solution(self, z):
+        if not isinstance(self.cosmo, cosmology.LambdaCDM):
+            return self._ode_gf
+
+        # Low radiation component solutions.
+        if np.all(self.radiation_density(z) < 0.02):
+            if self.cosmo.is_flat:
+                return self._eisenstein_gf
+            if self.cosmo.Ode0 == 0:
+                return self._heath_gf
+            return self._integral_gf
+
+        return self._ode_gf
 
     def _d_plus_unnormalized(self, z):
         """Calculate the growth factor at redshift z.
 
         See class documentation for the logic tree used here.
         """
-        a = 1 / (1 + z)
+        return self._choose_solution(z)._d_plus_unnormalized(z)
 
-        if self._ode_growth_factor is not None:
-            # Might as well use it since it's already been initialized and it's the
-            # most accurate.
-            return self._ode_growth_factor._d_plus_unnormalized(z)
-
-        if not isinstance(self.cosmo, cosmology.LambdaCDM):
-            self._ode_growth_factor = ODEGrowthFactor(self.cosmo, **self.params)
-            return self._ode_growth_factor._d_plus_unnormalized(z)
-
-        if (np.all(z < 5) or self.cosmo.Ogamma0 == 0) and isinstance(
-            self.cosmo, cosmology.FlatLambdaCDM
-        ):
-            # At low z for a flat cosmology, we can use the formulae in Eisenstein 1997,
-            # which is very fast.
-            self._eisenstein_growth_factor = Eisenstein97GrowthFactor(self.cosmo, **self.params)
-            return self._eisenstein_growth_factor._d_plus_unnormalized(z)
-
-        if self.cosmo.Ogamma0 == 0 or np.all(a > 100 * self.cosmo.Ogamma0 / self.cosmo.Om0):
-            self._integral_growth_factor = IntegralGrowthFactor(self.cosmo, **self.params)
-            return self._integral_growth_factor._d_plus_unnormalized(z)
-
-        self._ode_growth_factor = ODEGrowthFactor(self.cosmo, **self.params)
-        return self._ode_growth_factor._d_plus_unnormalized(z)
-
-    def growth_rate(self, z):
-        """Calculate the growth rate at redshift z.
-
-        See class documentation for the logic tree used here.
-        """
-        a = 1 / (1 + z)
-
-        if self._ode_growth_factor is not None:
-            # Might as well use it since it's already been initialized and it's the
-            # most accurate.
-            return self._ode_growth_factor.growth_rate(z)
-
-        if not isinstance(self.cosmo, cosmology.LambdaCDM):
-            self._ode_growth_factor = ODEGrowthFactor(self.cosmo, **self.params)
-            return self._ode_growth_factor.growth_rate(z)
-
-        if (np.all(z < 5) or self.cosmo.Ogamma0 == 0) and isinstance(
-            self.cosmo, cosmology.FlatLambdaCDM
-        ):
-            # At low z for a flat cosmology, we can use the formulae in Eisenstein 1997,
-            # which is very fast.
-            self._eisenstein_growth_factor = Eisenstein97GrowthFactor(self.cosmo, **self.params)
-            return self._eisenstein_growth_factor.growth_rate(z)
-
-        if self.cosmo.Ogamma0 == 0 or np.all(a > 100 * self.cosmo.Ogamma0 / self.cosmo.Om0):
-            self._integral_growth_factor = IntegralGrowthFactor(self.cosmo, **self.params)
-            return self._integral_growth_factor.growth_rate(z)
-
-        self._ode_growth_factor = ODEGrowthFactor(self.cosmo, **self.params)
-        return self._ode_growth_factor.growth_rate(z)
+    def _growth_rate(self, z):
+        return self._choose_solution(z)._growth_rate(z)
 
 
-class ODEGrowthFactor(_GrowthFactor):
+class ODEGrowthFactor(BaseGrowthFactor):
     r"""
     Growth factor calculation that solves the full ODE.
 
     The ODE solved here is given in many references, e.g. Peebles 1980 "The Large
     Scale Structure of the Universe". The implementation here does not assume either
     flatness, a cosmological constant, or negligible radiation density, and so should be
-    accurate for any FLRW cosmology. The growth factor is normalised such that D+(a) = 1
-    at a=1.
+    accurate for any FLRW cosmology.
 
     Notes
     -----
-    The growth factor is calculated by solving the ODE for the growth function
-    :math:`G(a) = D+(a)/a`, which is given by
+    The growth factor is calculated by solving the following ODE:
 
-    .. math:: G''(a) + \left(\frac{H'(a)}{H(a)} + \frac{5}{a}\right) G'(a) +
-        \left(\frac{3}{a^2} + \frac{H'(a)}{a H(a)} -
-        \frac{3}{2} \frac{\Omega_{m,0}}{a^5 H(a)^2}\right) G(a) = 0.
+    .. math:: D''(a) + \left(\frac{H'(a)}{H(a)} + \frac{3}{a}\right) D'(a)  -
+        \frac{3}{2} \frac{\Omega_{m,0}}{a^5 H(a)^2}\right) D(a) = 0.
 
-    The growth factor is then given by :math:`D^+(a) = G(a) \cdot a`. We use
-    astropy to calculate :math:`H(a)` and its derivative, which ensures that the growth
-    factor is calculated self-consistently with the cosmology. The growth factor is
-    normalised such that :math:`D^+(a=1) = 1`.
+    We use astropy to calculate :math:`H(a)`, and its derivative is computed via a
+    spline fit, which ensures that the growth factor is calculated self-consistently
+    with the cosmology.
 
     The ODE is solved using scipy's `solve_ivp` function, with initial conditions set in
-    the matter-dominated era, where :math:`G(a) \approx 1` and :math:`G'(a) \approx 0`.
+    the radiation-dominated era, where :math:`D(a) \approx 2 a_{\rm eq}/3` and
+    :math:`D'(a) \approx 0` (see the growth factor
+    `derivation documentation <https://hmf.readthedocs.io/en/latest/technical/growth_factors.html#solving-the-ode>`_
+    for details).
     Although these initial conditions are used for the ODE solution, the growth factor
     is ultimately normalised such that :math:`D^+(a=1) = 1`, so the final result is not
-    sensitive to the exact choice of initial conditions (beyond the condition on
-    the normalisation).
+    sensitive to one effective choice of initial condition.
 
     The growth rate is calculated by taking the derivative of the growth factor spline,
     which is equivalent to the expression given in many references, e.g. Carroll et al.
@@ -233,22 +293,14 @@ class ODEGrowthFactor(_GrowthFactor):
     factor.
 
     Since the ODE solution is numerical, it must be evaluated on a grid, and since it
-    is solved as an initial value problem, the grid must start at some early time.
+    is solved as an initial value problem, the grid must start at some early time
+    (well into radiation-domination).
     The parameters `dlna` and `amin` control the grid on which the ODE is solved, and so
     the accuracy of the solution. The grid is in log-space for the scale factor, and so
     `dlna` controls the step-size in log-space, while `amin` controls how far back in
     time the solution is calculated. The default values should be sufficient for most
     cosmologies.
     """
-
-    @cached_property
-    def _dlnefunc_dlna(self):
-        """Compute the derivative of ln(H) with respect to ln(a).
-
-        This is used later for computing H'(a)/H(a) == (1/a)*dlnH/dlna for the growth
-        rate calculation.
-        """
-        return Spline(self._lna, np.log(self.cosmo.efunc(self._zvec))).derivative()
 
     @cached_property
     def _ode_solution(self):
@@ -259,9 +311,8 @@ class ODEGrowthFactor(_GrowthFactor):
             D, Dp = y
 
             z = 1 / a - 1
-            lna = np.log(a)
 
-            dlnhdlna = self._dlnefunc_dlna(lna)
+            dlnhdlna = self.dlne_dlna(z)
             return [
                 Dp,
                 -(3 / a + dlnhdlna / a) * Dp
@@ -275,7 +326,7 @@ class ODEGrowthFactor(_GrowthFactor):
         # q is the radiation to matter ratio. If there is no radiation, then we are in
         # the matter dominated era and the solution is just a (i.e. with a derivative
         # of unity)
-        aeq = self.cosmo.Ogamma0 / self.cosmo.Om0
+        aeq = self.Or0 / self.cosmo.Om0
         sol = solve_ivp(
             ode,
             (a.min(), a.max()),
@@ -319,17 +370,9 @@ class ODEGrowthFactor(_GrowthFactor):
 
     @cached_property
     def _growth_rate_spline(self):
-        r"""Calculate the growth rate, dln(d)/dln(a).
-
-        Given the integral form of the growth factor, we can write out the growth
-        rate analytically as
-
-        .. math:: \frac{d\ln D^+}{d\ln a} = dlnH/dln(a)
-            + 2.5 \frac{\Omega_m(a)}{a^2 H^2(a) D^+(a)}.
-        """
         return self._ode_solution[0].derivative()
 
-    def growth_rate(self, z: float | np.ndarray) -> float | np.ndarray:
+    def _growth_rate(self, z: float | np.ndarray) -> float | np.ndarray:
         """
         Growth rate, dln(D+)/dln(a).
 
@@ -342,25 +385,50 @@ class ODEGrowthFactor(_GrowthFactor):
         return self._growth_rate_spline(lna)
 
 
-class IntegralGrowthFactor(_GrowthFactor):
+class IntegralGrowthFactor(BaseGrowthFactor):
     r"""Growth factor computed using the integral of Heath 1977.
 
     This growth factor is only applicable when the radiation density is negligible, and
-    so is only accurate at low redshifts in cosmologies with radiation.
+    so is only accurate at "low" redshifts in cosmologies with radiation.
+
+    The integral formula is:
+
+    .. math:: D^+(a) = \frac{5}{2} \Omega_{m,0} E(a) \int_0^a \frac{da'}{(a'^3 E(a')^3)}.
+
+    In this class, if a cosmology is given that has non-zero radiation density,
+    the radiation density will be included in the calculation of E(a), even though
+    the assumptions of the formula are not valid in this case. If the growth factor is
+    being computed at high redshifts, a warning will be raised due to the inaccuracy
+    of the method, but otherwise the calculation will continue. The ability to run
+    the calculation in this case is provided to allow for comparison.
+
+    The growth rate has a particularly simple form under the assumptions of the integral
+    formula, and so is calculated using this form, which is consistent with the growth
+    factor calculation, and is also faster to compute than taking the derivative of the
+    growth factor spline. It is:
+
+    .. math:: \frac{d\ln D^+}{d\ln a} = dlnH/dln(a) + 2.5 \frac{\Omega_m(a)}{a^2 H^2(a) D^+(a)}.
     """
 
-    _defaults: ClassVar[dict[str, float]] = {"dlna": 0.01, "amin": 1e-8}
+    def _validate_assumptions(self, z: float | np.ndarray):
 
-    @cached_property
-    def _lna(self):
-        lna = np.arange(np.log(self.params["amin"]), 0, self.params["dlna"])
-        if lna[-1] != 0:
-            lna = np.concatenate((lna, [0]))
-        return lna
+        if np.any(self.radiation_density(z) > 0.02):
+            warnings.warn(
+                f"The {self.__class__.__name__} is not accurate when the radiation "
+                f"density is significant. Consider using the "
+                "ODEGrowthFactor, or GrowthFactor (which switches between models "
+                "automatically) instead. You requested growth factor where the "
+                f"radiation density is {np.max(self.cosmo.Ogamma(z))}, which is not negligible.",
+                stacklevel=2,
+            )
 
-    @cached_property
-    def _zvec(self):
-        return 1.0 / np.exp(self._lna) - 1.0
+        if not isinstance(self.cosmo, cosmology.LambdaCDM):
+            warnings.warn(
+                f"The {self.__class__.__name__} is only accurate for cosmologies with a "
+                "constant dark energy equation of state. Consider using the "
+                "ODEGrowthFactor instead.",
+                stacklevel=2,
+            )
 
     @cached_property
     def _integral(self):
@@ -400,21 +468,6 @@ class IntegralGrowthFactor(_GrowthFactor):
         a = 1 / (1 + z)
         lna = np.log(a)
 
-        if np.any(a < self.cosmo.Ogamma0 / self.cosmo.Om0 * 50):
-            warnings.warn(
-                f"The IntegralGrowthFactor is not accurate at high redshifts "
-                f"({np.max(z):.2f}) in cosmologies with radiation. Consider using the "
-                "ODEGrowthFactor instead.",
-                stacklevel=2,
-            )
-        if not isinstance(self.cosmo, cosmology.LambdaCDM):
-            warnings.warn(
-                "The IntegralGrowthFactor is only accurate for cosmologies with a "
-                "constant dark energy equation of state. Consider using the "
-                "ODEGrowthFactor instead.",
-                stacklevel=2,
-            )
-
         if np.any(z < 0):
             raise ValueError("Redshifts <0 not supported")
         if np.any(a < a_min):
@@ -434,11 +487,7 @@ class IntegralGrowthFactor(_GrowthFactor):
         """
         return self.cosmo.efunc(z)
 
-    @cached_property
-    def _dlnhdlna(self):
-        return Spline(self._lna, np.log(self._efunc(self._zvec))).derivative()
-
-    def growth_rate(self, z):
+    def _growth_rate(self, z):
         """Calculate the growth rate, using the integral form of the growth factor."""
         a = 1 / (1 + z)
 
@@ -446,7 +495,12 @@ class IntegralGrowthFactor(_GrowthFactor):
         # This is because the coefficients in front of the second term are chosen
         # based on the normalization specified in _d_plus_unnormalized (i.e. 5/2 Om0).
         # This is a convenient choice so that D(a) -> a for a -> 0.
-        return self._dlnhdlna(np.log(a)) + 2.5 * self.cosmo.Om0 / (
+        if np.any(self.radiation_density(z) > 0.02):
+            # Need to use the basic spline because that is always consistent
+            # with the growth factor. The analytic equation is only consistent with
+            # the growth factor under the assumption of negligible radiation.
+            return super()._growth_rate(z)
+        return self.dlne_dlna(z) + 2.5 * self.cosmo.Om0 / (
             a**2 * self._efunc(z) ** 2 * self._d_plus_unnormalized(z)
         )
 
@@ -454,43 +508,44 @@ class IntegralGrowthFactor(_GrowthFactor):
 class Eisenstein97GrowthFactor(IntegralGrowthFactor):
     r"""Growth factor calculated using the formulae in Eisenstein 1997.
 
-    This is the result from Eqs 8-10.
+    This is the result from their Eqs 8-10, or equivalently in the
+    `technical docs <https://hmf.readthedocs.io/en/latest/technical/growth_rates.html#further-simplification-flat-cosmology>`_.
 
     This growth factor is only applicable for flat cosmology with a cosmological
     constant and negligible radiation (i.e. low redshifts).
     """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def _validate_assumptions(self, z: float | np.ndarray):
+        super()._validate_assumptions(z)
+
+        if not self.cosmo.is_flat:
+            raise ValueError(f"The {self.__class__.__name__} only supports flat cosmologies")
 
     def _efunc(self, z):
         """Calculate E(z) = H(z)/H0 under assumptions of the Eisenstein+97 formulae."""
         a = 1 / (1 + z)
         return np.sqrt(self.cosmo.Om0 * a**-3 + (1 - self.cosmo.Om0))
 
-    def _dlnhdlna(self, lna):
-        # We want the growth rate to be consistent with the growth factor, so we
-        # calculate a*H'(a)/H(a) under the same assumptions as directly assumed in the
-        # analytic formula for the growth factor, rather than
-        # using the cosmology given. This ensures that the growth rate is consistent
-        # with the growth factor, even if the growth factor is not exact.
-        # The formula for D+ in Eisenstein 1997 assumes both flatness and negligible
-        # radiation, so we calculate a*H'(a)/H(a) under the same assumptions.
-        a = np.exp(lna)
-        Hsq = self._efunc(1 / a - 1) ** 2
-        return -1.5 * self.cosmo.Om0 * a**-3 / Hsq
+    def dlne_dlna(self, z):
+        r"""
+        Compute the derivative of ln(E(a)) with respect to ln(a).
+
+        This is useful for the growth factor, which has terms
+        :math:`E'(a)/E(a) \equiv (1/a)*dlnE/dlna` in its definition.
+
+        We want the growth rate to be consistent with the growth factor, so we
+        calculate a*H'(a)/H(a) under the same assumptions as directly assumed in the
+        analytic formula for the growth factor, rather than
+        using the cosmology given. This ensures that the growth rate is consistent
+        with the growth factor, even if neither are consistent with the cosmology.
+        The formula for D+ in Eisenstein 1997 assumes both flatness and negligible
+        radiation, so we calculate a*H'(a)/H(a) under the same assumptions.
+        """
+        esq = self.cosmo.Om0 * (1 + z) ** 3 + (1 - self.cosmo.Om0)
+        return -1.5 * self.cosmo.Om0 * (1 + z) ** 3 / esq
 
     def _d_plus_unnormalized(self, z: float | np.ndarray) -> float | np.ndarray:
         from scipy.special import ellipeinc, ellipkinc
-
-        if np.any(z > 100) and self.cosmo.Ogamma0 > 0:
-            warnings.warn(
-                "The Eisenstein97GrowthFactor is not accurate at high redshifts (z > 100)."
-                " Consider using the ODEGrowthFactor instead.",
-                stacklevel=2,
-            )
-        if not isinstance(self.cosmo, cosmology.FlatLambdaCDM):
-            raise ValueError("Eisenstein97GrowthFactor only supports flat LambdaCDM cosmologies")
 
         a = 1 / (1 + z)
         v = 1 / a * (self.cosmo.Om0 / self.cosmo.Ode0) ** (1 / 3)
@@ -516,32 +571,23 @@ class Eisenstein97GrowthFactor(IntegralGrowthFactor):
 
 
 class Heath77GrowthFactor(IntegralGrowthFactor):
-    r"""Growth factor calculated using the formulae in Heath 1977.
+    r"""Growth factor calculated using the analytic formula in Heath 1977.
 
     These results apply when Lambda = 0 and the radiation density is negligible, and is
     given in Eq 13 of Heath 1977.
     """
 
-    def _d_plus_unnormalized(self, z: float | np.ndarray) -> float | np.ndarray:
-        if self.cosmo.Ogamma0 > 0 and np.any(
-            z > 1 / (100 * self.cosmo.Ogamma0 / self.cosmo.Om0) - 1
-        ):
+    def _validate_assumptions(self, z: float | np.ndarray):
+        super()._validate_assumptions(z)
+
+        if self.cosmo.Ode0 != 0:
             warnings.warn(
-                "The Heath77GrowthFactor is not accurate at high redshifts (z > "
-                "100*Ogamma0/Om0 - 1) in cosmologies with radiation. Consider using the"
-                " ODEGrowthFactor instead.",
-                stacklevel=2,
-            )
-        if (hasattr(self.cosmo, "w0") and self.cosmo.w0 != -1) or (
-            hasattr(self.cosmo, "wa") and self.cosmo.wa != 0
-        ):
-            warnings.warn(
-                "The Heath77GrowthFactor is only accurate for cosmologies with a "
-                "constant dark energy equation of state. Consider using the "
-                "ODEGrowthFactor instead.",
+                "The Heath77GrowthFactor is only accurate for cosmologies with Lambda=0. "
+                "Consider using the ODEGrowthFactor or IntegralGrowthFactor instead.",
                 stacklevel=2,
             )
 
+    def _d_plus_unnormalized(self, z: float | np.ndarray) -> float | np.ndarray:
         sigma0 = self.cosmo.Om0 / 2
 
         p = (2 * sigma0 * z + 1) * (1 + z) ** 2
@@ -549,10 +595,8 @@ class Heath77GrowthFactor(IntegralGrowthFactor):
             theta = np.arccos((sigma0 * z - sigma0 + 1) / (sigma0 * (1 + z)))
         elif sigma0 < 0.5:
             theta = np.arccosh((sigma0 * z - sigma0 + 1) / (sigma0 * (1 + z)))
-        elif sigma0 == 0.5 and self.cosmo.Ode0 == 0:
+        elif sigma0 == 0.5:
             return 1 / (1 + z)  # Einstein-de Sitter case
-        else:
-            raise ValueError("Heath77GrowthFactor cannot compute OmegaM = 1 case with Lambda!=0.")
 
         term1 = (6 * sigma0 * z + 4 * sigma0 + 1) / np.abs(2 * sigma0 - 1)
         term2 = 3 * theta * sigma0 * np.sqrt(p) / np.abs(2 * sigma0 - 1) ** (3 / 2)
@@ -561,7 +605,7 @@ class Heath77GrowthFactor(IntegralGrowthFactor):
 
 
 @_inherit
-class FromFile(_GrowthFactor):
+class FromFile(BaseGrowthFactor):
     r"""
     Import a growth factor from file.
 
@@ -579,7 +623,6 @@ class FromFile(_GrowthFactor):
             Location of the file to import.
     """
 
-    supported_cosmos = (cosmology.LambdaCDM, cosmology.w0waCDM, cosmology.wCDM)
     _defaults: ClassVar[dict[str, Any]] = {"dlna": 0.01, "amin": 1e-8, "fname": ""}
 
     def _d_plus_unnormalized(self, z):
@@ -609,7 +652,6 @@ class FromArray(FromFile):
             The growth factor at `z`.
     """
 
-    supported_cosmos = (cosmology.LambdaCDM, cosmology.w0waCDM, cosmology.wCDM)
     _defaults: ClassVar[dict[str, Any]] = {"dlna": 0.01, "amin": 1e-8, "z": None, "d": None}
 
     def _d_plus_unnormalized(self, z):
@@ -625,7 +667,7 @@ class FromArray(FromFile):
 
 
 @_inherit
-class GenMFGrowth(_GrowthFactor):
+class GenMFGrowth(BaseGrowthFactor):
     r"""
     Port of growth factor routines found in the ``genmf`` code.
 
@@ -641,6 +683,16 @@ class GenMFGrowth(_GrowthFactor):
         :dz: Step-size for redshift integration
         :zmax: Maximum redshift to integrate to. Only used for :meth:`growth_factor_fn`.
     """
+
+    def _validate_assumptions(self, z):
+        if not isinstance(self.cosmo, cosmology.LambdaCDM):
+            raise ValueError(
+                "The GenMFGrowth factor is only accurate with a cosmological constant. "
+                "Consider using the ODEGrowthFactor instead."
+            )
+
+        if not self.cosmo.Ok0 >= 0:
+            raise ValueError("GenMFGrowth only supports flat or open LambdaCDM cosmologies")
 
     def _general_case(self, w, x):
         x = np.atleast_1d(x)
@@ -670,15 +722,6 @@ class GenMFGrowth(_GrowthFactor):
         """
         a = 1 / (1 + z)
         w = 1 / self.cosmo.Om0 - 1.0
-
-        if not isinstance(self.cosmo, cosmology.LambdaCDM):
-            raise ValueError(
-                "The GenMFGrowth factor is only accurate for LambdaCDM cosmologies. "
-                "Consider using the ODEGrowthFactor instead."
-            )
-
-        if not isinstance(self.cosmo, cosmology.FlatLambdaCDM) and not self.cosmo.Ok0 >= 0:
-            raise ValueError("GenMFGrowth only supports flat or open LambdaCDM cosmologies")
 
         if self.cosmo.Om0 == 1:
             return a
@@ -716,7 +759,7 @@ class Carroll1992(GrowthFactor):
         term3 = (1.0 + 0.5 * Omega_m) * (1.0 + Omega_L / 70.0)
         return coeff / (term1 - Omega_L + term3)
 
-    def growth_rate(self, z):
+    def _growth_rate(self, z):
         """
         Growth rate, dln(d)/dln(a).
 
@@ -743,8 +786,6 @@ if HAVE_CAMB:
         preferred since this class requires re-calculating the transfer function.
 
         """
-
-        supported_cosmos = (cosmology.LambdaCDM, cosmology.w0waCDM, cosmology.wCDM)
 
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)

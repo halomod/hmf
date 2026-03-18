@@ -22,7 +22,7 @@ def test_fittingfunction_sets_measured_mdef():
 
 
 def test_get_measured_mdef_unrecognized_overdensity_warns():
-    class _BadSO(ff.FittingFunction):
+    class _BadSO(ff.BaseFittingFunction):
         sim_definition = ff.SimDetails(
             L=1,
             N=1,
@@ -37,7 +37,7 @@ def test_get_measured_mdef_unrecognized_overdensity_warns():
 
 
 def test_get_measured_mdef_unknown_halo_finder_warns():
-    class _BadFinder(ff.FittingFunction):
+    class _BadFinder(ff.BaseFittingFunction):
         sim_definition = ff.SimDetails(
             L=1,
             N=1,

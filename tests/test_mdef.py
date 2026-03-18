@@ -132,7 +132,7 @@ def test_change_dndm_bocquet():
 
 
 def test_mass_definition_base_errors():
-    base = md.MassDefinition()
+    base = md.BaseMassDefinition()
 
     with pytest.raises(AttributeError, match="halo_density does not exist"):
         base.halo_density()
@@ -147,7 +147,7 @@ def test_mass_definition_base_errors():
 
 
 def test_mass_definition_overdensity_helpers():
-    class Dummy(md.MassDefinition):
+    class Dummy(md.BaseMassDefinition):
         def halo_density(self, z=0, cosmo=md.Planck15):
             return 10.0
 

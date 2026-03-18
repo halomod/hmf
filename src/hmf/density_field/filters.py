@@ -1,4 +1,26 @@
-"""A module containing various smoothing filter Component models."""
+r"""A module containing various smoothing filter models.
+
+Filters handle the calculation of the mass variance from the power
+spectrum, via a window function. Subclasses of :class:`~BaseFilter` implement
+specific window functions.
+
+Besides the raw filter function itself, two quantities are of primary interest:
+firstly the mass variance (see :meth:`sigma`), which appears in many cosmological
+applications, and secondly its logarithmic derivative with mass, which appears in
+the Press-Schechter formalism for the halo mass function.
+
+To remain extensible and general, the methodology in these classes is to calculate the
+latter quantity as
+
+.. math:: \frac{d\ln\sigma}{d\ln m} = \frac{1}{2} \frac{d \ln \sigma^2}{d\ln R}
+            \frac{d\ln R}{d\ln m}.
+
+Each of the quantities on the right can be separately calculated, improving
+extensibility.
+
+The factor :math:`\frac{d\ln R}{d\ln m}` is typically 1/3, but this is not
+necessarily the case for window functions of arbitrary shape.
+"""
 
 import collections
 import warnings
@@ -12,12 +34,12 @@ from .._internals import _framework, _utils
 
 
 @_framework.pluggable
-class Filter(_framework.Component):
+class BaseFilter(_framework.Component):
     r"""
     Base class for Filter components.
 
     Filters handle the calculation of the mass variance from the power
-    spectrum, via a window function. Subclasses of :class:`~Filer` implement
+    spectrum, via a window function. Subclasses of :class:`~BaseFilter` implement
     specific window functions.
 
     The general design is to specify all quantities in terms of length scales,
@@ -267,8 +289,12 @@ class Filter(_framework.Component):
         return (delta_c / self.sigma(r)) ** 2
 
 
+# For backwards compatibility, alias Filter to BaseFilter.
+Filter = BaseFilter
+
+
 @_utils.inherit_docstrings
-class TopHat(Filter):
+class TopHat(BaseFilter):
     r"""
     Real-space top-hat window function.
 
@@ -323,7 +349,7 @@ class TopHat(Filter):
 
 
 @_utils.inherit_docstrings
-class Gaussian(Filter):
+class Gaussian(BaseFilter):
     r"""
     Gaussian window function.
 
@@ -373,7 +399,7 @@ class Gaussian(Filter):
 
 
 @_utils.inherit_docstrings
-class SharpK(Filter):
+class SharpK(BaseFilter):
     r"""
     Fourier-space top-hat window function.
 

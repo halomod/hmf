@@ -1,8 +1,8 @@
 """
-Various models for computing the transfer function.
+Models for computing the transfer function.
 
 Note that these are not transfer function "frameworks". The framework is found
-in :mod:`hmf.transfer`.
+in :mod:`~hmf.density_field.transfer`.
 """
 
 import pickle
