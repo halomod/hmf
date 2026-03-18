@@ -13,8 +13,8 @@ allfits = [
         ff,
         lambda member: (
             inspect.isclass(member)
-            and issubclass(member, ff.FittingFunction)
-            and member is not ff.FittingFunction
+            and issubclass(member, ff.BaseFittingFunction)
+            and member is not ff.BaseFittingFunction
             and member is not ff.PS
         ),
     )

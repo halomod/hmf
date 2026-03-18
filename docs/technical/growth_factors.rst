@@ -29,7 +29,7 @@ be denoted by :math:`D_+(a)`. Unless otherwise noted, primes will denote derivat
 with respect to *scale factor* (e.g. :math:`D'(a)`), while dots will denote derivatives
 with respect to time (e.g. :math:`\dot{D}`).
 
-
+.. label-definitions:
 Definitions
 -----------
 
@@ -234,7 +234,7 @@ and noting that :math:`E(a) = \Omega_m a^{-3/2}` in this case, which gives:
 .. math:: 0 + \left(\frac{3}{a} - \frac{3}{2a} \right) - \frac{3}{2} \frac{1}{a^5 \Omega_m a^{-3}} a = 0
 .. math:: \frac{3}{2a} - \frac{3}{2a} = 0.
 
-
+.. label-radiation-dom:
 Matter-Radiation Domination
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 At early times, radiation cannot be neglected, and the growth factor is not given by the
@@ -308,6 +308,31 @@ where :math:`w` is the equation of state parameter for the dark energy component
 :math:`{}_2F_1` is the hypergeometric function.
 
 Unfortuantely, the case :math:`w=-1` is not a special case of this solution.
+
+Solving the ODE
+---------------
+The full ODE (without any assumptions/approximations on :math:`E(a)`) does not admit
+closed-form solutions. However, it can be solved numerically. A convenient way to setup
+the problem is as an initial value problem for a coupled system of first-order ODEs,
+which can be solved with standard ODE solvers. In this case, the relevant system is
+(see :ref:label-definitions`):
+
+.. math:: \begin{cases} x_1' = x_2 \\ x_2' = = -\left(\frac{3}{a} + \frac{E'}{E}\right) x_1' + \frac{3}{2} \frac{\Omega_m}{a^5 E^2} x_1 \end{cases}
+
+The only question is how to properly set the initial conditions for this system.
+It is natural to set the initial conditions in the early universe, but it is common
+to find initial conditions actually set in the matter-dominated era, where :math:`D(a) \to a`
+and :math:`D'(a) \to 1`. However, choosing such initial conditions restricts the range
+of redshifts in the solution to begin in matter-domination---probably enough for most
+applications but still a needless restriction. Furthermore, it is also a little arbitrary,
+since one must decide on which redshift is best representative of matter domination for
+the particular cosmology on hand. A more natural choice is to set the initial conditions
+in the radiation-dominated era, where we can start at arbitrarily high redshift and use
+the solution for the growth factor in the radiation-dominated era to set the initial
+conditions. In this case, we have :math:`D(a) \approx 2 a_{\rm eq}/3` and
+:math:`D'(a) \approx 0` as :math:`a \to 0` (see :ref:`label-radiation-dom`), which is
+the choice that we make in ``hmf``.
+
 
 Approximations
 --------------

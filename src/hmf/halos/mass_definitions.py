@@ -1,7 +1,11 @@
-"""A model for mass definitions.
+"""Models defining various definitions of halo mass.
 
 This is primarily inspired by Benedikt Diemer's COLOSSUS code:
-https://bdiemer.bitbucket.io/colossus/halo_mass_defs.html
+https://bdiemer.bitbucket.io/colossus/halo_mass_defs.html.
+
+Definitions include both spherical overdensity (with various overdensities) and
+friends-of-friends (with various linking lengths). The main class is
+:class:`BaseMassDefinition`, which defines the interface for all mass definitions.
 """
 
 import warnings
@@ -17,6 +21,7 @@ from ..cosmology import Cosmology
 
 __all__ = [
     "FOF",
+    "BaseMassDefinition",
     "MassDefinition",
     "OptimizationError",
     "SOCritical",
@@ -27,7 +32,7 @@ __all__ = [
 
 
 @_framework.pluggable
-class MassDefinition(_framework.Component):
+class BaseMassDefinition(_framework.Component):
     """A base class for a Mass Definition."""
 
     @staticmethod
@@ -195,7 +200,11 @@ class MassDefinition(_framework.Component):
         return self.__class__.__name__ == other.__class__.__name__ and self.params == other.params
 
 
-class SphericalOverdensity(MassDefinition):
+# For backwards compatibility, alias MassDefinition to BaseMassDefinition.
+MassDefinition = BaseMassDefinition
+
+
+class SphericalOverdensity(BaseMassDefinition):
     """An abstract base class for all spherical overdensity mass definitions."""
 
     def __str__(self):
@@ -270,7 +279,7 @@ class SOVirial(SphericalOverdensity):
         return "SOVirial"
 
 
-class FOF(MassDefinition):
+class FOF(BaseMassDefinition):
     """A mass definition based on FroF networks with given linking length."""
 
     _defaults: ClassVar[dict[str, float]] = {"linking_length": 0.2}

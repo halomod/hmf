@@ -19,7 +19,7 @@
    :caption: API Reference
    :hidden:
 
-   autoapi/hmf/index
+   api
 
 .. toctree::
    :hidden:

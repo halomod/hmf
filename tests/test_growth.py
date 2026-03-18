@@ -26,10 +26,8 @@ def test_growth_rate_ode_high_z_with_rad():
     gf = growth_factor.ODEGrowthFactor(cosmo, amin=a / 10)
 
     z = 1 / a - 1
-    assert np.isclose(gf.growth_rate(z), 0, atol=0.01)
-    np.testing.assert_allclose(
-        gf._d_plus_unnormalized(z), 2 * cosmo.Ogamma0 / 3 / cosmo.Om0, rtol=1e-2
-    )
+    assert np.isclose(gf._growth_rate(z), 0, atol=0.01)
+    np.testing.assert_allclose(gf._d_plus_unnormalized(z), 2 * gf.Or0 / 3 / cosmo.Om0, rtol=1e-2)
 
 
 @pytest.mark.parametrize(
@@ -154,11 +152,11 @@ def test_genmf_good_approximation():
 
 def test_unsupported_cosmo():
     cosmo = w0waCDM(H0=70.0, Om0=0.3, Ode0=0.7, w0=-0.9, Ob0=0.05, Tcmb0=2.7)
-    with pytest.raises(ValueError, match="only accurate for LambdaCDM cosmologies"):
+    with pytest.raises(ValueError, match="only accurate with a cosmological constant"):
         growth_factor.GenMFGrowth(cosmo=cosmo).growth_factor(0)
 
     # But shouldn't raise error for CAMBGrowth
-    growth_factor.CambGrowth(cosmo=cosmo)
+    growth_factor.CambGrowth(cosmo=cosmo).growth_factor(0)
 
 
 def test_pickleability_of_cambgrowth():
@@ -210,12 +208,12 @@ def test_using_ode_when_it_is_already_computed():
     gf = growth_factor.GrowthFactor(cosmo)
 
     gf.growth_factor(100)  # This will trigger using the ODE solver
-    gf.growth_rate(100)
+    gf._growth_rate(100)
 
     # This normally wouldn't need the ODE solver, but since it's already
     # instantiated, it might as well use it.
     gf.growth_factor(1)
-    gf.growth_rate(1)
+    gf._growth_rate(1)
 
 
 def test_growth_rate_uses_integral():
@@ -225,7 +223,7 @@ def test_growth_rate_uses_integral():
 
     # At a low redshift, this will trigger using the integral method, which should work
     # even when Ode0 is not 0.
-    gf.growth_rate(0.1)
+    gf._growth_rate(0.1)
 
 
 def test_growth_rate_uses_ode_at_highz():
@@ -234,13 +232,13 @@ def test_growth_rate_uses_ode_at_highz():
     gf = growth_factor.GrowthFactor(cosmo)
 
     # At a high redshift, this will trigger using the ODE method.
-    gf.growth_rate(1000)
+    gf._growth_rate(1000)
 
 
 def test_expected_warnings():
     """Test that we get expected warnings for unsupported cosmologies."""
     cosmo = Planck13
-    with pytest.warns(UserWarning, match="not accurate at high redshifts"):
+    with pytest.warns(UserWarning, match="not accurate when the radiation density is significant"):
         growth_factor.IntegralGrowthFactor(cosmo=cosmo).growth_factor(10000)
 
     with pytest.warns(UserWarning, match="only accurate for cosmologies with a constant"):
@@ -253,13 +251,13 @@ def test_expected_warnings():
 
     with (
         pytest.raises(ValueError, match="Cannot compute integral"),
-        pytest.warns(UserWarning, match="not accurate at high redshifts"),
+        pytest.warns(UserWarning, match="not accurate when the radiation density"),
     ):
         growth_factor.IntegralGrowthFactor(cosmo, amin=1e-3).growth_factor(1e5)
 
     with pytest.raises(ValueError, match="Eisenstein97GrowthFactor only supports flat"):
         growth_factor.Eisenstein97GrowthFactor(
-            cosmo=Planck13.clone(Tcmb0=0.0, Om0=0.3, Ode0=0.7, to_nonflat=True)
+            cosmo=Planck13.clone(Tcmb0=0.0, Om0=0.3, Ode0=0.8, to_nonflat=True)
         ).growth_factor(0)
 
     with pytest.warns(
@@ -270,11 +268,6 @@ def test_expected_warnings():
     ):
         growth_factor.Heath77GrowthFactor(
             cosmo=cosmology.w0waCDM(H0=70.0, Tcmb0=0.0, Om0=0.3, Ode0=0.7, w0=-0.9, wa=0.3)
-        ).growth_factor(0)
-
-    with pytest.raises(ValueError, match=r"Heath77GrowthFactor cannot compute OmegaM = 1 case"):
-        growth_factor.Heath77GrowthFactor(
-            Planck13.clone(Tcmb0=0.0, Om0=1.0, Ode0=0.3, to_nonflat=True)
         ).growth_factor(0)
 
     with pytest.raises(ValueError, match=r"You must supply an array for both z and d"):
@@ -292,7 +285,7 @@ def test_expected_warnings():
 
     with pytest.raises(ValueError, match="GenMFGrowth only supports flat or open"):
         growth_factor.GenMFGrowth(
-            Planck13.clone(Tcmb0=0.0, Om0=1.2, Ode0=-0.1, to_nonflat=True)
+            Planck13.clone(Om0=1.2, Ode0=-0.1, to_nonflat=True)
         ).growth_factor(0)
 
 

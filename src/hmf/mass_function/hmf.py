@@ -16,8 +16,8 @@ from scipy.optimize import minimize
 from .._internals._cache import cached_quantity, parameter
 from .._internals._framework import get_mdl
 from ..density_field import transfer
-from ..density_field.filters import Filter, TopHat
-from ..halos.mass_definitions import MassDefinition as MassDef
+from ..density_field.filters import BaseFilter, TopHat
+from ..halos.mass_definitions import BaseMassDefinition as MassDef
 from ..halos.mass_definitions import SOGeneric, SOMean
 from . import fitting_functions as ff
 from .integrate_hmf import hmf_integral_gtm as int_gtm
@@ -100,12 +100,12 @@ class MassFunction(transfer.Transfer):
         Mmin: float = 10.0,
         Mmax: float = 15.0,
         dlog10m: float = 0.01,
-        hmf_model: str | ff.FittingFunction = ff.Tinker08,
+        hmf_model: str | ff.BaseFittingFunction = ff.Tinker08,
         hmf_params: dict[str, Any] | None = None,
         mdef_model: None | str | MassDef = None,
         mdef_params: dict | None = None,
         delta_c: float = 1.686,
-        filter_model: str | Filter = TopHat,
+        filter_model: str | BaseFilter = TopHat,
         filter_params: dict | None = None,
         disable_mass_conversion: bool = True,
         **transfer_kwargs,
@@ -180,7 +180,7 @@ class MassFunction(transfer.Transfer):
 
         :type: :class:`hmf.filters.Filter` subclass
         """
-        return get_mdl(val, "Filter")
+        return get_mdl(val, "BaseFilter")
 
     @parameter("param")
     def filter_params(self, val):
@@ -219,7 +219,7 @@ class MassFunction(transfer.Transfer):
         """
         if val is None:
             return val
-        return get_mdl(val, "FittingFunction")
+        return get_mdl(val, "BaseFittingFunction")
 
     @parameter("param")
     def hmf_params(self, val):
@@ -239,7 +239,7 @@ class MassFunction(transfer.Transfer):
         """
         if val is None or (isinstance(val, str) and val.lower() == "none"):
             return None
-        return get_mdl(val, "MassDefinition")
+        return get_mdl(val, "BaseMassDefinition")
 
     @parameter("param")
     def mdef_params(self, val):

@@ -99,9 +99,9 @@ class Transfer(cosmo.Cosmology):
         """
         The model to use to calculate the growth function/growth rate.
 
-        :type: `hmf.growth_factor._GrowthFactor` subclass
+        :type: `hmf.growth_factor.BaseGrowthFactor` subclass
         """
-        return get_mdl(val, "_GrowthFactor")
+        return get_mdl(val, "BaseGrowthFactor")
 
     @parameter("param")
     def growth_params(self, val):
