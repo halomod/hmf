@@ -122,13 +122,16 @@ def test_tinker10_neg_beta():
         h.fsigma
 
 
+@pytest.mark.filterwarnings("ignore:.*does not match the mass definition.*:UserWarning")
+@pytest.mark.filterwarnings("ignore:.*Halo-Exclusion models.*:UserWarning")
+@pytest.mark.parametrize("fit", ["Behroozi", "SMT", "Tinker08"])
 @pytest.mark.parametrize("z", [0.0, 1.0, 2.0])
-def test_behroozi_mass_definition_consistency(z):
-    """Behroozi dndm must be consistent between equivalent SO mass definitions.
+def test_hmf_mass_definition_consistency(z, fit):
+    """The dndm must be consistent between equivalent SO mass definitions.
 
     SOCritical(200) and SOMean(200/Omega_m(z)) define the same physical density
-    threshold, so Behroozi (and any other HMF) must give the same dndm for both.
-    This was broken before because the mass-definition conversion in dndm
+    threshold, so any HMF with mass-definition conversion must give the same dndm
+    for both. This was broken before because the mass-definition conversion in dndm
     always used z=0 and the default Planck15 cosmology instead of the actual
     redshift and cosmology of the computation.
     """
@@ -143,6 +146,7 @@ def test_behroozi_mass_definition_consistency(z):
     equiv_overdensity = 200.0 / cosmo.Om(z)
 
     common = {
+        "hmf_model": fit,
         "transfer_model": "EH",
         "Mmin": 10,
         "Mmax": 15,
@@ -153,13 +157,11 @@ def test_behroozi_mass_definition_consistency(z):
     }
 
     h_crit = MassFunction(
-        hmf_model="Behroozi",
         mdef_model="SOCritical",
         mdef_params={"overdensity": 200},
         **common,
     )
     h_mean = MassFunction(
-        hmf_model="Behroozi",
         mdef_model="SOMean",
         mdef_params={"overdensity": equiv_overdensity},
         **common,
