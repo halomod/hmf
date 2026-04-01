@@ -152,7 +152,7 @@ class BaseMassDefinition(_framework.Component):
                 from halomod.concentration import Duffy08
                 from halomod.profiles import NFW
 
-                profile = NFW(cm_relation=Duffy08(cosmo=Cosmology(cosmo)), mdef=self, z=z)
+                profile = NFW(cm_relation=Duffy08(cosmo=Cosmology(cosmo)), mdef=self, z=z, cosmo=cosmo)
             except ImportError as e:
                 raise ImportError(
                     "Cannot change mass definitions without halomod installed!"
