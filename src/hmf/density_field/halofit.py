@@ -37,7 +37,7 @@ from ..cosmology.cosmo import Cosmology as CosmologyClass
 
 
 def _get_spec(k: np.ndarray, delta_k: np.ndarray, sigma_8=None) -> tuple[float, float, float]:
-    """
+    r"""
     Calculate spectral parameters from power spectrum.
 
     Computes the nonlinear wavenumber, effective spectral index, and curvature
@@ -49,17 +49,17 @@ def _get_spec(k: np.ndarray, delta_k: np.ndarray, sigma_8=None) -> tuple[float, 
 
     .. math::
 
-        \\sigma^2(R) = \\int \\Delta^2(k)\\, e^{-(kR)^2}\\, \\mathrm{d}\\ln k
+        \sigma^2(R) = \int \Delta^2(k)\, e^{-(kR)^2}\, \mathrm{d}\ln k
 
     The effective spectral index and curvature are the first and second
     logarithmic derivatives of σ² evaluated at R_nl:
 
     .. math::
 
-        n_\\mathrm{eff} = -\\frac{\\mathrm{d}\\ln\\sigma^2}{\\mathrm{d}\\ln R}
-                          \\bigg|_{R_\\mathrm{nl}} - 3, \\qquad
-        C = -\\frac{\\mathrm{d}^2\\ln\\sigma^2}{\\mathrm{d}(\\ln R)^2}
-            \\bigg|_{R_\\mathrm{nl}}
+        n_\mathrm{eff} = -\frac{\mathrm{d}\ln\sigma^2}{\mathrm{d}\ln R}
+                          \bigg|_{R_\mathrm{nl}} - 3, \qquad
+        C = -\frac{\mathrm{d}^2\ln\sigma^2}{\mathrm{d}(\ln R)^2}
+            \bigg|_{R_\mathrm{nl}}
 
     Parameters
     ----------

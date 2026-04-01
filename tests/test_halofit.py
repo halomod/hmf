@@ -75,9 +75,7 @@ def test_halofit_vs_camb():
     pars.set_matter_power(redshifts=[0.0], kmax=200.0)
     pars.NonLinear = camb.model.NonLinear_none
     results_lin = camb.get_results(pars)
-    kh_lin, _, pk_lin = results_lin.get_matter_power_spectrum(
-        minkh=1e-4, maxkh=100.0, npoints=500
-    )
+    kh_lin, _, pk_lin = results_lin.get_matter_power_spectrum(minkh=1e-4, maxkh=100.0, npoints=500)
     delta_k_lin = kh_lin**3 * pk_lin[0] / (2 * np.pi**2)
 
     # ---- CAMB nonlinear power (Takahashi) ----
@@ -100,13 +98,12 @@ def test_halofit_vs_camb():
     Ob0 = ombh2 / h**2
     cosmo_astropy = FlatLambdaCDM(H0=100 * h, Om0=Om0, Ob0=Ob0)
     cosmo_hmf = HMFCosmology(cosmo_model=cosmo_astropy)
-    delta_k_nl_hmf = hmf_halofit(
-        kh_lin, delta_k_lin, z=0.0, cosmo=cosmo_hmf.cosmo, takahashi=True
-    )
+    delta_k_nl_hmf = hmf_halofit(kh_lin, delta_k_lin, z=0.0, cosmo=cosmo_hmf.cosmo, takahashi=True)
 
     # ---- comparison over 0.01 ≤ k ≤ 30 h/Mpc ----
     mask = (kh_lin >= 0.01) & (kh_lin <= 30.0)
     ratio = delta_k_nl_camb[mask] / delta_k_nl_hmf[mask]
-    assert np.all(
-        np.abs(ratio - 1) < 5e-3
-    ), f"hmf halofit differs from CAMB by more than 0.5%: max ratio deviation = {np.max(np.abs(ratio - 1)):.4f}"
+    max_dev = np.max(np.abs(ratio - 1))
+    assert np.all(np.abs(ratio - 1) < 5e-3), (
+        f"hmf halofit differs from CAMB by more than 0.5%: max ratio deviation = {max_dev:.4f}"
+    )

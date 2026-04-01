@@ -8,14 +8,6 @@ dev-version
 
 * Changed the ``CAMB`` transfer model to use ``extrapolate_with_eh=True`` by default,
   which improves the accuracy of the HMF at low mass.
-* Investigated the reported ~4% discrepancy between hmf's halofit output and nbodykit
-  (issue #94/#218). Benchmarks show that hmf's halofit implementation agrees with
-  CAMB's Takahashi+2012 halofit to better than 0.3% when both are given the **same**
-  linear power spectrum.  The discrepancy observed in practice originates from
-  different input linear power spectra (hmf defaults to the Eisenstein-Hu fitting
-  formula; nbodykit uses CLASS).  The module docstring and function docstrings now
-  document this clearly, and a new test (``test_halofit_vs_camb``) validates the
-  algorithm against CAMB when CAMB is installed.
 
 **Fixes**
 
