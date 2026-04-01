@@ -1,6 +1,7 @@
 import camb
 import numpy as np
 import pytest
+from astropy import units as u
 from astropy.cosmology import FlatLambdaCDM, LambdaCDM, w0waCDM, wCDM
 
 from hmf.density_field.transfer import Transfer
@@ -109,7 +110,7 @@ def test_camb_neutrinos():
     pars.set_cosmology(
         H0=cosmo_model.H0.value,
         ombh2=cosmo_model.Ob0 * cosmo_model.h**2,
-        omch2=(cosmo_model.Om0 - cosmo_model.Ob0) * cosmo_model.h**2,
+        omch2=cosmo_model.Odm0 * cosmo_model.h**2,
         mnu=sum(cosmo_model.m_nu.value),
         neutrino_hierarchy="degenerate",
         omk=cosmo_model.Ok0,
@@ -135,6 +136,45 @@ def test_camb_neutrinos():
 
     assert diff <= 1e-3
     assert np.isclose(sum_omega_astropy, sum_omega_camb, rtol=1e-2)
+
+
+def test_camb_massive_neutrinos_affect_transfer():
+    """Verify that massive neutrinos produce a different transfer function from massless ones.
+
+    The neutrino mass is passed to CAMB via the ``mnu`` parameter (sum of masses in eV).
+    The CDM density (``omch2``) is set from ``cosmo.Odm0 * h**2``, which is the CDM-only
+    density (astropy's ``Om0`` does not include massive neutrinos). This ensures the
+    total matter budget in CAMB correctly separates CDM, baryons, and neutrinos.
+    """
+    base_kwargs = {
+        "H0": 70.0,
+        "Ob0": 0.05,
+        "Om0": 0.3,
+        "Tcmb0": 2.7255,
+    }
+    cosmo_massless = FlatLambdaCDM(m_nu=[0, 0, 0] * u.eV, **base_kwargs)
+    cosmo_massive = FlatLambdaCDM(m_nu=[0, 0, 0.3] * u.eV, **base_kwargs)
+
+    transfer_kwargs = {
+        "transfer_model": "CAMB",
+        "transfer_params": {"extrapolate_with_eh": False},
+    }
+    t_massless = Transfer(cosmo_model=cosmo_massless, **transfer_kwargs)
+    t_massive = Transfer(cosmo_model=cosmo_massive, **transfer_kwargs)
+
+    # At small scales (large k), neutrino free-streaming suppresses the power spectrum.
+    # The transfer functions should differ significantly at k ~ 1 h/Mpc and above.
+    k = np.logspace(-1, 1, 20)
+    lnt_massless = t_massless.transfer.lnt(np.log(k))
+    lnt_massive = t_massive.transfer.lnt(np.log(k))
+
+    # Massive neutrinos suppress structure at small scales: T_massive < T_massless at large k
+    assert not np.allclose(lnt_massless, lnt_massive, rtol=1e-3), (
+        "Transfer functions for massless and massive neutrinos should differ"
+    )
+    assert np.all(lnt_massless[-5:] > lnt_massive[-5:]), (
+        "Massive neutrinos should suppress the transfer function at small scales (large k)"
+    )
 
 
 def test_setting_kmax():

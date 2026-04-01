@@ -160,6 +160,18 @@ if HAVE_CAMB:
                                      kmax by using an EH model. Can cause some problems
                                      if kmax is high, since CAMB diverges from the EH
                                      approximation.
+
+        Notes
+        -----
+        Neutrino masses are passed to CAMB via the ``mnu`` parameter (sum of neutrino
+        masses in eV) and CAMB internally computes the neutrino physical density
+        ``omnuh2``. The cold dark matter density ``omch2`` is set from astropy's
+        ``Odm0`` attribute (i.e. ``cosmo.Odm0 * cosmo.h**2``), which represents
+        CDM-only density (excluding neutrinos and baryons). In astropy, ``Om0``
+        represents the sum of CDM and baryonic matter only (not massive neutrinos),
+        so ``Odm0 = Om0 - Ob0``. The neutrino contribution to the matter budget is
+        accounted for separately by CAMB from the ``mnu`` parameter, ensuring the
+        total matter density (CDM + baryons + neutrinos) is correctly captured.
         """
 
         _defaults: ClassVar[dict[str, Any]] = {
@@ -207,7 +219,7 @@ if HAVE_CAMB:
             self.params["camb_params"].set_cosmology(
                 H0=self.cosmo.H0.value,
                 ombh2=self.cosmo.Ob0 * self.cosmo.h**2,
-                omch2=(self.cosmo.Om0 - self.cosmo.Ob0) * self.cosmo.h**2,
+                omch2=self.cosmo.Odm0 * self.cosmo.h**2,
                 mnu=sum(self.cosmo.m_nu.value),
                 neutrino_hierarchy="degenerate",
                 omk=self.cosmo.Ok0,
