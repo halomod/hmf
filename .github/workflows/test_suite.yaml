@@ -45,7 +45,7 @@ jobs:
       - name: Run Tests
         run: |
           uv run pytest --cov-report xml:./coverage.xml --durations=25
-      - uses: codecov/codecov-action@v5
+      - uses: codecov/codecov-action@v6
         if: matrix.os == 'ubuntu-latest' && success()
         with:
           files: ./coverage.xml # optional
