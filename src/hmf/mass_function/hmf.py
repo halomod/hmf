@@ -494,6 +494,8 @@ class MassFunction(transfer.Transfer):
             m_meas = self.mdef.change_definition(
                 self.m,
                 self.hmf.measured_mass_definition,
+                z=self.z,
+                cosmo=self.cosmo,
             )[0]
 
             dndm *= self.m / m_meas
