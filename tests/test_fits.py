@@ -18,6 +18,7 @@ allfits = [
             and issubclass(member, ff.BaseFittingFunction)
             and member is not ff.BaseFittingFunction
             and member is not ff.PS
+            and member is not ff.Yung24  # only valid at z=6-19; tested separately
         ),
     )
 ]
@@ -282,3 +283,28 @@ def test_tinker08_matches_colossus(z, rtol):
             model="tinker08",
         )
         assert hmf_dndlnm == pytest.approx(colossus_dndlnm, rel=rtol)
+
+
+def test_yung24_units_switch():
+    common = {
+        "mdef_model": "SOVirial",
+        "z": 10.0,
+        "transfer_model": "EH",
+        "Mmin": 6,
+        "Mmax": 13,
+        "dlog10m": 0.1,
+    }
+    h_h = MassFunction(hmf_model="Yung24", hmf_params={"units": "h"}, **common)
+    h_phys = MassFunction(hmf_model="Yung24", hmf_params={"units": "physical"}, **common)
+    assert not np.allclose(h_h.fsigma, h_phys.fsigma)
+
+
+def test_yung24_invalid_units_raises():
+    with pytest.raises(ValueError, match="units must be 'h' or 'physical'"):
+        MassFunction(
+            hmf_model="Yung24",
+            hmf_params={"units": "bogus"},
+            mdef_model="SOVirial",
+            z=10.0,
+            transfer_model="EH",
+        ).fsigma
