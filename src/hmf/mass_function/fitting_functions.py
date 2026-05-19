@@ -1970,3 +1970,118 @@ class Bocquet500cHydro(Bocquet500cDMOnly):
         "d_z": -0.428,
         "e_z": -0.275,
     }
+
+
+class Yung24(BaseFittingFunction):
+    r"""Yung+24 GUREFT halo mass function fit, calibrated for :math:`z=6{-}19`.
+
+    The functional form follows Tinker08 / Rodriguez-Puebla16, with the four
+    parameters :math:`A, a, b, c` each expressed as a quadratic polynomial in
+    redshift :math:`\chi(z) = \chi_0 + \chi_1 z + \chi_2 z^2`. Best-fit
+    coefficients come from the combined gureft + MultiDark fit in Yung+24
+    Appendix A.
+
+    Parameters
+    ----------
+    units : {"h", "physical"}, optional
+        Selects the parameter table. ``"h"`` (default) uses Table A1, calibrated
+        for masses in :math:`M_\odot/h` and volumes in
+        :math:`{\rm Mpc}^{-3} h^3 {\rm dex}^{-1}` -- matching ``hmf``'s
+        standard internal convention. ``"physical"`` uses Table A2, calibrated
+        for masses in :math:`M_\odot` and volumes in
+        :math:`{\rm Mpc}^{-3} {\rm dex}^{-1}`.
+
+    Raises
+    ------
+    ValueError
+        If ``z`` is outside the calibration range :math:`[6, 19]`.
+    """
+
+    req_z = True
+
+    _eq = r"A(z)\left[(\sigma/b(z))^{-a(z)} + 1\right]\exp(-c(z)/\sigma^2)"
+    _ref = (
+        "Yung, L.Y.A., Somerville, R.S., Finkelstein, S.L., Wilkins, S.M., "
+        "Gardner, J.P., 2024. MNRAS 527, 5929. arXiv:2309.14408"
+    )
+
+    sim_definition = SimDetails(
+        L=[5, 15, 35, 90, 250, 400],
+        N=[1024**3] * 6,
+        halo_finder_type="SO",
+        halo_overdensity="vir",
+        halo_finder="Rockstar",
+        omegam=0.307,
+        sigma_8=0.823,
+        z_meas=(6.0, 19.0),
+        ICS="2LPT",
+        hmf_analysis_notes="Combined gureft + MultiDark fit (Yung+24 Appendix A).",
+    )
+
+    _z_min = 6.0
+    _z_max = 19.0
+
+    _params_h: ClassVar[dict[str, float]] = {
+        "A_0": 0.11416632,
+        "A_1": -0.01486746,
+        "A_2": 0.00137191,
+        "a_0": 1.05274399,
+        "a_1": 0.02803087,
+        "a_2": -0.00306126,
+        "b_0": 8.62813020,
+        "b_1": 0.00384969,
+        "b_2": -0.02349983,
+        "c_0": 1.13138924,
+        "c_1": 0.01713172,
+        "c_2": -0.00113630,
+    }
+    _params_phys: ClassVar[dict[str, float]] = {
+        "A_0": 0.13765772,
+        "A_1": -0.01003821,
+        "A_2": 0.00102964,
+        "a_0": 1.06641384,
+        "a_1": 0.02475576,
+        "a_2": -0.00283342,
+        "b_0": 4.86693806,
+        "b_1": 0.09212356,
+        "b_2": -0.01426283,
+        "c_0": 1.19837952,
+        "c_1": -0.00142967,
+        "c_2": -0.00033074,
+    }
+
+    _defaults: ClassVar[dict[str, Any]] = {**_params_h, "units": "h"}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.z < self._z_min or self.z > self._z_max:
+            raise ValueError(
+                f"Yung24 fit is only valid for z in [{self._z_min}, {self._z_max}]; got z={self.z}."
+            )
+        units = self.params["units"]
+        if units == "physical":
+            user_overrides = set(kwargs) - {"units"}
+            for k, v in self._params_phys.items():
+                if k not in user_overrides:
+                    self.params[k] = v
+        elif units != "h":
+            raise ValueError(f"units must be 'h' or 'physical', got {units!r}")
+
+    @override
+    @property
+    def fsigma(self):
+        z = self.z
+        A = self.params["A_0"] + self.params["A_1"] * z + self.params["A_2"] * z**2
+        a = self.params["a_0"] + self.params["a_1"] * z + self.params["a_2"] * z**2
+        b = self.params["b_0"] + self.params["b_1"] * z + self.params["b_2"] * z**2
+        c = self.params["c_0"] + self.params["c_1"] * z + self.params["c_2"] * z**2
+        return A * ((self.sigma / b) ** (-a) + 1) * np.exp(-c / self.sigma**2)
+
+    @override
+    @property
+    def cutmask(self):
+        if self.m is None:
+            return np.ones(len(self.nu2), dtype=bool)
+        log10m = np.log10(self.m)
+        lo = 6.0 if self.params["units"] == "h" else 5.0
+        return (log10m >= lo) & (log10m <= 13.0)
