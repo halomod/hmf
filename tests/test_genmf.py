@@ -99,6 +99,7 @@ class TestGenMF:
             z=0.0,
             transfer_model="FromFile",
             growth_model="GenMFGrowth",
+            delta_c=1.686,
         )
 
     @staticmethod
