@@ -3,6 +3,8 @@ import itertools
 
 import numpy as np
 import pytest
+from colossus.cosmology.cosmology import setCosmology
+from colossus.lss.mass_function import massFunction
 
 from hmf import MassFunction
 from hmf.mass_function import fitting_functions as ff
@@ -19,6 +21,15 @@ allfits = [
         ),
     )
 ]
+
+
+def _conversion_is_active(hmf: MassFunction) -> bool:
+    """Whether `MassFunction.dndm` will apply mass-definition conversion."""
+    return (
+        hmf.hmf.measured_mass_definition is not None
+        and hmf.hmf.measured_mass_definition != hmf.mdef
+        and not hmf.disable_mass_conversion
+    )
 
 
 @pytest.fixture(scope="module")
@@ -124,16 +135,16 @@ def test_tinker10_neg_beta():
 
 @pytest.mark.filterwarnings("ignore:.*does not match the mass definition.*:UserWarning")
 @pytest.mark.filterwarnings("ignore:.*Halo-Exclusion models.*:UserWarning")
-@pytest.mark.parametrize("fit", ["Behroozi", "SMT", "Tinker08"])
+@pytest.mark.parametrize("fit", ["Behroozi", "SMT"])
 @pytest.mark.parametrize("z", [0.0, 1.0, 2.0])
 def test_hmf_mass_definition_consistency(z, fit):
     """The dndm must be consistent between equivalent SO mass definitions.
 
     SOCritical(200) and SOMean(200/Omega_m(z)) define the same physical density
-    threshold, so any HMF with mass-definition conversion must give the same dndm
-    for both. This was broken before because the mass-definition conversion in dndm
-    always used z=0 and the default Planck15 cosmology instead of the actual
-    redshift and cosmology of the computation.
+    threshold, so any HMF with mass-definition conversion must give the same dndm for
+    both. This was broken before because the mass-definition conversion in dndm always
+    used z=0 and the default Planck15 cosmology instead of the actual redshift and
+    cosmology of the computation.
     """
     from astropy.cosmology import FlatLambdaCDM
 
@@ -167,7 +178,107 @@ def test_hmf_mass_definition_consistency(z, fit):
         **common,
     )
 
+    assert _conversion_is_active(h_crit)
+    assert _conversion_is_active(h_mean)
+
     # Allow ~2% tolerance: a small residual comes from the floating-point
     # imprecision of equiv_overdensity = 200/Om(z) and the NFW c-M approximation.
     # The original bug produced 20-50% errors, so this tolerance is well above that.
     np.testing.assert_allclose(h_crit.dndm, h_mean.dndm, rtol=2e-2)
+
+
+@pytest.mark.filterwarnings("ignore:.*does not match the mass definition.*:UserWarning")
+@pytest.mark.parametrize("z", [0.0, 1.0, 2.0])
+def test_tinker08_native_so_definition_consistency(z):
+    """Tinker08 should agree between equivalent native SO definitions.
+
+    Tinker08 uses `SOGeneric` as its measured mass definition, so it natively supports
+    spherical-overdensity definitions without entering the mass-definition conversion
+    branch used by the PR #281 regression above.
+    """
+    from astropy.cosmology import FlatLambdaCDM
+
+    cosmo_params = {"Om0": 0.3, "H0": 70.0, "Ob0": 0.05}
+    cosmo = FlatLambdaCDM(**cosmo_params)
+    equiv_overdensity = 200.0 / cosmo.Om(z)
+
+    common = {
+        "hmf_model": "Tinker08",
+        "transfer_model": "EH",
+        "Mmin": 10,
+        "Mmax": 15,
+        "dlog10m": 0.1,
+        "z": z,
+        "disable_mass_conversion": False,
+        "cosmo_params": cosmo_params,
+    }
+
+    h_crit = MassFunction(
+        mdef_model="SOCritical",
+        mdef_params={"overdensity": 200},
+        **common,
+    )
+    h_mean = MassFunction(
+        mdef_model="SOMean",
+        mdef_params={"overdensity": equiv_overdensity},
+        **common,
+    )
+
+    assert not _conversion_is_active(h_crit)
+    assert not _conversion_is_active(h_mean)
+    np.testing.assert_allclose(h_crit.dndm, h_mean.dndm, rtol=2e-2)
+
+
+@pytest.mark.parametrize(
+    ("z", "rtol"),
+    [(0.0, 5e-3), (2.0, 1e-2), (4.0, 5e-3), (6.0, 3e-2), (8.0, 8e-2), (10.0, 1.5e-1)],
+)
+def test_tinker08_matches_colossus(z, rtol):
+    """Tinker08 should remain reasonably close to the Colossus implementation.
+
+    This compares the native `200m` Tinker08 prediction against Colossus at several
+    redshifts using a matched cosmology. The tolerance widens with redshift because the
+    remaining mismatch is still driven mostly by different high-z growth treatments and
+    by the fact that `hmf` uses more precise Tinker08 coefficients while Colossus uses
+    rounded table values. After tightening the selector threshold, the agreement is good
+    enough to use a meaningfully stricter external regression than before. See
+    `docs/technical/colossus_comparison.rst` for a longer explanation.
+    """
+    cosmo_params = {"H0": 67.74, "Om0": 0.3089, "Ob0": 0.0486}
+    setCosmology(
+        "hmf-tinker08-test",
+        {
+            "flat": True,
+            "H0": cosmo_params["H0"],
+            "Om0": cosmo_params["Om0"],
+            "Ob0": cosmo_params["Ob0"],
+            "sigma8": 0.8159,
+            "ns": 0.9667,
+        },
+    )
+
+    hmf = MassFunction(
+        hmf_model="Tinker08",
+        transfer_model="EH",
+        mdef_model="SOMean",
+        mdef_params={"overdensity": 200},
+        Mmin=10,
+        Mmax=14.2,
+        dlog10m=0.02,
+        z=z,
+        cosmo_params=cosmo_params,
+        sigma_8=0.8159,
+        n=0.9667,
+    )
+
+    for mass in (1e11, 1e12, 1e13):
+        hmf_dndlnm = np.exp(np.interp(np.log(mass), np.log(hmf.m), np.log(hmf.dndlnm)))
+        colossus_dndlnm = massFunction(
+            mass,
+            z,
+            q_in="M",
+            q_out="dndlnM",
+            mdef="200m",
+            model="tinker08",
+        )
+        assert hmf_dndlnm == pytest.approx(colossus_dndlnm, rel=rtol)

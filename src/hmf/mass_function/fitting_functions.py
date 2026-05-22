@@ -224,7 +224,7 @@ class BaseFittingFunction(_framework.Component):
         n_eff: None | np.ndarray = None,
         mass_definition: None | md.BaseMassDefinition = None,
         cosmo: csm.FLRW = csm.Planck15,
-        delta_c: float = 1.686,
+        delta_c: float = 1.68647,
         **model_parameters,
     ):
         super().__init__(**model_parameters)

@@ -5,6 +5,7 @@ import pytest
 from astropy import cosmology
 from astropy.cosmology import Planck13, w0waCDM
 
+from hmf import MassFunction
 from hmf.cosmology import growth_factor
 
 
@@ -238,6 +239,41 @@ def test_growth_rate_uses_ode_at_highz():
 
     # At a high redshift, this will trigger using the ODE method.
     gf._growth_rate(1000)
+
+
+def test_growth_selector_switches_at_calibrated_radiation_threshold():
+    """The default selector should swap to ODE once the calibrated threshold is exceeded."""
+    cosmo = cosmology.FlatLambdaCDM(H0=67.74, Om0=0.3089, Ob0=0.0486, Tcmb0=2.7255)
+    gf = growth_factor.GrowthFactor(cosmo)
+
+    assert gf.radiation_density(1.0) < growth_factor.LOW_RADIATION_THRESHOLD
+    assert gf._choose_solution(1.0) is gf._eisenstein_gf
+
+    assert gf.radiation_density(2.0) > growth_factor.LOW_RADIATION_THRESHOLD
+    assert gf._choose_solution(2.0) is gf._ode_gf
+
+
+def test_growth_selector_keeps_tinker08_within_one_percent_below_threshold():
+    """Below the selector threshold, default Tinker08 should stay within 1% of ODE."""
+    common = {
+        "hmf_model": "Tinker08",
+        "transfer_model": "EH",
+        "mdef_model": "SOMean",
+        "mdef_params": {"overdensity": 200},
+        "Mmin": 10,
+        "Mmax": 14.2,
+        "dlog10m": 0.02,
+        "z": 1.0,
+        "cosmo_params": {"H0": 67.74, "Om0": 0.3089, "Ob0": 0.0486},
+        "sigma_8": 0.8159,
+        "n": 0.9667,
+    }
+    default = MassFunction(**common)
+    ode = MassFunction(growth_model="ODEGrowthFactor", **common)
+
+    mask = default.m < 1e14
+    relative_error = np.abs(default.dndlnm[mask] - ode.dndlnm[mask]) / ode.dndlnm[mask]
+    assert np.max(relative_error) < 1e-2
 
 
 def test_expected_warnings():

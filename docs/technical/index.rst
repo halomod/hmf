@@ -6,3 +6,4 @@ Technical Documentation and Derivations
    :maxdepth: 1
 
    growth_factors
+   colossus_comparison

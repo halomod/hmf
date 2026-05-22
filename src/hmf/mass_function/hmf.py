@@ -104,7 +104,7 @@ class MassFunction(transfer.Transfer):
         hmf_params: dict[str, Any] | None = None,
         mdef_model: None | str | MassDef = None,
         mdef_params: dict | None = None,
-        delta_c: float = 1.686,
+        delta_c: float = 1.68647,
         filter_model: str | BaseFilter = TopHat,
         filter_params: dict | None = None,
         disable_mass_conversion: bool = True,

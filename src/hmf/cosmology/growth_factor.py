@@ -49,6 +49,12 @@ except ImportError:  # pragma: nocover
     HAVE_CAMB = False
 
 
+# The low-radiation analytic/integral branches are only used while they keep the
+# Tinker08 HMF within 1% of the full ODE solution below 1e14 Msun/h, based on the
+# calibration in development/find_radiation_threshold.py.
+LOW_RADIATION_THRESHOLD = 5.0e-4
+
+
 @pluggable
 class BaseGrowthFactor(Cmpt):
     r"""General class for a growth factor calculation.
@@ -233,7 +239,7 @@ class GrowthFactor(BaseGrowthFactor):
             return self._ode_gf
 
         # Low radiation component solutions.
-        if np.all(self.radiation_density(z) < 0.02):
+        if np.all(self.radiation_density(z) < LOW_RADIATION_THRESHOLD):
             if self.cosmo.is_flat:
                 return self._eisenstein_gf
             if self.cosmo.Ode0 == 0:
@@ -412,7 +418,7 @@ class IntegralGrowthFactor(BaseGrowthFactor):
 
     def _validate_assumptions(self, z: float | np.ndarray):
 
-        if np.any(self.radiation_density(z) > 0.02):
+        if np.any(self.radiation_density(z) > LOW_RADIATION_THRESHOLD):
             warnings.warn(
                 f"The {self.__class__.__name__} is not accurate when the radiation "
                 f"density is significant. Consider using the "
@@ -495,7 +501,7 @@ class IntegralGrowthFactor(BaseGrowthFactor):
         # This is because the coefficients in front of the second term are chosen
         # based on the normalization specified in _d_plus_unnormalized (i.e. 5/2 Om0).
         # This is a convenient choice so that D(a) -> a for a -> 0.
-        if np.any(self.radiation_density(z) > 0.02):
+        if np.any(self.radiation_density(z) > LOW_RADIATION_THRESHOLD):
             # Need to use the basic spline because that is always consistent
             # with the growth factor. The analytic equation is only consistent with
             # the growth factor under the assumption of negligible radiation.
