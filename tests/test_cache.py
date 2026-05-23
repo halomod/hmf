@@ -72,6 +72,13 @@ class _Parent:
         return self.p + self.sub.child_q
 
 
+class _FailingParent(_Parent):
+    @cached_quantity
+    def q_fail(self):
+        _ = self.sub.child_q
+        raise ValueError("boom")
+
+
 class _DictLike:
     def __init__(self, data):
         self._data = data
@@ -265,3 +272,28 @@ def test_subframework_delete_without_instance():
     obj = _Parent()
 
     del obj.sub
+
+
+def test_failed_cached_quantity_cleans_subframework_bookkeeping():
+    obj = _FailingParent()
+    child = obj.sub
+    _ = child.child_q
+
+    initial_child_recalc = dict(getattr(child, hidden_loc(child, "recalc")))
+    initial_child_prpa = dict(getattr(child, hidden_loc(child, "recalc_prop_par")))
+    initial_child_papr = {
+        key: value.copy()
+        for key, value in getattr(child, hidden_loc(child, "recalc_par_prop")).items()
+    }
+
+    with pytest.raises(ValueError, match="boom"):
+        obj.q_fail
+
+    assert getattr(obj, hidden_loc(obj, "active_q")) == set()
+    assert "q_fail" not in getattr(obj, hidden_loc(obj, "recalc"))
+    assert "q_fail" not in getattr(obj, hidden_loc(obj, "recalc_prop_par"))
+
+    assert getattr(child, hidden_loc(child, "recalc")) == initial_child_recalc
+    assert getattr(child, hidden_loc(child, "recalc_prop_par")) == initial_child_prpa
+    assert getattr(child, hidden_loc(child, "recalc_par_prop")) == initial_child_papr
+    assert getattr(child, hidden_loc(child, "active_q")) == set()
