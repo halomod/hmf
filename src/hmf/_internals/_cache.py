@@ -9,6 +9,7 @@ updated.
 """
 
 import warnings
+from contextlib import suppress
 from copy import deepcopy
 from functools import update_wrapper
 
@@ -22,6 +23,73 @@ def hidden_loc(obj, name):
     Importantly deals with attributes beginning with an underscore.
     """
     return ("_" + obj.__class__.__name__ + "__" + name).replace("___", "__")
+
+
+def _rollback_failed_quantity_index(self: object, name: str) -> None:
+    """Remove partial dependency bookkeeping left by a failed cached quantity."""
+    prop = hidden_loc(self, name)
+    recalc = getattr(self, hidden_loc(self, "recalc"))
+    recalc_prpa = getattr(self, hidden_loc(self, "recalc_prop_par"))
+    activeq = getattr(self, hidden_loc(self, "active_q"))
+    recalc_papr = getattr(self, hidden_loc(self, "recalc_par_prop"))
+
+    activeq.discard(name)
+    recalc.pop(name, None)
+    recalc_prpa.pop(name, None)
+
+    for quantities in recalc_papr.values():
+        quantities.discard(name)
+
+    with suppress(AttributeError):
+        delattr(self, prop)
+
+    for subframework in [
+        getattr(self, s) for s in getattr(self, hidden_loc(self, "subframeworks"), set())
+    ]:
+        sub_recalc = getattr(subframework, hidden_loc(subframework, "recalc"))
+        sub_recalc_prpa = getattr(subframework, hidden_loc(subframework, "recalc_prop_par"))
+        sub_activeq = getattr(subframework, hidden_loc(subframework, "active_q"))
+        sub_recalc_papr = getattr(subframework, hidden_loc(subframework, "recalc_par_prop"))
+
+        sub_name = ":" + name
+        sub_activeq.discard(sub_name)
+        sub_recalc.pop(sub_name, None)
+        sub_recalc_prpa.pop(sub_name, None)
+
+        for quantities in sub_recalc_papr.values():
+            quantities.discard(sub_name)
+
+
+def _finalize_quantity_index(self: object, name: str, supered: bool) -> None:
+    """Persist dependency bookkeeping for a successfully evaluated cached quantity."""
+    recalc = getattr(self, hidden_loc(self, "recalc"))
+    recalc_prpa = getattr(self, hidden_loc(self, "recalc_prop_par"))
+    activeq = getattr(self, hidden_loc(self, "active_q"))
+    recalc_papr = getattr(self, hidden_loc(self, "recalc_par_prop"))
+
+    for par in recalc_prpa[name]:
+        recalc_papr[par].add(name)
+
+    if not supered:
+        recalc_prpa[name] = deepcopy(recalc_prpa[name])
+        activeq.remove(name)
+
+    recalc[name] = False
+
+    for subframework in [
+        getattr(self, s) for s in getattr(self, hidden_loc(self, "subframeworks"), set())
+    ]:
+        sub_recalc_prpa = getattr(subframework, hidden_loc(subframework, "recalc_prop_par"))
+        sub_recalc_papr = getattr(subframework, hidden_loc(subframework, "recalc_par_prop"))
+        sub_activeq = getattr(subframework, hidden_loc(subframework, "active_q"))
+
+        sub_name = ":" + name
+        if sub_name in sub_recalc_prpa:
+            for par in sub_recalc_prpa[sub_name]:
+                sub_recalc_papr[par].add(sub_name)
+
+        if sub_name in sub_activeq:
+            sub_activeq.remove(sub_name)
 
 
 def cached_quantity(f):
@@ -62,14 +130,12 @@ def cached_quantity(f):
         _recalc = hidden_loc(self, "recalc")
         _recalc_prpa = hidden_loc(self, "recalc_prop_par")
         _activeq = hidden_loc(self, "active_q")
-        _recalc_papr = hidden_loc(self, "recalc_par_prop")
         _subframeworks = hidden_loc(self, "subframeworks")
 
         # actual objects
         recalc = getattr(self, _recalc)
         recalc_prpa = getattr(self, _recalc_prpa)
         activeq = getattr(self, _activeq)
-        recalc_papr = getattr(self, _recalc_papr)
         subframeworks = [getattr(self, s) for s in getattr(self, _subframeworks, set())]
 
         # First, if this property has already been indexed,
@@ -112,37 +178,18 @@ def cached_quantity(f):
             recalc_prpa[name] = set()  # Empty set to which parameter names will be added
             activeq.add(name)
 
-        # Go ahead and calculate the value -- each parameter accessed will add itself to the index.
-        value = f(self)
-        setattr(self, prop, value)
-
-        # Invert the index
-        for par in recalc_prpa[name]:
-            recalc_papr[par].add(name)
-
-        # Copy index to static dict, and remove the index (so that parameters don't keep
-        # on trying to add themselves)
-        if not supered:  # If super, don't want to remove the name just yet.
-            recalc_prpa[name] = deepcopy(recalc_prpa[name])
-            activeq.remove(name)
-
-        # Add entry to master recalc list
-        recalc[name] = False
-
-        # Invert sub-framework indices
-        subframeworks = [
-            getattr(self, s) for s in getattr(self, _subframeworks, set())
-        ]  # have to get it again, because it's been updated
-
-        for s in subframeworks:
-            if ":" + name in getattr(s, hidden_loc(s, "recalc_prop_par")):
-                for par in getattr(s, hidden_loc(s, "recalc_prop_par"))[":" + name]:
-                    getattr(s, hidden_loc(s, "recalc_par_prop"))[par].add(":" + name)
-
-            if ":" + name in getattr(s, hidden_loc(s, "active_q")):
-                getattr(s, hidden_loc(s, "active_q")).remove(":" + name)
-
-        return value
+        try:
+            # Go ahead and calculate the value -- each parameter accessed will add itself
+            # to the index. If this fails, rollback the partial bookkeeping so the object
+            # remains in the same state as before the failed access.
+            value = f(self)
+            setattr(self, prop, value)
+            _finalize_quantity_index(self, name, supered)
+            return value
+        except Exception:
+            if not supered:
+                _rollback_failed_quantity_index(self, name)
+            raise
 
     update_wrapper(_get_property, f)
 
