@@ -211,6 +211,8 @@ def test_yung24_invalid_units_raises():
             z=10.0,
             transfer_model="EH",
         ).fsigma
+
+
 @pytest.mark.filterwarnings("ignore:.*does not match the mass definition.*:UserWarning")
 @pytest.mark.parametrize("z", [0.0, 1.0, 2.0])
 def test_tinker08_native_so_definition_consistency(z):
