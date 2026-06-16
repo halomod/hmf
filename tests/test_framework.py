@@ -1,5 +1,6 @@
 import sys
 import typing
+from copy import deepcopy
 
 import pytest
 from deprecation import fail_if_not_removed
@@ -7,9 +8,38 @@ from deprecation import fail_if_not_removed
 import hmf
 from hmf import GrowthFactor, MassFunction
 from hmf._internals import get_base_component, get_base_components, pluggable
-from hmf._internals._cache import cached_quantity, parameter
+from hmf._internals._cache import cached_quantity, hidden_loc, parameter
 from hmf._internals._framework import Component, Framework, get_mdl, get_model, get_model_
 from hmf.density_field.transfer_models import TransferComponent
+
+
+class _BrokenFramework(Framework):
+    def __init__(self, a=0, b=1):
+        self._validate = False
+        self.a = a
+        self.b = b
+        self._validate = True
+
+    def validate(self):
+        pass
+
+    @parameter("param")
+    def a(self, val):
+        return val
+
+    @parameter("param")
+    def b(self, val):
+        return val
+
+    @cached_quantity
+    def broken(self):
+        if self.a == 0:
+            raise ValueError("boom")
+        return self.a + self.b
+
+    @cached_quantity
+    def dependent(self):
+        return self.broken + 1
 
 
 def test_incorrect_argument():
@@ -308,6 +338,34 @@ def test_framework_update_and_defaults():
     clone = parent.clone(x=5)
     assert clone.x == 5
     assert parent.x == 3
+
+
+def test_failed_cached_quantity_recovers_after_update():
+    """A failed quantity access should not block later successful recomputation."""
+    framework = _BrokenFramework(a=0, b=1)
+
+    with pytest.raises(ValueError, match="boom"):
+        framework.dependent
+
+    framework.update(a=2)
+
+    assert framework.dependent == 4
+
+
+def test_failed_cached_quantity_cleanup_is_transactional():
+    """A failed quantity access should clean up cache bookkeeping on error."""
+    framework = _BrokenFramework(a=0, b=1)
+    initial_recalc = deepcopy(getattr(framework, hidden_loc(framework, "recalc")))
+    initial_recalc_prpa = deepcopy(getattr(framework, hidden_loc(framework, "recalc_prop_par")))
+    initial_recalc_papr = deepcopy(getattr(framework, hidden_loc(framework, "recalc_par_prop")))
+
+    with pytest.raises(ValueError, match="boom"):
+        framework.dependent
+
+    assert getattr(framework, hidden_loc(framework, "active_q")) == set()
+    assert getattr(framework, hidden_loc(framework, "recalc")) == initial_recalc
+    assert getattr(framework, hidden_loc(framework, "recalc_prop_par")) == initial_recalc_prpa
+    assert getattr(framework, hidden_loc(framework, "recalc_par_prop")) == initial_recalc_papr
 
 
 def test_get_dependencies_and_parameter_info(capsys):

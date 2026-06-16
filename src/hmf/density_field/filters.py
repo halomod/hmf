@@ -274,7 +274,7 @@ class BaseFilter(_framework.Component):
         sigma = (0.5 / np.pi**2) * intg.simpson(integ, dx=dlnk, axis=-1)
         return np.sqrt(sigma)
 
-    def nu(self, r, delta_c=1.686):
+    def nu(self, r, delta_c=1.68647):
         r"""
         Peak height, :math:`\frac{\delta_c^2}{\sigma^2(r)}`.
 
