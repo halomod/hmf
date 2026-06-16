@@ -108,7 +108,7 @@ class BaseGrowthFactor(Cmpt):
 
         Or = self.cosmo.Ogamma0 + (
             self.cosmo.Onu0
-            if not self.cosmo._nu_info.has_massive_nu
+            if not self.cosmo.has_massive_nu
             else self.cosmo.Ogamma0 * self.cosmo.nu_relative_density(z)
         )
         return Or * (1 + z) ** 4 * self.cosmo.inv_efunc(z) ** 2
@@ -131,7 +131,7 @@ class BaseGrowthFactor(Cmpt):
 
         Or = self.cosmo.Ogamma0 + (
             self.cosmo.Onu0
-            if not self.cosmo._nu_info.has_massive_nu
+            if not self.cosmo.has_massive_nu
             else self.cosmo.Ogamma0 * self.cosmo.nu_relative_density(z)
         )
 
