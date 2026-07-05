@@ -185,7 +185,7 @@ class BaseFilter(_framework.Component):
         Returns
         -------
         dlnss_dlnr : array_like
-            The derivative of the the mass variance with radius.
+            The derivative of the mass variance with radius.
 
         Notes
         -----
