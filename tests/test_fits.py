@@ -188,6 +188,119 @@ def test_hmf_mass_definition_consistency(z, fit):
     np.testing.assert_allclose(h_crit.dndm, h_mean.dndm, rtol=2e-2)
 
 
+def test_yung24_units_switch():
+    common = {
+        "mdef_model": "SOVirial",
+        "z": 10.0,
+        "transfer_model": "EH",
+        "Mmin": 6,
+        "Mmax": 13,
+        "dlog10m": 0.1,
+    }
+    h_h = MassFunction(hmf_model="Yung24", hmf_params={"units": "h"}, **common)
+    h_phys = MassFunction(hmf_model="Yung24", hmf_params={"units": "physical"}, **common)
+    assert not np.allclose(h_h.fsigma, h_phys.fsigma)
+
+
+def test_yung24_invalid_units_raises():
+    with pytest.raises(ValueError, match="units must be 'h' or 'physical'"):
+        MassFunction(
+            hmf_model="Yung24",
+            hmf_params={"units": "bogus"},
+            mdef_model="SOVirial",
+            z=10.0,
+            transfer_model="EH",
+        ).fsigma
+
+
+@pytest.mark.parametrize("z", [5.999, 19.001])
+def test_yung24_invalid_z_raises(z):
+    with pytest.raises(ValueError, match=r"Yung24 fit is only valid for z in \[6.0, 19.0\]"):
+        MassFunction(
+            hmf_model="Yung24",
+            mdef_model="SOVirial",
+            z=z,
+            transfer_model="EH",
+        )
+
+
+def _yung24_sigma0_phys(mvir):
+    """sigma(Mvir) at z=0, physical units (no h), from Yung+24 Eq. A4.
+
+    This is a *different* equation to the one implemented in ``Yung24.fsigma``
+    (which uses hmf's own transfer-function-based sigma(M)); it lets us derive an
+    independent sigma(M, z) to convert the digitized n-body points below into
+    fsigma, without going anywhere near the code under test.
+    """
+    m12 = mvir / 1e12
+    y = 1.0 / m12
+    return (
+        26.80004233 * y**0.40695158 / (1 + 6.18130098 * y**0.23076433 + 4.64104008 * y**0.36760939)
+    )
+
+
+def _yung24_dlnsigma_dlnm(mvir, eps=1e-4):
+    lnm = np.log(mvir)
+    s_plus = _yung24_sigma0_phys(np.exp(lnm + eps))
+    s_minus = _yung24_sigma0_phys(np.exp(lnm - eps))
+    return (np.log(s_plus) - np.log(s_minus)) / (2 * eps)
+
+
+def _flat_lcdm_growth_factor(z, om0=0.307, ol0=0.693):
+    """Linear growth factor D(z), normalized to D(0)=1 (Heath 1977), for flat LCDM."""
+    from scipy.integrate import quad
+
+    def e(a):
+        return np.sqrt(om0 / a**3 + ol0)
+
+    def unnormalized(a):
+        integral, _ = quad(lambda ap: 1.0 / (ap * e(ap)) ** 3, 1e-8, a)
+        return e(a) * integral
+
+    return unnormalized(1.0 / (1.0 + z)) / unnormalized(1.0)
+
+
+@pytest.mark.parametrize(
+    ("z", "log10_mvir", "dn_dlogm"),
+    [
+        (6.0, 6.0, 1.8030e3),
+        (10.0, 6.0, 1.1909e3),
+        (15.0, 6.0, 3.7233e2),
+        (19.0, 6.0, 9.1327e1),
+    ],
+)
+def test_yung24_fsigma_matches_published_hmf(z, log10_mvir, dn_dlogm):
+    """Check fsigma against n-body points digitized from Yung+24 (arXiv:2309.14408) Fig. A1.
+
+    ``dn_dlogm`` [Mpc^-3 dex^-1] values are read off the *n-body* data points (not the
+    fitted curve) in the physical-units panel of Fig. A1, using the paper's own
+    cosmology (Om0=0.307, OL0=0.693, H0=67.8) and its independent sigma(Mvir) fit
+    (Eq. A4) to convert them to fsigma via the standard HMF relation (Eq. A1). This
+    is a genuine outcome-level check against the published simulation results, rather
+    than a re-derivation of the same fitting formula/coefficients used by the code.
+
+    Because the digitized points are n-body measurements (with real sample scatter
+    relative to the fitted curve -- see the fractional-difference panel of Fig. A1,
+    which shows deviations up to ~50% for some points) and because H0 is not otherwise
+    needed/tested elsewhere in this fit, we only require rough (~30%) agreement: the
+    goal is to catch gross implementation errors, not to validate to high precision.
+    """
+    mvir = 10**log10_mvir
+    sigma = _yung24_sigma0_phys(mvir) * _flat_lcdm_growth_factor(z)
+    dlnsigma_dlnm = _yung24_dlnsigma_dlnm(mvir)
+
+    h = 0.678
+    rho_m0 = 0.307 * 2.7754e11 * h**2  # Msun/Mpc^3
+
+    fsigma_from_data = dn_dlogm * mvir / (rho_m0 * np.log(10) * abs(dlnsigma_dlnm))
+
+    delta_c = 1.68647
+    nu2 = np.array([(delta_c / sigma) ** 2])
+    fsigma_code = ff.Yung24(nu2=nu2, z=z, units="physical").fsigma[0]
+
+    np.testing.assert_allclose(fsigma_code, fsigma_from_data, rtol=0.3)
+
+
 @pytest.mark.filterwarnings("ignore:.*does not match the mass definition.*:UserWarning")
 @pytest.mark.parametrize("z", [0.0, 1.0, 2.0])
 def test_tinker08_native_so_definition_consistency(z):
@@ -283,28 +396,3 @@ def test_tinker08_matches_colossus(z, rtol):
             model="tinker08",
         )
         assert hmf_dndlnm == pytest.approx(colossus_dndlnm, rel=rtol)
-
-
-def test_yung24_units_switch():
-    common = {
-        "mdef_model": "SOVirial",
-        "z": 10.0,
-        "transfer_model": "EH",
-        "Mmin": 6,
-        "Mmax": 13,
-        "dlog10m": 0.1,
-    }
-    h_h = MassFunction(hmf_model="Yung24", hmf_params={"units": "h"}, **common)
-    h_phys = MassFunction(hmf_model="Yung24", hmf_params={"units": "physical"}, **common)
-    assert not np.allclose(h_h.fsigma, h_phys.fsigma)
-
-
-def test_yung24_invalid_units_raises():
-    with pytest.raises(ValueError, match="units must be 'h' or 'physical'"):
-        MassFunction(
-            hmf_model="Yung24",
-            hmf_params={"units": "bogus"},
-            mdef_model="SOVirial",
-            z=10.0,
-            transfer_model="EH",
-        ).fsigma
