@@ -166,7 +166,7 @@ name = "cffi"
 version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pycparser", marker = "implementation_name != 'PyPy'" },
+    { name = "pycparser" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/eb/56/b1ba7935a17738ae8453301356628e8147c79dbb825bcbc73dc7401f9846/cffi-2.0.0.tar.gz", hash = "sha256:44d1b5909021139fe36001ae048dbdde8214afa20200eda0f64c068cac5d5529", size = 523588, upload-time = "2025-09-08T23:24:04.541Z" }
 wheels = [
@@ -590,7 +590,7 @@ tests = [
 
 [package.metadata]
 requires-dist = [
-    { name = "astropy", specifier = ">=1.1" },
+    { name = "astropy", specifier = ">=6.0" },
     { name = "cached-property" },
     { name = "camb", specifier = ">=1.0.0" },
     { name = "click" },
@@ -599,9 +599,9 @@ requires-dist = [
     { name = "deprecation" },
     { name = "emcee", marker = "extra == 'extra'", specifier = ">=3.0" },
     { name = "emcee", marker = "extra == 'fit'", specifier = ">=3.0" },
-    { name = "numpy", specifier = ">=1.6.2" },
+    { name = "numpy", specifier = ">=1.26" },
     { name = "rich" },
-    { name = "scipy", specifier = ">=0.12.0" },
+    { name = "scipy", specifier = ">=1.11" },
     { name = "toml", specifier = ">=0.10.1" },
 ]
 provides-extras = ["cosmo", "extra", "fit"]
