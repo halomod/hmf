@@ -15,10 +15,6 @@ dev-version
   function, rather than Tinker10, and also fixes a small normalization bug where the
   masses were assumed to be Msun/h instead of Msun (which is what the Behroozi paper
   assumes).
-* Tightened the minimum required versions of ``numpy``, ``scipy`` and ``astropy`` in
-  ``pyproject.toml`` to versions that actually support the minimum required Python
-  version (3.12), so that ``pip`` doesn't leave an incompatible, already-installed
-  version of these packages in place (#286).
 
 v3.4.4 [16 Jan 2023]
 ----------------------
