@@ -224,6 +224,20 @@ def test_yung24_invalid_z_raises(z):
         )
 
 
+def test_yung24_cutmask():
+    m = np.array([1e5, 1e6, 1e7, 1e12, 1e13, 1e14])
+    nu2 = np.ones_like(m)
+
+    fit_h = ff.Yung24(nu2=nu2, m=m, z=10.0, units="h")
+    np.testing.assert_array_equal(fit_h.cutmask, (np.log10(m) >= 6.0) & (np.log10(m) <= 13.0))
+
+    fit_phys = ff.Yung24(nu2=nu2, m=m, z=10.0, units="physical")
+    np.testing.assert_array_equal(fit_phys.cutmask, (np.log10(m) >= 5.0) & (np.log10(m) <= 13.0))
+
+    fit_no_m = ff.Yung24(nu2=nu2, z=10.0)
+    np.testing.assert_array_equal(fit_no_m.cutmask, np.ones(len(nu2), dtype=bool))
+
+
 def _yung24_sigma0_phys(mvir):
     """sigma(Mvir) at z=0, physical units (no h), from Yung+24 Eq. A4.
 
