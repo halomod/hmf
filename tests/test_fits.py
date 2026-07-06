@@ -243,7 +243,7 @@ def _yung24_sigma0_phys(mvir):
 
     This is a *different* equation to the one implemented in ``Yung24.fsigma``
     (which uses hmf's own transfer-function-based sigma(M)); it lets us derive an
-    independent sigma(M, z) to convert the digitized n-body points below into
+    independent sigma(M, z) to convert the digitized Fig. A1 points below into
     fsigma, without going anywhere near the code under test.
     """
     m12 = mvir / 1e12
@@ -260,59 +260,187 @@ def _yung24_dlnsigma_dlnm(mvir, eps=1e-4):
     return (np.log(s_plus) - np.log(s_minus)) / (2 * eps)
 
 
-def _flat_lcdm_growth_factor(z, om0=0.307, ol0=0.693):
-    """Linear growth factor D(z), normalized to D(0)=1 (Heath 1977), for flat LCDM."""
-    from scipy.integrate import quad
+def _yung24_growth_factor(z, om0=0.307, h=0.678):
+    """Linear growth factor D(z), normalized to D(0)=1, for Yung+24's flat LCDM cosmology.
 
-    def e(a):
-        return np.sqrt(om0 / a**3 + ol0)
+    Reuses hmf's own (independently-tested) growth factor machinery rather than
+    re-deriving it -- growth factor correctness isn't what this test is about.
+    """
+    from astropy.cosmology import FlatLambdaCDM
 
-    def unnormalized(a):
-        integral, _ = quad(lambda ap: 1.0 / (ap * e(ap)) ** 3, 1e-8, a)
-        return e(a) * integral
+    from hmf.cosmology.growth_factor import GrowthFactor
 
-    return unnormalized(1.0 / (1.0 + z)) / unnormalized(1.0)
+    cosmo = FlatLambdaCDM(H0=100 * h, Om0=om0)
+    return float(GrowthFactor(cosmo).growth_factor(z)[0])
 
 
-@pytest.mark.parametrize(
-    ("z", "log10_mvir", "dn_dlogm"),
-    [
-        (6.0, 6.0, 1.8030e3),
-        (10.0, 6.0, 1.1909e3),
-        (15.0, 6.0, 3.7233e2),
-        (19.0, 6.0, 9.1327e1),
-    ],
-)
-def test_yung24_fsigma_matches_published_hmf(z, log10_mvir, dn_dlogm):
-    """Check fsigma against n-body points digitized from Yung+24 (arXiv:2309.14408) Fig. A1.
+def _yung24_fsigma_sensitivity(sigma, z, frac=1e-3):
+    """Local d ln(fsigma) / d ln(sigma), via finite difference on the code's own fsigma.
 
-    ``dn_dlogm`` [Mpc^-3 dex^-1] values are read off the *n-body* data points (not the
-    fitted curve) in the physical-units panel of Fig. A1, using the paper's own
-    cosmology (Om0=0.307, OL0=0.693, H0=67.8) and its independent sigma(Mvir) fit
-    (Eq. A4) to convert them to fsigma via the standard HMF relation (Eq. A1). This
-    is a genuine outcome-level check against the published simulation results, rather
-    than a re-derivation of the same fitting formula/coefficients used by the code.
+    Used to scale the test tolerance below: f(sigma) ~ exp(-c/sigma^2) is extremely
+    sensitive to sigma when sigma is small (high z / high mass), so a fixed sigma
+    error propagates to a much larger fsigma error there than at low z / low mass.
+    """
+    delta_c = 1.68647
 
-    Because the digitized points are n-body measurements (with real sample scatter
-    relative to the fitted curve -- see the fractional-difference panel of Fig. A1,
-    which shows deviations up to ~50% for some points) and because H0 is not otherwise
-    needed/tested elsewhere in this fit, we only require rough (~30%) agreement: the
-    goal is to catch gross implementation errors, not to validate to high precision.
+    def fsigma_at(s):
+        nu2 = np.array([(delta_c / s) ** 2])
+        return float(ff.Yung24(nu2=nu2, z=z, units="physical").fsigma[0])
+
+    f_plus = fsigma_at(sigma * (1 + frac))
+    f_minus = fsigma_at(sigma * (1 - frac))
+    return (np.log(f_plus) - np.log(f_minus)) / (2 * np.log(1 + frac))
+
+
+# (z, log10(Mvir/Msun), dn/dlogM [Mpc^-3 dex^-1]) digitized from the *fitted* curve
+# (not the noisier n-body points) in the physical-units panel of Fig. A1 of Yung+24
+# (arXiv:2309.14408). Mass points were chosen to stay within each redshift's plotted
+# range: the fit only extends to ~11 dex by z~12 and ~12 dex by z~8.
+_YUNG24_FIG_A1_FITTED_POINTS = [
+    (6.0, 6.0, 1.7942e3),
+    (6.0, 9.0, 1.6546e0),
+    (6.0, 11.0, 3.4614e-3),
+    (6.0, 12.0, 2.4035e-5),
+    (7.0, 9.0, 1.1748e0),
+    (7.0, 11.0, 1.1918e-3),
+    (7.0, 12.0, 3.1176e-6),
+    (8.0, 9.0, 7.8391e-1),
+    (8.0, 11.0, 3.4873e-4),
+    (8.0, 12.0, 3.0396e-7),
+    (9.0, 9.0, 4.8877e-1),
+    (9.0, 11.0, 8.7234e-5),
+    (10.0, 6.0, 1.2678e3),
+    (10.0, 9.0, 2.8509e-1),
+    (10.0, 11.0, 1.8723e-5),
+    (11.0, 9.0, 1.5496e-1),
+    (11.0, 11.0, 3.4676e-6),
+    (12.0, 9.0, 7.8735e-2),
+    (13.0, 9.0, 3.7477e-2),
+    (14.0, 9.0, 1.6795e-2),
+    (15.0, 6.0, 3.9080e2),
+    (15.0, 9.0, 7.1454e-3),
+    (16.0, 9.0, 2.9023e-3),
+    (17.0, 9.0, 1.1316e-3),
+    (18.0, 9.0, 4.2158e-4),
+    (19.0, 6.0, 7.2514e1),
+    (19.0, 9.0, 1.3263e-4),
+]
+
+
+@pytest.mark.parametrize(("z", "log10_mvir", "dn_dlogm"), _YUNG24_FIG_A1_FITTED_POINTS)
+def test_yung24_fsigma_matches_paper_fit(z, log10_mvir, dn_dlogm):
+    """Check fsigma's functional form against the fitted curve in Fig. A1 of Yung+24.
+
+    This tests specifically whether ``Yung24.fsigma`` (the functional form A2, with its
+    A/a/b/c(z) coefficients) matches the paper -- it does *not* test whether that
+    fsigma gets propagated into dn/dm the same way as the paper (mass definitions,
+    rho_m conventions etc. are not exercised here; see
+    ``test_yung24_dndlogm_matches_paper_fit`` for an end-to-end check of that).
+
+    To isolate fsigma's functional form from any difference in *how sigma is
+    computed*, sigma(M, z) is derived independently of the code: from Yung+24's own
+    sigma(Mvir) fit (Eq. A4, transcribed from the paper) and hmf's own growth factor
+    (not the code under test). The digitized ``dn_dlogm`` values (read off the fitted
+    curve, not the noisier n-body points, per Eq. A1) are converted to an expected
+    fsigma using this same independent sigma and its analytic log-derivative.
+
+    fsigma is proportional to exp(-c/sigma^2), so it is extremely sensitive to sigma
+    when sigma is small (high z / high mass) -- and Eq. A4 is explicitly described in
+    the paper as an "updated approximation", not exact. A cross-check against hmf's own
+    (unrelated) transfer-function-based sigma confirms Eq. A4 is accurate to ~5-8% in
+    sigma itself, but that gets amplified by the exponential sensitivity. So rather than
+    a single fixed tolerance, we scale the allowed deviation by the local sensitivity
+    d ln(fsigma)/d ln(sigma), computed from the code's own fsigma.
     """
     mvir = 10**log10_mvir
-    sigma = _yung24_sigma0_phys(mvir) * _flat_lcdm_growth_factor(z)
+    sigma = _yung24_sigma0_phys(mvir) * _yung24_growth_factor(z)
     dlnsigma_dlnm = _yung24_dlnsigma_dlnm(mvir)
 
     h = 0.678
     rho_m0 = 0.307 * 2.7754e11 * h**2  # Msun/Mpc^3
-
-    fsigma_from_data = dn_dlogm * mvir / (rho_m0 * np.log(10) * abs(dlnsigma_dlnm))
+    fsigma_from_fit = dn_dlogm * mvir / (rho_m0 * np.log(10) * abs(dlnsigma_dlnm))
 
     delta_c = 1.68647
     nu2 = np.array([(delta_c / sigma) ** 2])
     fsigma_code = ff.Yung24(nu2=nu2, z=z, units="physical").fsigma[0]
 
-    np.testing.assert_allclose(fsigma_code, fsigma_from_data, rtol=0.3)
+    sensitivity = _yung24_fsigma_sensitivity(sigma, z)
+    base_rtol, sigma_fit_rtol = 0.06, 0.08
+    rtol = base_rtol + abs(sensitivity) * sigma_fit_rtol
+
+    np.testing.assert_allclose(fsigma_code, fsigma_from_fit, rtol=rtol)
+
+
+def _yung24_dndlogm_phys(z, log10_mphys, sigma_8=0.829, dlog10m=0.02):
+    """dn/dlogM [Mpc^-3 dex^-1] at a physical mass, via the full ``MassFunction`` pipeline.
+
+    ``MassFunction`` always works in Msun/h and (Mpc/h)^-3 internally (regardless of
+    Yung24's ``units`` setting, which only selects which fit-coefficient table is
+    used) -- so to get the prediction at a *physical* mass we query it at the
+    equivalent Msun/h mass (``m_phys * h``), then convert the (h-based comoving)
+    output back to physical units: dn/dlogM_phys = dn/dlogM_h * h^3, since a
+    (Mpc/h)^-3 comoving volume is h^3 times smaller than a physical Mpc^-3 one.
+    """
+    h = 0.678
+    mmin_h = log10_mphys + np.log10(h) - 0.5
+    mmax_h = log10_mphys + np.log10(h) + 0.5
+    hmf_ = MassFunction(
+        Mmin=mmin_h,
+        Mmax=mmax_h,
+        dlog10m=dlog10m,
+        hmf_model="Yung24",
+        hmf_params={"units": "physical"},
+        mdef_model="SOVirial",
+        z=z,
+        transfer_model="EH",
+        cosmo_params={"Om0": 0.307, "H0": 67.8, "Ob0": 0.0486},
+        sigma_8=sigma_8,
+        n=0.960,
+    )
+    m_phys = hmf_.m / h
+    dndlog10m_phys = hmf_.dndlnm * np.log(10) * h**3
+    idx = np.argmin(np.abs(np.log10(m_phys) - log10_mphys))
+    return dndlog10m_phys[idx]
+
+
+def _yung24_dndlogm_sensitivity(z, log10_mphys, frac=1e-3):
+    """Local d ln(dn/dlogM) / d ln(sigma_8), via finite difference on the full pipeline.
+
+    sigma_8 rescales sigma(M) at all M by (approximately) the same fraction, so this
+    is a convenient proxy for the same exp(-c/sigma^2) sensitivity that motivates the
+    scaled tolerance in ``test_yung24_fsigma_matches_paper_fit``.
+    """
+    f_plus = _yung24_dndlogm_phys(z, log10_mphys, sigma_8=0.829 * (1 + frac))
+    f_minus = _yung24_dndlogm_phys(z, log10_mphys, sigma_8=0.829 * (1 - frac))
+    return (np.log(f_plus) - np.log(f_minus)) / (2 * np.log(1 + frac))
+
+
+@pytest.mark.parametrize(("z", "log10_mvir", "dn_dlogm"), _YUNG24_FIG_A1_FITTED_POINTS)
+def test_yung24_dndlogm_matches_paper_fit(z, log10_mvir, dn_dlogm):
+    """End-to-end check of whether ``MassFunction(hmf_model="Yung24")`` reproduces Fig. A1.
+
+    Unlike ``test_yung24_fsigma_matches_paper_fit`` above (which isolates fsigma's
+    functional form using an independently-derived sigma), this exercises the full
+    pipeline -- hmf's own transfer-function-based sigma(M), mass definition handling,
+    and the dn/dm relation -- exactly as a user would call it. It uses the same
+    digitized points from Fig. A1's fitted curve, but is a genuinely different check:
+    it can catch bugs in how fsigma is *used* (mass definitions, rho_m, unit handling)
+    that the fsigma-only test above cannot.
+
+    The same exp(-c/sigma^2) sensitivity applies here too, plus hmf's EH transfer
+    function is only an approximation to the actual GUREFT/MultiDark power spectrum.
+    We reuse the same scaled-tolerance strategy, measuring local sensitivity via a
+    small sigma_8 perturbation through the full pipeline (a proxy for the same
+    sigma-sensitivity, since sigma_8 rescales sigma(M) at fixed M by roughly the
+    same fraction at all M).
+    """
+    dndlogm_code = _yung24_dndlogm_phys(z, log10_mvir)
+
+    sensitivity = _yung24_dndlogm_sensitivity(z, log10_mvir)
+    base_rtol, sigma_fit_rtol = 0.08, 0.08
+    rtol = base_rtol + abs(sensitivity) * sigma_fit_rtol
+
+    np.testing.assert_allclose(dndlogm_code, dn_dlogm, rtol=rtol)
 
 
 @pytest.mark.filterwarnings("ignore:.*does not match the mass definition.*:UserWarning")
