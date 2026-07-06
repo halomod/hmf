@@ -2001,8 +2001,8 @@ class Yung24(BaseFittingFunction):
 
     _eq = r"A(z)\left[(\sigma/b(z))^{-a(z)} + 1\right]\exp(-c(z)/\sigma^2)"
     _ref = (
-        "Yung, L.Y.A., Somerville, R.S., Finkelstein, S.L., Wilkins, S.M., "
-        "Gardner, J.P., 2024. MNRAS 527, 5929. arXiv:2309.14408"
+        "Yung, L.Y.A., Somerville, R.S., Nguyen, T., Behroozi, P., Modi, C., "
+        "Gardner, J.P., 2024. MNRAS 530, 4868. arXiv:2309.14408"
     )
 
     sim_definition = SimDetails(
