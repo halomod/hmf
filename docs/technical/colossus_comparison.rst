@@ -16,6 +16,12 @@ correct". Instead, it records the main implementation choices that explain the
 observed residual differences so that users and developers understand where
 agreement is expected and where small systematic offsets are normal.
 
+This investigation was itself prompted by Aaron Yung and Miguel Vargas, who
+independently noticed disagreement between ``hmf`` and Colossus predictions for
+the Tinker08 mass function while preparing [Yung24]_ and [Yung25]_. Their reports
+are what led to the growth-factor fix linked above, and we are grateful to them
+for flagging the discrepancy and giving permission to reference their work here.
+
 Setup of the comparison
 -----------------------
 
@@ -122,3 +128,8 @@ typically of order:
 - ``z = 10``: :math:`\sim 2\%` to :math:`14\%`,
 
 over the range :math:`10^{11}`--:math:`10^{13}\,M_\odot/h`.
+
+References
+----------
+.. [Yung24] Yung, L. Y. Aaron, Rachel S. Somerville, Tri Nguyen, Peter Behroozi, Chirag Modi, and Jonathan P. Gardner. 'Characterizing Ultra-High-Redshift Dark Matter Halo Demographics and Assembly Histories with the GUREFT Simulations'. Monthly Notices of the Royal Astronomical Society 530, no. 4 (2024): 4868-86. https://doi.org/10.1093/mnras/stae1188.
+.. [Yung25] Yung, L. Y. Aaron, Rachel S. Somerville, and Kartheik G. Iyer. 'ΛCDM Is Still Not Broken: Empirical Constraints on the Star Formation Efficiency at z ~ 12-30'. Monthly Notices of the Royal Astronomical Society 543, no. 4 (2025): 3802-13. https://doi.org/10.1093/mnras/staf1699.
