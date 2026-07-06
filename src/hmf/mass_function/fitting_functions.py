@@ -2012,7 +2012,7 @@ class Yung24(BaseFittingFunction):
         halo_overdensity="vir",
         halo_finder="Rockstar",
         omegam=0.307,
-        sigma_8=0.823,
+        sigma_8=0.829,
         z_meas=(6.0, 19.0),
         ICS="2LPT",
         hmf_analysis_notes="Combined gureft + MultiDark fit (Yung+24 Appendix A).",
