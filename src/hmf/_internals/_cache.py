@@ -356,8 +356,7 @@ def parameter(kind):
 
         # Here we set the documentation
         doc = (f.__doc__ or "").strip()
-        if doc.startswith("\n"):
-            doc = doc[1:]
+        doc = doc.removeprefix("\n")
 
         return property(_get_property, _set_property, None, "**Parameter**: " + doc)
 
