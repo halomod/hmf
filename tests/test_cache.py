@@ -138,7 +138,9 @@ def test_obj_eq_numpy():
 def test_obj_eq_dictlike_keys(monkeypatch):
     def fake_array_equal(a, b):
         if isinstance(a, _DictLike) or isinstance(b, _DictLike):
-            raise ValueError("boom")
+            # Kept as ValueError (not TypeError): this exercises the `except ValueError`
+            # branch in hmf._internals._cache.obj_eq, which only catches ValueError.
+            raise ValueError("boom")  # noqa: TRY004
         return np.array_equal(a, b)
 
     monkeypatch.setattr(cache, "array_equal", fake_array_equal)
