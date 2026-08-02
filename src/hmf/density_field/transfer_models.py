@@ -185,7 +185,10 @@ if HAVE_CAMB:
             super().__init__(*args, **kwargs)
 
             if not isinstance(self.cosmo, (cosmology.LambdaCDM, cosmology.wCDM, cosmology.w0waCDM)):
-                raise ValueError("CAMB will only work with LCDM or wCDM cosmologies")
+                # Kept as ValueError (not TypeError): part of the public API contract,
+                # asserted verbatim by
+                # tests/test_transfer_models.py::test_camb_rejects_non_lcdm_cosmology.
+                raise ValueError("CAMB will only work with LCDM or wCDM cosmologies")  # noqa: TRY004
 
             # Save the CAMB object properly for use
             # Set the cosmology
@@ -374,7 +377,7 @@ if HAVE_CAMB:
                         stacklevel=2,
                     )
 
-                except Exception:
+                except (pickle.PicklingError, TypeError):
                     warnings.warn(f"CAMB key {pk} is not pickle-able.", stacklevel=2)
 
             # Deepcopy self

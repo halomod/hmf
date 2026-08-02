@@ -219,10 +219,10 @@ class BaseFittingFunction(_framework.Component):
     def __init__(
         self,
         nu2: np.ndarray,
-        m: None | np.ndarray = None,
+        m: np.ndarray | None = None,
         z: float = 0.0,
-        n_eff: None | np.ndarray = None,
-        mass_definition: None | md.BaseMassDefinition = None,
+        n_eff: np.ndarray | None = None,
+        mass_definition: md.BaseMassDefinition | None = None,
         cosmo: csm.FLRW = csm.Planck15,
         delta_c: float = 1.68647,
         **model_parameters,
@@ -1368,7 +1368,13 @@ class Tinker08(BaseFittingFunction):
         super().__init__(**model_parameters)
 
         if not isinstance(self.mass_definition, md.SphericalOverdensity):
-            raise ValueError("The Tinker fitting function is a spherical-overdensity function.")
+            # Kept as ValueError (not TypeError): part of the public API contract, asserted
+            # verbatim (via Tinker08/Tinker10, which share this __init__) by
+            # tests/test_fitting_functions_extra.py::test_tinker08_non_so_raises and
+            # ::test_tinker10_non_so_raises.
+            raise ValueError(  # noqa: TRY004
+                "The Tinker fitting function is a spherical-overdensity function."
+            )
         delta_halo = self.mass_definition.halo_overdensity_mean(self.z, self.cosmo)
 
         if delta_halo not in self.delta_virs:

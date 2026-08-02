@@ -102,7 +102,7 @@ class MassFunction(transfer.Transfer):
         dlog10m: float = 0.01,
         hmf_model: str | ff.BaseFittingFunction = ff.Tinker08,
         hmf_params: dict[str, Any] | None = None,
-        mdef_model: None | str | MassDef = None,
+        mdef_model: str | MassDef | None = None,
         mdef_params: dict | None = None,
         delta_c: float = 1.68647,
         filter_model: str | BaseFilter = TopHat,

@@ -374,7 +374,7 @@ def _find_new_concentration(rho_s, halo_density, h=None, x_guess=5.0):
             xmin = x_guess / XDELTA_GUESS_FACTORS[i]
             xmax = x_guess * XDELTA_GUESS_FACTORS[i]
             x = sp.optimize.brentq(fnc, xmin, xmax)
-        except Exception as e:
+        except (ValueError, RuntimeError) as e:
             warnings.warn(f"raised following error: {e}", stacklevel=2)
             i += 1
 

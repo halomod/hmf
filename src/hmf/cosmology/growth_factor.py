@@ -346,7 +346,7 @@ class ODEGrowthFactor(BaseGrowthFactor):
         D = sol["y"][0, :]
 
         if (sol["status"] != 0) or (D.shape[0] != a.shape[0]):
-            raise Exception("The calculation of the growth factor failed.")
+            raise RuntimeError("The calculation of the growth factor failed.")
 
         return (Spline(self._lna, np.log(D)), Spline(D, self._zvec))
 
@@ -692,7 +692,9 @@ class GenMFGrowth(BaseGrowthFactor):
 
     def _validate_assumptions(self, z):
         if not isinstance(self.cosmo, cosmology.LambdaCDM):
-            raise ValueError(
+            # Kept as ValueError (not TypeError): part of the public API contract,
+            # asserted verbatim by tests/test_growth.py::test_unsupported_cosmo.
+            raise ValueError(  # noqa: TRY004
                 "The GenMFGrowth factor is only accurate with a cosmological constant. "
                 "Consider using the ODEGrowthFactor instead."
             )
