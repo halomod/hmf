@@ -395,6 +395,7 @@ def test_behroozi_ngtm():
         "dlog10m": 0.05,
         "cosmo_params": {"H0": 70.0},
         "mdef_model": md.SOVirial,
+        "transfer_params": {"extrapolate_with_eh": True},
     }
     tinker = MassFunction(hmf_model="Tinker08", **common_kwargs)
     behroozi = MassFunction(hmf_model="Behroozi", **common_kwargs)
