@@ -1626,28 +1626,23 @@ class Behroozi(Tinker08):
         },
     )
 
-    def _modify_dndm(self, m, dndm, z, ngtm_tinker):
+    def _modify_dndm(self, m: np.ndarray, dndm: np.ndarray, z: float, ngtm_tinker: np.ndarray):
         """
         Apply modifications to dndm in Appendix G of Behroozi+13.
 
         Note that the mass here is assumed to be in Msun, NOT Msun/h.
         """
         a = 1 / (1 + z)
-        theta = (
-            0.144
-            / (1 + np.exp(14.79 * (a - 0.213)))
-            * (m / 10**11.5) ** (0.5 / (1 + np.exp(6.5 * a)))
-        )
-        ngtm_behroozi = 10 ** (theta + np.log10(ngtm_tinker))
-        dthetadM = (
-            0.144
-            / (1 + np.exp(14.79 * (a - 0.213)))
-            * (0.5 / (1 + np.exp(6.5 * a)))
-            * (m / 10**11.5) ** (0.5 / (1 + np.exp(6.5 * a)) - 1)
-            / (10**11.5)
-        )
+        alpha = 0.144 / (1 + np.exp(14.79 * (a - 0.213)))  # Behroozi+13 Eq G2.
+        gamma = 0.5 / (1 + np.exp(6.5 * a))
+        mstar = 10**11.5
+        mscale = (m / mstar) ** gamma
+        theta = 10 ** (alpha * mscale)  # 10^(Eq G2), the multiplicative factor in Eq G3
+
+        dthetadM = theta * np.log(10) * alpha * gamma * mscale / m
+
         # if ngtm_tinker is very small (ie. 0), dthetadM will be nan.
-        res = dndm * 10**theta - ngtm_behroozi * np.log(10) * dthetadM
+        res = dndm * theta - ngtm_tinker * dthetadM
         res[np.isnan(res)] = 0
         return res
 

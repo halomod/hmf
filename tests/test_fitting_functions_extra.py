@@ -1,6 +1,8 @@
 import numpy as np
 import pytest
+from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 
+from hmf import MassFunction
 from hmf.halos import mass_definitions as md
 from hmf.mass_function import fitting_functions as ff
 
@@ -287,3 +289,131 @@ def test_behroozi_modify_dndm_handles_nan():
 
     assert res[0] == 0
     assert np.isfinite(res[1])
+
+
+def _behroozi_theta(fit, m, z):
+    """Isolate the multiplicative correction 10**theta(M,z) from Eqs. G2/G3.
+
+    With dndm=1 and ngtm_tinker=0, `_modify_dndm` reduces to `dndm * theta`
+    exactly (the ngtm_tinker*dthetadM term vanishes with no NaN), giving us
+    theta itself without touching any dndm/ngtm plumbing.
+    """
+    return fit._modify_dndm(np.atleast_1d(m), np.array([1.0]), z, np.array([0.0]))[0]
+
+
+def _behroozi_dthetadm(fit, m, z):
+    """Isolate -dtheta/dM by setting dndm=0, ngtm_tinker=1.
+
+    With dndm=0 and ngtm_tinker=1, `_modify_dndm` reduces to `-dthetadM` exactly.
+    """
+    return -fit._modify_dndm(np.atleast_1d(m), np.array([0.0]), z, np.array([1.0]))[0]
+
+
+@pytest.mark.parametrize("z", [0.0, 0.5, 1.0, 2.0, 4.0, 6.0, 8.0, 9.0, 15.0])
+@pytest.mark.parametrize("logm", [8.0, 9.0, 10.0, 11.5, 13.0, 15.0])
+def test_behroozi_theta_matches_closed_form(z, logm):
+    """theta(M,z) should exactly match Eqs. G2/G3, independent of dndm/ngtm."""
+    fit = ff.Behroozi(nu2=np.array([1.0]), mass_definition=md.SOMean(overdensity=200))
+    m = 10.0**logm
+
+    a = 1 / (1 + z)
+    alpha = 0.144 / (1 + np.exp(14.79 * (a - 0.213)))
+    gamma = 0.5 / (1 + np.exp(6.5 * a))
+    expected = 10 ** (alpha * (m / 10**11.5) ** gamma)
+
+    assert _behroozi_theta(fit, m, z) == pytest.approx(expected, rel=1e-10)
+
+
+@pytest.mark.parametrize("z", [1.0, 4.0, 9.0])
+@pytest.mark.parametrize("logm", [9.0, 11.5, 13.5])
+def test_behroozi_dthetadm_matches_finite_difference(z, logm):
+    """Check that dthetadM is the actual derivative of theta, not just similarly-shaped.
+
+    Rather than hand-deriving the "correct" formula as ground truth, this checks
+    the code's derivative against a finite difference of the code's own theta,
+    so it stays correct even if Eq. G2/G3's functional form is ever revised.
+    """
+    fit = ff.Behroozi(nu2=np.array([1.0]), mass_definition=md.SOMean(overdensity=200))
+    m0 = 10.0**logm
+    h = m0 * 1e-6
+
+    fd_deriv = (_behroozi_theta(fit, m0 + h, z) - _behroozi_theta(fit, m0 - h, z)) / (2 * h)
+
+    assert _behroozi_dthetadm(fit, m0, z) == pytest.approx(fd_deriv, rel=1e-4)
+
+
+@pytest.mark.parametrize("z", [0.5, 2.0, 6.0, 9.0, 15.0])
+@pytest.mark.parametrize("logm", [7.0, 9.0, 11.5, 14.0, 16.0])
+def test_behroozi_never_suppresses_relative_to_tinker(z, logm):
+    """alpha>0 and gamma>0 for every physical z, so theta>=1 always.
+
+    Behroozi's high-z correction is a pure boost: it should never predict
+    *fewer* halos than the underlying Tinker08 fit, at any mass or redshift.
+    """
+    fit = ff.Behroozi(nu2=np.array([1.0]), mass_definition=md.SOMean(overdensity=200))
+
+    assert _behroozi_theta(fit, 10.0**logm, z) >= 1.0 - 1e-12
+
+
+def test_behroozi_correction_monotonic_in_mass():
+    """theta(M) must be non-decreasing in M at fixed z.
+
+    Eq. G3's exponent gamma is always positive: more massive halos collapsed
+    earlier and so pick up a larger correction.
+    """
+    fit = ff.Behroozi(nu2=np.array([1.0]), mass_definition=md.SOMean(overdensity=200))
+    logm = np.linspace(8, 16, 50)
+    theta = np.array([_behroozi_theta(fit, 10.0**lm, z=9.0) for lm in logm])
+
+    assert np.all(np.diff(theta) >= 0)
+
+
+def test_behroozi_correction_vanishes_at_z_zero():
+    """Behroozi should collapse onto the bare Tinker08 prediction at z=0.
+
+    As z->0, a->1 and alpha decays super-exponentially to 0.
+    """
+    fit = ff.Behroozi(nu2=np.array([1.0]), mass_definition=md.SOMean(overdensity=200))
+    logm = np.linspace(8, 16, 20)
+    theta = np.array([_behroozi_theta(fit, 10.0**lm, z=0.0) for lm in logm])
+
+    assert theta == pytest.approx(1.0, abs=1e-4)
+
+
+def test_behroozi_ngtm():
+    """Ensure that ngtm for Behroozi / Tinker matches Behroozi Fig. 23.
+
+    See https://arxiv.org/pdf/1207.6105.
+    """
+    # Behroozi's correction is calibrated against the virial mass function, so both
+    # models must be evaluated in the same mass definition -- otherwise the comparison
+    # also picks up the (unrelated) shift between SOMean(200) and SOVirial.
+    common_kwargs = {
+        "z": 9,
+        "Mmin": 9,
+        "Mmax": 15.5,
+        "dlog10m": 0.05,
+        "cosmo_params": {"H0": 70.0},
+        "mdef_model": md.SOVirial,
+        "transfer_params": {"extrapolate_with_eh": True},
+    }
+    tinker = MassFunction(hmf_model="Tinker08", **common_kwargs)
+    behroozi = MassFunction(hmf_model="Behroozi", **common_kwargs)
+
+    masses_msun = tinker.m / tinker.cosmo.h
+    ngtm_tinker = Spline(np.log10(masses_msun), np.log10(tinker.ngtm))
+    ngtm_behroozi = Spline(np.log10(masses_msun), np.log10(behroozi.ngtm))
+
+    assert np.isclose(ngtm_behroozi(10) - ngtm_tinker(10), 0.07, atol=0.005)
+    assert np.isclose(ngtm_behroozi(11.5) - ngtm_tinker(11.5), 0.12, atol=0.005)
+    assert np.isclose(ngtm_behroozi(13) - ngtm_tinker(13), 0.22, atol=0.005)
+
+    # Now do a test at z=2, where there is a very small difference between masses.
+    tinker.update(z=2)
+    behroozi.update(z=2)
+    ngtm_tinker = Spline(np.log10(masses_msun), np.log10(tinker.ngtm))
+    ngtm_behroozi = Spline(np.log10(masses_msun), np.log10(behroozi.ngtm))
+
+    assert np.isclose(ngtm_behroozi(10) - ngtm_tinker(10), 0.02, atol=0.005)
+    assert np.isclose(ngtm_behroozi(11.5) - ngtm_tinker(11.5), 0.02, atol=0.005)
+    assert np.isclose(ngtm_behroozi(13) - ngtm_tinker(13), 0.02, atol=0.005)
