@@ -29,6 +29,7 @@ from typing import ClassVar, override
 import numpy as np
 import scipy.integrate as intg
 from scipy.interpolate import InterpolatedUnivariateSpline as Spline
+from scipy.special import expit
 
 from .._internals import _framework, _utils
 
@@ -487,6 +488,124 @@ class SharpK(BaseFilter):
             sigma[i] = (0.5 / (np.pi**2)) * intg.simpson(integ, dx=dlnk)
 
         return np.sqrt(sigma)
+
+
+@_utils.inherit_docstrings
+class SmoothK(BaseFilter):
+    r"""
+    Smooth-k window function of Leo et al. (2018).
+
+    This class is based on :class:`~Filter`, which can be consulted for
+    details of how to instantiate it.
+
+    Parameters
+    ----------
+    k : array_like
+        Wavenumbers at which the power spectrum is defined.
+    power : array_like
+        The power spectrum at `k`.
+    \*\*model_parameters : unpacked-dict
+        Model parameters ``beta`` (:math:`\hat{\beta}`, the steepness of the
+        cut-off, must be positive) and ``c`` (:math:`\hat{c}`, the mass-assignment
+        constant). Defaults are the best-fit values of Leo et al. (2018), section 5:
+        ``beta=4.8`` and ``c=3.3``.
+
+    Notes
+    -----
+    This filter was introduced by [1]_ (their eq. 4.1) as a smooth interpolation
+    between the real-space top-hat and the sharp-k filter, for use with models whose
+    linear power spectrum is truncated at small scales (e.g. warm dark matter).
+    The fourier-space filter is
+
+    .. math:: W(x=kR) = \frac{1}{1 + x^{\hat{\beta}}},
+
+    with :math:`\hat{\beta} > 0`. As :math:`\hat{\beta}\rightarrow\infty` it tends to
+    the sharp-k filter (:class:`SharpK`). The mass-assignment has the same form as
+    for :class:`SharpK`:
+
+    .. math:: m(R) = \frac{4\pi}{3}[\hat{c}R]^3\bar{\rho}.
+
+    The derivative of the window function is
+
+    .. math:: \frac{dW}{d\ln x} = -\hat{\beta}\frac{x^{\hat{\beta}}}
+              {(1+x^{\hat{\beta}})^2} = -\hat{\beta}W(1-W).
+
+    There is no closed form for the real-space filter, so :meth:`real_space`
+    evaluates the inverse Fourier transform numerically with
+    :func:`scipy.integrate.quad` (it converges for :math:`\hat{\beta} > 1`).
+
+    Leo et al. (2018) pair this filter with the Sheth-Tormen mass function using
+    :math:`q=1` rather than the usual :math:`q=0.707`. That value is *not* set
+    automatically: pass ``hmf_params={"q": 1.0}`` (with ``hmf_model="ST"``) to
+    :class:`~hmf.MassFunction` to reproduce their setup.
+
+    References
+    ----------
+    .. [1] Leo M., Baugh C. M., Li B., Pascoli S., 2018, JCAP, 04, 010,
+       arXiv:1801.02547.
+    """
+
+    _defaults: ClassVar[dict[str, float]] = {"beta": 4.8, "c": 3.3}
+
+    @override
+    def k_space(self, kr):
+        kr = np.asarray(kr, dtype=float)
+        # W = 1/(1 + x^beta) = expit(-beta ln x), which avoids overflow for large
+        # beta*ln(x) and gives W=1 exactly at x=0.
+        with np.errstate(divide="ignore"):
+            return expit(-self.params["beta"] * np.log(kr))
+
+    @override
+    def dw_dlnkr(self, kr):
+        w = self.k_space(kr)
+        return -self.params["beta"] * w * (1 - w)
+
+    @override
+    def real_space(self, R, r):
+        r"""
+        Filter definition in real space, computed numerically.
+
+        Parameters
+        ----------
+        R : float
+            The smoothing scale.
+        r : array_like
+            The radial co-ordinate. Must be positive.
+
+        Returns
+        -------
+        f : array_like
+            The real-space filter at `r`.
+
+        Notes
+        -----
+        Evaluates
+
+        .. math:: F(r) = \frac{1}{2\pi^2 R^3 y}\int_0^\infty
+                  \frac{x\sin(xy)}{1+x^{\hat{\beta}}} dx,\qquad y = r/R,
+
+        with a Fourier-weighted :func:`scipy.integrate.quad`. This requires
+        :math:`\hat{\beta} > 1`.
+        """
+        beta = self.params["beta"]
+        if beta <= 1:
+            raise ValueError("SmoothK.real_space requires beta > 1 for convergence.")
+
+        r = np.asarray(r, dtype=float)
+        y = np.atleast_1d(r / R)
+        out = np.empty_like(y)
+        for i, yy in enumerate(y):
+            integral = intg.quad(lambda x: x / (1 + x**beta), 0, np.inf, weight="sin", wvar=yy)[0]
+            out[i] = integral / (2 * np.pi**2 * R**3 * yy)
+        return out.reshape(r.shape)
+
+    @override
+    def mass_to_radius(self, m, rho_mean):
+        return (1.0 / self.params["c"]) * (3.0 * m / (4.0 * np.pi * rho_mean)) ** (1.0 / 3.0)
+
+    @override
+    def radius_to_mass(self, r, rho_mean):
+        return 4 * np.pi * (self.params["c"] * r) ** 3 * rho_mean / 3
 
 
 @_utils.inherit_docstrings
