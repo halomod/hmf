@@ -17,6 +17,7 @@ import scipy as sp
 from astropy.cosmology import Planck15
 
 from .._internals import _framework
+from .._internals import _references as refs
 from ..cosmology import Cosmology
 
 __all__ = [
@@ -268,6 +269,8 @@ class SOVirial(SphericalOverdensity):
     Density threshold isgiven by Bryan and Norman (1998).
     """
 
+    references: ClassVar[tuple[str, ...]] = (refs.BRYAN98,)
+
     def halo_density(self, z=0, cosmo=Planck15):
         """The density of haloes under this definition."""
         x = cosmo.Om(z) - 1
@@ -286,6 +289,8 @@ class SOVirial(SphericalOverdensity):
 
 class FOF(BaseMassDefinition):
     """A mass definition based on FroF networks with given linking length."""
+
+    references: ClassVar[tuple[str, ...]] = (refs.DAVIS85, refs.WHITE01)
 
     _defaults: ClassVar[dict[str, float]] = {"linking_length": 0.2}
 

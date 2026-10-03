@@ -37,6 +37,7 @@ from astropy import cosmology
 from scipy.integrate import solve_ivp
 from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 
+from .._internals import _references as refs
 from .._internals._framework import Component as Cmpt
 from .._internals._framework import pluggable
 from .._internals._utils import inherit_docstrings as _inherit
@@ -126,7 +127,10 @@ class BaseGrowthFactor(Cmpt):
         :math:`E'(a)/E(a) \equiv (1/a)*dlnE/dlna` in its definition.
 
         This implementation simply uses the exact definition from astropy of E(a)
-        and writes down the derivative analytically.
+        and writes down the derivative analytically. The dark-energy density scales as
+        :math:`\rho_{\rm DE}(a) \propto \exp(-3\int (1+w)\, d\ln a)`, so its
+        logarithmic derivative is :math:`-3(1+w(a))`, which vanishes only for a
+        cosmological constant.
         """
         a = 1 / (1 + z)
 
@@ -136,11 +140,13 @@ class BaseGrowthFactor(Cmpt):
             else self.cosmo.Ogamma0 * self.cosmo.nu_relative_density(z)
         )
 
-        Or = -4 * Or * a**-5
-        Om = -3 * self.cosmo.Om0 * a**-4
-        Ok = -2 * self.cosmo.Ok0 * a**-3
+        # Each term is d(E^2)/dln(a) for the corresponding component.
+        Or = -4 * Or * a**-4
+        Om = -3 * self.cosmo.Om0 * a**-3
+        Ok = -2 * self.cosmo.Ok0 * a**-2
+        Ode = -3 * (1 + self.cosmo.w(z)) * self.cosmo.Ode0 * self.cosmo.de_density_scale(z)
 
-        return a * 0.5 * (Or + Om + Ok) * self.cosmo.inv_efunc(z) ** 2
+        return 0.5 * (Or + Om + Ok + Ode) * self.cosmo.inv_efunc(z) ** 2
 
     @abstractmethod
     def _d_plus_unnormalized(self, z):
@@ -215,6 +221,8 @@ class GrowthFactor(BaseGrowthFactor):
     - Otherwise, solve the full ODE numerically (also presented in the docs).
 
     """
+
+    references: ClassVar[tuple[str, ...]] = (refs.EH97, refs.HEATH77, refs.PEEBLES80)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -315,6 +323,8 @@ class ODEGrowthFactor(BaseGrowthFactor):
     time the solution is calculated. The default values should be sufficient for most
     cosmologies.
     """
+
+    references: ClassVar[tuple[str, ...]] = (refs.PEEBLES80,)
 
     @cached_property
     def _ode_solution(self):
@@ -424,6 +434,8 @@ class IntegralGrowthFactor(BaseGrowthFactor):
     .. math:: \frac{d\ln D^+}{d\ln a} = dlnH/dln(a) + 2.5 \frac{\Omega_m(a)}{a^2 H^2(a) D^+(a)}.
     """
 
+    references: ClassVar[tuple[str, ...]] = (refs.HEATH77,)
+
     def _validate_assumptions(self, z: float | np.ndarray):
 
         if np.any(self.radiation_density(z) > LOW_RADIATION_THRESHOLD):
@@ -529,6 +541,8 @@ class Eisenstein97GrowthFactor(IntegralGrowthFactor):
     constant and negligible radiation (i.e. low redshifts).
     """
 
+    references: ClassVar[tuple[str, ...]] = (refs.EH97,)
+
     def _validate_assumptions(self, z: float | np.ndarray):
         super()._validate_assumptions(z)
 
@@ -562,6 +576,11 @@ class Eisenstein97GrowthFactor(IntegralGrowthFactor):
         from scipy.special import ellipeinc, ellipkinc
 
         a = 1 / (1 + z)
+        if self.cosmo.Ode0 == 0:
+            # Flat with no dark energy is Einstein-de Sitter, where D^+ = a exactly
+            # (the v -> infinity limit of the formula below).
+            return a
+
         v = 1 / a * (self.cosmo.Om0 / self.cosmo.Ode0) ** (1 / 3)
 
         beta = np.arccos((v + 1 - np.sqrt(3)) / (v + 1 + np.sqrt(3)))
@@ -589,7 +608,14 @@ class Heath77GrowthFactor(IntegralGrowthFactor):
 
     These results apply when Lambda = 0 and the radiation density is negligible, and is
     given in Eq 13 of Heath 1977.
+
+    Heath's expression tends to :math:`|1 - \Omega_{m,0}|/(5\Omega_{m,0}/2)\, a` as
+    :math:`a \to 0`. We divide by that constant so that :math:`D^+(a) \to a`, the
+    normalisation assumed by the growth rate inherited from
+    :class:`IntegralGrowthFactor`.
     """
+
+    references: ClassVar[tuple[str, ...]] = (refs.HEATH77,)
 
     def _validate_assumptions(self, z: float | np.ndarray):
         super()._validate_assumptions(z)
@@ -615,7 +641,8 @@ class Heath77GrowthFactor(IntegralGrowthFactor):
         term1 = (6 * sigma0 * z + 4 * sigma0 + 1) / np.abs(2 * sigma0 - 1)
         term2 = 3 * theta * sigma0 * np.sqrt(p) / np.abs(2 * sigma0 - 1) ** (3 / 2)
 
-        return term1 - term2
+        # Normalise so that D^+ -> a as a -> 0 (see class docstring).
+        return (term1 - term2) * 5 * sigma0 / np.abs(2 * sigma0 - 1)
 
 
 @_inherit
@@ -698,6 +725,8 @@ class GenMFGrowth(BaseGrowthFactor):
         :zmax: Maximum redshift to integrate to. Only used for :meth:`growth_factor_fn`.
     """
 
+    references: ClassVar[tuple[str, ...]] = (refs.REED07,)
+
     def _validate_assumptions(self, z):
         if not isinstance(self.cosmo, cosmology.LambdaCDM):
             # Kept as ValueError (not TypeError): part of the public API contract,
@@ -747,9 +776,30 @@ class GenMFGrowth(BaseGrowthFactor):
             x = a * xn
             aofx = self._general_case(w, x)
             return aofx / aofxn
-        dn = 1 + 3 / w + (3 * ((1 + w) ** 0.5) / w**1.5) * np.log((1 + w) ** 0.5 - w**0.5)
-        x = w * a
-        return (1 + 3 / x + (3 * ((1 + x) ** 0.5) / x**1.5) * np.log((1 + x) ** 0.5 - x**0.5)) / dn
+        return self._open_case(w * a) / self._open_case(w)
+
+    @staticmethod
+    def _open_case(x):
+        r"""Growing mode of an open, Lambda=0 universe, as a function of x = w a.
+
+        This is :math:`1 + 3/x - 3\sqrt{1+x}\,{\rm arcsinh}(\sqrt{x})/x^{3/2}`, which
+        cancels catastrophically at small x, so its Taylor series is used there.
+        """
+        x = np.asarray(x, dtype=float)
+        small = x < 1e-2
+        xs = np.where(small, x, 1.0)
+        xl = np.where(small, 1.0, x)
+        series = xs * (
+            2 / 5
+            + xs
+            * (
+                -8 / 35
+                + xs * (16 / 105 + xs * (-128 / 1155 + xs * (256 / 3003 - xs * 1024 / 15015)))
+            )
+        )
+        closed = 1 + 3 / xl + (3 * ((1 + xl) ** 0.5) / xl**1.5) * np.log((1 + xl) ** 0.5 - xl**0.5)
+        out = np.where(small, series, closed)
+        return out if out.ndim else float(out)
 
 
 @_inherit
@@ -763,6 +813,8 @@ class Carroll1992(GrowthFactor):
     try to use it at z>0. However, the formula is actually pretty accurate at
     non-zero redshifts if redshift-dependent values for Omega_m and Omega_L are used.
     """
+
+    references: ClassVar[tuple[str, ...]] = (refs.CARROLL92,)
 
     def _d_plus_unnormalized(self, z):
         """Calculate the unnormalized growth factor."""
@@ -798,7 +850,7 @@ if HAVE_CAMB:
     @_inherit
     class CambGrowth(GrowthFactor):
         r"""
-        Growth factor computed using CAMB at k/h = 1.0.
+        Growth factor computed using CAMB at k/h = 0.01.
 
         Recommended for non-LambdaCDM cosmologies (e.g., wCDM) as it correctly
         deals with their growth evolution. For standard LCDM, other classes are
@@ -825,6 +877,8 @@ if HAVE_CAMB:
                                 versions of hmf used ``"tot"``). See
                                 :doc:`/massive_neutrinos`.
         """
+
+        references: ClassVar[tuple[str, ...]] = (refs.CAMB,)
 
         _defaults: ClassVar[dict[str, Any]] = {
             **BaseGrowthFactor._defaults,
@@ -870,9 +924,9 @@ if HAVE_CAMB:
 
             p.WantTransfer = True
 
-            # Set the DE equation of state. We only support constant w.
+            # Set the DE equation of state (constant w, or w0-wa).
             if hasattr(cosmo, "w0"):
-                p.set_dark_energy(w=cosmo.w0)
+                p.set_dark_energy(w=cosmo.w0, wa=getattr(cosmo, "wa", 0.0))
 
             return p
 

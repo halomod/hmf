@@ -359,6 +359,14 @@ class Transfer(cosmo.Cosmology):
         Non-linear log power [units :math:`Mpc^3/h^3`].
 
         Non-linear corrections come from HALOFIT.
+
+        If you use this, please cite HALOFIT: Smith et al. [1]_, and also
+        Takahashi et al. [2]_ when :attr:`takahashi` is True (the default).
+
+        References
+        ----------
+        .. [1] Smith, R. E., et al., 2003. MNRAS 341, 1311. arXiv:astro-ph/0207664
+        .. [2] Takahashi, R., et al., 2012. ApJ 761, 152. arXiv:1208.2701
         """
         return self.k**-3 * self.nonlinear_delta_k * (2 * np.pi**2)
 
@@ -368,5 +376,15 @@ class Transfer(cosmo.Cosmology):
         Dimensionless nonlinear power spectrum.
 
         .. math:: \Delta_k = \frac{k^3 P_{\rm nl}(k)}{2\pi^2}
+
+        Non-linear corrections come from HALOFIT.
+
+        If you use this, please cite HALOFIT: Smith et al. [1]_, and also
+        Takahashi et al. [2]_ when :attr:`takahashi` is True (the default).
+
+        References
+        ----------
+        .. [1] Smith, R. E., et al., 2003. MNRAS 341, 1311. arXiv:astro-ph/0207664
+        .. [2] Takahashi, R., et al., 2012. ApJ 761, 152. arXiv:1208.2701
         """
         return _hfit(self.k, self.delta_k, z=self.z, cosmo=self.cosmo, takahashi=self.takahashi)
