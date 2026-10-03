@@ -90,6 +90,7 @@ def test_radius_mass_relation_encloses_the_halo_density():
     mean_enclosed_density = m / (4 * np.pi * r**3 / 3)
     # Tolerance: floating-point only.
     np.testing.assert_allclose(mean_enclosed_density, mdef.halo_density(0.5, Planck15), rtol=1e-12)
+    np.testing.assert_allclose(mdef.r_to_m(r, 0.5, Planck15), m, rtol=1e-12)
 
 
 # ---------------------------------------------------------------------------------------
