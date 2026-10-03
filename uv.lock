@@ -126,6 +126,15 @@ css = [
 ]
 
 [[package]]
+name = "cached-property"
+version = "2.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/76/4b/3d870836119dbe9a5e3c9a61af8cc1a8b69d75aea564572e385882d5aefb/cached_property-2.0.1.tar.gz", hash = "sha256:484d617105e3ee0e4f1f58725e72a8ef9e93deee462222dbd51cd91230897641", size = 10574, upload-time = "2024-10-25T15:43:55.667Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/11/0e/7d8225aab3bc1a0f5811f8e1b557aa034ac04bdf641925b30d3caf586b28/cached_property-2.0.1-py3-none-any.whl", hash = "sha256:f617d70ab1100b7bcf6e42228f9ddcb78c676ffa167278d9f730d1c2fba69ccb", size = 7428, upload-time = "2024-10-25T15:43:54.711Z" },
+]
+
+[[package]]
 name = "camb"
 version = "1.6.6"
 source = { registry = "https://pypi.org/simple" }
@@ -527,6 +536,7 @@ name = "hmf"
 source = { editable = "." }
 dependencies = [
     { name = "astropy" },
+    { name = "cached-property" },
     { name = "camb" },
     { name = "click" },
     { name = "deprecation" },
@@ -592,6 +602,7 @@ tests = [
 [package.metadata]
 requires-dist = [
     { name = "astropy", specifier = ">=6.0" },
+    { name = "cached-property" },
     { name = "camb", specifier = ">=1.0.0" },
     { name = "classy", marker = "extra == 'class'", specifier = ">=3.2" },
     { name = "click" },
