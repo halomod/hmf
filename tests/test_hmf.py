@@ -62,3 +62,14 @@ def test_sigma8z():
 def test_neff_at_collapse():
     h = MassFunction(Mmin=8, Mmax=18, transfer_model="EH")
     assert np.allclose(h.n_eff_at_collapse, h.n_eff[np.argmin(np.abs(h.nu - 1.0))], rtol=0.05)
+
+
+def test_mdef_params_without_measured_mdef():
+    """Regression: mdef_params on a fit with no measured mdef (PS) used to crash."""
+    from hmf.halos.mass_definitions import SOMean
+
+    mf = MassFunction(hmf_model="PS", mdef_params={"overdensity": 300}, transfer_model="EH")
+    assert isinstance(mf.mdef, SOMean)
+    assert mf.mdef.params["overdensity"] == 300
+    assert np.all(np.isfinite(mf.dndm))
+    assert np.all(mf.dndm > 0)
