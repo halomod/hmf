@@ -10,6 +10,8 @@ BBKS86 = (
     "https://ui.adsabs.harvard.edu/abs/1986ApJ...304...15B"
 )
 CAMB = "Lewis, A., Challinor, A., Lasenby, A., 2000. ApJ 538, 473. arXiv:astro-ph/9911177"
+CLASS_I = "Lesgourgues, J., 2011. arXiv:1104.2932"
+CLASS_II = "Blas, D., Lesgourgues, J., Tram, T., 2011. JCAP 07, 034. arXiv:1104.2933"
 CARROLL92 = (
     "Carroll, S. M., Press, W. H., Turner, E. L., 1992. ARA&A 30, 499. "
     "https://ui.adsabs.harvard.edu/abs/1992ARA&A..30..499C"

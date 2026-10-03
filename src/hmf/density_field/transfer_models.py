@@ -720,6 +720,8 @@ class CLASS(_BoltzmannTransfer):
     ``cosmo.m_nu`` separately, as astropy does.
     """
 
+    references: ClassVar[tuple[str, ...]] = (refs.CLASS_I, refs.CLASS_II)
+
     _defaults: ClassVar[dict[str, Any]] = {
         "class_params": None,
         "extrapolate_with_eh": True,
