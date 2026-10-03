@@ -249,6 +249,19 @@ class TestSharpK:
         true_dlnss = -1.0 / (2 * pi**2 * true * R**5)
         assert np.isclose(filt.dlnss_dlnr(R), true_dlnss, rtol=5e-5, atol=0)
 
+    def test_sigma_with_zero_power(self):
+        """P(k) with zeros (e.g. a truncated spectrum) can't be log-interpolated.
+
+        It falls back to interpolating linear P in ln k. Below the truncation P = k^2, so
+        the analytic sigma^2 = 1/(10 pi^2 R^5) still holds for 1/R below it.
+        """
+        k = np.logspace(-6, 0, 10000)
+        filt = filters.SharpK(k, np.where(k < 0.5, k**2, 0.0))
+        R = 4.0
+        true = 1.0 / (2 * pi**2 * 5 * R**5)
+        assert np.isclose(filt.sigma(R)[0] ** 2, true, rtol=1e-8, atol=0)
+        assert np.isclose(filt.dlnss_dlnr(R), -1.0 / (2 * pi**2 * true * R**5), rtol=1e-8, atol=0)
+
     def test_sigma_r_beyond_kmin_raises(self, cls):
         with pytest.raises(ValueError, match=r"k\.min"):
             cls.sigma(1e7)
