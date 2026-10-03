@@ -73,3 +73,13 @@ def test_mdef_params_without_measured_mdef():
     assert mf.mdef.params["overdensity"] == 300
     assert np.all(np.isfinite(mf.dndm))
     assert np.all(mf.dndm > 0)
+
+
+def test_mdef_params_update_measured_mdef():
+    """mdef_params override the parameters of a fit's measured mass definition."""
+    from hmf.halos.mass_definitions import SOMean
+
+    mf = MassFunction(hmf_model="Tinker08", mdef_params={"overdensity": 300}, transfer_model="EH")
+    assert isinstance(mf.mdef, SOMean)
+    assert mf.mdef.params["overdensity"] == 300
+    assert np.all(np.isfinite(mf.dndm))
