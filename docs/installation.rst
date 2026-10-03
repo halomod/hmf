@@ -18,16 +18,16 @@ have a fortran compiler on your system path. If using ``gcc``, the version needs
 greater than v6.
 
 
-Optional Dependencies
----------------------
-Some features need packages that are not installed by default. Install them as
-"extras" with ``pip``:
+Using CLASS
+-----------
+To use the `CLASS <https://class-code.net>`_ Boltzmann code for the transfer function
+(``transfer_model="CLASS"``), you need its Python wrapper, ``classy``, which is not
+installed by default (nor by ``hmf[extra]``). Install it with::
 
-* ``pip install hmf[class]`` installs ``classy``, the Python wrapper of the
-  `CLASS <https://class-code.net>`_ Boltzmann code, needed for
-  ``transfer_model="CLASS"``. ``classy`` is compiled from source on most platforms,
-  which needs a C compiler (``gcc``).
-* ``pip install hmf[extra]`` installs all optional dependencies.
+    pip install hmf[class]
+
+``classy`` is compiled from source on most platforms, which needs a C compiler
+(``gcc``).
 
 User Install
 ------------

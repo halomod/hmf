@@ -554,7 +554,6 @@ cosmo = [
     { name = "colossus" },
 ]
 extra = [
-    { name = "classy" },
     { name = "colossus" },
     { name = "emcee" },
 ]
@@ -604,7 +603,6 @@ requires-dist = [
     { name = "cached-property" },
     { name = "camb", specifier = ">=1.0.0" },
     { name = "classy", marker = "extra == 'class'", specifier = ">=3.2" },
-    { name = "classy", marker = "extra == 'extra'", specifier = ">=3.2" },
     { name = "click" },
     { name = "colossus", marker = "extra == 'cosmo'", specifier = ">=1.2.1" },
     { name = "colossus", marker = "extra == 'extra'", specifier = ">=1.2.1" },
