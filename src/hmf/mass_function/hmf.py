@@ -353,6 +353,11 @@ class MassFunction(transfer.Transfer):
         """
         kwargs = {}
         if issubclass(self.filter_model, SharpKEllipsoid):
+            if clash := {"delta_c", "sigma_scale"} & set(self.filter_params):
+                raise ValueError(
+                    f"{sorted(clash)} cannot be set in filter_params: the filter's delta_c "
+                    "and sigma_scale are set by the MassFunction (use its delta_c instead)."
+                )
             kwargs = {
                 "delta_c": self.delta_c,
                 "sigma_scale": self._normalisation * self.growth_factor,

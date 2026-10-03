@@ -567,3 +567,10 @@ class TestSharpKEllipsoidInMassFunction:
         assert np.all(a3_r4 > a3_r0)
         i = np.argmin(np.abs(ell.m - 1e12))
         assert a3_r4[i] - a3_r0[i] > 0.05
+
+    @pytest.mark.parametrize("key", ["delta_c", "sigma_scale"])
+    def test_framework_args_not_in_filter_params(self, key):
+        from hmf import MassFunction
+
+        with pytest.raises(ValueError, match="cannot be set in filter_params"):
+            MassFunction(filter_model="SharpKEllipsoid", filter_params={key: 1.0}, **self.kw).filter
