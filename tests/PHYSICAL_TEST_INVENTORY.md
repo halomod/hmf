@@ -153,6 +153,10 @@ New tests are in `test_physical_wdm.py`.
 |---|---|---|---|
 | Viel05 / Bode01 transfer | T(k→0) = 1. | T(2π/λ_hm) = 1/2 (the definition of the half-mode scale). T is monotonic and → 0. | added |
 | λ_fs, λ_hm, M_fs, M_hm | Positivity and ordering only. | M_fs and M_hm match Schneider+12 Table 1 (10%). λ_hm/λ_fs = 13.93 (their Eq. 8). All fall with m_x. | added |
+| Bode01 (#366) | None (it was an alias of Viel05). | λ_hm/2 matches Bode+01's quoted R_s for 175 eV, 350 eV and 1.5 keV (6%). M_hm matches their quoted 4e11 / 4e12 h⁻¹M☉ (20%). λ_hm ∝ m_x^−1.15 (eq. A9). Differs from Viel05: λ_hm ratio 1.088, set by ν = 1.2 vs 1.12. Failed on main. | fixed (#366) |
+| Viel05 break scale | Schneider+12 Table 1. | Eq. 7 second line agrees with its first (m_x/T_x) form, combined with eq. 2 (2%). λ_hm ∝ m_x^−1.11. | added |
+| Both: limits | — | T → (αk)^−10 for k ≫ 1/α, for any ν. T → 1 as m_x → ∞ at fixed k. | added |
+| `mu` → `nu` rename | — | `mu` still works, with a DeprecationWarning, including through `wdm_params`. Passing both raises. | added |
 | M_hm vs redshift | `TestHalfModeMassComoving` in `test_wdm.py` (added with the fix in #358). | M_hm must not depend on z (the transfer function is z-independent and masses are comoving). This failed by a factor (1+z)³ before #358. | fixed (B3, #358) |
 | MassFunctionWDM / TransferWDM | dndm agrees with CDM at high M and is suppressed at low M (1e-3). | σ_WDM ≤ σ_CDM, converging at high M. dn/dm suppressed below M_hm and equal to CDM above 1000 M_hm. CDM limit as m_x → ∞. | added |
 | Schneider12_vCDM, Schneider12, Lovell14 | `test_high_m` (agreement at high M). | The factor lies in (0, 1], rises monotonically with M, and → 1. | added |

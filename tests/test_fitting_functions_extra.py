@@ -492,3 +492,16 @@ def test_generic_so_fits_default_to_preferred_mdef(fit_cls, expected):
     assert fit.mass_definition == expected
     assert type(fit.mass_definition) is type(expected)
     np.testing.assert_allclose(fit.fsigma, explicit.fsigma, rtol=1e-12)
+
+
+def test_jenkins_sim_transfer_matches_each_box():
+    """Each Jenkins box is labelled with the transfer function that set it up.
+
+    Jenkins et al. (2001, Sect. 2.1): the 479 and 3000 Mpc/h LCDM boxes used CMBFAST,
+    the GIF boxes the Bond & Efstathiou fit.
+    """
+    sim = ff.Jenkins.sim_definition
+    assert len(sim.transfer) == len(sim.L)
+    by_box = dict(zip(sim.L, sim.transfer, strict=True))
+    assert by_box[84.5] == by_box[141.3] == "BondEfs"
+    assert by_box[479] == by_box[3000] == "CMBFAST"

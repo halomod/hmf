@@ -40,8 +40,8 @@ this matters.
 
 Note that this is a different effect from the overall slow-down of structure growth
 caused by massive neutrinos (a massive-neutrino cosmology has less small-scale power
-than a massless one, even in :math:`P_{\rm cb}`). CAMB includes that effect in both
-fields. The choice here only decides whether the smooth neutrino component is counted
+than a massless one, even in :math:`P_{\rm cb}`). CAMB and CLASS include that effect in
+both fields. The choice here only decides whether the smooth neutrino component is counted
 in the field you look at.
 
 Which field should I use?
@@ -88,7 +88,7 @@ Keeping everything consistent
 Four settings are involved.
 
 The transfer function: ``transfer_params={"matter_species": ...}``
-    Used by the ``CAMB`` and ``FromFile`` transfer models. ``FromFile`` reads column 7
+    Used by the ``CAMB``, ``CLASS`` and ``FromFile`` transfer models. ``FromFile`` reads column 7
     (``"cb"``) or column 6 (``"tot"``) of a CAMB transfer file. A two-column
     ``(k, T)`` file is used as-is, so make sure it holds the field you want.
 
@@ -111,8 +111,8 @@ The normalisation: ``sigma_8_species``
     the same transfer model has the given :math:`\sigma_8`. The resulting
     :math:`\sigma_{8,\rm cb}` is slightly larger than :math:`\sigma_8`, by at most a
     factor :math:`1/(1 - f_\nu)`. This needs the transfer function of a second field,
-    unless the neutrinos are massless. With CAMB this costs no extra CAMB run, since
-    one run gives both fields; other models compute it separately. If your value of
+    unless the neutrinos are massless. With CAMB or CLASS this costs no extra run,
+    since one run gives both fields; other models compute it separately. If your value of
     :math:`\sigma_8` is for the CDM+baryon field (e.g. from a simulation), set
     ``sigma_8_species="cb"``.
 

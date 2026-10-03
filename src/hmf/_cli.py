@@ -22,12 +22,34 @@ from .helpers.cfg_utils import framework_to_dict
 console = Console(width=100)
 
 
+def _import_plugins(plugins) -> list[str]:
+    """Import the modules listed under ``plugins`` in a config.
+
+    Importing a module registers the models it defines, so they can then be given
+    by their class name in the config's ``params``.
+    """
+    if isinstance(plugins, str):
+        plugins = [plugins]
+    if not isinstance(plugins, list) or not all(isinstance(p, str) for p in plugins):
+        raise TypeError(f"'plugins' in the config must be a list of module names, got {plugins!r}.")
+
+    for plugin in plugins:
+        importlib.import_module(plugin)
+
+    return plugins
+
+
 def _get_config(config=None):
     if config is None:
         return {}
 
     with Path(config).open() as fl:
         cfg = toml.load(fl)
+
+    # Import modules defining external models, so they are registered before the
+    # params are resolved.
+    if "plugins" in cfg:
+        cfg["plugins"] = _import_plugins(cfg["plugins"])
 
     # Import an actual framework.
     fmwk = cfg.get("framework", None)
@@ -191,7 +213,7 @@ def run_cli(config, pkg_name, args, outdir, label, pkgs, default_framework):
         console.print(f"   Writing quantities to [cyan]{outdir}/{lab}_<quantity>.txt[/cyan].")
 
         # Write out parameters
-        dct = framework_to_dict(obj)
+        dct = framework_to_dict(obj, plugins=cfg.get("plugins", ()))
         dct["quantities"] = quantities
         with (outdir / f"{lab}_cfg.toml").open("w") as fl:
             toml.dump(dct, fl, encoder=toml.TomlNumpyEncoder())
