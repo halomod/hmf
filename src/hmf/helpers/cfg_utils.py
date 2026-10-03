@@ -1,5 +1,6 @@
 """Utilities for interacting with hmf TOML configs."""
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from inspect import signature
 
@@ -10,9 +11,39 @@ from hmf._internals._framework import Framework
 from .. import __version__
 
 
-def framework_to_dict(obj: Framework) -> dict:
-    """Serialize a framework instance to a simple TOML-able dictionary."""
+def _plugin_module(model: type) -> str | None:
+    """The module to list under ``plugins`` so that ``model`` can be found by name.
+
+    Returns None for models defined in hmf itself (always registered), and for
+    models defined in ``__main__`` (which can not be imported by name).
+    """
+    mod = model.__module__
+    if mod == "__main__" or mod == "hmf" or mod.startswith("hmf."):
+        return None
+    return mod
+
+
+def framework_to_dict(obj: Framework, plugins: Sequence[str] = ()) -> dict:
+    """Serialize a framework instance to a simple TOML-able dictionary.
+
+    Parameters
+    ----------
+    obj
+        The framework instance to serialize.
+    plugins
+        Modules to list under the top-level ``plugins`` key of the output, e.g. the
+        ``plugins`` of the config ``obj`` was made from. The modules defining any
+        models of ``obj`` that are not part of hmf are added to these, so that
+        the models (which are written by their class name) can be found again
+        when the config is read back.
+
+    Returns
+    -------
+    dict
+        The config. It has a ``plugins`` key only if there are any plugins.
+    """
     out = {"created_on": datetime.now(tz=UTC), "hmf_version": __version__, "params": {}}
+    plugins = list(plugins)
 
     for k, v in obj.parameter_values.items():
         if k == "cosmo_model":
@@ -37,9 +68,11 @@ def framework_to_dict(obj: Framework) -> dict:
             val = getattr(obj, k)
             if val is None:
                 obj_val = getattr(obj, k.split("_model")[0])
-                out["params"][k] = None if obj_val is None else obj_val.__class__.__name__
-            else:
-                out["params"][k] = val.__name__
+                val = None if obj_val is None else obj_val.__class__
+
+            out["params"][k] = None if val is None else val.__name__
+            if val is not None and (mod := _plugin_module(val)) and mod not in plugins:
+                plugins.append(mod)
 
         elif k.endswith("_params"):
             if k == "transfer_params" and obj.transfer_model.__name__ == "CAMB":
@@ -52,5 +85,8 @@ def framework_to_dict(obj: Framework) -> dict:
                     out["params"][k] = None
         else:
             out["params"][k] = v
+
+    if plugins:
+        out["plugins"] = plugins
 
     return out

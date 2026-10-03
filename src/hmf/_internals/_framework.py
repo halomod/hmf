@@ -1,6 +1,8 @@
 """Classes defining the overall structure of the hmf framework."""
 
 import copy
+import difflib
+import importlib
 import logging
 import re
 import sys
@@ -107,6 +109,57 @@ def pluggable(cls):
     return cls
 
 
+def _is_import_path(name: str) -> bool:
+    """Whether a model name looks like an import path rather than a registry name."""
+    return "." in name or ":" in name
+
+
+def _import_from_path(path: str) -> Any:
+    """Import an object given as ``package.module:Name`` or ``package.module.Name``."""
+    if ":" in path:
+        modname, _, attr = path.partition(":")
+    else:
+        modname, _, attr = path.rpartition(".")
+
+    if not modname or not attr:
+        raise ValueError(
+            f"Could not interpret '{path}' as an import path. Use the form "
+            "'package.module:Class' or 'package.module.Class'."
+        )
+
+    try:
+        obj = importlib.import_module(modname)
+    except ImportError as e:
+        raise ValueError(
+            f"Could not import module '{modname}' (from model '{path}'). Is it installed, "
+            "or on your PYTHONPATH?"
+        ) from e
+
+    for part in attr.split("."):
+        try:
+            obj = getattr(obj, part)
+        except AttributeError as e:
+            raise ValueError(
+                f"Module '{modname}' has no attribute '{attr}' (from model '{path}')."
+            ) from e
+    return obj
+
+
+def _not_found_message(name: str, available: list[str]) -> str:
+    """The part of a model-not-found error that says what *could* be used."""
+    msg = ""
+    close = difflib.get_close_matches(name, available, n=3)
+    if close:
+        msg += f" Did you mean {' or '.join(repr(c) for c in close)}?"
+    msg += f" Available: {tuple(sorted(available))}."
+    msg += (
+        " To use a model defined in another package, give its import path, "
+        "e.g. 'package.module:Class', or list its module under 'plugins' in a "
+        "TOML config."
+    )
+    return msg
+
+
 def get_mdl(
     name: str | type[Component],
     kind: str | type[Component] | None = None,
@@ -117,6 +170,11 @@ def get_mdl(
     ----------
     name
         The name of the model to return. Can be the actual model class itself.
+        A string is first looked up as a registered model name (the name of the
+        class). If it is not registered and contains a ``.`` or ``:``, it is taken
+        as an import path, either ``package.module:Class`` or
+        ``package.module.Class``, and that class is imported. Importing it also
+        registers it, so afterwards it can be found by its class name too.
     kind
         The kind of component to search for.
 
@@ -124,42 +182,75 @@ def get_mdl(
     -------
     model
         The actual model class (not instantiated).
+
+    Raises
+    ------
+    ValueError
+        If no model is registered under ``name`` and it can not be imported.
+    TypeError
+        If ``name`` is an import path to something that is not a subclass of
+        ``kind`` (or of :class:`Component` if ``kind`` is not given).
+
+    Examples
+    --------
+    >>> from hmf import get_mdl
+    >>> get_mdl("PS", "BaseFittingFunction")
+    <class 'hmf.mass_function.fitting_functions.PS'>
+    >>> get_mdl("hmf.mass_function.fitting_functions:PS", "BaseFittingFunction")
+    <class 'hmf.mass_function.fitting_functions.PS'>
     """
     if kind is not None:
         kind = get_base_component(kind)
 
     if isinstance(name, str):
         if kind is not None:
-            try:
+            if name in kind._plugins:
                 return kind._plugins[name]
-            except KeyError as e:
-                raise ValueError(
-                    f"The model {name} is not a defined {kind} model. Available: "
-                    f"{tuple(kind._plugins.keys())}"
-                ) from e
-        else:
-            # Try to get *any* model called by this name.
-            avail_models = [
-                (key, cls)
-                for cmp in get_base_components()
-                for key, cls in cmp._plugins.items()
-                if key == name
-            ]
-            if len(avail_models) > 1:
-                warnings.warn(
-                    f"More than one model was found with name '{name}'. Returning "
-                    f"{avail_models[-1][1]}.",
-                    stacklevel=2,
-                )
-            if not avail_models:
-                raise ValueError(f"No model found with name '{name}'.")
+            if _is_import_path(name):
+                return _check_imported_model(name, _import_from_path(name), kind)
+            raise ValueError(
+                f"The model {name} is not a defined {kind.__name__} model."
+                + _not_found_message(name, list(kind._plugins))
+            )
+        # Try to get *any* model called by this name.
+        avail_models = [
+            (key, cls)
+            for cmp in get_base_components()
+            for key, cls in getattr(cmp, "_plugins", {}).items()
+            if key == name
+        ]
+        if len(avail_models) > 1:
+            warnings.warn(
+                f"More than one model was found with name '{name}'. Returning "
+                f"{avail_models[-1][1]}.",
+                stacklevel=2,
+            )
+        if avail_models:
             return avail_models[-1][1]
-    else:
-        try:
-            assert issubclass(name, kind or Component)
-            return name
-        except TypeError as e:
-            raise ValueError(f"{name} must be str or Component subclass") from e
+        if _is_import_path(name):
+            return _check_imported_model(name, _import_from_path(name), Component)
+        raise ValueError(
+            f"No model found with name '{name}'."
+            + _not_found_message(
+                name,
+                list({k for cmp in get_base_components() for k in getattr(cmp, "_plugins", {})}),
+            )
+        )
+    try:
+        assert issubclass(name, kind or Component)
+        return name
+    except TypeError as e:
+        raise ValueError(f"{name} must be str or Component subclass") from e
+
+
+def _check_imported_model(path: str, obj: Any, kind: type[Component]) -> type[Component]:
+    """Check that an object imported for a model is a subclass of ``kind``."""
+    if not isinstance(obj, type) or not issubclass(obj, kind):
+        raise TypeError(
+            f"'{path}' is not a subclass of {kind.__name__}, so it can not be used as a "
+            f"{kind.__name__} model (got {obj!r})."
+        )
+    return obj
 
 
 @deprecation.deprecated("3.3.0", removed_in="4.0.0", details="Use get_mdl instead of get_model_")
