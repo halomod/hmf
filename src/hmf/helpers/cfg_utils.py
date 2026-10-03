@@ -63,13 +63,12 @@ def framework_to_dict(obj: Framework, plugins: Sequence[str] = ()) -> dict:
 
         elif k.endswith("_model"):
             # Model components should just be the name of the class, not a
-            # full class __repr__, and also, we give the actual model, not the input
-            # parameter.
+            # full class __repr__. A model left unset (None) is written as unset
+            # rather than as the model it resolved to: e.g. an unset mdef_model means
+            # "the fit's own definition", which is not the same as naming that
+            # definition explicitly (see #374). TOML has no null, so the key is
+            # dropped and reloads as the default.
             val = getattr(obj, k)
-            if val is None:
-                obj_val = getattr(obj, k.split("_model")[0])
-                val = None if obj_val is None else obj_val.__class__
-
             out["params"][k] = None if val is None else val.__name__
             if val is not None and (mod := _plugin_module(val)) and mod not in plugins:
                 plugins.append(mod)

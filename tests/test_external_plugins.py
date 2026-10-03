@@ -21,15 +21,12 @@ from hmf.mass_function import PS
 EXTERNAL_MODULE = """
 import typing
 
-from hmf.mass_function import PS, SMT
+from hmf.mass_function import PS
 from hmf.mass_function.fitting_functions import BaseFittingFunction
 
 
 class ScaledPS(BaseFittingFunction):
     _defaults: typing.ClassVar = {"scale": 0.5}
-    # A fit with no sim_definition (like PS) can't round-trip through a written
-    # config, because the default mass definition is then written explicitly.
-    sim_definition = SMT.sim_definition
     req_sigma = False
     req_z = False
     normalized = False
