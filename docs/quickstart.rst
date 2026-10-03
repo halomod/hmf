@@ -53,3 +53,36 @@ Any parameter specifiable in the TOML file can alternatively be specified on the
 line after an isolated double-dash, eg.::
 
     hmf run -- z=1.0 hmf_model='SMT01'
+
+Using your own models from the CLI
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Models you define yourself (see the
+`plugins tutorial <examples/plugins_and_extending.html>`_) can be used in a TOML config
+or on the command line too, as long as the module defining them is importable (i.e.
+installed, or on your ``PYTHONPATH``). There are two ways to refer to them.
+
+Either give the model's import path, as ``package.module:Class`` or
+``package.module.Class``:
+
+.. code-block:: toml
+
+    [params]
+    hmf_model = "mypkg.fits:MyFit"
+
+or list the modules defining your models under the top-level ``plugins`` key, and
+then refer to the models by their class name:
+
+.. code-block:: toml
+
+    plugins = ["mypkg.fits"]
+
+    [params]
+    hmf_model = "MyFit"
+
+The modules under ``plugins`` are imported before anything else in the config is
+read. The config that ``hmf run`` writes out alongside its results keeps the
+``plugins`` key (and adds the modules of any other non-``hmf`` models used), so it
+can be re-run as-is.
+
+The import-path form works anywhere a model name is accepted, including in Python,
+e.g. ``MassFunction(hmf_model="mypkg.fits:MyFit")``.

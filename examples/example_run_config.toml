@@ -2,6 +2,11 @@
 # dotted path to the Python class
 framework = "hmf.MassFunction"
 
+# Modules that define your own models, imported before the params are read. Models
+# defined in them can then be given by class name below. Alternatively, give a model's
+# full import path, e.g. hmf_model = "mypkg.fits:MyFit".
+# plugins = ["mypkg.fits"]
+
 # Quantities are only used in the CLI, and dictate what quantities should be output.
 quantities = [
     "m",
