@@ -594,3 +594,35 @@ def test_closed_lambda0_heath_growth_rate():
     np.testing.assert_allclose(
         f, growth_factor.IntegralGrowthFactor(cosmo).growth_rate(z), rtol=1e-6
     )
+
+
+def test_cambgrowth_counts_every_massive_neutrino():
+    """m_nu=[0.1, 0.1, 0.1] eV gives CAMB three massive species, not one of 0.3 eV.
+
+    The growth of delta_tot then matches CAMB run with ``num_massive_neutrinos=3``.
+    """
+    import camb
+
+    cosmo = cosmology.Planck18.clone(m_nu=[0.1, 0.1, 0.1] * u.eV)
+    gf_tot = growth_factor.CambGrowth(cosmo, matter_species="tot")
+    assert gf_tot.p.num_nu_massive == 3
+
+    def direct_growth(num_massive):
+        pars = camb.CAMBparams()
+        pars.set_cosmology(
+            H0=cosmo.H0.value,
+            ombh2=cosmo.Ob0 * cosmo.h**2,
+            omch2=cosmo.Odm0 * cosmo.h**2,
+            mnu=0.3,
+            num_massive_neutrinos=num_massive,
+            nnu=cosmo.Neff,
+            standard_neutrino_neff=cosmo.Neff,
+            TCMB=cosmo.Tcmb0.value,
+        )
+        pars.WantTransfer = True
+        transfers = camb.get_transfer_functions(pars)
+        d = transfers.get_redshift_evolution(0.01, z, ["delta_tot"]).flatten()
+        return d / transfers.get_redshift_evolution(0.01, 0.0, ["delta_tot"])[0][0]
+
+    z = np.array([0.5, 1.0, 2.0, 5.0])
+    np.testing.assert_allclose(gf_tot.growth_factor(z), direct_growth(3), rtol=1e-6)
