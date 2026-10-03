@@ -181,5 +181,5 @@ def test_bocquet16_fsigma_positive_with_exponential_tail(cls, z):
 
 
 def test_bocquet16_reference_spelling():
-    assert "Bocquet, S." in ff.Bocquet200mDMOnly._ref
+    assert ff.Bocquet200mDMOnly.references[0].startswith("Bocquet, S.")
     assert "Bocuet" not in ff.Bocquet200mDMOnly.__doc__
