@@ -995,7 +995,30 @@ class Watson(BaseFittingFunction):
         """http://adsabs.harvard.edu/abs/2013MNRAS.433.1230W """
     )
     _eq = r"\Gamma A \left(\left(\frac{\beta}{\sigma}\right)^\alpha+1\right)\exp(-\gamma/\sigma^2)"
-    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Watson", "WatS", _eq, Watson_FoF._ref)
+    _note = r"""
+    Three AHF fits from Watson+13 (v4/published) are used, by redshift. At
+    :math:`z=0` it uses the precise present-day fit (Table 2: ``A_0``, ``alpha_0``,
+    ``beta_0``, ``gamma_0``). At :math:`z \geq` ``z_hi`` it uses the EoR fit (Table 2:
+    ``*_hi``). In between it uses the redshift-dependent fit of eqs 14-16, with
+    :math:`\alpha(z) = \Omega_m(z)\{5.907(1+z)^{-3.599} + 2.344\}`,
+    :math:`\beta(z) = \Omega_m(z)\{3.136(1+z)^{-3.058} + 2.349\}`,
+    :math:`A(z) = \Omega_m(z)\{1.097(1+z)^{-3.216} + 0.074\}` and :math:`\gamma` =
+    ``gamma_z``. (arXiv v1 swaps the labels of the :math:`\alpha` and :math:`\beta`
+    fits; v4 is the published version.)
+
+    As in the paper, the fits are not joined smoothly, so :math:`f(\sigma)` jumps
+    between :math:`z=0` and :math:`z \to 0^+`. For the simulation's
+    :math:`\Omega_m = 0.27` the jump is 0-9% over
+    :math:`-0.55 \leq \ln\sigma^{-1} \leq 1.05`, within the paper's ~10% accuracy.
+    Because :math:`\Omega_m(z)` multiplies :math:`A`, :math:`\alpha` and
+    :math:`\beta`, and the fit was calibrated at a single cosmology, it extrapolates
+    poorly to other :math:`\Omega_m`: at :math:`\Omega_m = 0.31` the jump is a factor
+    1.4-2.7. Bocquet+16 call this a "heightened and likely artificial cosmological
+    sensitivity".
+    """
+    __doc__ = _makedoc(
+        BaseFittingFunction._pdocs, "Watson", "WatS", _eq, Watson_FoF._ref, note=_note.strip()
+    )
 
     sim_definition = copy(Watson_FoF.sim_definition)
     sim_definition.halo_finder_type = "SO"
@@ -1020,12 +1043,12 @@ class Watson(BaseFittingFunction):
         "A_a": 1.097,
         "A_b": 3.216,
         "A_c": 0.074,
-        "alpha_a": 3.136,
-        "alpha_b": 3.058,
-        "alpha_c": 2.349,
-        "beta_a": 5.907,
-        "beta_b": 3.599,
-        "beta_c": 2.344,
+        "alpha_a": 5.907,
+        "alpha_b": 3.599,
+        "alpha_c": 2.344,
+        "beta_a": 3.136,
+        "beta_b": 3.058,
+        "beta_c": 2.349,
         "gamma_z": 1.318,
     }
 
@@ -1045,9 +1068,8 @@ class Watson(BaseFittingFunction):
 
         return C * (delta_halo / 178) ** d * np.exp(p * (1 - delta_halo / 178) / self.sigma**q)
 
-    @override
-    @property
-    def fsigma(self):
+    def get_params(self):
+        r"""Get :math:`A`, :math:`\alpha`, :math:`\beta` and :math:`\gamma` at this redshift."""
         if self.z == 0:
             A = self.params["A_0"]
             alpha = self.params["alpha_0"]
@@ -1073,6 +1095,12 @@ class Watson(BaseFittingFunction):
             )
             gamma = self.params["gamma_z"]
 
+        return A, alpha, beta, gamma
+
+    @override
+    @property
+    def fsigma(self):
+        A, alpha, beta, gamma = self.get_params()
         return (
             self.gamma() * A * ((beta / self.sigma) ** alpha + 1) * np.exp(-gamma / self.sigma**2)
         )
@@ -1975,18 +2003,19 @@ class Bocquet200mDMOnly(Warren):
     """Bocquet mass function fit for 200m definition with dark matter only."""
 
     _eq = r"A\left[\left(\frac{e}{\sigma}\right)^b + 1\right]\exp(-\frac{d}{\sigma^2})"
-    _ref = r"""Bocuet, S., et al., 2016, MNRAS 456 2361"""
+    _ref = r"""Bocquet, S., et al., 2016, MNRAS 456 2361"""
     __doc__ = _makedoc(BaseFittingFunction._pdocs, "Bocquet", "Bocquet", _eq, _ref)
     _defaults: ClassVar[dict[str, Any]] = {
-        "A": 0.216,
-        "b": 1.87,
+        # Bocquet+16 v3 (published) Table 2. Paper (a, b, c) -> code (b, e, d).
+        "A": 0.175,
+        "b": 1.53,
         "c": 1,
-        "d": 1.31,
-        "e": 2.02,
-        "A_z": 0.018,
-        "b_z": -0.0748,
-        "d_z": -0.0689,
-        "e_z": -0.215,
+        "d": 1.19,
+        "e": 2.55,
+        "A_z": -0.012,
+        "b_z": -0.04,
+        "d_z": -0.021,
+        "e_z": -0.194,
     }
 
     sim_definition = SimDetails(
@@ -2049,15 +2078,16 @@ class Bocquet200mHydro(Bocquet200mDMOnly):
         Bocquet200mDMOnly._ref,
     )
     _defaults: ClassVar[dict[str, Any]] = {
-        "A": 0.240,
-        "b": 2.43,
+        # Bocquet+16 v3 (published) Table 2. Paper (a, b, c) -> code (b, e, d).
+        "A": 0.228,
+        "b": 2.15,
         "c": 1,
-        "d": 1.41,
-        "e": 1.65,
-        "A_z": 0.365,
-        "b_z": -0.129,
-        "d_z": -0.138,
-        "e_z": -0.453,
+        "d": 1.3,
+        "e": 1.69,
+        "A_z": 0.285,
+        "b_z": -0.058,
+        "d_z": -0.045,
+        "e_z": -0.366,
     }
 
 
@@ -2073,15 +2103,16 @@ class Bocquet200cDMOnly(Bocquet200mDMOnly):
     )
 
     _defaults: ClassVar[dict[str, Any]] = {
-        "A": 0.256,
-        "b": 2.01,
+        # Bocquet+16 v3 (published) Table 2. Paper (a, b, c) -> code (b, e, d).
+        "A": 0.222,
+        "b": 1.71,
         "c": 1,
-        "d": 1.59,
-        "e": 1.97,
-        "A_z": 0.218,
-        "b_z": 0.290,
-        "d_z": -0.174,
-        "e_z": -0.518,
+        "d": 1.46,
+        "e": 2.24,
+        "A_z": 0.269,
+        "b_z": 0.321,
+        "d_z": -0.153,
+        "e_z": -0.621,
     }
     sim_definition = copy(Bocquet200mDMOnly.sim_definition)
     sim_definition.halo_overdensity = "200c"
@@ -2097,7 +2128,8 @@ class Bocquet200cDMOnly(Bocquet200mDMOnly):
 
         g = g0 + g1 * np.exp(-(((g2 - self.z) / g3) ** 2))
         d = d0 + d1 * self.z
-        return g + d * np.log(self.m)
+        # Eq. A2 takes ln(M/Msun); m is in Msun/h.
+        return g + d * np.log(self.m / self.cosmo.h)
 
 
 class Bocquet200cHydro(Bocquet200cDMOnly):
@@ -2112,15 +2144,16 @@ class Bocquet200cHydro(Bocquet200cDMOnly):
     )
 
     _defaults: ClassVar[dict[str, Any]] = {
-        "A": 0.290,
-        "b": 2.69,
+        # Bocquet+16 v3 (published) Table 2. Paper (a, b, c) -> code (b, e, d).
+        "A": 0.202,
+        "b": 2.21,
         "c": 1,
-        "d": 1.70,
-        "e": 1.58,
-        "A_z": 0.216,
-        "b_z": 0.027,
-        "d_z": -0.226,
-        "e_z": -0.352,
+        "d": 1.57,
+        "e": 2.0,
+        "A_z": 1.147,
+        "b_z": 0.375,
+        "d_z": -0.196,
+        "e_z": -1.074,
     }
 
 
@@ -2136,15 +2169,16 @@ class Bocquet500cDMOnly(Bocquet200cDMOnly):
     )
 
     _defaults: ClassVar[dict[str, Any]] = {
-        "A": 0.390,
-        "b": 3.05,
+        # Bocquet+16 v3 (published) Table 2. Paper (a, b, c) -> code (b, e, d).
+        "A": 0.241,
+        "b": 2.18,
         "c": 1,
-        "d": 2.32,
-        "e": 1.72,
-        "A_z": -0.924,
-        "b_z": -0.421,
-        "d_z": -0.509,
-        "e_z": 0.190,
+        "d": 2.02,
+        "e": 2.35,
+        "A_z": 0.37,
+        "b_z": 0.251,
+        "d_z": -0.31,
+        "e_z": -0.698,
     }
     sim_definition = copy(Bocquet200mDMOnly.sim_definition)
     sim_definition.halo_overdensity = "500c"
@@ -2156,7 +2190,8 @@ class Bocquet500cDMOnly(Bocquet200cDMOnly):
         alpha_2 = -0.365 + 0.254 / self.cosmo.Om0
         alpha = alpha_0 * (alpha_1 * self.z + alpha_2) / (self.z + alpha_2)
         beta = -1.7e-2 + self.cosmo.Om0 * 3.74e-3
-        return alpha + beta * np.log(self.m)
+        # Eq. 6 takes ln(M/Msun); m is in Msun/h.
+        return alpha + beta * np.log(self.m / self.cosmo.h)
 
 
 class Bocquet500cHydro(Bocquet500cDMOnly):
@@ -2171,15 +2206,16 @@ class Bocquet500cHydro(Bocquet500cDMOnly):
     )
 
     _defaults: ClassVar[dict[str, Any]] = {
-        "A": 0.322,
-        "b": 3.24,
+        # Bocquet+16 v3 (published) Table 2. Paper (a, b, c) -> code (b, e, d).
+        "A": 0.18,
+        "b": 2.29,
         "c": 1,
-        "d": 2.29,
-        "e": 1.71,
-        "A_z": 0.0142,
-        "b_z": -0.219,
-        "d_z": -0.428,
-        "e_z": -0.275,
+        "d": 1.97,
+        "e": 2.44,
+        "A_z": 1.088,
+        "b_z": 0.15,
+        "d_z": -0.322,
+        "e_z": -1.008,
     }
 
 
