@@ -10,7 +10,7 @@ import warnings
 import numpy as np
 import pytest
 from numpy import cos, pi, sin
-from scipy.integrate import quad
+from scipy.special import beta as beta_fn
 
 from hmf.density_field import filters
 
@@ -304,37 +304,20 @@ class TestSharpKEllipsoid:
         assert np.isfinite(cls.dlnr_dlnm(r)).all()
 
 
-def _smoothk_moment(beta, p, R):
-    r"""Reference :math:`\int_0^\infty x^p W(x)^2 dx / R^{p+1}` for the smooth-k filter.
+def _smoothk_sigma2_powerlaw(beta, n, R, order=0):
+    r"""Closed-form :math:`\sigma_j^2(R)` for the smooth-k filter with :math:`P(k)=k^n`.
 
-    Split at x=1 and use the x^{-beta} form above it to avoid overflow.
+    With :math:`x=kR` and :math:`a = n + 3 + 2j`,
+
+    .. math:: \sigma_j^2 = \frac{1}{2\pi^2 R^a}\int_0^\infty
+              \frac{x^{a-1}}{(1+x^\beta)^2}dx
+              = \frac{1}{2\pi^2 R^a}\frac{1}{\beta}B(a/\beta, 2-a/\beta),
+
+    obtained by substituting :math:`t=x^\beta`. Valid for :math:`0 < a < 2\beta`.
     """
-    lo = quad(lambda x: x**p / (1 + x**beta) ** 2, 0, 1, epsabs=0, epsrel=1e-12, limit=500)
-    hi = quad(
-        lambda x: x**p * (x**-beta / (1 + x**-beta)) ** 2,
-        1,
-        np.inf,
-        epsabs=0,
-        epsrel=1e-12,
-        limit=500,
-    )
-    return (lo[0] + hi[0]) / R ** (p + 1)
-
-
-def _smoothk_dmoment(beta, p, R):
-    r"""Reference :math:`\int_0^\infty x^p W dW/d\ln x\, dx / R^{p+1}` for smooth-k."""
-
-    def integrand_lo(x):
-        w = 1 / (1 + x**beta)
-        return -beta * x**p * w**2 * (1 - w)
-
-    def integrand_hi(x):
-        w = x**-beta / (1 + x**-beta)
-        return -beta * x**p * w**2 * (1 - w)
-
-    lo = quad(integrand_lo, 0, 1, epsabs=0, epsrel=1e-12, limit=500)
-    hi = quad(integrand_hi, 1, np.inf, epsabs=0, epsrel=1e-12, limit=500)
-    return (lo[0] + hi[0]) / R ** (p + 1)
+    a = n + 3 + 2 * order
+    assert 0 < a < 2 * beta
+    return beta_fn(a / beta, 2 - a / beta) / beta / (2 * pi**2 * R**a)
 
 
 class TestSmoothK:
@@ -374,21 +357,23 @@ class TestSmoothK:
 
     @pytest.mark.parametrize("R", [1.0, 3.0])
     def test_sigma(self, cls, R):
-        # P(k) = k^2, so sigma^2 = 1/(2 pi^2) int k^4 W^2 dk.
-        true = _smoothk_moment(4.8, 4, R) / (2 * pi**2)
+        true = _smoothk_sigma2_powerlaw(4.8, 2, R)
         assert np.isclose(cls.sigma(R)[0] ** 2, true, rtol=1e-6, atol=0)
 
     @pytest.mark.parametrize("R", [1.0, 3.0])
     def test_sigma1(self, cls, R):
-        true = _smoothk_moment(4.8, 6, R) / (2 * pi**2)
+        true = _smoothk_sigma2_powerlaw(4.8, 2, R, order=1)
         assert np.isclose(cls.sigma(R, 1)[0] ** 2, true, rtol=1e-6, atol=0)
+
+    def test_sigma_r_scaling(self, cls):
+        # For P ~ k^n, sigma^2 ~ R^-(n+3) for any filter shape.
+        s1, s3 = cls.sigma(np.array([1.0, 3.0])) ** 2
+        assert np.isclose(s1 / s3, 3.0**5, rtol=1e-6)
 
     @pytest.mark.parametrize("R", [1.0, 3.0])
     def test_dlnssdlnr(self, cls, R):
-        true = _smoothk_dmoment(4.8, 4, R) / _smoothk_moment(4.8, 4, R) * 2
-        # For a pure power law P ~ k^n this is exactly -(n+3) for any filter shape.
-        assert np.isclose(true, -5.0, rtol=1e-8)
-        assert np.isclose(cls.dlnss_dlnr(R)[0], true, rtol=1e-6, atol=0)
+        # For P ~ k^n, d ln sigma^2 / d ln R = -(n+3) exactly.
+        assert np.isclose(cls.dlnss_dlnr(R)[0], -5.0, rtol=1e-6, atol=0)
 
     def test_mass_radius_roundtrip(self, cls):
         rho = 2.5
