@@ -17,7 +17,7 @@ from .._internals._cache import cached_quantity, parameter
 from .._internals._framework import get_mdl
 from ..density_field import transfer
 from ..density_field import transfer_models as tm
-from ..density_field.filters import BaseFilter, TopHat
+from ..density_field.filters import BaseFilter, SharpKEllipsoid, TopHat
 from ..halos.mass_definitions import BaseMassDefinition as MassDef
 from ..halos.mass_definitions import SOGeneric, SOMean
 from . import fitting_functions as ff
@@ -341,12 +341,28 @@ class MassFunction(transfer.Transfer):
 
     @cached_quantity
     def filter(self):
-        """Instantiated model for filter/window functions.
+        r"""Instantiated model for filter/window functions.
 
         Note that this filter is *not* normalised -- i.e. the output of `filter.sigma(8)`
         will not be the input `sigma_8`.
+
+        Filters whose shape depends on the physical peak height (i.e.
+        :class:`~hmf.density_field.filters.SharpKEllipsoid`) are also given
+        :attr:`delta_c` and the factor converting their :math:`\sigma` to the
+        normalised :math:`\sigma` at redshift `z`.
         """
-        return self.filter_model(self.k, self._unnormalised_power, **self.filter_params)
+        kwargs = {}
+        if issubclass(self.filter_model, SharpKEllipsoid):
+            if clash := {"delta_c", "sigma_scale"} & set(self.filter_params):
+                raise ValueError(
+                    f"{sorted(clash)} cannot be set in filter_params: the filter's delta_c "
+                    "and sigma_scale are set by the MassFunction (use its delta_c instead)."
+                )
+            kwargs = {
+                "delta_c": self.delta_c,
+                "sigma_scale": self._normalisation * self.growth_factor,
+            }
+        return self.filter_model(self.k, self._unnormalised_power, **kwargs, **self.filter_params)
 
     @cached_quantity
     def halo_overdensity_mean(self):
@@ -540,7 +556,9 @@ class MassFunction(transfer.Transfer):
             ngtm_tinker = self._gtm(dndm)
 
             # THe Behroozi paper corrections assume masses in Msun, not Msun/h
-            dndm = self.hmf._modify_dndm(self.m / self.cosmo.h, dndm, self.z, ngtm_tinker)
+            dndm = self.hmf._modify_dndm(
+                self.m / self.cosmo.h, dndm, self.z, ngtm_tinker, h=self.cosmo.h
+            )
 
         # Alter the mass definition
         if (
