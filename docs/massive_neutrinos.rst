@@ -110,8 +110,9 @@ The normalisation: ``sigma_8_species``
     ``"cb"``, ``hmf`` normalises :math:`P_{\rm cb}` so that the total matter field from
     the same transfer model has the given :math:`\sigma_8`. The resulting
     :math:`\sigma_{8,\rm cb}` is slightly larger than :math:`\sigma_8`, by at most a
-    factor :math:`1/(1 - f_\nu)`. This needs a second transfer calculation (with CAMB,
-    a second CAMB run), unless the neutrinos are massless. If your value of
+    factor :math:`1/(1 - f_\nu)`. This needs the transfer function of a second field,
+    unless the neutrinos are massless. With CAMB this costs no extra CAMB run, since
+    one run gives both fields; other models compute it separately. If your value of
     :math:`\sigma_8` is for the CDM+baryon field (e.g. from a simulation), set
     ``sigma_8_species="cb"``.
 

@@ -260,7 +260,11 @@ if HAVE_CAMB:
 
             # Save the CAMB object properly for use
             # Set the cosmology
-            if self.params["camb_params"] is None:
+            if self.params["camb_params"] is not None:
+                # Work on our own copy: we set the cosmology on it below, and must not
+                # change (or share state with) the caller's object.
+                self.params["camb_params"] = self.params["camb_params"].copy()
+            else:
                 self.params["camb_params"] = camb.CAMBparams(
                     DoLensing=False,
                     Want_CMB=False,
@@ -287,6 +291,28 @@ if HAVE_CAMB:
                     "If using CAMB, the CMB temperature must be set explicitly in the cosmology."
                 )
 
+            self._set_camb_cosmology()
+
+            # Results of CAMB runs, keyed on the full state of the CAMBparams. Shared
+            # with the component made for the sigma_8 species (see
+            # :meth:`_share_camb_results`), since one run gives every species.
+            self._camb_results = {}
+
+            if self.params["extrapolate_with_eh"] is None:
+                warnings.warn(
+                    "'extrapolate_with_eh' was not set. Defaulting to True, which is "
+                    "different behaviour than versions <=3.4.4. This warning may be "
+                    "removed in v4.0. Silence it by setting extrapolate_with_eh explicitly.",
+                    stacklevel=2,
+                )
+                self.params["extrapolate_with_eh"] = True
+
+            if self.params["extrapolate_with_eh"]:
+                # Create an EH transfer to extrapolate to at high k.
+                self._eh = EH(self.cosmo)
+
+        def _set_camb_cosmology(self):
+            """Set the cosmology (and transfer output) of the CAMBparams from ``cosmo``."""
             self.params["camb_params"].set_cosmology(
                 H0=self.cosmo.H0.value,
                 ombh2=self.cosmo.Ob0 * self.cosmo.h**2,
@@ -306,18 +332,29 @@ if HAVE_CAMB:
             elif isinstance(self.cosmo, cosmology.w0waCDM):
                 self.params["camb_params"].set_dark_energy(w=self.cosmo.w0, wa=self.cosmo.wa)
 
-            if self.params["extrapolate_with_eh"] is None:
-                warnings.warn(
-                    "'extrapolate_with_eh' was not set. Defaulting to True, which is "
-                    "different behaviour than versions <=3.4.4. This warning may be "
-                    "removed in v4.0. Silence it by setting extrapolate_with_eh explicitly.",
-                    stacklevel=2,
-                )
-                self.params["extrapolate_with_eh"] = True
+        def _share_camb_results(self, other: "CAMB") -> None:
+            """
+            Let ``other`` reuse this component's CAMB runs (and vice versa).
 
-            if self.params["extrapolate_with_eh"]:
-                # Create an EH transfer to extrapolate to at high k.
-                self._eh = EH(self.cosmo)
+            Results are keyed on the full state of the CAMBparams, so sharing is always
+            safe: ``other`` only reuses a run made with exactly its own CAMB inputs.
+            A single run computes every matter species, so this lets e.g. the
+            component normalising ``sigma_8`` avoid a second run.
+
+            Parameters
+            ----------
+            other : :class:`CAMB`
+                The component to share results with.
+            """
+            other._camb_results = self._camb_results
+
+        def _transfer_data(self) -> np.ndarray:
+            """CAMB's matter transfer data, running CAMB only for new inputs."""
+            key = repr(self.params["camb_params"])
+            if key not in self._camb_results:
+                camb_transfers = camb.get_transfer_functions(self.params["camb_params"])
+                self._camb_results[key] = camb_transfers.get_matter_transfer_data().transfer_data
+            return self._camb_results[key]
 
         def lnt(self, lnk):
             r"""
@@ -333,8 +370,7 @@ if HAVE_CAMB:
             lnt : array_like
                 The log of the transfer function at lnk.
             """
-            camb_transfers = camb.get_transfer_functions(self.params["camb_params"])
-            T = camb_transfers.get_matter_transfer_data().transfer_data
+            T = self._transfer_data()
             col = _CAMB_FILE_COLUMNS[self.params["matter_species"]]
             T = np.log(T[[camb.model.Transfer_kh - 1, col], :, 0])
 
@@ -455,7 +491,10 @@ if HAVE_CAMB:
                 if key != "params":
                     this[key] = deepcopy(val)
 
-            this["params"] = {"camb_params": dct}
+            this["params"] = {
+                key: (dct if key == "camb_params" else deepcopy(val))
+                for key, val in self.params.items()
+            }
 
             return this
 
@@ -464,6 +503,11 @@ if HAVE_CAMB:
             self.__dict__ = state
 
             self.params["camb_params"] = camb.CAMBparams(**self.params["camb_params"])
+            # Not all of the CAMBparams state can be saved (e.g. the neutrino mass
+            # fractions), so set the cosmology again to make it consistent.
+            self._set_camb_cosmology()
+            # States saved before CAMB results were memoised don't have them.
+            self.__dict__.setdefault("_camb_results", {})
 
 
 class FromArray(FromFile):

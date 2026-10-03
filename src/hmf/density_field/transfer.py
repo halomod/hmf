@@ -165,7 +165,8 @@ class Transfer(cosmo.Cosmology):
         This has no effect with massless neutrinos (the fields are then identical) or
         for transfer models that don't distinguish the two fields (i.e. have no
         ``matter_species`` parameter, like ``EH`` or ``BBKS``). Otherwise, normalising
-        a field other than the computed one needs a second transfer calculation. See
+        a field other than the computed one needs that field's transfer function too.
+        With ``CAMB`` this reuses the same CAMB run, which gives both fields. See
         :doc:`/massive_neutrinos`.
 
         :type: str or None
@@ -277,9 +278,13 @@ class Transfer(cosmo.Cosmology):
             or self.transfer.params.get("matter_species", species) == species
         ):
             return self.transfer
-        return self.transfer_model(
+        transfer = self.transfer_model(
             self.cosmo, **{**self.transfer.params, "matter_species": species}
         )
+        # One CAMB run computes every species, so reuse the run made for self.transfer.
+        if HAVE_CAMB and isinstance(self.transfer, tm.CAMB):
+            self.transfer._share_camb_results(transfer)
+        return transfer
 
     @cached_quantity
     def _unn_sig8(self):
