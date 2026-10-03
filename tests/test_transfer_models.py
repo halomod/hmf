@@ -317,3 +317,19 @@ def test_camb_getstate_keeps_neutrino_species():
     p, q = model.params["camb_params"], restored.params["camb_params"]
     assert q.nu_mass_eigenstates == p.nu_mass_eigenstates == 3
     np.testing.assert_allclose(q.nu_mass_fractions[:3], p.nu_mass_fractions[:3], rtol=1e-12)
+
+
+def test_boltzmann_transfer_subclass_must_implement_run(base_cosmo):
+    """A Boltzmann-code model must say how to run its code and identify its runs."""
+
+    class Incomplete(transfer_models._BoltzmannTransfer, abstract=True):
+        _defaults = {"extrapolate_with_eh": False, "matter_species": "cb"}  # noqa: RUF012
+
+    model = Incomplete(base_cosmo)
+    with pytest.raises(NotImplementedError):
+        model._results_key()
+    with pytest.raises(NotImplementedError):
+        model._compute_transfers()
+    with pytest.raises(NotImplementedError):
+        model.lnt(np.log(np.array([0.1, 1.0])))
+    assert "Incomplete" not in transfer_models.TransferComponent.get_models()

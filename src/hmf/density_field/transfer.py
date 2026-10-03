@@ -16,7 +16,7 @@ from ..cosmology import cosmo
 from ..density_field import filters
 from ..density_field import transfer_models as tm
 from .halofit import halofit as _hfit
-from .transfer_models import HAVE_CAMB
+from .transfer_models import HAVE_CAMB, HAVE_CLASS
 
 
 class Transfer(cosmo.Cosmology):
@@ -120,12 +120,18 @@ class Transfer(cosmo.Cosmology):
         Defines which transfer function model to use.
 
         Built-in available models are found in the :mod:`hmf.transfer_models` module.
-        Default is CAMB if installed, otherwise EH.
+        Default is CAMB if installed, otherwise EH. ``"CLASS"`` needs the optional
+        ``classy`` package (``pip install hmf[class]``).
 
         :type: str or :class:`hmf.transfer_models.TransferComponent` subclass, optional
         """
         if not HAVE_CAMB and val in ["CAMB", tm.CAMB]:
             raise ValueError("You cannot use the CAMB transfer since pycamb isn't installed")
+        if not HAVE_CLASS and val in ["CLASS", tm.CLASS]:
+            raise ValueError(
+                "You cannot use the CLASS transfer since classy isn't installed. "
+                "Install it with `pip install hmf[class]`."
+            )
         return get_mdl(val, "TransferComponent")
 
     @parameter("param")
@@ -166,7 +172,7 @@ class Transfer(cosmo.Cosmology):
         for transfer models that don't distinguish the two fields (i.e. have no
         ``matter_species`` parameter, like ``EH`` or ``BBKS``). Otherwise, normalising
         a field other than the computed one needs that field's transfer function too.
-        With ``CAMB`` this reuses the same CAMB run, which gives both fields. See
+        With ``CAMB`` or ``CLASS`` this reuses the same run, which gives both fields. See
         :doc:`/massive_neutrinos`.
 
         :type: str or None
@@ -281,9 +287,10 @@ class Transfer(cosmo.Cosmology):
         transfer = self.transfer_model(
             self.cosmo, **{**self.transfer.params, "matter_species": species}
         )
-        # One CAMB run computes every species, so reuse the run made for self.transfer.
-        if HAVE_CAMB and isinstance(self.transfer, tm.CAMB):
-            self.transfer._share_camb_results(transfer)
+        # One run of a Boltzmann code (e.g. CAMB) computes every species, so reuse the
+        # run made for self.transfer.
+        if isinstance(self.transfer, tm._BoltzmannTransfer):
+            self.transfer._share_results(transfer)
         return transfer
 
     @cached_quantity

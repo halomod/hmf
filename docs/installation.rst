@@ -18,6 +18,17 @@ have a fortran compiler on your system path. If using ``gcc``, the version needs
 greater than v6.
 
 
+Using CLASS
+-----------
+To use the `CLASS <https://class-code.net>`_ Boltzmann code for the transfer function
+(``transfer_model="CLASS"``), you need its Python wrapper, ``classy``, which is not
+installed by default (nor by ``hmf[extra]``). Install it with::
+
+    pip install hmf[class]
+
+``classy`` is compiled from source on most platforms, which needs a C compiler
+(``gcc``).
+
 User Install
 ------------
 You may install the latest release of ``hmf`` using ``pip``::
