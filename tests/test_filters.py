@@ -10,6 +10,7 @@ import warnings
 import numpy as np
 import pytest
 from numpy import cos, pi, sin
+from scipy.integrate import quad
 
 from hmf.density_field import filters
 
@@ -301,3 +302,147 @@ class TestSharpKEllipsoid:
         assert np.isfinite(spline(a3)).all()
         assert np.isfinite(cls.dlnss_dlnr(r)).all()
         assert np.isfinite(cls.dlnr_dlnm(r)).all()
+
+
+def _smoothk_moment(beta, p, R):
+    r"""Reference :math:`\int_0^\infty x^p W(x)^2 dx / R^{p+1}` for the smooth-k filter.
+
+    Split at x=1 and use the x^{-beta} form above it to avoid overflow.
+    """
+    lo = quad(lambda x: x**p / (1 + x**beta) ** 2, 0, 1, epsabs=0, epsrel=1e-12, limit=500)
+    hi = quad(
+        lambda x: x**p * (x**-beta / (1 + x**-beta)) ** 2,
+        1,
+        np.inf,
+        epsabs=0,
+        epsrel=1e-12,
+        limit=500,
+    )
+    return (lo[0] + hi[0]) / R ** (p + 1)
+
+
+def _smoothk_dmoment(beta, p, R):
+    r"""Reference :math:`\int_0^\infty x^p W dW/d\ln x\, dx / R^{p+1}` for smooth-k."""
+
+    def integrand_lo(x):
+        w = 1 / (1 + x**beta)
+        return -beta * x**p * w**2 * (1 - w)
+
+    def integrand_hi(x):
+        w = x**-beta / (1 + x**-beta)
+        return -beta * x**p * w**2 * (1 - w)
+
+    lo = quad(integrand_lo, 0, 1, epsabs=0, epsrel=1e-12, limit=500)
+    hi = quad(integrand_hi, 1, np.inf, epsabs=0, epsrel=1e-12, limit=500)
+    return (lo[0] + hi[0]) / R ** (p + 1)
+
+
+class TestSmoothK:
+    @pytest.fixture(scope="class")
+    def cls(self):
+        # k_max must be large: the sigma_1 integrand only falls as (kR)^(-2.6) per ln k.
+        k = np.logspace(-6, 4, 10000)
+        pk = k**2
+        return filters.SmoothK(k, pk)
+
+    def test_defaults(self, cls):
+        assert cls.params["beta"] == 4.8
+        assert cls.params["c"] == 3.3
+
+    def test_k_space(self, cls):
+        kr = np.array([0.0, 1e-3, 0.5, 1.0, 2.0, 10.0])
+        assert np.allclose(cls.k_space(kr), 1 / (1 + kr**4.8), rtol=1e-12, atol=0)
+        assert cls.k_space(np.array([1.0]))[0] == 0.5
+
+    def test_k_space_large_beta_no_overflow(self):
+        f = filters.SmoothK(np.array([1.0]), np.array([1.0]), beta=1000)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            w = f.k_space(np.array([0.0, 0.5, 1e3]))
+            dw = f.dw_dlnkr(np.array([0.0, 0.5, 1e3]))
+        assert np.allclose(w, [1.0, 1.0, 0.0])
+        assert np.all(np.isfinite(dw))
+
+    def test_dwdlnkr(self, cls):
+        x = np.array([0.1, 0.5, 1.0, 2.0, 5.0])
+        h = 1e-4
+        fd = (cls.k_space(x * np.exp(h)) - cls.k_space(x * np.exp(-h))) / (2 * h)
+        # Central difference: O(h^2) truncation plus roundoff where W ~ 1.
+        assert np.allclose(cls.dw_dlnkr(x), fd, rtol=1e-6, atol=0)
+        b = 4.8
+        assert np.allclose(cls.dw_dlnkr(x), -b * x**b / (1 + x**b) ** 2, rtol=1e-12)
+
+    @pytest.mark.parametrize("R", [1.0, 3.0])
+    def test_sigma(self, cls, R):
+        # P(k) = k^2, so sigma^2 = 1/(2 pi^2) int k^4 W^2 dk.
+        true = _smoothk_moment(4.8, 4, R) / (2 * pi**2)
+        assert np.isclose(cls.sigma(R)[0] ** 2, true, rtol=1e-6, atol=0)
+
+    @pytest.mark.parametrize("R", [1.0, 3.0])
+    def test_sigma1(self, cls, R):
+        true = _smoothk_moment(4.8, 6, R) / (2 * pi**2)
+        assert np.isclose(cls.sigma(R, 1)[0] ** 2, true, rtol=1e-6, atol=0)
+
+    @pytest.mark.parametrize("R", [1.0, 3.0])
+    def test_dlnssdlnr(self, cls, R):
+        true = _smoothk_dmoment(4.8, 4, R) / _smoothk_moment(4.8, 4, R) * 2
+        # For a pure power law P ~ k^n this is exactly -(n+3) for any filter shape.
+        assert np.isclose(true, -5.0, rtol=1e-8)
+        assert np.isclose(cls.dlnss_dlnr(R)[0], true, rtol=1e-6, atol=0)
+
+    def test_mass_radius_roundtrip(self, cls):
+        rho = 2.5
+        m = np.array([1.0e10, 1.0e12, 1.0e14])
+        r = cls.mass_to_radius(m, rho)
+        assert np.allclose(cls.radius_to_mass(r, rho), m, rtol=1e-12)
+        assert np.allclose(r, (3 * m / (4 * pi * rho)) ** (1 / 3) / 3.3, rtol=1e-12)
+
+    def test_dlnr_dlnm(self, cls):
+        r = np.array([0.5, 1.0])
+        assert np.allclose(cls.dlnss_dlnm(r), cls.dlnss_dlnr(r) / 3.0)
+
+    def test_real_space_bad_beta(self):
+        f = filters.SmoothK(np.array([1.0]), np.array([1.0]), beta=1.0)
+        with pytest.raises(ValueError, match="beta > 1"):
+            f.real_space(1.0, np.array([1.0]))
+
+
+class TestSmoothKSharpKLimit:
+    """As beta -> infinity, SmoothK tends to SharpK (Leo et al. 2018, fig. 2)."""
+
+    @pytest.fixture(scope="class")
+    def filts(self):
+        k = np.logspace(-6, 2, 10000)
+        pk = k**2
+        return (
+            filters.SmoothK(k, pk, beta=100, c=2.5),
+            filters.SharpK(k, pk, c=2.5),
+        )
+
+    def test_sigma_m(self, filts):
+        smooth, sharp = filts
+        rho = 1.0
+        m = sharp.radius_to_mass(np.logspace(0, 1.5, 7), rho)
+        s_smooth = smooth.sigma(smooth.mass_to_radius(m, rho))
+        s_sharp = sharp.sigma(sharp.mass_to_radius(m, rho))
+        # With P ~ k^n the ratio is scale-free. To leading order in 1/beta,
+        # sigma_smooth/sigma_sharp - 1 = -(n+3)/(2 beta), i.e. -2.5% for n=2,
+        # beta=100. The measured offset is -2.33% at every mass, so 3% is the
+        # tolerance. (n=2 is a harsh case: realistic spectra have n+3 < 5.)
+        assert np.allclose(s_smooth, s_sharp, rtol=0.03, atol=0)
+        assert np.all(s_smooth < s_sharp)
+
+    def test_real_space(self, filts):
+        smooth, sharp = filts
+        r = np.array([0.5, 1.0, 2.0, 5.0])
+        # Measured agreement is ~0.15%.
+        assert np.allclose(smooth.real_space(1.0, r), sharp.real_space(1.0, r), rtol=5e-3)
+
+
+def test_smoothk_in_mass_function():
+    from hmf import MassFunction
+
+    mf = MassFunction(filter_model="SmoothK", transfer_params={"extrapolate_with_eh": True})
+    assert isinstance(mf.filter, filters.SmoothK)
+    assert np.all(np.isfinite(mf.dndm))
+    assert np.all(mf.dndm > 0)
