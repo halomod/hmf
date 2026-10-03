@@ -217,7 +217,7 @@ class GrowthFactor(BaseGrowthFactor):
 
     """
 
-    references: ClassVar[tuple[str, ...]] = (refs.EH97, refs.HEATH77)
+    references: ClassVar[tuple[str, ...]] = (refs.EH97, refs.HEATH77, refs.PEEBLES80)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -318,6 +318,8 @@ class ODEGrowthFactor(BaseGrowthFactor):
     time the solution is calculated. The default values should be sufficient for most
     cosmologies.
     """
+
+    references: ClassVar[tuple[str, ...]] = (refs.PEEBLES80,)
 
     @cached_property
     def _ode_solution(self):
@@ -426,6 +428,8 @@ class IntegralGrowthFactor(BaseGrowthFactor):
 
     .. math:: \frac{d\ln D^+}{d\ln a} = dlnH/dln(a) + 2.5 \frac{\Omega_m(a)}{a^2 H^2(a) D^+(a)}.
     """
+
+    references: ClassVar[tuple[str, ...]] = (refs.HEATH77,)
 
     def _validate_assumptions(self, z: float | np.ndarray):
 
@@ -704,6 +708,8 @@ class GenMFGrowth(BaseGrowthFactor):
         :dz: Step-size for redshift integration
         :zmax: Maximum redshift to integrate to. Only used for :meth:`growth_factor_fn`.
     """
+
+    references: ClassVar[tuple[str, ...]] = (refs.REED07,)
 
     def _validate_assumptions(self, z):
         if not isinstance(self.cosmo, cosmology.LambdaCDM):

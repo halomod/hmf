@@ -824,6 +824,8 @@ class BondEfs(TransferComponent):
     .. math:: \alpha = \frac{0.3\times 0.75^2}{\Omega_{m,0} h^2}.
     """
 
+    references: ClassVar[tuple[str, ...]] = (refs.BE84,)
+
     _defaults: ClassVar[dict[str, float]] = {"a": 37.1, "b": 21.1, "c": 10.8, "nu": 1.12}
 
     def lnt(self, lnk):

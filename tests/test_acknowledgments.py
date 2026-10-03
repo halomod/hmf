@@ -202,3 +202,25 @@ def test_component_without_references():
 
     assert NoRefs.references == ()
     assert _Inner(sub_model=NoRefs).get_acknowledgments() == [HMF_REFERENCE, "Inner, I., 2000."]
+
+
+# Generic methods or user-supplied data, which have nothing to cite.
+_UNCITED_MODELS = {
+    "BaseGrowthFactor": {"FromFile", "FromArray"},
+    "BaseFilter": {"TopHat", "Gaussian", "SharpK"},
+    "TransferComponent": {"FromFile", "FromArray"},
+    "BaseMassDefinition": {"SphericalOverdensity", "SOGeneric", "SOMean", "SOCritical"},
+}
+
+
+def test_every_model_has_references():
+    import hmf.alternatives.wdm  # noqa: F401  (registers the WDM models)
+    from hmf._internals._framework import get_base_components
+
+    missing = [
+        f"{base.__name__}.{name}"
+        for base in get_base_components()
+        for name, model in getattr(base, "_plugins", {}).items()
+        if not model.references and name not in _UNCITED_MODELS.get(base.__name__, set())
+    ]
+    assert missing == []

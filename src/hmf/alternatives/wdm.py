@@ -12,6 +12,7 @@ from typing import ClassVar, override
 import astropy.units as u
 import numpy as np
 
+from .._internals import _references as refs
 from .._internals._cache import cached_quantity, parameter
 from .._internals._framework import Component, get_mdl, pluggable
 from ..cosmology.cosmo import Planck15
@@ -101,6 +102,8 @@ class Viel05(WDM):
         :g_x:
     """
 
+    references: ClassVar[tuple[str, ...]] = (refs.VIEL05,)
+
     _defaults: ClassVar[dict[str, float]] = {"mu": 1.12, "g_x": 1.5}
 
     def transfer(self, k):
@@ -157,6 +160,8 @@ class Viel05(WDM):
 class Bode01(Viel05):
     """The WDM model of Bode et al. (2001)."""
 
+    references: ClassVar[tuple[str, ...]] = (refs.BODE01,)
+
 
 viel_model = Viel05(mx=1.0)
 
@@ -210,6 +215,8 @@ class Schneider12_vCDM(WDMRecalibrateMF):
         class attribute.
     """
 
+    references: ClassVar[tuple[str, ...]] = (refs.SCHNEIDER12,)
+
     _defaults: ClassVar[dict[str, float]] = {"beta": 1.16}
 
     @override
@@ -235,6 +242,8 @@ class Schneider12(WDMRecalibrateMF):
         class attribute.
     """
 
+    references: ClassVar[tuple[str, ...]] = (refs.SCHNEIDER12,)
+
     _defaults: ClassVar[dict[str, float]] = {"alpha": 0.6}
 
     @override
@@ -259,6 +268,8 @@ class Lovell14(WDMRecalibrateMF):
         To see the default values, check the :attr:`_defaults`
         class attribute.
     """
+
+    references: ClassVar[tuple[str, ...]] = (refs.LOVELL14,)
 
     _defaults: ClassVar[dict[str, float]] = {"beta": 0.99, "gamma": 2.7}
 
