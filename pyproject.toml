@@ -48,7 +48,10 @@ cosmo = [
 fit = [
     "emcee>=3.0"
 ]
-extra = ["hmf[cosmo,fit]"]
+class = [
+    "classy>=3.2"
+]
+extra = ["hmf[cosmo,fit,class]"]
 
 [dependency-groups]
 docs = [

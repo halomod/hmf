@@ -24,7 +24,14 @@ try:
 except ImportError:  # pragma: no cover
     HAVE_CAMB = False
 
-_allfits = ["CAMB", "FromFile", "EH_BAO", "EH_NoBAO", "BBKS", "BondEfs"]
+try:
+    import classy
+
+    HAVE_CLASS = True
+except ImportError:  # pragma: no cover
+    HAVE_CLASS = False
+
+_allfits = ["CAMB", "CLASS", "FromFile", "EH_BAO", "EH_NoBAO", "BBKS", "BondEfs"]
 
 # Zero-based columns of a CAMB transfer-function output file for each matter species.
 # These are also the rows of CAMB's ``MatterTransferData.transfer_data``: CAMB's
@@ -178,9 +185,150 @@ class FromFile(TransferComponent):
         return Spline(lnkout, lnT, k=1)(lnk)
 
 
+class _BoltzmannTransfer(FromFile, abstract=True):
+    r"""
+    Shared machinery for transfer models computed by a Boltzmann code (CAMB, CLASS).
+
+    Subclasses compute the transfer function on the code's own grid of wavenumbers
+    (see :meth:`_compute_transfers`), and this class turns that into ``lnt``: it
+    removes spurious low-k features, normalises the transfer function to unity at
+    low k and, if ``extrapolate_with_eh`` is set, extrapolates it beyond the code's
+    maximum wavenumber with the shape of the :class:`EH` fit. The results of a run
+    are cached, keyed on the code's full input, and can be shared between components
+    (see :meth:`_share_results`), since one run gives every matter species.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._validate_cosmology()
+        self.params["matter_species"] = resolve_matter_species(
+            self.params["matter_species"], self.cosmo, type(self).__name__
+        )
+
+        # Results of runs of the Boltzmann code, keyed on its full input.
+        self._results: dict[str, dict[str, np.ndarray]] = {}
+
+    def _validate_cosmology(self) -> None:
+        """Raise an error if the Boltzmann code cannot compute ``cosmo``."""
+        name = type(self).__name__
+        if not isinstance(self.cosmo, (cosmology.LambdaCDM, cosmology.wCDM, cosmology.w0waCDM)):
+            # Kept as ValueError (not TypeError): part of the public API contract,
+            # asserted verbatim by
+            # tests/test_transfer_models.py::test_camb_rejects_non_lcdm_cosmology.
+            raise ValueError(f"{name} will only work with LCDM or wCDM cosmologies")  # noqa: TRY004
+
+        if self.cosmo.Ob0 is None or self.cosmo.Ob0 == 0.0:
+            raise ValueError(
+                f"To use {name}, you must set the baryon density in the cosmology explicitly."
+            )
+
+        if self.cosmo.Tcmb0.value == 0:
+            raise ValueError(
+                f"If using {name}, the CMB temperature must be set explicitly in the cosmology."
+            )
+
+    def _setup_extrapolation(self) -> None:
+        """Create the EH transfer used to extrapolate to high k, if requested."""
+        if self.params["extrapolate_with_eh"]:
+            self._eh = EH(self.cosmo)
+
+    def _results_key(self) -> str:
+        """A string identifying the full input of a run of the Boltzmann code."""
+        raise NotImplementedError
+
+    def _compute_transfers(self) -> dict[str, np.ndarray]:
+        """
+        Run the Boltzmann code.
+
+        Returns
+        -------
+        dict
+            The wavenumbers, ``"kh"`` [h/Mpc], and the (un-normalised) transfer
+            function of each species in :data:`~hmf._internals._utils.MATTER_SPECIES`
+            on those wavenumbers.
+        """
+        raise NotImplementedError
+
+    def _transfers(self) -> dict[str, np.ndarray]:
+        """The transfer functions of all species, running the code only for new inputs."""
+        key = self._results_key()
+        if key not in self._results:
+            self._results[key] = self._compute_transfers()
+        return self._results[key]
+
+    def _share_results(self, other: "_BoltzmannTransfer") -> None:
+        """
+        Let ``other`` reuse this component's runs of the Boltzmann code (and vice versa).
+
+        Results are keyed on the full input of the code, so sharing is always safe:
+        ``other`` only reuses a run made with exactly its own inputs. A single run
+        computes every matter species, so this lets e.g. the component normalising
+        ``sigma_8`` avoid a second run.
+
+        Parameters
+        ----------
+        other
+            The component to share results with. It must be of the same type.
+        """
+        if type(other) is not type(self):
+            raise TypeError(
+                f"Can only share results with another {type(self).__name__}, "
+                f"not {type(other).__name__}."
+            )
+        other._results = self._results
+
+    def lnt(self, lnk):
+        r"""
+        Natural log of the transfer function.
+
+        Parameters
+        ----------
+        lnk : array_like
+            Wavenumbers [Mpc/h]
+
+        Returns
+        -------
+        lnt : array_like
+            The log of the transfer function at lnk.
+        """
+        transfers = self._transfers()
+        T = np.log([transfers["kh"], transfers[self.params["matter_species"]]])
+
+        if lnk[0] < T[0, 0]:
+            lnkout, lnT = self._check_low_k(T[0, :], T[1, :], lnk[0])
+        else:
+            lnkout = T[0, :]
+            lnT = T[1, :]
+
+        lnT -= lnT[0]
+
+        if not self.params["extrapolate_with_eh"]:
+            return Spline(lnkout, lnT, k=1)(lnk)
+
+        # Now add a point one e-fold above the max, with an EH-generated transfer
+        lnkout = np.concatenate((lnkout, [lnkout[-1] + 1]))
+        # normalise EH at the final point computed by the Boltzmann code.
+        norm = self._eh.lnt(lnkout[-2]) - lnT[-1]
+        lnT = np.concatenate((lnT, [self._eh.lnt(lnkout[-1]) - norm]))
+
+        lnkmin = lnkout.min()
+        lnkmax = lnkout.max()
+
+        inner_spline = Spline(lnkout, lnT, k=3)
+
+        out = np.zeros_like(lnk)
+        out[lnk < lnkmin] = 0
+        out[(lnkmin <= lnk) & (lnk <= lnkmax)] = inner_spline(
+            lnk[(lnkmin <= lnk) & (lnk <= lnkmax)]
+        )
+        out[lnk >= lnkmax] = self._eh.lnt(lnk[lnk >= lnkmax]) - norm
+
+        return out
+
+
 if HAVE_CAMB:
 
-    class CAMB(FromFile):
+    class CAMB(_BoltzmannTransfer):
         r"""
         Transfer function computed by CAMB.
 
@@ -245,16 +393,6 @@ if HAVE_CAMB:
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
 
-            if not isinstance(self.cosmo, (cosmology.LambdaCDM, cosmology.wCDM, cosmology.w0waCDM)):
-                # Kept as ValueError (not TypeError): part of the public API contract,
-                # asserted verbatim by
-                # tests/test_transfer_models.py::test_camb_rejects_non_lcdm_cosmology.
-                raise ValueError("CAMB will only work with LCDM or wCDM cosmologies")  # noqa: TRY004
-
-            self.params["matter_species"] = resolve_matter_species(
-                self.params["matter_species"], self.cosmo, "CAMB"
-            )
-
             # Save the CAMB object properly for use
             # Set the cosmology
             if self.params["camb_params"] is not None:
@@ -278,22 +416,7 @@ if HAVE_CAMB:
                 if self.params["kmax"]:
                     self.params["camb_params"].Transfer.kmax = self.params["kmax"]
 
-            if self.cosmo.Ob0 is None or self.cosmo.Ob0 == 0.0:
-                raise ValueError(
-                    "To use CAMB, you must set the baryon density in the cosmology explicitly."
-                )
-
-            if self.cosmo.Tcmb0.value == 0:
-                raise ValueError(
-                    "If using CAMB, the CMB temperature must be set explicitly in the cosmology."
-                )
-
             self._set_camb_cosmology()
-
-            # Results of CAMB runs, keyed on the full state of the CAMBparams. Shared
-            # with the component made for the sigma_8 species (see
-            # :meth:`_share_camb_results`), since one run gives every species.
-            self._camb_results = {}
 
             if self.params["extrapolate_with_eh"] is None:
                 warnings.warn(
@@ -304,9 +427,7 @@ if HAVE_CAMB:
                 )
                 self.params["extrapolate_with_eh"] = True
 
-            if self.params["extrapolate_with_eh"]:
-                # Create an EH transfer to extrapolate to at high k.
-                self._eh = EH(self.cosmo)
+            self._setup_extrapolation()
 
         def _set_camb_cosmology(self):
             """Set the cosmology (and transfer output) of the CAMBparams from ``cosmo``."""
@@ -329,77 +450,16 @@ if HAVE_CAMB:
             elif isinstance(self.cosmo, cosmology.w0waCDM):
                 self.params["camb_params"].set_dark_energy(w=self.cosmo.w0, wa=self.cosmo.wa)
 
-        def _share_camb_results(self, other: "CAMB") -> None:
-            """
-            Let ``other`` reuse this component's CAMB runs (and vice versa).
+        def _results_key(self) -> str:
+            """The full state of the CAMBparams, which identifies a CAMB run."""
+            return repr(self.params["camb_params"])
 
-            Results are keyed on the full state of the CAMBparams, so sharing is always
-            safe: ``other`` only reuses a run made with exactly its own CAMB inputs.
-            A single run computes every matter species, so this lets e.g. the
-            component normalising ``sigma_8`` avoid a second run.
-
-            Parameters
-            ----------
-            other : :class:`CAMB`
-                The component to share results with.
-            """
-            other._camb_results = self._camb_results
-
-        def _transfer_data(self) -> np.ndarray:
-            """CAMB's matter transfer data, running CAMB only for new inputs."""
-            key = repr(self.params["camb_params"])
-            if key not in self._camb_results:
-                camb_transfers = camb.get_transfer_functions(self.params["camb_params"])
-                self._camb_results[key] = camb_transfers.get_matter_transfer_data().transfer_data
-            return self._camb_results[key]
-
-        def lnt(self, lnk):
-            r"""
-            Natural log of the transfer function.
-
-            Parameters
-            ----------
-            lnk : array_like
-                Wavenumbers [Mpc/h]
-
-            Returns
-            -------
-            lnt : array_like
-                The log of the transfer function at lnk.
-            """
-            T = self._transfer_data()
-            col = _CAMB_FILE_COLUMNS[self.params["matter_species"]]
-            T = np.log(T[[camb.model.Transfer_kh - 1, col], :, 0])
-
-            if lnk[0] < T[0, 0]:
-                lnkout, lnT = self._check_low_k(T[0, :], T[1, :], lnk[0])
-            else:
-                lnkout = T[0, :]
-                lnT = T[1, :]
-
-            lnT -= lnT[0]
-
-            if not self.params["extrapolate_with_eh"]:
-                return Spline(lnkout, lnT, k=1)(lnk)
-
-            # Now add a point one e-fold above the max, with an EH-generated transfer
-            lnkout = np.concatenate((lnkout, [lnkout[-1] + 1]))
-            # normalise EH at the final CAMB point.
-            norm = self._eh.lnt(lnkout[-2]) - lnT[-1]
-            lnT = np.concatenate((lnT, [self._eh.lnt(lnkout[-1]) - norm]))
-
-            lnkmin = lnkout.min()
-            lnkmax = lnkout.max()
-
-            inner_spline = Spline(lnkout, lnT, k=3)
-
-            out = np.zeros_like(lnk)
-            out[lnk < lnkmin] = 0
-            out[(lnkmin <= lnk) & (lnk <= lnkmax)] = inner_spline(
-                lnk[(lnkmin <= lnk) & (lnk <= lnkmax)]
-            )
-            out[lnk >= lnkmax] = self._eh.lnt(lnk[lnk >= lnkmax]) - norm
-
+        def _compute_transfers(self) -> dict[str, np.ndarray]:
+            """Run CAMB, returning the transfer function of every matter species."""
+            camb_transfers = camb.get_transfer_functions(self.params["camb_params"])
+            T = camb_transfers.get_matter_transfer_data().transfer_data
+            out = {"kh": T[camb.model.Transfer_kh - 1, :, 0]}
+            out.update({sp: T[col, :, 0] for sp, col in _CAMB_FILE_COLUMNS.items()})
             return out
 
         def __getstate__(self):
@@ -503,8 +563,222 @@ if HAVE_CAMB:
             # Not all of the CAMBparams state can be saved (e.g. the neutrino mass
             # fractions), so set the cosmology again to make it consistent.
             self._set_camb_cosmology()
-            # States saved before CAMB results were memoised don't have them.
-            self.__dict__.setdefault("_camb_results", {})
+            # States saved before CAMB results were memoised don't have them, and older
+            # states memoised CAMB's raw transfer data, under another name.
+            self.__dict__.pop("_camb_results", None)
+            self.__dict__.setdefault("_results", {})
+
+
+# CLASS input parameters that describe the background cosmology (including aliases),
+# which must come from the astropy cosmology, or that the CLASS model relies on.
+_CLASS_FIXED_PARAMS = frozenset(
+    {
+        "h",
+        "H0",
+        "100*theta_s",
+        "theta_s_100",
+        "omega_b",
+        "Omega_b",
+        "omega_cdm",
+        "Omega_cdm",
+        "omega_m",
+        "Omega_m",
+        "Omega_k",
+        "T_cmb",
+        "Omega_g",
+        "omega_g",
+        "N_ur",
+        "Omega_ur",
+        "omega_ur",
+        "N_ncdm",
+        "m_ncdm",
+        "deg_ncdm",
+        "T_ncdm",
+        "Omega_ncdm",
+        "omega_ncdm",
+        "Omega_Lambda",
+        "Omega_fld",
+        "w0_fld",
+        "wa_fld",
+        "Omega_scf",
+        "gauge",
+    }
+)
+
+
+def class_cosmology(cosmo: cosmology.FLRW) -> dict[str, Any]:
+    r"""
+    The CLASS input parameters that describe an astropy cosmology.
+
+    Neutrinos are described as astropy describes them: each of the
+    :math:`\lfloor N_{\rm eff} \rfloor` species has the standard temperature,
+    :math:`(4/11)^{1/3} T_{\rm CMB}`, and contributes :math:`N_{\rm eff} /
+    \lfloor N_{\rm eff} \rfloor` to :math:`N_{\rm eff}`. The massive species (those
+    with non-zero ``m_nu``) are CLASS's non-cold dark matter species (``ncdm``), with
+    that contribution as their degeneracy, and the rest are ultra-relativistic
+    (``N_ur``). The density of CDM is that of ``cosmo.Odm0``, which excludes
+    neutrinos.
+
+    Parameters
+    ----------
+    cosmo
+        The cosmology. Must be a :class:`~astropy.cosmology.LambdaCDM`,
+        :class:`~astropy.cosmology.wCDM` or :class:`~astropy.cosmology.w0waCDM`
+        (or one of their flat versions), with the baryon density and CMB temperature
+        set.
+
+    Returns
+    -------
+    dict
+        CLASS input parameters.
+    """
+    h = cosmo.h
+    params = {
+        "h": h,
+        "omega_b": cosmo.Ob0 * h**2,
+        "omega_cdm": cosmo.Odm0 * h**2,
+        "Omega_k": cosmo.Ok0,
+        "T_cmb": cosmo.Tcmb0.value,
+    }
+
+    n_nu = int(np.floor(cosmo.Neff))
+    neff_per_nu = cosmo.Neff / n_nu if n_nu else 0.0
+    m_nu = np.atleast_1d(cosmo.m_nu.to_value("eV"))
+    m_nu = m_nu[m_nu > 0]
+    params["N_ur"] = cosmo.Neff - len(m_nu) * neff_per_nu
+    if len(m_nu):
+        params["N_ncdm"] = len(m_nu)
+        params["m_ncdm"] = ",".join(repr(float(m)) for m in m_nu)
+        params["deg_ncdm"] = ",".join([repr(neff_per_nu)] * len(m_nu))
+        params["T_ncdm"] = ",".join([repr((4 / 11) ** (1 / 3))] * len(m_nu))
+
+    if isinstance(cosmo, (cosmology.wCDM, cosmology.w0waCDM)):
+        # Dark energy is a fluid, with density set by closure.
+        params["Omega_Lambda"] = 0.0
+        params["w0_fld"] = cosmo.w0
+        params["wa_fld"] = getattr(cosmo, "wa", 0.0)
+
+    return params
+
+
+class CLASS(_BoltzmannTransfer):
+    r"""
+    Transfer function computed by CLASS.
+
+    This needs the optional ``classy`` package (the Python wrapper of CLASS), which
+    you can install with ``pip install hmf[class]``.
+
+    It is used in the same way as :class:`CAMB`: the cosmology (including massive
+    neutrinos and a constant or :math:`w_0`-:math:`w_a` dark energy equation of
+    state) is taken from ``cosmo``, CLASS computes the transfer function up to its
+    maximum wavenumber, and beyond that it is (optionally) extrapolated with the
+    shape of the :class:`EH` fit.
+
+    Parameters
+    ----------
+    cosmo : :class:`astropy.cosmology.FLRW` instance
+        The cosmology used in the calculation
+    \*\*model_parameters : unpack-dict
+        Parameters specific to this model.
+
+        **class_params:** A dictionary of further CLASS input parameters (as
+                          passed to ``classy.Class.set``), e.g. precision
+                          parameters, or ``YHe``. Parameters that describe
+                          the cosmology are set from ``cosmo`` (see
+                          :func:`class_cosmology`), and it is an error to set
+                          them here, or the ``gauge``, which is always
+                          synchronous. ``output`` always includes ``mTk``.
+        **extrapolate_with_eh:** Whether to extrapolate past the CLASS kmax by
+                                 using an EH model. Default ``True``.
+        **kmax:** The maximum wavenumber [h/Mpc] that CLASS computes the
+                  transfer function to (its ``P_k_max_h/Mpc`` parameter). The
+                  default, ``None``, uses CLASS's default (about 1 h/Mpc).
+                  Above it, the transfer function is extrapolated (see
+                  ``extrapolate_with_eh``).
+        **matter_species:** Which matter density field the transfer function
+                            describes: ``"cb"``, the CDM+baryon field, or
+                            ``"tot"``, the total matter field (including massive
+                            neutrinos, CLASS's ``d_m``). See :class:`CAMB` for
+                            when to use which. The default, ``None``, means
+                            ``"cb"``, with a warning if the cosmology has massive
+                            neutrinos.
+
+    Notes
+    -----
+    The transfer function is :math:`-\delta(k)/k^2` at :math:`z=0`, normalised to
+    unity at low :math:`k`, with :math:`\delta` the density contrast output by CLASS
+    in the synchronous gauge, as for :class:`CAMB`. Its shape is that of CLASS's
+    own linear matter power spectrum (``pk_lin`` for ``"tot"``, ``pk_cb_lin`` for
+    ``"cb"``). CLASS outputs no CDM+baryon transfer function, so
+    :math:`\delta_{\rm cb}` is the density-weighted mean of :math:`\delta_{\rm cdm}`
+    and :math:`\delta_{\rm b}`.
+
+    The CLASS input made from ``cosmo`` describes each massive neutrino in
+    ``cosmo.m_nu`` separately, as astropy does.
+    """
+
+    _defaults: ClassVar[dict[str, Any]] = {
+        "class_params": None,
+        "extrapolate_with_eh": True,
+        "kmax": None,
+        "matter_species": None,
+    }
+
+    def __init__(self, *args, **kwargs):
+        if not HAVE_CLASS:
+            raise ImportError(
+                "The CLASS transfer model needs the classy package. Install it with "
+                "`pip install hmf[class]` (or `pip install classy`)."
+            )
+        super().__init__(*args, **kwargs)
+
+        self.params["class_params"] = dict(self.params["class_params"] or {})
+        if clash := sorted(set(self.params["class_params"]) & _CLASS_FIXED_PARAMS):
+            raise ValueError(
+                f"class_params cannot set {clash}. The cosmology is set from the astropy "
+                "cosmology (change that instead), and the gauge must be synchronous."
+            )
+
+        self._setup_extrapolation()
+
+    def _class_input(self) -> dict[str, Any]:
+        """The full input parameters for CLASS."""
+        params = dict(self.params["class_params"])
+        if self.params["kmax"] is not None:
+            params["P_k_max_h/Mpc"] = self.params["kmax"]
+
+        outputs = [o.strip() for o in str(params.get("output", "")).split(",") if o.strip()]
+        if "mTk" not in outputs:
+            outputs.append("mTk")
+        params["output"] = ", ".join(outputs)
+
+        params.update(class_cosmology(self.cosmo))
+        # delta_cdm and delta_b (unlike delta_m) are output in the gauge used, and
+        # their density-weighted mean is the CDM+baryon field in the synchronous gauge.
+        params["gauge"] = "synchronous"
+        return params
+
+    def _results_key(self) -> str:
+        """The full CLASS input, which identifies a CLASS run."""
+        return repr(sorted(self._class_input().items()))
+
+    def _compute_transfers(self) -> dict[str, np.ndarray]:
+        """Run CLASS, returning the transfer function of every matter species."""
+        cl = classy.Class()
+        cl.set(self._class_input())
+        try:
+            cl.compute()
+            transfers = cl.get_transfer(z=0.0)
+            omega_cdm, omega_b = cl.Omega0_cdm(), cl.Omega_b()
+        finally:
+            cl.struct_cleanup()
+            cl.empty()
+
+        k = transfers["k (h/Mpc)"]
+        delta_cb = (omega_cdm * transfers["d_cdm"] + omega_b * transfers["d_b"]) / (
+            omega_cdm + omega_b
+        )
+        return {"kh": k, "tot": -transfers["d_m"] / k**2, "cb": -delta_cb / k**2}
 
 
 class FromArray(FromFile):

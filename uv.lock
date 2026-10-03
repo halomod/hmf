@@ -166,7 +166,7 @@ name = "cffi"
 version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pycparser" },
+    { name = "pycparser", marker = "implementation_name != 'PyPy'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/eb/56/b1ba7935a17738ae8453301356628e8147c79dbb825bcbc73dc7401f9846/cffi-2.0.0.tar.gz", hash = "sha256:44d1b5909021139fe36001ae048dbdde8214afa20200eda0f64c068cac5d5529", size = 523588, upload-time = "2025-09-08T23:24:04.541Z" }
 wheels = [
@@ -290,6 +290,12 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/23/06/28b29fba521a37a8932c6a84192175c34d49f84a6d4773fa63d05f9aff22/charset_normalizer-3.4.6-cp314-cp314t-win_arm64.whl", hash = "sha256:47955475ac79cc504ef2704b192364e51d0d473ad452caedd0002605f780101c", size = 148523, upload-time = "2026-03-15T18:52:29.956Z" },
     { url = "https://files.pythonhosted.org/packages/2a/68/687187c7e26cb24ccbd88e5069f5ef00eba804d36dde11d99aad0838ab45/charset_normalizer-3.4.6-py3-none-any.whl", hash = "sha256:947cf925bc916d90adba35a64c82aace04fa39b46b52d4630ece166655905a69", size = 61455, upload-time = "2026-03-15T18:53:23.833Z" },
 ]
+
+[[package]]
+name = "classy"
+version = "3.4.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/24/49/1fb2bce3aa6a4971df5ac3083a4477257ecb3fc860a49c8ef99ba0417a6d/classy-3.4.0.1.tar.gz", hash = "sha256:6a4810c1ef016839edbb3089a5788a1bb735237860a3dd509a38cd72767b4341", size = 6021349, upload-time = "2026-09-30T12:27:01.1Z" }
 
 [[package]]
 name = "click"
@@ -541,10 +547,14 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+class = [
+    { name = "classy" },
+]
 cosmo = [
     { name = "colossus" },
 ]
 extra = [
+    { name = "classy" },
     { name = "colossus" },
     { name = "emcee" },
 ]
@@ -593,6 +603,8 @@ requires-dist = [
     { name = "astropy", specifier = ">=6.0" },
     { name = "cached-property" },
     { name = "camb", specifier = ">=1.0.0" },
+    { name = "classy", marker = "extra == 'class'", specifier = ">=3.2" },
+    { name = "classy", marker = "extra == 'extra'", specifier = ">=3.2" },
     { name = "click" },
     { name = "colossus", marker = "extra == 'cosmo'", specifier = ">=1.2.1" },
     { name = "colossus", marker = "extra == 'extra'", specifier = ">=1.2.1" },
@@ -604,7 +616,7 @@ requires-dist = [
     { name = "scipy", specifier = ">=1.11" },
     { name = "toml", specifier = ">=0.10.1" },
 ]
-provides-extras = ["cosmo", "extra", "fit"]
+provides-extras = ["class", "cosmo", "extra", "fit"]
 
 [package.metadata.requires-dev]
 dev = [
