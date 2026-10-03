@@ -1,3 +1,5 @@
+import copy
+import pickle
 import warnings
 
 import camb
@@ -400,3 +402,167 @@ def test_bbks_sugiyama():
     t2 = Transfer(transfer_model="BBKS")
 
     assert not np.allclose(t.transfer_function, t2.transfer_function)
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for the CAMB transfer path: one CAMB run per set of inputs,
+# copy/pickle/clone round-trips, and isolation of a user-supplied CAMBparams.
+# ---------------------------------------------------------------------------
+_NU_COSMO = FlatLambdaCDM(H0=67.66, Om0=0.31, Ob0=0.049, m_nu=[0, 0, 0.3], Tcmb0=2.7255)
+_CB_PARAMS = {"extrapolate_with_eh": True, "matter_species": "cb"}
+
+
+@pytest.fixture
+def camb_call_counter(monkeypatch):
+    """Count calls to ``camb.get_transfer_functions`` (as used by the CAMB model)."""
+    calls = []
+    original = camb.get_transfer_functions
+
+    def counting(*args, **kwargs):
+        calls.append(1)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(camb, "get_transfer_functions", counting)
+    return calls
+
+
+@pytest.mark.filterwarnings("ignore:'extrapolate_with_eh' was not set")
+@pytest.mark.filterwarnings("ignore:matter_species was not set")
+def test_default_massfunction_runs_camb_once(camb_call_counter):
+    from hmf import MassFunction
+
+    MassFunction().dndm
+
+    assert len(camb_call_counter) == 1
+
+
+@pytest.mark.parametrize(("matter_species", "sigma_8_species"), [("cb", "tot"), ("tot", "cb")])
+def test_sigma_8_species_shares_one_camb_run(camb_call_counter, matter_species, sigma_8_species):
+    params = {"extrapolate_with_eh": True}
+    t = Transfer(
+        cosmo_model=_NU_COSMO,
+        transfer_params={**params, "matter_species": matter_species},
+        sigma_8_species=sigma_8_species,
+    )
+    t.power
+    assert len(camb_call_counter) == 1
+
+    # The normalisation must equal that from an independent CAMB run that computes the
+    # sigma_8 species directly.
+    ref = Transfer(
+        cosmo_model=_NU_COSMO,
+        transfer_params={**params, "matter_species": sigma_8_species},
+        sigma_8_species=sigma_8_species,
+    )
+    np.testing.assert_allclose(t._unn_sig8, ref._unn_sig8, rtol=1e-12, atol=0)
+
+    # And the shared run must still give each species its own field: neutrino
+    # free-streaming suppresses the total matter transfer below the CDM+baryon one
+    # on small scales.
+    lnk = np.log([10.0])
+    lnt = {matter_species: t.transfer.lnt(lnk), sigma_8_species: t._sigma_8_transfer.lnt(lnk)}
+    assert lnt["tot"][0] < lnt["cb"][0]
+
+
+def test_camb_transfer_not_rerun_when_only_k_range_changes(camb_call_counter):
+    t = Transfer(cosmo_model=_NU_COSMO, transfer_params=_CB_PARAMS)
+    t.power
+    t.update(lnk_max=np.log(1e4))
+    t.power
+
+    assert len(camb_call_counter) == 1
+
+
+def test_camb_transfer_reruns_when_camb_params_mutated(camb_call_counter):
+    t = Transfer(cosmo_model=_NU_COSMO, transfer_params=_CB_PARAMS)
+    lnk = np.log(np.logspace(-3, 1, 5))
+    before = t.transfer.lnt(lnk)
+
+    t.transfer.params["camb_params"].Transfer.kmax = 2.0
+    after = t.transfer.lnt(lnk)
+
+    assert len(camb_call_counter) == 2
+    assert not np.array_equal(before, after)
+
+
+def _copy_then_update(mf):
+    out = copy.deepcopy(mf)
+    out.update(lnk_max=np.log(1e4))
+    return out, {"lnk_max": np.log(1e4)}
+
+
+def _clone(mf):
+    return mf.clone(dlnk=0.04), {"dlnk": 0.04}
+
+
+def _pickle_then_update(mf):
+    out = pickle.loads(pickle.dumps(mf))
+    out.update(lnk_min=-15)
+    return out, {"lnk_min": -15}
+
+
+@pytest.mark.parametrize("operation", [_copy_then_update, _clone, _pickle_then_update])
+def test_copied_camb_framework_recomputes_correctly(operation):
+    from hmf import MassFunction
+
+    kwargs = {
+        "cosmo_model": _NU_COSMO,
+        "transfer_params": {"extrapolate_with_eh": True, "kmax": 5.0, "matter_species": "cb"},
+    }
+    mf = MassFunction(**kwargs)
+    mf.dndm
+    original_params = {k: v for k, v in mf.transfer.params.items() if k != "camb_params"}
+
+    copied, changes = operation(mf)
+    fresh = MassFunction(**kwargs, **changes)
+
+    np.testing.assert_allclose(copied.dndm, fresh.dndm, rtol=1e-10, atol=0)
+    restored = copied.transfer.params
+    assert set(restored) == set(mf.transfer.params)
+    assert {k: v for k, v in restored.items() if k != "camb_params"} == original_params
+    assert isinstance(restored["camb_params"], camb.CAMBparams)
+    assert restored["camb_params"].Transfer.kmax == 5.0
+
+
+def test_camb_component_pickle_keeps_params():
+    from hmf.density_field.transfer_models import CAMB
+
+    model = CAMB(
+        _NU_COSMO,
+        extrapolate_with_eh=False,
+        kmax=3.0,
+        matter_species="tot",
+        dark_energy_params={"cs2": 1.0},
+    )
+    restored = pickle.loads(pickle.dumps(model))
+
+    assert restored.params["extrapolate_with_eh"] is False
+    assert restored.params["kmax"] == 3.0
+    assert restored.params["matter_species"] == "tot"
+    assert restored.params["dark_energy_params"] == {"cs2": 1.0}
+    lnk = np.log(np.logspace(-3, 0, 6))
+    np.testing.assert_allclose(restored.lnt(lnk), model.lnt(lnk), rtol=1e-10, atol=0)
+
+
+def test_user_camb_params_not_mutated_or_shared():
+    from hmf import MassFunction
+
+    user = camb.CAMBparams(H0=50)
+    user_state = repr(user)
+    tp = {"camb_params": user, "extrapolate_with_eh": True, "matter_species": "cb"}
+
+    mf_a = MassFunction(transfer_params=tp)
+    mf_a.dndm
+    mf_b = MassFunction(transfer_params=tp, cosmo_params={"H0": 60})
+    mf_b.dndm
+    # Recompute the first object after the second was built.
+    mf_a.update(lnk_max=np.log(1e4))
+
+    assert repr(user) == user_state
+    assert user.H0 == 50
+    fresh_a = MassFunction(transfer_params=tp, lnk_max=np.log(1e4))
+    fresh_b = MassFunction(transfer_params=tp, cosmo_params={"H0": 60})
+    np.testing.assert_allclose(mf_a.dndm, fresh_a.dndm, rtol=1e-10, atol=0)
+    np.testing.assert_allclose(mf_b.dndm, fresh_b.dndm, rtol=1e-10, atol=0)
+    assert pytest.approx(mf_a.cosmo.H0.value) == mf_a.transfer.params["camb_params"].H0
+    assert pytest.approx(60.0) == mf_b.transfer.params["camb_params"].H0

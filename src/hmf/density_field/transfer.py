@@ -277,9 +277,13 @@ class Transfer(cosmo.Cosmology):
             or self.transfer.params.get("matter_species", species) == species
         ):
             return self.transfer
-        return self.transfer_model(
+        transfer = self.transfer_model(
             self.cosmo, **{**self.transfer.params, "matter_species": species}
         )
+        # One CAMB run computes every species, so reuse the run made for self.transfer.
+        if HAVE_CAMB and isinstance(self.transfer, tm.CAMB):
+            self.transfer._share_camb_results(transfer)
+        return transfer
 
     @cached_quantity
     def _unn_sig8(self):
