@@ -159,3 +159,37 @@ def test_massfunction_sigma_and_slope_unchanged(filter_model):
         atol=0,
     )
     np.testing.assert_allclose(mf._dlnsdlnm, 0.5 * f.dlnss_dlnm(mf.radii), rtol=RTOL, atol=0)
+
+
+def test_subclass_dlnss_dlnm_override_is_used(power):
+    """A subclass overriding dlnss_dlnm must have it used in sigma_and_dlnss_dlnm."""
+    k, p, r = power
+
+    class Halved(filters.TopHat):
+        def dlnss_dlnm(self, r):
+            return 0.5 * super().dlnss_dlnm(r)
+
+    f = Halved(k, p)
+    base = filters.TopHat(k, p)
+    sigma, dlnss_dlnm = f.sigma_and_dlnss_dlnm(r)
+    np.testing.assert_allclose(sigma, base.sigma(r), rtol=RTOL, atol=0)
+    np.testing.assert_allclose(dlnss_dlnm, 0.5 * base.dlnss_dlnm(r), rtol=RTOL, atol=0)
+
+
+def test_smoothk_subclass_window_override_is_used(power):
+    """A SmoothK subclass overriding k_space/dw_dlnkr must not get the SmoothK shortcut."""
+    k, p, r = power
+
+    class Narrow(filters.SmoothK):
+        def k_space(self, kr):
+            return super().k_space(2 * kr)
+
+        def dw_dlnkr(self, kr):
+            return super().dw_dlnkr(2 * kr)
+
+    f = Narrow(k, p)
+    sigma, dlnss_dlnr = f.sigma_and_dlnss_dlnr(r)
+    np.testing.assert_allclose(sigma, _reference_sigma(f, r), rtol=RTOL, atol=0)
+    np.testing.assert_allclose(dlnss_dlnr, _reference_dlnss_dlnr(f, r), rtol=RTOL, atol=0)
+    # W(2kR) at R is W(kR) at 2R.
+    np.testing.assert_allclose(sigma, filters.SmoothK(k, p).sigma(2 * r), rtol=RTOL, atol=0)
