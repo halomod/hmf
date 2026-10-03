@@ -99,6 +99,7 @@ def test_heath_vs_ode_no_omegal(omegam):
         "GenMFGrowth",
     ],
 )
+@pytest.mark.filterwarnings("ignore:matter_species was not set")
 def test_growth_factor_monotonic(model):
     cosmo = Planck13
     gf = getattr(growth_factor, model)(cosmo)
@@ -166,6 +167,7 @@ def test_unsupported_cosmo():
     growth_factor.CambGrowth(cosmo=cosmo).growth_factor(0)
 
 
+@pytest.mark.filterwarnings("ignore:matter_species was not set")
 def test_pickleability_of_cambgrowth():
     gf = growth_factor.CambGrowth(Planck13)
     gf_at_1 = gf.growth_factor(1.0)
@@ -410,3 +412,18 @@ def test_cambgrowth_growth_rate(matter_species):
     gf = growth_factor.CambGrowth(Planck13, matter_species=matter_species)
     for z in (0.0, 1.0, 3.0):
         assert gf.growth_rate(z) == pytest.approx(Planck13.Om(z) ** 0.55, rel=1e-2)
+
+
+def test_growthfactor_open_universe_uses_heath77():
+    """In an open, Lambda=0, radiation-free universe, GrowthFactor uses Heath (1977).
+
+    Heath's closed form is exact here, so it must agree with the numerical ODE solution.
+    """
+    cosmo = cosmology.LambdaCDM(H0=70.0, Om0=0.3, Ode0=0.0, Tcmb0=0.0)
+    gf = growth_factor.GrowthFactor(cosmo)
+    z = np.array([0.5, 1.0, 3.0, 10.0])
+
+    assert isinstance(gf._choose_solution(z), growth_factor.Heath77GrowthFactor)
+    np.testing.assert_allclose(
+        gf.growth_factor(z), growth_factor.ODEGrowthFactor(cosmo).growth_factor(z), rtol=1e-5
+    )

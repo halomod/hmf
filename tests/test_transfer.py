@@ -74,6 +74,7 @@ def test_data(datadir):
     assert np.sqrt(np.mean(np.square(t.power - pdata[:, 1]))) < 0.001
 
 
+@pytest.mark.filterwarnings("ignore:matter_species was not set")
 def test_camb_extrapolation():
     t = Transfer(transfer_params={"extrapolate_with_eh": True}, transfer_model="CAMB")
 
@@ -86,6 +87,7 @@ def test_camb_extrapolation():
     assert np.isclose(eh[-1], camb[-1], rtol=1e-1)
 
 
+@pytest.mark.filterwarnings("ignore:matter_species was not set")
 def test_camb_neutrinos():
     # Correct parameter settings:
     cosmo_model = FlatLambdaCDM(Om0=0.3, H0=70.0, Ob0=0.05, m_nu=[0, 0, 0.06], Tcmb0=2.7255)
@@ -141,6 +143,7 @@ def test_camb_neutrinos():
     assert np.isclose(sum_omega_astropy, sum_omega_camb, rtol=1e-2)
 
 
+@pytest.mark.filterwarnings("ignore:matter_species was not set")
 def test_camb_massive_neutrinos_affect_transfer():
     """Verify that massive neutrinos produce a different transfer function from massless ones.
 
@@ -322,6 +325,7 @@ def test_camb_bad_matter_species():
         ).transfer
 
 
+@pytest.mark.filterwarnings("ignore:matter_species was not set")
 def test_setting_kmax():
     t = Transfer(
         transfer_params={"extrapolate_with_eh": True, "kmax": 1.0},

@@ -424,6 +424,7 @@ class TestSmoothKSharpKLimit:
         assert np.allclose(smooth.real_space(1.0, r), sharp.real_space(1.0, r), rtol=5e-3)
 
 
+@pytest.mark.filterwarnings("ignore:matter_species was not set")
 def test_smoothk_in_mass_function():
     from hmf import MassFunction
 

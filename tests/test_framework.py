@@ -64,11 +64,13 @@ def inst(cls):
 
 
 @pytest.mark.filterwarnings("ignore:'extrapolate_with_eh' was not set")
+@pytest.mark.filterwarnings("ignore:matter_species was not set")
 def test_parameter_names(cls):
     assert "cosmo_model" in cls.get_all_parameter_names()
 
 
 @pytest.mark.filterwarnings("ignore:'extrapolate_with_eh' was not set")
+@pytest.mark.filterwarnings("ignore:matter_species was not set")
 def test_parameter_defaults(cls):
     assert type(cls.get_all_parameter_defaults(recursive=False)) is dict
 
@@ -76,6 +78,7 @@ def test_parameter_defaults(cls):
 
 
 @pytest.mark.filterwarnings("ignore:'extrapolate_with_eh' was not set")
+@pytest.mark.filterwarnings("ignore:matter_species was not set")
 def test_parameter_default_rec(cls):
     pd = cls.get_all_parameter_defaults(recursive=True)
     assert type(pd["cosmo_params"]) is dict
@@ -87,11 +90,13 @@ def test_param_values(inst):
 
 
 @pytest.mark.filterwarnings("ignore:'extrapolate_with_eh' was not set")
+@pytest.mark.filterwarnings("ignore:matter_species was not set")
 def test_qnt_avail(cls):
     assert "dndm" in cls.quantities_available()
 
 
 @pytest.mark.filterwarnings("ignore:'extrapolate_with_eh' was not set")
+@pytest.mark.filterwarnings("ignore:matter_species was not set")
 def test_parameter_info(cls):
     assert cls.parameter_info() is None
     assert cls.parameter_info(names=["z"]) is None

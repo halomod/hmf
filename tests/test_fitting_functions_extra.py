@@ -380,6 +380,7 @@ def test_behroozi_correction_vanishes_at_z_zero():
     assert theta == pytest.approx(1.0, abs=1e-4)
 
 
+@pytest.mark.filterwarnings("ignore:matter_species was not set")
 def test_behroozi_ngtm():
     """Ensure that ngtm for Behroozi / Tinker matches Behroozi Fig. 23.
 
