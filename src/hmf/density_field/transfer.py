@@ -241,9 +241,10 @@ class Transfer(cosmo.Cosmology):
 
     @cached_quantity
     def _unn_sig8(self):
-        # Always use a TopHat for sigma_8, and always use full k-range
+        # Always use a TopHat for sigma_8, and always use full k-range. If the user's
+        # range is narrow, fall back to a grid covering both [-8, 8] and the user's range.
         if self.lnk_min > -15 or self.lnk_max < 9:
-            lnk = np.arange(-8, 8, self.dlnk)
+            lnk = np.arange(min(-8, self.lnk_min), max(8, self.lnk_max), self.dlnk)
             t = self.transfer.lnt(lnk)
             p = np.exp(lnk) ** self.n * np.exp(t) ** 2
             filt = filters.TopHat(np.exp(lnk), p)
