@@ -431,3 +431,66 @@ def test_smoothk_in_mass_function():
     assert isinstance(mf.filter, filters.SmoothK)
     assert np.all(np.isfinite(mf.dndm))
     assert np.all(mf.dndm > 0)
+
+
+class TestSharpKEllipsoidAnalytic:
+    r"""Analytic tests of SharpKEllipsoid with :math:`P(k) = A k^2`.
+
+    With a sharp-k filter the spectral moments are
+
+    .. math:: \sigma_j^2(R) = \frac{A}{2\pi^2} \int_0^{1/R} k^{2j+4} dk
+              = \frac{A}{2\pi^2 (2j+5) R^{2j+5}},
+
+    so :math:`\gamma = \sigma_1^2/(\sigma_0\sigma_2) = \sqrt{45}/7` for all R, and
+    :math:`\nu = \delta_c^2/\sigma_0^2`. The short axis :math:`a_3` then follows from
+    Schneider+13 Eqs. A6, A7 and A3, using :math:`R^3 = a_1 a_2 a_3`, i.e.
+    :math:`a_3 = R [(a_3/a_1)(a_3/a_2)]^{1/3}`. Finally, Eq. 36 gives
+    :math:`d\ln\sigma^2/d\ln a_3 = -P(1/a_3)/(2\pi^2\sigma^2(a_3) a_3^3) = -5`.
+
+    A is chosen so that :math:`\nu = 1` at R = 1, where the ellipsoidal correction
+    is significant.
+    """
+
+    delta_c = 1.68647
+    amp = 10 * pi**2 * delta_c**2
+    radii = np.array([0.5, 1.0, 2.0, 4.0])
+
+    @pytest.fixture(scope="class")
+    def cls(self):
+        k = np.logspace(-6, 1, 10000)
+        return filters.SharpKEllipsoid(k, self.amp * k**2)
+
+    def sigma2(self, R, order=0):
+        t = 2 * order + 5
+        return self.amp / (2 * pi**2 * t * R**t)
+
+    def a3(self, R):
+        g = np.sqrt(45) / 7
+        gv = g * self.delta_c**2 / self.sigma2(R)
+        xm = gv + (
+            3 * (1 - g**2) + (1.1 - 0.9 * g**4) * np.exp(-g * (1 - g**2) * (gv / 2) ** 2)
+        ) / (np.sqrt(3 * (1 - g**2) + 0.45 + (gv / 2) ** 2) + gv / 2)
+        e = 1 / np.sqrt(5 * xm**2 + 6)
+        p = 30 / (5 * xm**2 + 6) ** 2
+        a3_a1 = np.sqrt((1 - 3 * e + p) / (1 + 3 * e + p))
+        a3_a2 = np.sqrt((1 - 2 * p) / (1 + 3 * e + p))
+        return R * (a3_a1 * a3_a2) ** (1.0 / 3.0)
+
+    @pytest.mark.parametrize("order", [0, 1, 2])
+    def test_sigma(self, cls, order):
+        assert np.allclose(
+            cls.sigma(self.radii, order) ** 2, self.sigma2(self.radii, order), rtol=1e-6
+        )
+
+    def test_gamma(self, cls):
+        assert np.allclose(cls.gamma(self.radii), np.sqrt(45) / 7, rtol=1e-6)
+
+    def test_nu(self, cls):
+        assert np.allclose(cls.nu(self.radii), self.delta_c**2 / self.sigma2(self.radii), rtol=1e-6)
+
+    def test_a3(self, cls):
+        # At nu ~ 1 the correction is O(10%), so this discriminates the xi formula.
+        assert np.allclose(cls.a3(self.radii), self.a3(self.radii), rtol=1e-6)
+
+    def test_dlnss_dlnr(self, cls):
+        assert np.allclose(cls.dlnss_dlnr(self.radii), -5.0, rtol=1e-6)
