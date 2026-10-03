@@ -192,6 +192,8 @@ def cached_quantity(f):
             raise
 
     update_wrapper(_get_property, f)
+    # Lets Framework introspect its quantities without instantiating it.
+    _get_property._is_cached_quantity = True
 
     def _del_property(self):
         # Locations of indexes
@@ -361,6 +363,9 @@ def parameter(kind):
         # Here we set the documentation
         doc = (f.__doc__ or "").strip()
         doc = doc.removeprefix("\n")
+
+        # Lets Framework introspect its parameters without instantiating it.
+        _get_property._is_parameter = True
 
         return property(_get_property, _set_property, None, "**Parameter**: " + doc)
 

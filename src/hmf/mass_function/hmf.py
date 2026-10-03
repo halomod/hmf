@@ -385,9 +385,14 @@ class MassFunction(transfer.Transfer):
         return 10 ** np.arange(self.Mmin, self.Mmax, self.dlog10m)
 
     @cached_quantity
+    def _unn_sigma0_and_dlnss_dlnm(self):
+        """Un-normalised mass variance at z=0 and its log-slope, computed together."""
+        return self.filter.sigma_and_dlnss_dlnm(self.radii)
+
+    @cached_quantity
     def _unn_sigma0(self):
         """Un-normalised mass variance at z=0."""
-        return self.filter.sigma(self.radii)
+        return self._unn_sigma0_and_dlnss_dlnm[0]
 
     @cached_quantity
     def _sigma_k_truncation_error(self) -> float:
@@ -460,7 +465,7 @@ class MassFunction(transfer.Transfer):
         .. math:: frac{d\ln\sigma}{d\ln m} = \frac{3}{2\sigma^2\pi^2R^4}\int_0^\infty
                   \frac{dW^2(kR)}{dM}\frac{P(k)}{k^2}dk
         """
-        return 0.5 * self.filter.dlnss_dlnm(self.radii)
+        return 0.5 * self._unn_sigma0_and_dlnss_dlnm[1]
 
     @cached_quantity
     def sigma(self):
@@ -602,8 +607,9 @@ class MassFunction(transfer.Transfer):
         # filter (as for the main grid) rather than interpolated, so that masses outside
         # the user's grid are handled without extrapolation.
         radii = self.filter.mass_to_radius(m_meas, self.mean_density0)
-        sigma = self._normalisation * self.filter.sigma(radii) * self.growth_factor
-        dlnsdlnm = 0.5 * self.filter.dlnss_dlnm(radii)
+        unn_sigma, dlnss_dlnm = self.filter.sigma_and_dlnss_dlnm(radii)
+        sigma = self._normalisation * unn_sigma * self.growth_factor
+        dlnsdlnm = 0.5 * dlnss_dlnm
 
         fit = self.hmf_model(
             m=m_meas,
@@ -668,11 +674,9 @@ class MassFunction(transfer.Transfer):
         if (m[-1] < 10**16.5 and not np.isnan(dndm[-1]) and dndm[-1] != 0) and not isinstance(
             self.hmf, ff.Behroozi
         ):
-            new_mf = copy.deepcopy(self)
-            new_mf.update(Mmin=np.log10(self.m[-1]) + self.dlog10m, Mmax=18)
-            dndm = np.concatenate((dndm, new_mf.dndm))
-
-            m = np.concatenate((m, new_mf.m))
+            m_ext, dndm_ext = self._gtm_extension_dndm()
+            dndm = np.concatenate((dndm, dndm_ext))
+            m = np.concatenate((m, m_ext))
 
         ngtm = int_gtm(m[dndm > 0], dndm[dndm > 0], mass_density)
 
@@ -685,6 +689,68 @@ class MassFunction(transfer.Transfer):
 
         # Since ngtm may have been extended, we cut it back
         return ngtm[:size]
+
+    # The m-dependent quantities in the chain leading to dndm. If a subclass overrides
+    # any of them, the mass-range extension in _gtm can't be computed directly.
+    _GTM_EXTENSION_QUANTITIES = (
+        "m",
+        "radii",
+        "_unn_sigma0_and_dlnss_dlnm",
+        "_unn_sigma0",
+        "_sigma_0",
+        "sigma",
+        "nu",
+        "_dlnsdlnm",
+        "n_eff",
+        "hmf",
+        "fsigma",
+        "dndm",
+    )
+
+    @cached_quantity
+    def _gtm_extension_m(self):
+        """Masses extending ``m`` up to 1e18 (same spacing), used in :meth:`_gtm`."""
+        return 10 ** np.arange(np.log10(self.m[-1]) + self.dlog10m, 18, self.dlog10m)
+
+    @cached_quantity
+    def _gtm_extension_unn_sigma0_and_dlnss_dlnm(self):
+        """As ``_unn_sigma0_and_dlnss_dlnm`` but at ``_gtm_extension_m``. Independent of z."""
+        radii = self.filter.mass_to_radius(self._gtm_extension_m, self.mean_density0)
+        return self.filter.sigma_and_dlnss_dlnm(radii)
+
+    def _gtm_extension_dndm(self):
+        """Masses and ``dndm`` above the top of ``m``, up to 1e18, for :meth:`_gtm`.
+
+        The result is the ``dndm`` of a copy of this framework with
+        ``Mmin=log10(m[-1]) + dlog10m`` and ``Mmax=18``, but computed directly, re-using
+        the cached z-independent mass variance at the extra masses.
+        """
+        overridden = any(
+            getattr(type(self), name) is not getattr(MassFunction, name)
+            for name in self._GTM_EXTENSION_QUANTITIES
+        )
+        if overridden or self._mass_conversion_active:
+            new_mf = copy.deepcopy(self)
+            new_mf.update(Mmin=np.log10(self.m[-1]) + self.dlog10m, Mmax=18)
+            return new_mf.m, new_mf.dndm
+
+        m = self._gtm_extension_m
+        unn_sigma0, dlnss_dlnm = self._gtm_extension_unn_sigma0_and_dlnss_dlnm
+        sigma = self._normalisation * unn_sigma0 * self.growth_factor
+        dlnsdlnm = 0.5 * dlnss_dlnm
+
+        # This mirrors the hmf, fsigma and dndm quantities (Behroozi is never extended).
+        fit = self.hmf_model(
+            m=m,
+            nu2=(self.delta_c / sigma) ** 2,
+            z=self.z,
+            mass_definition=self.mdef,
+            cosmo=self.cosmo,
+            delta_c=self.delta_c,
+            n_eff=-3.0 * (2.0 * dlnsdlnm + 1.0),
+            **self.hmf_params,
+        )
+        return m, fit.fsigma * self.mean_density0 * np.abs(dlnsdlnm) / m**2
 
     @cached_quantity
     def ngtm(self):

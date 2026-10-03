@@ -35,6 +35,12 @@ from .._internals import _framework, _utils
 from .._internals import _references as refs
 
 
+def _overrides(obj, base: type, *names: str) -> bool:
+    """Whether the class of ``obj`` overrides any of the methods ``names`` of ``base``."""
+    cls = type(obj)
+    return any(getattr(cls, name) is not getattr(base, name) for name in names)
+
+
 @_framework.pluggable
 class BaseFilter(_framework.Component):
     r"""
@@ -200,15 +206,94 @@ class BaseFilter(_framework.Component):
         .. math:: \frac{d\ln \sigma^2}{d\ln R} = \frac{1}{\pi^2\sigma^2} \int_0^\infty
                   W(kR) \frac{dW(kR)}{d\ln(kR)} P(k)k^2 dk
         """
-        dlnk = np.log(self.k[1] / self.k[0])
-        s = self.sigma(r)
-        rk = np.outer(r, self.k)
+        if _overrides(self, BaseFilter, "sigma"):
+            # A custom sigma must be respected, so the integrals can't be fused.
+            s = self.sigma(r)
+            rk = np.outer(r, self.k)
+            w, dw = self._window_and_derivative(rk)
+            return self._dlnss_dlnr_integral(w, dw, s)
+        return self._fused_sigma_dlnss_dlnr(r)[1]
 
+    def _window_and_derivative(self, kr):
+        r"""Return :meth:`k_space` and :meth:`dw_dlnkr` evaluated at `kr`.
+
+        Subclasses may override this to share work between the two (e.g. the
+        trigonometric functions of the top-hat), as long as the result is identical
+        to calling the two methods separately.
+        """
+        return self.k_space(kr), self.dw_dlnkr(kr)
+
+    def _sigma_integral(self, w, order=0):
+        """Square root of the order-th moment integral, given the window ``w(kR)``."""
+        dlnk = np.log(self.k[1] / self.k[0])
+
+        # we multiply by k because our steps are in logk.
+        rest = self.power * self.k ** (3 + order * 2)
+        integ = rest * w**2
+        sigma = (0.5 / np.pi**2) * intg.simpson(integ, dx=dlnk, axis=-1)
+        return np.sqrt(sigma)
+
+    def _dlnss_dlnr_integral(self, w, dw, sigma):
+        r"""The :math:`d\ln\sigma^2/d\ln R` integral given ``W``, ``dW/dln(kR)`` and sigma."""
+        dlnk = np.log(self.k[1] / self.k[0])
         rest = self.power * self.k**3
-        w = self.k_space(rk)
-        dw = self.dw_dlnkr(rk)
         integ = w * dw * rest
-        return intg.simpson(integ, dx=dlnk, axis=-1) / (np.pi**2 * s**2)
+        return intg.simpson(integ, dx=dlnk, axis=-1) / (np.pi**2 * sigma**2)
+
+    def _fused_sigma_dlnss_dlnr(self, r):
+        """Compute sigma and dlnss_dlnr from a single evaluation of the window."""
+        rk = np.outer(r, self.k)
+        w, dw = self._window_and_derivative(rk)
+        s = self._sigma_integral(w)
+        return s, self._dlnss_dlnr_integral(w, dw, s)
+
+    def sigma_and_dlnss_dlnr(self, r):
+        r"""
+        Compute :meth:`sigma` and :meth:`dlnss_dlnr` together.
+
+        The result is identical to calling the two methods separately, but the
+        window function and its derivative are evaluated only once on the
+        :math:`(R, k)` grid (when neither method is overridden by a subclass).
+
+        Parameters
+        ----------
+        r : array_like
+            Radii.
+
+        Returns
+        -------
+        sigma : array_like
+            The mass variance, :math:`\sigma(r)` (see :meth:`sigma`).
+        dlnss_dlnr : array_like
+            The log-derivative of the mass variance with radius.
+        """
+        if _overrides(self, BaseFilter, "sigma", "dlnss_dlnr"):
+            return self.sigma(r), self.dlnss_dlnr(r)
+        return self._fused_sigma_dlnss_dlnr(r)
+
+    def sigma_and_dlnss_dlnm(self, r):
+        r"""
+        Compute :meth:`sigma` and :meth:`dlnss_dlnm` together.
+
+        The result is identical to calling the two methods separately, but shares
+        work between them where possible (see :meth:`sigma_and_dlnss_dlnr`).
+
+        Parameters
+        ----------
+        r : array_like
+            Radii.
+
+        Returns
+        -------
+        sigma : array_like
+            The mass variance, :math:`\sigma(r)` (see :meth:`sigma`).
+        dlnss_dlnm : array_like
+            The log-derivative of the mass variance with mass.
+        """
+        if _overrides(self, BaseFilter, "dlnss_dlnm"):
+            return self.sigma(r), self.dlnss_dlnm(r)
+        s, dlnss_dlnr = self.sigma_and_dlnss_dlnr(r)
+        return s, dlnss_dlnr * self.dlnr_dlnm(r)
 
     def dlnr_dlnm(self, r):
         r"""
@@ -268,13 +353,7 @@ class BaseFilter(_framework.Component):
         if rk is None:
             rk = np.outer(r, self.k)
 
-        dlnk = np.log(self.k[1] / self.k[0])
-
-        # we multiply by k because our steps are in logk.
-        rest = self.power * self.k ** (3 + order * 2)
-        integ = rest * self.k_space(rk) ** 2
-        sigma = (0.5 / np.pi**2) * intg.simpson(integ, dx=dlnk, axis=-1)
-        return np.sqrt(sigma)
+        return self._sigma_integral(self.k_space(rk), order)
 
     def nu(self, r, delta_c=1.68647):
         r"""
@@ -348,6 +427,17 @@ class TopHat(BaseFilter):
             (9 * kr * np.cos(kr) + 3 * (kr**2 - 3) * np.sin(kr)) / kr**3,
             0,
         )
+
+    @override
+    def _window_and_derivative(self, kr):
+        if _overrides(self, TopHat, "k_space", "dw_dlnkr"):
+            return super()._window_and_derivative(kr)
+
+        # Same expressions as k_space and dw_dlnkr, sharing the trigonometric functions.
+        sin, cos = np.sin(kr), np.cos(kr)
+        w = np.where(kr > 1.4e-6, (3 / kr**3) * (sin - kr * cos), 1)
+        dw = np.where(kr > 1e-3, (9 * kr * cos + 3 * (kr**2 - 3) * sin) / kr**3, 0)
+        return w, dw
 
 
 @_utils.inherit_docstrings
@@ -452,9 +542,18 @@ class SharpK(BaseFilter):
 
     @override
     def dlnss_dlnr(self, r):
-        sigma = self.sigma(r)
+        return self._dlnss_dlnr_given_sigma(r, self.sigma(r))
+
+    def _dlnss_dlnr_given_sigma(self, r, sigma):
         power = Spline(self.k, self.power)(1 / r)
         return -power / (2 * np.pi**2 * sigma**2 * r**3)
+
+    @override
+    def sigma_and_dlnss_dlnr(self, r):
+        if _overrides(self, SharpK, "sigma", "dlnss_dlnr"):
+            return super().sigma_and_dlnss_dlnr(r)
+        sigma = self.sigma(r)
+        return sigma, self._dlnss_dlnr_given_sigma(r, sigma)
 
     @override
     def mass_to_radius(self, m, rho_mean):
@@ -562,6 +661,13 @@ class SmoothK(BaseFilter):
     def dw_dlnkr(self, kr):
         w = self.k_space(kr)
         return -self.params["beta"] * w * (1 - w)
+
+    @override
+    def _window_and_derivative(self, kr):
+        if _overrides(self, SmoothK, "k_space", "dw_dlnkr"):
+            return super()._window_and_derivative(kr)
+        w = self.k_space(kr)
+        return w, -self.params["beta"] * w * (1 - w)
 
     @override
     def real_space(self, R, r):
