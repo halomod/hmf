@@ -165,7 +165,8 @@ class Transfer(cosmo.Cosmology):
         This has no effect with massless neutrinos (the fields are then identical) or
         for transfer models that don't distinguish the two fields (i.e. have no
         ``matter_species`` parameter, like ``EH`` or ``BBKS``). Otherwise, normalising
-        a field other than the computed one needs a second transfer calculation. See
+        a field other than the computed one needs that field's transfer function too.
+        With ``CAMB`` this reuses the same CAMB run, which gives both fields. See
         :doc:`/massive_neutrinos`.
 
         :type: str or None
