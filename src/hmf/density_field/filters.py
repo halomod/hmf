@@ -276,9 +276,9 @@ class BaseFilter(_framework.Component):
         sigma = (0.5 / np.pi**2) * intg.simpson(integ, dx=dlnk, axis=-1)
         return np.sqrt(sigma)
 
-    def nu(self, r, delta_c=1.68647):
+    def nu2(self, r: np.ndarray, delta_c: float = 1.68647) -> np.ndarray:
         r"""
-        Peak height, :math:`\frac{\delta_c^2}{\sigma^2(r)}`.
+        Squared peak height, :math:`\nu^2 = \frac{\delta_c^2}{\sigma^2(r)}`.
 
         Parameters
         ----------
@@ -289,6 +289,31 @@ class BaseFilter(_framework.Component):
             Critical overdensity for collapse.
         """
         return (delta_c / self.sigma(r)) ** 2
+
+    def nu(self, r, delta_c=1.68647):
+        r"""
+        Deprecated: the *squared* peak height, :math:`\frac{\delta_c^2}{\sigma^2(r)}`.
+
+        .. deprecated:: 3.7
+            ``nu`` is :math:`\nu^2`, not the peak height :math:`\nu`. It will be
+            removed in v4. Use :meth:`nu2` instead.
+
+        Parameters
+        ----------
+        r : array_like
+            Radii
+
+        delta_c : float, optional
+            Critical overdensity for collapse.
+        """
+        warnings.warn(
+            "BaseFilter.nu is the *squared* peak height (delta_c/sigma)^2, not the peak "
+            "height. It is deprecated and will be removed in v4. Use BaseFilter.nu2 for "
+            "(delta_c/sigma)^2, or MassFunction.peak_height for delta_c/sigma.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.nu2(r, delta_c)
 
 
 # For backwards compatibility, alias Filter to BaseFilter.
@@ -669,7 +694,7 @@ class SharpKEllipsoid(SharpK):
         r"""
         Physical peak height, :math:`\nu = \delta_c^2/\sigma^2(r)`, at the redshift of interest.
 
-        This is :meth:`nu` with :math:`\sigma` rescaled by `sigma_scale` and with the
+        This is :meth:`nu2` with :math:`\sigma` rescaled by `sigma_scale` and with the
         filter's `delta_c`. Schneider et al. 2013 define :math:`\nu` as the *square*
         of the ratio (their Eqs. 13, 20), and use the same :math:`\nu` in Eq. A6.
 

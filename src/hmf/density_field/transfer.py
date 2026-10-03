@@ -93,8 +93,16 @@ class Transfer(cosmo.Cosmology):
     @override
     def validate(self):
         super().validate()
-        assert self.lnk_min < self.lnk_max, f"lnk_min >= lnk_max: {self.lnk_min}, {self.lnk_max}"
-        assert len(self.k) > 1, f"len(k) < 2: {len(self.k)}"
+        if not self.lnk_min < self.lnk_max:
+            raise ValueError(
+                f"lnk_min must be less than lnk_max, got lnk_min={self.lnk_min}, "
+                f"lnk_max={self.lnk_max}"
+            )
+        if len(self.k) < 2:
+            raise ValueError(
+                f"The k vector must have at least 2 entries, got {len(self.k)} from "
+                f"lnk_min={self.lnk_min}, lnk_max={self.lnk_max} and dlnk={self.dlnk}."
+            )
 
     @parameter("model")
     def growth_model(self, val):
@@ -237,17 +245,17 @@ class Transfer(cosmo.Cosmology):
         """
         Redshift.
 
-        Must be greater than 0.
+        Must be non-negative.
 
         :type: float
         """
         try:
             val = float(val)
         except ValueError as e:
-            raise ValueError("z must be a number (", val, ")") from e
+            raise ValueError(f"z must be a number, got {val!r}") from e
 
         if val < 0:
-            raise ValueError("z must be > 0 (", val, ")")
+            raise ValueError(f"z must be ≥ 0, got {val}")
 
         return val
 

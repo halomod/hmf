@@ -139,8 +139,13 @@ class MassFunction(transfer.Transfer):
     @override
     def validate(self):
         super().validate()
-        assert self.Mmin < self.Mmax, f"Mmin > Mmax: {self.Mmin}, {self.Mmax}"
-        assert len(self.m) > 0, "mass vector has length zero!"
+        if not self.Mmin < self.Mmax:
+            raise ValueError(f"Mmin must be less than Mmax, got Mmin={self.Mmin}, Mmax={self.Mmax}")
+        if len(self.m) == 0:
+            raise ValueError(
+                f"The mass vector is empty: no masses between Mmin={self.Mmin} and "
+                f"Mmax={self.Mmax} with dlog10m={self.dlog10m}."
+            )
 
         if self._sigma_k_truncation_error > _K_COVERAGE_RTOL:
             warnings.warn(
@@ -218,12 +223,12 @@ class MassFunction(transfer.Transfer):
         try:
             val = float(val)
         except ValueError as e:
-            raise ValueError("delta_c must be a number: ", val) from e
+            raise ValueError(f"delta_c must be a number, got {val!r}") from e
 
         if val <= 0:
-            raise ValueError("delta_c must be > 0 (", val, ")")
+            raise ValueError(f"delta_c must be > 0, got {val}")
         if val > 10.0:
-            raise ValueError("delta_c must be < 10.0 (", val, ")")
+            raise ValueError(f"delta_c must be ≤ 10, got {val}")
 
         return val
 
@@ -330,7 +335,7 @@ class MassFunction(transfer.Transfer):
         """Instantiated model for the hmf fitting function."""
         return self.hmf_model(
             m=self.m,
-            nu2=self.nu,
+            nu2=self.nu2,
             z=self.z,
             mass_definition=self.mdef,
             cosmo=self.cosmo,
@@ -468,28 +473,55 @@ class MassFunction(transfer.Transfer):
         return self._sigma_0 * self.growth_factor
 
     @cached_quantity
+    def peak_height(self):
+        r"""The peak height, :math:`\nu = \delta_c/\sigma`, ``len=len(m)``.
+
+        This is the same :math:`\nu` as the fitting function's ``hmf.nu``.
+        """
+        return self.delta_c / self.sigma
+
+    @cached_quantity
+    def nu2(self):
+        r"""The squared peak height, :math:`\nu^2 = \left(\frac{\delta_c}{\sigma}\right)^2`, ``len=len(m)``."""  # noqa: E501
+        return self.peak_height**2
+
+    @property
     def nu(self):
-        r"""The parameter :math:`\nu = \left(\frac{\delta_c}{\sigma}\right)^2`, ``len=len(m)``."""
-        return (self.delta_c / self.sigma) ** 2
+        r"""Deprecated: the *squared* peak height, :math:`(\delta_c/\sigma)^2`.
+
+        .. deprecated:: 3.7
+            ``nu`` is :math:`\nu^2`, not the peak height :math:`\nu`. It will be
+            removed in v4. Use :attr:`nu2` for :math:`\nu^2`, or
+            :attr:`peak_height` for :math:`\nu = \delta_c/\sigma`.
+        """
+        warnings.warn(
+            "MassFunction.nu is the *squared* peak height (delta_c/sigma)^2, not the "
+            "peak height. It is deprecated and will be removed in v4. Use "
+            "MassFunction.nu2 for (delta_c/sigma)^2, or MassFunction.peak_height for "
+            "delta_c/sigma.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.nu2
 
     @cached_quantity
     def nu_fn(self):
         r"""
-        The nu parameter as a callable function.
+        The squared peak height as a callable function of mass.
 
-        The parameter :math:`\nu = \left(\frac{\delta_c}{\sigma}\right)^2`,
-        with length equal to ``len(m)``.
+        A spline of :attr:`nu2`, :math:`\nu^2 = \left(\frac{\delta_c}{\sigma}\right)^2`,
+        against ``m``.
 
         """
-        return Spline(self.m, self.nu, k=5)
+        return Spline(self.m, self.nu2, k=5)
 
     @cached_quantity
     def mass_nonlinear(self):
         """The nonlinear mass, nu(Mstar) = 1."""
-        if self.nu.min() > 1 or self.nu.max() < 1:
+        if self.nu2.min() > 1 or self.nu2.max() < 1:
             warnings.warn("Nonlinear mass outside mass range", stacklevel=2)
 
-            startr = np.log(self.radii.min()) if self.nu.min() > 1 else np.log(self.radii.max())
+            startr = np.log(self.radii.min()) if self.nu2.min() > 1 else np.log(self.radii.max())
 
             def model(lnr):
                 return (
@@ -509,7 +541,7 @@ class MassFunction(transfer.Transfer):
                 return self.filter.radius_to_mass(r, self.mean_density0)
             warnings.warn("Minimization failed :(", stacklevel=2)
             return 0
-        nu = Spline(self.nu, self.m, k=5)
+        nu = Spline(self.nu2, self.m, k=5)
         return nu(1)
 
     @cached_quantity
@@ -536,7 +568,7 @@ class MassFunction(transfer.Transfer):
     @cached_quantity
     def n_eff_at_collapse(self):
         """Effective spectral index at scale of halo radius at halo collapse."""
-        fnc = Spline(self.nu, self.n_eff)
+        fnc = Spline(self.nu2, self.n_eff)
         return fnc(1)
 
     @cached_quantity

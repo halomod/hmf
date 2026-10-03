@@ -16,7 +16,7 @@ import numpy as np
 from .._internals import _references as refs
 from .._internals._cache import cached_quantity, parameter
 from .._internals._framework import Component, get_mdl, pluggable
-from ..cosmology.cosmo import Planck15
+from ..cosmology.cosmo import DEFAULT_COSMOLOGY
 from ..density_field.transfer import Transfer
 from ..mass_function.hmf import MassFunction
 
@@ -40,7 +40,7 @@ class WDM(Component):
         Mass of the particle in keV
 
     cosmo : `hmf.cosmo.Cosmology` instance
-        A cosmology.
+        A cosmology. Defaults to :data:`hmf.cosmology.cosmo.DEFAULT_COSMOLOGY`.
 
     z : float, optional
         Deprecated and ignored. The WDM transfer function and its characteristic
@@ -57,7 +57,7 @@ class WDM(Component):
         Comoving mean matter density, in :math:`h^2 M_\odot {\rm Mpc}^{-3}`.
     """
 
-    def __init__(self, mx, cosmo=Planck15, z: float | None = None, **model_params):
+    def __init__(self, mx, cosmo=DEFAULT_COSMOLOGY, z: float | None = None, **model_params):
         if z is not None:
             warnings.warn(
                 "The 'z' argument to WDM models is deprecated and ignored: WDM transfer "
@@ -112,7 +112,7 @@ class _FittedWDM(WDM, abstract=True):
     :class:`DeprecationWarning`, and mapped to ``nu``.
     """
 
-    def __init__(self, mx, cosmo=Planck15, z: float | None = None, **model_params):
+    def __init__(self, mx, cosmo=DEFAULT_COSMOLOGY, z: float | None = None, **model_params):
         if "mu" in model_params:
             if "nu" in model_params:
                 raise ValueError(
@@ -473,10 +473,10 @@ class TransferWDM(Transfer):
         try:
             val = float(val)
         except ValueError as e:
-            raise ValueError("wdm_mass must be a number (", val, ")") from e
+            raise ValueError(f"wdm_mass must be a number, got {val!r}") from e
 
         if val <= 0:
-            raise ValueError("wdm_mass must be > 0 (", val, ")")
+            raise ValueError(f"wdm_mass must be > 0, got {val}")
         return val
 
     @cached_quantity

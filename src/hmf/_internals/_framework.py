@@ -6,10 +6,14 @@ import importlib
 import logging
 import re
 import sys
+import types
 import warnings
+from collections.abc import Mapping
 from typing import Any, ClassVar, Literal, overload
 
 import deprecation
+
+from ._cache import hidden_loc
 
 logger = logging.getLogger(__name__)
 
@@ -45,9 +49,13 @@ class Component:
         self.params.update(model_params)
 
     @classmethod
-    def get_models(cls) -> dict[str, type]:
-        """Get a dictionary of all implemented models for this component."""
-        return cls._plugins
+    def get_models(cls) -> Mapping[str, type]:
+        """Get a read-only mapping of all implemented models for this component.
+
+        The mapping is a live view of the registry, so it shows models registered
+        later, but it can not be used to add or remove models.
+        """
+        return types.MappingProxyType(cls._plugins)
 
 
 #: The reference for hmf itself, always included by :meth:`Framework.get_acknowledgments`.
@@ -55,6 +63,11 @@ HMF_REFERENCE = (
     "Murray, S. G., Power, C., Robotham, A. S. G., 2013. Astronomy and Computing 3, 23. "
     "arXiv:1306.6721"
 )
+
+
+def _class_path(cls: type) -> str:
+    """A readable, fully-qualified name for a class, e.g. ``hmf.cosmology.cosmo.Cosmology``."""
+    return f"{cls.__module__}.{cls.__qualname__}"
 
 
 def get_base_components() -> list[type[Component]]:
@@ -80,18 +93,19 @@ def get_base_component(name: [str, type[Component]]) -> type[Component]:
         avail = [cmp for cmp in get_base_components() if cmp.__name__ == name]
         if not avail:
             raise ValueError(
-                f"There are no components called '{name}'. Available: {get_base_components()}"
+                f"There are no components called '{name}'. Available: "
+                f"{tuple(sorted(cmp.__name__ for cmp in get_base_components()))}"
             )
         if len(avail) > 1:
             warnings.warn(
-                f"More than one component called '{name}'. Returning {avail[-1]}.", stacklevel=2
+                f"More than one component called '{name}'. Returning {_class_path(avail[-1])}.",
+                stacklevel=2,
             )
         return avail[-1]
-    try:
-        assert issubclass(name, Component)
-        return name
-    except TypeError as e:
-        raise ValueError(f"{name} must be str or a Component subclass") from e
+    # ValueError (not TypeError) is kept for backwards compatibility.
+    if not isinstance(name, type) or not issubclass(name, Component):
+        raise ValueError(f"{name!r} must be str or a Component subclass")  # noqa: TRY004
+    return name
 
 
 def pluggable(cls):
@@ -103,6 +117,19 @@ def pluggable(cls):
         """Provide plugin capablity."""
         # Plugin framework
         if not abstract:
+            existing = kls._plugins.get(kls.__name__)
+            # Re-defining a class in the same module (e.g. a module reload) is not a
+            # clash; a class of the same name from another module silently replacing
+            # a registered model is.
+            if existing is not None and existing.__module__ != kls.__module__:
+                warnings.warn(
+                    f"Registering {_class_path(kls)} as the {cls.__name__} model "
+                    f"'{kls.__name__}' replaces {_class_path(existing)}, which was "
+                    f"registered under the same name. Rename one of the classes, or pass "
+                    f"the class itself (or its import path) rather than its name.",
+                    UserWarning,
+                    stacklevel=2,
+                )
             kls._plugins[kls.__name__] = kls
 
     cls.__init_subclass__ = init_sc
@@ -221,8 +248,9 @@ def get_mdl(
         ]
         if len(avail_models) > 1:
             warnings.warn(
-                f"More than one model was found with name '{name}'. Returning "
-                f"{avail_models[-1][1]}.",
+                f"More than one model was found with name '{name}' "
+                f"({', '.join(_class_path(m) for _, m in avail_models)}). Returning "
+                f"{_class_path(avail_models[-1][1])}. Pass `kind` to choose one.",
                 stacklevel=2,
             )
         if avail_models:
@@ -236,11 +264,18 @@ def get_mdl(
                 list({k for cmp in get_base_components() for k in getattr(cmp, "_plugins", {})}),
             )
         )
-    try:
-        assert issubclass(name, kind or Component)
-        return name
-    except TypeError as e:
-        raise ValueError(f"{name} must be str or Component subclass") from e
+    # ValueError (not TypeError) is kept for backwards compatibility.
+    base = kind or Component
+    if not isinstance(name, type):
+        raise ValueError(  # noqa: TRY004
+            f"{name!r} must be str or Component subclass ({base.__name__})"
+        )
+    if not issubclass(name, base):
+        raise ValueError(  # noqa: TRY004
+            f"{_class_path(name)} is not a {base.__name__} model (it must be a subclass "
+            f"of {_class_path(base)})."
+        )
+    return name
 
 
 def _check_imported_model(path: str, obj: Any, kind: type[Component]) -> type[Component]:
@@ -248,7 +283,8 @@ def _check_imported_model(path: str, obj: Any, kind: type[Component]) -> type[Co
     if not isinstance(obj, type) or not issubclass(obj, kind):
         raise TypeError(
             f"'{path}' is not a subclass of {kind.__name__}, so it can not be used as a "
-            f"{kind.__name__} model (got {obj!r})."
+            f"{kind.__name__} model (got "
+            f"{_class_path(obj) if isinstance(obj, type) else repr(obj)})."
         )
     return obj
 
@@ -324,26 +360,101 @@ class Framework(metaclass=_Validator):
         """Perform validation of the input parameters as they relate to each other."""
 
     def update(self, **kwargs):
-        """Update parameters of the framework with kwargs."""
+        """Update parameters of the framework with kwargs.
+
+        The update is atomic: if setting any parameter, or the validation of the
+        new set of parameters, fails, all parameters are restored to their values
+        from before the call, and the error is re-raised.
+
+        Parameters
+        ----------
+        **kwargs
+            New values of parameters of the framework. A key ``<name>_params``,
+            where ``<name>`` is a sub-framework, takes a dict of parameters with
+            which to update that sub-framework.
+
+        Raises
+        ------
+        ValueError
+            If a key is not a parameter of the framework (or a sub-framework's
+            ``_params``), or if the new parameters fail validation.
+        """
+        params = self._parameter_index()
+        invalid = [
+            k for k in kwargs if k not in params and self._subframework_for_params(k) is None
+        ]
+        if invalid:
+            msg = f"Invalid arguments to {type(self).__name__}.update(): {invalid}."
+            for k in invalid:
+                close = difflib.get_close_matches(k, list(params), n=3)
+                if close:
+                    msg += f" For '{k}', did you mean {' or '.join(repr(c) for c in close)}?"
+            msg += f" Valid parameters: {tuple(sorted(params))}."
+            raise ValueError(msg)
+
+        undo = self._snapshot_parameters(kwargs)
         self._validate = False
         try:
-            for k in list(kwargs.keys()):
-                # If key is just a parameter to the class, just update it.
-                if hasattr(self, k):
-                    setattr(self, k, kwargs.pop(k))
-
-                # If key is a dictionary of parameters to a sub-framework,
-                # update the sub-framework
-                elif k.endswith("_params") and isinstance(getattr(self, k[:-7]), Framework):
-                    getattr(self, k[:-7]).update(**kwargs.pop(k))
+            for k, v in kwargs.items():
+                if k in params:
+                    setattr(self, k, v)
+                else:
+                    self._subframework_for_params(k).update(**v)
             self._validate = True
             self.validate()
-        except Exception:
-            self._validate = True
+        except BaseException:
+            self._validate = False
+            for fmwork, name, old in reversed(undo):
+                fmwork._restore_parameter(name, old)
             raise
+        finally:
+            self._validate = True
 
-        if kwargs:
-            raise ValueError(f"Invalid arguments: {kwargs}")
+    def _parameter_index(self) -> dict[str, set]:
+        """The parameters set on this instance, mapped to their dependent quantities."""
+        return getattr(self, hidden_loc(self, "recalc_par_prop"), {})
+
+    def _subframework_for_params(self, key: str) -> "Framework | None":
+        """The sub-framework that ``key`` (``<name>_params``) updates, if any.
+
+        ``<name>`` must be a ``@subframework``, or an instance attribute holding a
+        :class:`Framework`. Other properties are not evaluated, so that a key like
+        ``dndm_params`` does not compute ``dndm``.
+        """
+        if not key.endswith("_params"):
+            return None
+        name = key[: -len("_params")]
+        prop = getattr(type(self), name, None)
+        if isinstance(prop, property):
+            return getattr(self, name) if getattr(prop.fget, "_is_subframework", False) else None
+        sub = vars(self).get(name)
+        return sub if isinstance(sub, Framework) else None
+
+    def _snapshot_parameters(self, kwargs: dict[str, Any]) -> list[tuple["Framework", str, Any]]:
+        """Record the current values of the parameters that ``kwargs`` would change."""
+        params = self._parameter_index()
+        undo = []
+        for k, v in kwargs.items():
+            if k in params:
+                # Read the stored value directly, so that taking the snapshot does not
+                # register a dependency for a quantity that is being computed.
+                undo.append((self, k, getattr(self, hidden_loc(self, k))))
+            elif (sub := self._subframework_for_params(k)) is not None and isinstance(v, dict):
+                undo.extend(sub._snapshot_parameters(v))
+        return undo
+
+    def _restore_parameter(self, name: str, old: Any) -> None:
+        """Set a parameter back to a value it had before, without validation."""
+        validate = self._validate
+        self._validate = False
+        try:
+            # Setting a non-empty dict merges it into the stored one, so clear the
+            # stored dict first, to drop keys the failed update added.
+            if isinstance(old, dict):
+                setattr(self, name, {})
+            setattr(self, name, old)
+        finally:
+            self._validate = validate
 
     def clone(self, **kwargs):
         """Create and return an updated clone of the current object."""
