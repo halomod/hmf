@@ -362,27 +362,40 @@ def _nfw_mass_ratio(m_new, z, overdensity_crit, cosmo):
     return m_new / m200m
 
 
+_BOCQUET_CRIT_FITS = [
+    (ff.Bocquet200cDMOnly, 200),
+    (ff.Bocquet200cHydro, 200),
+    (ff.Bocquet500cDMOnly, 500),
+    (ff.Bocquet500cHydro, 500),
+]
+
+
+@pytest.mark.parametrize(
+    ("cls", "overdensity"), _BOCQUET_CRIT_FITS, ids=lambda c: getattr(c, "__name__", str(c))
+)
 @pytest.mark.parametrize("z", [0.0, 0.5, 1.0])
 @pytest.mark.parametrize("m", [1e13, 1e14, 1e15])
-def test_bocquet_mass_conversion_matches_nfw(z, m):
+def test_bocquet_mass_conversion_matches_nfw(cls, overdensity, z, m):
     """Bocquet+16's mass-ratio fits agree with a direct NFW solve.
 
     Their Eqs. 6 and A2 fit M_{500c}/M_{200m} and M_{200c}/M_{200m} for NFW haloes
     with the Duffy+08 concentrations.
+
+    The paper's Eqs. 6 and A2 depend on mass, Omega_m and z but not on the baryonic
+    physics, so the DM-only and Hydro fits share them; all four are checked.
     """
     cosmo = _BOCQUET_COSMO
-    nu2 = np.array([1.0])
-    for cls, overdensity in ((ff.Bocquet200cDMOnly, 200), (ff.Bocquet500cDMOnly, 500)):
-        fit = cls(nu2=nu2, m=np.array([m]), z=z, cosmo=cosmo)
-        expected = _nfw_mass_ratio(m, z, overdensity, cosmo)
-        # Tolerance: the paper quotes "few percent" accuracy for its fits; the largest
-        # measured deviation is 5.6% (500c, z=1, 1e14). 7% also absorbs the M vs M/h
-        # ambiguity in the ln(M) term of the fit (~1%).
-        assert fit.convert_mass()[0] == pytest.approx(expected, rel=0.07)
+    fit = cls(nu2=np.array([1.0]), m=np.array([m]), z=z, cosmo=cosmo)
+    expected = _nfw_mass_ratio(m, z, overdensity, cosmo)
+    # Tolerance: the paper quotes "few percent" accuracy for its fits; the largest
+    # measured deviation is 5.6% (500c, z=1, 1e14). 7% also absorbs the M vs M/h
+    # ambiguity in the ln(M) term of the fit (~1%).
+    assert fit.convert_mass()[0] == pytest.approx(expected, rel=0.07)
 
 
+@pytest.mark.parametrize("variant", ["DMOnly", "Hydro"])
 @pytest.mark.parametrize("z", [0.0, 0.5, 1.0, 2.0])
-def test_bocquet_mass_conversion_ordering(z):
+def test_bocquet_mass_conversion_ordering(z, variant):
     """Mass within a higher-density contour is smaller: M500c < M200c < M200m.
 
     Over the calibrated range 1e13 < M < 1e16, so the fitted ratios must satisfy
@@ -390,8 +403,10 @@ def test_bocquet_mass_conversion_ordering(z):
     """
     m = np.logspace(13, 16, 10)
     nu2 = np.ones_like(m)
-    r200c = ff.Bocquet200cDMOnly(nu2=nu2, m=m, z=z, cosmo=_BOCQUET_COSMO).convert_mass()
-    r500c = ff.Bocquet500cDMOnly(nu2=nu2, m=m, z=z, cosmo=_BOCQUET_COSMO).convert_mass()
+    cls200 = getattr(ff, f"Bocquet200c{variant}")
+    cls500 = getattr(ff, f"Bocquet500c{variant}")
+    r200c = cls200(nu2=nu2, m=m, z=z, cosmo=_BOCQUET_COSMO).convert_mass()
+    r500c = cls500(nu2=nu2, m=m, z=z, cosmo=_BOCQUET_COSMO).convert_mass()
     assert np.all(r500c > 0)
     assert np.all(r500c < r200c)
     assert np.all(r200c < 1)
