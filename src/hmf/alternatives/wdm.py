@@ -95,11 +95,92 @@ class WDM(Component):
         )
 
 
-class Viel05(WDM):
+class _FittedWDM(WDM, abstract=True):
     r"""
-    Transfer function from Viel 2005 (which is exactly the same as Bode et al. 2001).
+    Shared machinery for WDM models using the transfer function of Bode et al. (2001).
 
-    Formula from Bode et. al. 2001 eq. A9.
+    Both :class:`Bode01` and :class:`Viel05` approximate the WDM/CDM transfer
+    function by
+
+    .. math:: T(k) = \left[1 + (\alpha k)^{2\nu}\right]^{-5/\nu}
+
+    (Bode et al. 2001, eq. A8; Viel et al. 2005, eq. 6). They differ only in the
+    exponent :math:`\nu` and in the fit for the break scale :math:`\alpha`
+    (:attr:`lam_eff_fs`), which subclasses must define.
+
+    The parameter used to be called ``mu``. It is still accepted, with a
+    :class:`DeprecationWarning`, and mapped to ``nu``.
+    """
+
+    def __init__(self, mx, cosmo=Planck15, z: float | None = None, **model_params):
+        if "mu" in model_params:
+            if "nu" in model_params:
+                raise ValueError(
+                    f"{self.__class__.__name__} got both 'mu' and 'nu'. 'mu' is a deprecated "
+                    "alias of 'nu'; pass only 'nu'."
+                )
+            warnings.warn(
+                "The WDM parameter 'mu' has been renamed to 'nu', as in Bode et al. (2001) and "
+                "Viel et al. (2005). 'mu' is deprecated and will be removed in a future version.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            model_params["nu"] = model_params.pop("mu")
+        super().__init__(mx, cosmo=cosmo, z=z, **model_params)
+
+    def transfer(self, k):
+        r"""Compute the WDM/CDM transfer function, :math:`[1 + (\alpha k)^{2\nu}]^{-5/\nu}`."""
+        nu = self.params["nu"]
+        return (1 + (self.lam_eff_fs * k) ** (2 * nu)) ** (-5.0 / nu)
+
+    @property
+    def lam_eff_fs(self):
+        r"""Effective free-streaming scale :math:`\alpha`, in comoving :math:`h^{-1}{\rm Mpc}`."""
+        raise NotImplementedError
+
+    @property
+    def m_fs(self):
+        r"""
+        Free-streaming mass scale, in :math:`h^{-1}M_\odot`.
+
+        :math:`M_{\rm fs} = (4\pi/3)\bar\rho(\lambda^{\rm eff}_{\rm fs}/2)^3`, from
+        Schneider et al. (2012), eq. 7.
+        """
+        return (4.0 / 3.0) * np.pi * self.rho_mean * (self.lam_eff_fs / 2) ** 3
+
+    @property
+    def lam_hm(self):
+        r"""
+        Half-mode length scale, in comoving :math:`h^{-1}{\rm Mpc}`.
+
+        The wavelength :math:`2\pi/k` at which :math:`T(k) = 1/2`:
+        :math:`\lambda_{\rm hm} = 2\pi\alpha(2^{\nu/5} - 1)^{-1/(2\nu)}`, from
+        Schneider et al. (2012), eq. 8.
+        """
+        nu = self.params["nu"]
+        return 2 * np.pi * self.lam_eff_fs * (2 ** (nu / 5) - 1) ** (-0.5 / nu)
+
+    @property
+    def m_hm(self):
+        r"""
+        Half-mode mass scale, in :math:`h^{-1}M_\odot`.
+
+        :math:`M_{\rm hm} = (4\pi/3)\bar\rho(\lambda_{\rm hm}/2)^3`, from
+        Schneider et al. (2012), eq. 9. Since :math:`\lambda_{\rm hm}/2` is the
+        comoving half-wavelength of the mode suppressed by a factor of two, this is
+        also the mass :math:`(4\pi/3)\bar\rho R_s^3` of Bode et al. (2001), Sect. 7.
+        """
+        return (4.0 / 3.0) * np.pi * self.rho_mean * (self.lam_hm / 2) ** 3
+
+
+class Viel05(_FittedWDM):
+    r"""
+    WDM transfer function of Viel et al. (2005).
+
+    Uses the functional form of Bode et al. (2001) (Viel et al. 2005, eq. 6) with
+    Viel et al.'s own Boltzmann-code fit: :math:`\nu = 1.12` and the break scale of
+    their eq. 7 (see :attr:`lam_eff_fs`). This differs from :class:`Bode01`, which has
+    :math:`\nu = 1.2` and a different fit for the break scale.
 
     Parameters
     ----------
@@ -114,23 +195,30 @@ class Viel05(WDM):
         To see the default values, check the :attr:`_defaults`
         class attribute.
 
-        :mu:
-        :g_x:
+        :nu: Exponent of the transfer function (Viel et al. 2005, eqs 6 and 7).
+             Formerly called ``mu``, which is still accepted but deprecated.
+        :g_x: Number of degrees of freedom of the WDM particle. Not part of Viel
+              et al. (2005); see :attr:`lam_eff_fs`.
     """
 
     references: ClassVar[tuple[str, ...]] = (refs.VIEL05,)
 
-    _defaults: ClassVar[dict[str, float]] = {"mu": 1.12, "g_x": 1.5}
-
-    def transfer(self, k):
-        """Compute the modified WDM transfer function."""
-        return (1 + (self.lam_eff_fs * k) ** (2 * self.params["mu"])) ** (-5.0 / self.params["mu"])
+    _defaults: ClassVar[dict[str, float]] = {"nu": 1.12, "g_x": 1.5}
 
     @property
     def lam_eff_fs(self):
-        """Effective free-streaming scale.
+        r"""
+        Effective free-streaming scale :math:`\alpha`, in comoving :math:`h^{-1}{\rm Mpc}`.
 
-        From Schneider+2013, Eq. 6
+        Viel et al. (2005), eq. 7 (thermal relics), also Schneider et al. (2012), eq. 5:
+
+        .. math:: \alpha = 0.049 \left(\frac{m_x}{\rm keV}\right)^{-1.11}
+                  \left(\frac{\Omega_x}{0.25}\right)^{0.11}
+                  \left(\frac{h}{0.7}\right)^{1.22} h^{-1}{\rm Mpc}.
+
+        The extra factor :math:`(1.5/g_x)^{0.29}` is not in Viel et al. (2005); hmf
+        borrows it from Bode et al. (2001), eq. A9. It is unity for the default
+        :math:`g_x = 1.5`.
         """
         return (
             0.049
@@ -140,43 +228,64 @@ class Viel05(WDM):
             * (1.5 / self.params["g_x"]) ** 0.29
         )
 
-    @property
-    def m_fs(self):
-        """
-        Free-streaming mass scale.
 
-        From Schneider+2012, Eq. 7
-        """
-        return (4.0 / 3.0) * np.pi * self.rho_mean * (self.lam_eff_fs / 2) ** 3
+class Bode01(_FittedWDM):
+    r"""
+    WDM transfer function of Bode, Ostriker & Turok (2001).
 
-    @property
-    def lam_hm(self):
-        """
-        Half-mode scale.
+    Their fit to a full Boltzmann-code calculation (Bode et al. 2001, eqs A8 and A9):
 
-        From Schneider+2012, Eq. 8.
-        """
-        return (
-            2
-            * np.pi
-            * self.lam_eff_fs
-            * (2 ** (self.params["mu"] / 5) - 1) ** (-0.5 / self.params["mu"])
-        )
+    .. math:: T(k) = \left[1 + (\alpha k)^{2\nu}\right]^{-5/\nu}, \qquad \nu = 1.2,
 
-    @property
-    def m_hm(self):
-        """
-        Half-mode mass scale.
+    with the break scale :math:`\alpha` given in :attr:`lam_eff_fs`. This differs
+    from :class:`Viel05` (:math:`\nu = 1.12`, and a break scale that falls as
+    :math:`m_x^{-1.11}` rather than :math:`m_x^{-1.15}`).
 
-        From Schneider+2013, Eq. 8
-        """
-        return (4.0 / 3.0) * np.pi * self.rho_mean * (self.lam_hm / 2) ** 3
+    Parameters
+    ----------
+    mx : float
+        Mass of the particle in keV
+    cosmo : `hmf.cosmo.Cosmology` instance
+        A cosmology.
+    z : float, optional
+        Deprecated and ignored. See :class:`WDM`.
+    \*\*model_parameters : unpack-dict
+        Parameters specific to a model. Available parameters are as follows.
+        To see the default values, check the :attr:`_defaults`
+        class attribute.
 
-
-class Bode01(Viel05):
-    """The WDM model of Bode et al. (2001)."""
+        :nu: Exponent of the transfer function (Bode et al. 2001, eq. A8). Formerly
+             called ``mu``, which is still accepted but deprecated.
+        :g_x: Number of degrees of freedom of the WDM particle (Bode et al. 2001,
+              eq. A9; 1.5 for a neutrino-like fermion).
+    """
 
     references: ClassVar[tuple[str, ...]] = (refs.BODE01,)
+
+    _defaults: ClassVar[dict[str, float]] = {"nu": 1.2, "g_x": 1.5}
+
+    @property
+    def lam_eff_fs(self):
+        r"""
+        Effective free-streaming scale :math:`\alpha`, in comoving :math:`h^{-1}{\rm Mpc}`.
+
+        Bode et al. (2001), eq. A9:
+
+        .. math:: \alpha = 0.048 \left(\frac{\Omega_X}{0.4}\right)^{0.15}
+                  \left(\frac{h}{0.65}\right)^{1.3}
+                  \left(\frac{\rm keV}{m_X}\right)^{1.15}
+                  \left(\frac{1.5}{g_X}\right)^{0.29} h^{-1}{\rm Mpc},
+
+        where :math:`\Omega_X` is the WDM density, taken here as
+        :math:`\Omega_m - \Omega_b`.
+        """
+        return (
+            0.048
+            * (self.Oc0 / 0.4) ** 0.15
+            * (self.cosmo.h / 0.65) ** 1.3
+            * self.mx**-1.15
+            * (1.5 / self.params["g_x"]) ** 0.29
+        )
 
 
 viel_model = Viel05(mx=1.0)
@@ -188,6 +297,13 @@ class WDMRecalibrateMF(Component):
     Base class for Components that emulate the effect of WDM on the HMF empirically.
 
     Required method is :meth:`dndm_alter`.
+
+    The recalibrations below depend on the WDM model only through its half-mode
+    mass, ``wdm.m_hm``, so they work with any :class:`WDM` model that defines it.
+    Their parameters were, however, fitted with a particular transfer function
+    (noted in each class), and the half-mode mass of another model differs: for
+    Planck15, :class:`Bode01` gives an :math:`M_{\rm hm}` 15%, 21% and 40% smaller
+    than :class:`Viel05` at :math:`m_x` = 0.5, 1 and 10 keV.
 
     Parameters
     ----------
@@ -217,6 +333,9 @@ class Schneider12_vCDM(WDMRecalibrateMF):
     r"""
     Schneider+2012 recalibration of the CDM HMF.
 
+    Schneider et al. (2012) defined :math:`M_{\rm hm}` with the :class:`Viel05`
+    transfer function (their eqs 4, 5 and 9), which is the default ``wdm`` here.
+
     Parameters
     ----------
     m : array_like
@@ -244,6 +363,9 @@ class Schneider12(WDMRecalibrateMF):
     r"""
     Schneider+2012 recalibration of the WDM HMF.
 
+    Schneider et al. (2012) defined :math:`M_{\rm hm}` with the :class:`Viel05`
+    transfer function (their eqs 4, 5 and 9), which is the default ``wdm`` here.
+
     Parameters
     ----------
     m : array_like
@@ -270,6 +392,11 @@ class Schneider12(WDMRecalibrateMF):
 class Lovell14(WDMRecalibrateMF):
     r"""
     Lovell+2014 recalibration of the WDM HMF.
+
+    Lovell et al. (2014) used the Bode et al. (2001) functional form with
+    :math:`\nu = 1` and the break scale of Bode et al.'s eq. A7 (their eqs 2 and 3),
+    so their :math:`M_{\rm hm}` matches neither :class:`Viel05` nor :class:`Bode01`
+    exactly.
 
     Parameters
     ----------

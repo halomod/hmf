@@ -2,8 +2,11 @@
 
 References: the defining property of the half-mode scale (Schneider et al. 2012:
 the WDM/CDM transfer function equals 1/2 there), the large-scale CDM limit, the
-CDM limit of an infinitely heavy particle, and the free-streaming and half-mode
-masses tabulated by Schneider et al. (2012).
+CDM limit of an infinitely heavy particle, the free-streaming and half-mode
+masses tabulated by Schneider et al. (2012), the smoothing scales and masses quoted
+by Bode, Ostriker & Turok (2001; arXiv:astro-ph/0010389v3), and the
+particle-temperature form of the break scale in Viel et al. (2005;
+arXiv:astro-ph/0501562v2, eq. 7).
 """
 
 import numpy as np
@@ -35,7 +38,7 @@ def test_transfer_shape(model):
     w = model(mx=1.0)
     k = np.logspace(-4, 3, 200)
     t = w.transfer(k)
-    # Tolerance: at k = 1e-4 h/Mpc, (alpha k)^{2 mu} ~ 1e-13 so T = 1 - O(1e-12).
+    # Tolerance: at k = 1e-4 h/Mpc, (alpha k)^{2 nu} ~ 1e-13 so T = 1 - O(1e-12).
     assert t[0] == pytest.approx(1.0, abs=1e-10)
     assert np.all(np.diff(t) < 0)
     assert t[-1] < 1e-6
@@ -64,7 +67,7 @@ def test_free_streaming_and_half_mode_masses_match_schneider12(mx, m_fs, m_hm):
 
 
 def test_half_mode_to_free_streaming_ratio():
-    """Schneider et al. (2012) Eq. 8: lambda_hm ~ 13.93 lambda_fs for mu = 1.12."""
+    """Schneider et al. (2012) Eq. 8: lambda_hm ~ 13.93 lambda_fs for nu = 1.12."""
     w = wdm.Viel05(mx=1.0)
     # Tolerance: the paper quotes 4 significant figures.
     assert w.lam_hm / w.lam_eff_fs == pytest.approx(13.93, abs=5e-3)
@@ -149,3 +152,170 @@ def test_recalibrations_only_suppress_and_vanish_at_high_mass(model, mf_pair):
     assert np.all(np.diff(factor) > 0)
     # Tolerance: at M = 1e6 M_hm the factor is 1 - O(beta gamma 1e-6) ~ 3e-6.
     assert factor[-1] == pytest.approx(1.0, abs=1e-4)
+
+
+@pytest.mark.parametrize("model", MODELS)
+def test_transfer_small_scale_asymptote_is_independent_of_nu(model):
+    """Far below the break, T -> (alpha k)^-10 whatever nu is.
+
+    [1 + (alpha k)^{2 nu}]^{-5/nu} -> (alpha k)^{2 nu * (-5/nu)} = (alpha k)^{-10}
+    (Bode et al. 2001, eq. A8).
+    """
+    w = model(mx=1.0)
+    x = np.array([1e3, 1e4])
+    # Tolerance: the relative correction is (5/nu) (alpha k)^{-2 nu} < 1e-6 here.
+    np.testing.assert_allclose(w.transfer(x / w.lam_eff_fs) * x**10, 1.0, rtol=1e-5)
+
+
+@pytest.mark.parametrize("model", MODELS)
+@pytest.mark.parametrize("k", [0.1, 10.0, 100.0])
+def test_transfer_tends_to_one_for_heavy_particle(model, k):
+    """At fixed k, T -> 1 as m_x -> infinity (the particle becomes cold)."""
+    t = np.array([model(mx=m).transfer(k) for m in [1.0, 10.0, 100.0, 1e4, 1e6]])
+    assert np.all(np.diff(t) >= 0)
+    # Tolerance: for m_x = 1e6 keV, alpha ~ 1e-8 Mpc/h so 1 - T < 1e-10 even at k = 100.
+    assert t[-1] == pytest.approx(1.0, abs=1e-8)
+
+
+# Bode, Ostriker & Turok (2001), astro-ph/0010389v3. Their reference cosmology
+# (Sect. 2: "Omega_DM = 0.3 and h = 0.65 unless otherwise stated"). Ob0 = 0 so that
+# hmf's Omega_X = Om0 - Ob0 is their Omega_X = 0.3.
+_BODE01_COSMO = FlatLambdaCDM(H0=65.0, Om0=0.3, Ob0=0.0, Tcmb0=2.725)
+
+# Smoothing scale R_s, "the comoving half-wavelength of the mode for which the linear
+# perturbation amplitude is suppressed by two" (Bode et al. 2001, text above eq. 1),
+# quoted in Sect. 1 (p. 5): R_s = 2.3 and 1.0 Mpc/h for m_X = 175 and 350 eV, and
+# 0.19 Mpc/h for m_X = 1.5 keV.
+_BODE01_RS = [(0.175, 2.3), (0.35, 1.0), (1.5, 0.19)]
+
+
+@pytest.mark.parametrize(("mx", "r_s"), _BODE01_RS)
+def test_bode01_smoothing_scale_matches_paper(mx, r_s):
+    """Half the half-mode wavelength reproduces Bode et al.'s quoted R_s."""
+    w = wdm.Bode01(mx=mx, cosmo=_BODE01_COSMO)
+    # Tolerance: the quoted R_s come from eq. 1 (R_s = 0.31 (keV/m_X)^1.15 Mpc/h),
+    # whose prefactor is ~5% above what the eq. A8/A9 fit gives (0.294); measured
+    # deviations are 1.5-5%.
+    assert w.lam_hm / 2 == pytest.approx(r_s, rel=0.06)
+
+
+# Bode et al. (2001), Sect. 7: haloes are suppressed below (4/3) pi rho_b R_s^3,
+# "4 x 10^11 and 4 x 10^12 Msun/h for m_X = 350 and 175 eV respectively".
+_BODE01_MASSES = [(0.35, 4e11), (0.175, 4e12)]
+
+
+@pytest.mark.parametrize(("mx", "mass"), _BODE01_MASSES)
+def test_bode01_smoothing_mass_matches_paper(mx, mass):
+    """The half-mode mass is Bode et al.'s (4/3) pi rho_b R_s^3."""
+    w = wdm.Bode01(mx=mx, cosmo=_BODE01_COSMO)
+    # Tolerance: the masses are quoted to one significant figure (up to 12.5%) and,
+    # being R_s^3, carry three times the ~5% eq. 1 vs eq. A9 offset above; measured
+    # deviations are -17% and -9%.
+    assert w.m_hm == pytest.approx(mass, rel=0.2)
+
+
+@pytest.mark.parametrize(
+    ("model", "exponent"),
+    [
+        # Bode et al. (2001), eqs 1 and A9: R_s, alpha ~ m_X^-1.15.
+        (wdm.Bode01, -1.15),
+        # Viel et al. (2005), eq. 7: alpha ~ m_x^-1.11.
+        (wdm.Viel05, -1.11),
+    ],
+)
+def test_half_mode_scale_power_law_in_particle_mass(model, exponent):
+    """lambda_hm and M_hm scale with m_x with each paper's exponent (and 3x it)."""
+    mx = np.array([0.3, 1.0, 3.0, 10.0])
+    lam = np.array([model(mx=m).lam_hm for m in mx])
+    mhm = np.array([model(mx=m).m_hm for m in mx])
+    # Tolerance: an exact power law; floating-point only.
+    np.testing.assert_allclose(np.diff(np.log(lam)) / np.diff(np.log(mx)), exponent, rtol=1e-10)
+    np.testing.assert_allclose(np.diff(np.log(mhm)) / np.diff(np.log(mx)), 3 * exponent, rtol=1e-10)
+
+
+def _viel05_alpha_from_temperature(mx, omega_x_h2, h):
+    """Viel et al. (2005), eq. 7, first line, for a thermal relic, in Mpc/h.
+
+    alpha = 0.24 [(m_x/T_x)/(1 keV/T_nu)]^-0.83 [omega_x/(0.25 * 0.7^2)]^-0.16 Mpc, with
+    the relic temperature fixed by the density through their eq. 2,
+    omega_x = (T_x/T_nu)^3 (m_x / 94 eV).
+    """
+    # Check of eq. 2: m_x = 1 keV, omega_x = 0.25 * 0.7^2 gives T_x/T_nu = 0.2258,
+    # as quoted (0.226) in the caption of their Fig. 1.
+    tx_over_tnu = (omega_x_h2 * 0.094 / mx) ** (1 / 3)
+    alpha_mpc = 0.24 * (mx / tx_over_tnu) ** -0.83 * (omega_x_h2 / (0.25 * 0.7**2)) ** -0.16
+    return alpha_mpc * h
+
+
+@pytest.mark.parametrize("mx", [0.5, 1.0, 2.0, 5.0])
+@pytest.mark.parametrize(("om", "h"), [(0.25, 0.7), (0.3, 0.65), (0.22, 0.72)])
+def test_viel05_break_scale_matches_temperature_form(mx, om, h):
+    """Viel05's alpha equals eq. 7's thermal-relic form written in terms of m_x/T_x.
+
+    The second line of eq. 7 (used by the code) is the first line with T_x eliminated
+    via eq. 2; the paper rounds the resulting exponents (-0.83 * 4/3 = -1.107 -> -1.11,
+    etc.).
+    """
+    cosmo = FlatLambdaCDM(H0=100 * h, Om0=om + 0.05, Ob0=0.05, Tcmb0=2.725)
+    w = wdm.Viel05(mx=mx, cosmo=cosmo)
+    # Tolerance: the rounded exponents and the 2-figure prefactors (0.24, 0.049) give a
+    # measured spread of up to 1.5% over this range.
+    assert w.lam_eff_fs == pytest.approx(_viel05_alpha_from_temperature(mx, om * h**2, h), rel=0.02)
+
+
+def test_bode01_and_viel05_break_scales_agree_at_bode_reference():
+    """At Bode's reference cosmology and 1 keV the two papers' break scales agree.
+
+    Viel et al. (2005) say their eq. 7 "is close to that of [Bode et al. 2001]":
+    0.048 (0.3/0.4)^0.15 = 0.0460 vs 0.049 (0.3/0.25)^0.11 (0.65/0.7)^1.22 = 0.0457.
+    """
+    b = wdm.Bode01(mx=1.0, cosmo=_BODE01_COSMO)
+    v = wdm.Viel05(mx=1.0, cosmo=_BODE01_COSMO)
+    # Tolerance: measured 0.6% difference.
+    assert b.lam_eff_fs == pytest.approx(v.lam_eff_fs, rel=0.01)
+
+
+def test_bode01_and_viel05_differ():
+    """Bode01 (nu = 1.2) and Viel05 (nu = 1.12) give different half-mode scales.
+
+    With the break scales equal (previous test), lambda_hm differs only through the
+    factor (2^{nu/5} - 1)^{-1/(2 nu)} from T = 1/2: 2.217 for nu = 1.12 against 2.038
+    for nu = 1.2, so lambda_hm(Viel05)/lambda_hm(Bode01) = 1.088 and the half-mode
+    masses differ by 1.088^3 = 1.29.
+    """
+    b = wdm.Bode01(mx=1.0, cosmo=_BODE01_COSMO)
+    v = wdm.Viel05(mx=1.0, cosmo=_BODE01_COSMO)
+    assert b.params["nu"] == 1.2
+    assert v.params["nu"] == 1.12
+    # Tolerance: the ~0.6% break-scale difference above, and 3x that for the masses.
+    assert v.lam_hm / b.lam_hm == pytest.approx(1.088, rel=0.01)
+    assert v.m_hm / b.m_hm == pytest.approx(1.29, rel=0.03)
+
+
+@pytest.mark.parametrize("model", MODELS)
+def test_mu_is_deprecated_alias_of_nu(model):
+    """The old parameter name ``mu`` still works, with a warning, and means ``nu``."""
+    with pytest.warns(DeprecationWarning, match="'mu' has been renamed to 'nu'"):
+        old = model(mx=1.0, mu=1.3)
+    new = model(mx=1.0, nu=1.3)
+    assert old.params["nu"] == 1.3
+    assert "mu" not in old.params
+    k = np.logspace(-1, 2, 20)
+    np.testing.assert_array_equal(old.transfer(k), new.transfer(k))
+
+
+@pytest.mark.parametrize("model", MODELS)
+def test_mu_and_nu_together_is_an_error(model):
+    with pytest.raises(ValueError, match="both 'mu' and 'nu'"):
+        model(mx=1.0, mu=1.3, nu=1.2)
+
+
+def test_mu_via_wdm_params_in_framework():
+    """``mu`` passed through ``wdm_params`` reaches the model as ``nu``."""
+    common = {"transfer_model": "EH", "wdm_mass": 1.0, "wdm_model": "Bode01"}
+    new = wdm.TransferWDM(wdm_params={"nu": 1.3}, **common)
+    old = wdm.TransferWDM(wdm_params={"mu": 1.3}, **common)
+    with pytest.warns(DeprecationWarning, match="'mu' has been renamed to 'nu'"):
+        old_wdm = old.wdm
+    assert old_wdm.params["nu"] == 1.3
+    np.testing.assert_allclose(old.power, new.power, rtol=1e-12)
