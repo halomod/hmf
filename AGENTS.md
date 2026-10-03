@@ -84,6 +84,12 @@ Ask first:
 - Formatting and lint checks pass.
 - Unit tests pass.
 - Tests added for new or changed behavior.
+- The PR is labeled appropriately. Use only the official labels defined in
+  `.github/labels.yml`. Release notes (and hence the changelog) are grouped by
+  these labels via `.github/release-drafter.yml`, so an unlabeled or mislabeled
+  PR ends up in the wrong section. If no existing label fits, add the new label
+  to `labels.yml` (and to `release-drafter.yml` if it should get its own
+  release-notes section) rather than creating it ad hoc on GitHub.
 
 ## When stuck
 
