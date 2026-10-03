@@ -126,17 +126,28 @@ class BaseGrowthFactor(Cmpt):
         :math:`E'(a)/E(a) \equiv (1/a)*dlnE/dlna` in its definition.
 
         This implementation simply uses the exact definition from astropy of E(a)
-        and writes down the derivative analytically.
+        and writes down the derivative analytically. With massive neutrinos, the
+        radiation term is :math:`\Omega_\gamma (1 + N(z)) a^{-4}`, where
+        :math:`N(z)` is astropy's ``nu_relative_density``. :math:`N` varies with
+        time as the neutrinos become non-relativistic, so its derivative is included,
+        computed by central finite difference in :math:`\ln(1+z)`.
         """
         a = 1 / (1 + z)
 
-        Or = self.cosmo.Ogamma0 + (
-            self.cosmo.Onu0
-            if not self.cosmo.has_massive_nu
-            else self.cosmo.Ogamma0 * self.cosmo.nu_relative_density(z)
-        )
+        if self.cosmo.has_massive_nu:
+            # d(Ogamma0 * N(z) * a^-4)/da = -4 Ogamma0 N a^-5 + Ogamma0 a^-5 dN/dlna,
+            # with dN/dlna = -dN/dln(1+z).
+            h = 1e-4
+            lnzp1 = np.log1p(z)
+            dn_dlna = -(
+                self.cosmo.nu_relative_density(np.expm1(lnzp1 + h))
+                - self.cosmo.nu_relative_density(np.expm1(lnzp1 - h))
+            ) / (2 * h)
+            Or = self.cosmo.Ogamma0 * (-4 * (1 + self.cosmo.nu_relative_density(z)) + dn_dlna)
+        else:
+            Or = -4 * (self.cosmo.Ogamma0 + self.cosmo.Onu0)
 
-        Or = -4 * Or * a**-5
+        Or = Or * a**-5
         Om = -3 * self.cosmo.Om0 * a**-4
         Ok = -2 * self.cosmo.Ok0 * a**-3
 
