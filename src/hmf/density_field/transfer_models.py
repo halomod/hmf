@@ -25,6 +25,12 @@ except ImportError:  # pragma: no cover
 
 _allfits = ["CAMB", "FromFile", "EH_BAO", "EH_NoBAO", "BBKS", "BondEfs"]
 
+# Zero-based columns of a CAMB transfer-function output file for each matter species.
+# These are also the rows of CAMB's ``MatterTransferData.transfer_data``: CAMB's
+# ``Transfer_*`` constants are 1-based (Fortran), so these are
+# ``camb.model.Transfer_tot - 1`` and ``camb.model.Transfer_nonu - 1`` (checked in tests).
+_CAMB_FILE_COLUMNS: dict[str, int] = {"tot": 6, "cb": 7}
+
 
 @pluggable
 class TransferComponent(Component):
@@ -82,9 +88,26 @@ class FromFile(TransferComponent):
 
         :fname: str
             Location of the file to import.
+        :matter_species: str
+            Which matter density field to read from a CAMB-format file. Either
+            ``"tot"`` (default), the total matter transfer function (column 6,
+            CAMB's ``Transfer_tot``, including massive neutrinos), or ``"cb"``, the
+            CDM+baryon transfer function (column 7, CAMB's ``Transfer_nonu``). See
+            :class:`CAMB` for when to use ``"cb"``. A two-column ``(k, T)`` file is
+            used as-is, whatever this is set to.
     """
 
-    _defaults: ClassVar[dict[str, str]] = {"fname": ""}
+    _defaults: ClassVar[dict[str, str]] = {"fname": "", "matter_species": "tot"}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Subclasses that don't read CAMB columns (e.g. FromArray) don't have the option.
+        species = self.params.get("matter_species", "tot")
+        if species not in _CAMB_FILE_COLUMNS:
+            raise ValueError(
+                f"matter_species must be one of {sorted(_CAMB_FILE_COLUMNS)}, got {species!r}."
+            )
 
     def _check_low_k(self, lnk, lnT, lnkmin):
         """
@@ -125,10 +148,17 @@ class FromFile(TransferComponent):
         lnt : array_like
             The log of the transfer function at lnk.
         """
-        try:
-            T = np.log(np.genfromtxt(self.params["fname"])[:, [0, 6]].T)
-        except IndexError:
-            T = np.log(np.genfromtxt(self.params["fname"])[:, [0, 1]].T)
+        data = np.genfromtxt(self.params["fname"])
+        col = _CAMB_FILE_COLUMNS[self.params["matter_species"]]
+        if data.shape[1] > col:
+            T = np.log(data[:, [0, col]].T)
+        elif self.params["matter_species"] == "tot" or data.shape[1] == 2:
+            T = np.log(data[:, [0, 1]].T)
+        else:
+            raise ValueError(
+                f"{self.params['fname']} has {data.shape[1]} columns, so it has no "
+                f"CDM+baryon column (column {col}) to read for matter_species='cb'."
+            )
 
         if lnk[0] < T[0, 0]:
             lnkout, lnT = self._check_low_k(T[0, :], T[1, :], lnk[0])
@@ -139,12 +169,6 @@ class FromFile(TransferComponent):
 
 
 if HAVE_CAMB:
-    # CAMB's ``Transfer_*`` constants are 1-based (Fortran) indices into the first axis
-    # of ``MatterTransferData.transfer_data``; subtract one for the python index.
-    _CAMB_TRANSFER_COLUMNS: dict[str, int] = {
-        "tot": camb.model.Transfer_tot - 1,
-        "cb": camb.model.Transfer_nonu - 1,
-    }
 
     class CAMB(FromFile):
         r"""
@@ -206,12 +230,6 @@ if HAVE_CAMB:
 
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
-
-            if self.params["matter_species"] not in _CAMB_TRANSFER_COLUMNS:
-                raise ValueError(
-                    "matter_species must be one of "
-                    f"{sorted(_CAMB_TRANSFER_COLUMNS)}, got {self.params['matter_species']!r}."
-                )
 
             if not isinstance(self.cosmo, (cosmology.LambdaCDM, cosmology.wCDM, cosmology.w0waCDM)):
                 # Kept as ValueError (not TypeError): part of the public API contract,
@@ -296,7 +314,7 @@ if HAVE_CAMB:
             """
             camb_transfers = camb.get_transfer_functions(self.params["camb_params"])
             T = camb_transfers.get_matter_transfer_data().transfer_data
-            col = _CAMB_TRANSFER_COLUMNS[self.params["matter_species"]]
+            col = _CAMB_FILE_COLUMNS[self.params["matter_species"]]
             T = np.log(T[[camb.model.Transfer_kh - 1, col], :, 0])
 
             if lnk[0] < T[0, 0]:
