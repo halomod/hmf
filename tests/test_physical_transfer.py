@@ -94,6 +94,63 @@ def test_bbks_matches_eh_zero_baryon_shape():
     np.testing.assert_allclose(np.exp(lnt_bbks - lnt_eh), 1.0, atol=0.1)
 
 
+def test_bondefs_depends_only_on_k_over_shape_parameter():
+    """BondEfs is a function of q = k/Gamma alone, with Gamma = Om0 h (EBW92 eq. 7).
+
+    Two cosmologies with the same Om0 h give the same T(k), and changing Gamma shifts
+    T exactly along k.
+    """
+    k = np.logspace(-3, 1, 40)
+    # Gamma = 0.21 in both: the GIF LCDM (0.3, 0.7) and an Om0 h-matched (0.42, 0.5).
+    t1 = tm.BondEfs(FlatLambdaCDM(H0=70.0, Om0=0.3, Ob0=0.04)).lnt(np.log(k))
+    t2 = tm.BondEfs(FlatLambdaCDM(H0=50.0, Om0=0.42, Ob0=0.04)).lnt(np.log(k))
+    np.testing.assert_allclose(t1, t2, rtol=1e-12, atol=0)
+
+    # Gamma = 0.15: T(k; Gamma) = T(k * 0.21 / 0.15; 0.21).
+    t3 = tm.BondEfs(FlatLambdaCDM(H0=50.0, Om0=0.3, Ob0=0.04)).lnt(np.log(k * 0.15 / 0.21))
+    np.testing.assert_allclose(t3, t1, rtol=1e-12, atol=0)
+
+
+@pytest.mark.parametrize("om0", [0.2, 0.3, 0.4])
+def test_bondefs_matches_eh_zero_baryon_shape(om0):
+    """In the CDM-only limit, BondEfs matches the EH98 zero-baryon transfer function.
+
+    Gamma = Om0 h is the exact shape parameter only when the baryon fraction vanishes
+    (EH98 Sect. 4.2), so the comparison is made with Ob0 -> 0. EH98's zero-baryon form
+    (their eq. 29) matches CMBFAST to 1%.
+    """
+    cosmo = FlatLambdaCDM(H0=70.0, Om0=om0, Ob0=1e-6, Tcmb0=2.7255)
+    k = np.logspace(-3, 0, 40)
+    lnt_be = tm.BondEfs(cosmo).lnt(np.log(k))
+    lnt_eh = tm.EH_NoBAO(cosmo).lnt(np.log(k))
+    # Tolerance: EBW92 took their coefficients from a BE84 model with a 3% baryon
+    # fraction, which EH98 (Fig. 6) show sits a few percent below the zero-baryon
+    # curve. Jenkins et al. (1998, Sect. 3.1) quote a maximum difference in amplitude
+    # of 6% between this fit and CMBFAST. Measured max 5.5% for every om0 here, at
+    # k ~ 0.3-1 h/Mpc. The BE84 Omega=0.3 coefficients used before the fix are off by 16%.
+    np.testing.assert_allclose(np.exp(lnt_be - lnt_eh), 1.0, atol=0.07)
+
+
+def test_bondefs_reproduces_bond_efstathiou_standard_cdm_fit():
+    """At Om0=1, h=0.75, BondEfs reproduces BE84's own fit for that model.
+
+    BE84 Table 1 (row Omega=1, Omega_B=0.03, h=0.75) gives a=11.3, b=5.29, c=3.10 Mpc
+    and nu=1.13 for their eq. 6, with k in 1/Mpc. EBW92 state that their eq. 7 fits
+    standard CDM if Gamma = h.
+    """
+    h = 0.75
+    k = np.logspace(-3, 0, 40)  # h/Mpc
+    kmpc = k * h  # 1/Mpc, the units of BE84's coefficients
+    t_be84 = (1 + (11.3 * kmpc + (5.29 * kmpc) ** 1.5 + (3.10 * kmpc) ** 2) ** 1.13) ** (-1 / 1.13)
+
+    cosmo = FlatLambdaCDM(H0=100 * h, Om0=1.0, Ob0=0.03)
+    t = np.exp(tm.BondEfs(cosmo).lnt(np.log(k)))
+    # Tolerance: EBW92's coefficients are this row times Gamma = Omega h^2 = 0.5625
+    # (6.36, 2.98, 1.74), rounded to two significant figures. Measured max 0.47% at
+    # k <= 1 h/Mpc; the coefficients of the Omega=0.3 row, used before the fix, are 11% off.
+    np.testing.assert_allclose(t, t_be84, rtol=0.01)
+
+
 def test_power_spectrum_follows_primordial_slope_on_large_scales():
     """With T -> 1 on large scales, P(k) -> A k^{n_s}."""
     t = Transfer(

@@ -1117,7 +1117,7 @@ class BBKS(TransferComponent):
 
 class BondEfs(TransferComponent):
     r"""
-    Transfer function of Bond and Efstathiou.
+    Transfer function of Bond and Efstathiou, in the shape-parameter form of EBW92.
 
     Parameters
     ----------
@@ -1131,19 +1131,43 @@ class BondEfs(TransferComponent):
 
     Notes
     -----
-    The fit is given as
+    The fit is given by Efstathiou, Bond & White (1992, EBW92), eq. 7:
 
-    .. math:: T(k) = \left[1 + (\tilde{a}k + (\tilde{b}k)^{3/2} +
-              (\tilde{c}k)^2)^\nu\right]^{-1/\nu}
+    .. math:: T(k) = \left[1 + \left(aq + (bq)^{3/2} +
+              (cq)^2\right)^\nu\right]^{-1/\nu},
+              \qquad q = k/\Gamma, \qquad \Gamma = \Omega_{m,0} h,
 
-    where :math:`\tilde{x} = x\alpha` and
+    with :math:`k` in :math:`h\,{\rm Mpc}^{-1}` and the defaults
+    :math:`a = 6.4`, :math:`b = 3.0`, :math:`c = 1.7` :math:`h^{-1}{\rm Mpc}` and
+    :math:`\nu = 1.13`. The transfer function depends on cosmology only through
+    :math:`\Gamma`. These are the coefficients that the GIF and Virgo simulations
+    used for their initial conditions (Jenkins et al. 1998, eq. 4; Jenkins et al.
+    2001, eq. 1), which cite BE84 for them.
 
-    .. math:: \alpha = \frac{0.3\times 0.75^2}{\Omega_{m,0} h^2}.
+    The functional form is BE84's eq. 6. BE84 fit it separately to each model in
+    their Table 1 (coefficients in Mpc, :math:`k` in :math:`{\rm Mpc}^{-1}`) and note
+    that :math:`a, b, c` should scale as :math:`(\Omega h^2)^{-1}`. In units of
+    :math:`h^{-1}{\rm Mpc}` that scaling is :math:`1/\Gamma`. EBW92's coefficients
+    are BE84's :math:`\Omega = 1`, :math:`h = 0.75` row (11.3, 5.29, 3.10 Mpc;
+    :math:`\nu = 1.13`) times :math:`\Omega h^2`, rounded to two figures.
+
+    :math:`\Gamma = \Omega_{m,0} h` is the exact shape parameter only for a
+    vanishing baryon fraction. The BE84 models have :math:`\Omega_B = 0.03`, so this
+    form describes a nearly baryon-free universe. Baryon suppression of small-scale
+    power is not included; use :class:`EH_NoBAO` for that.
+
+    Earlier versions of hmf used BE84's :math:`\Omega = 0.3`, :math:`h = 0.75`
+    row (37.1, 21.1, 10.8 Mpc, :math:`\nu = 1.12`) as defaults, scaled by
+    :math:`0.3 \times 0.75^2/(\Omega_{m,0} h)`. That row has a 10% baryon
+    fraction, which the scaling then applied to every cosmology. The parameters
+    :math:`a, b, c` are now in units of :math:`h^{-1}{\rm Mpc}` at
+    :math:`\Gamma = 1`. To recover the old result, pass ``a=6.260625``,
+    ``b=3.560625``, ``c=1.8225`` and ``nu=1.12``.
     """
 
-    references: ClassVar[tuple[str, ...]] = (refs.BE84,)
+    references: ClassVar[tuple[str, ...]] = (refs.BE84, refs.EBW92)
 
-    _defaults: ClassVar[dict[str, float]] = {"a": 37.1, "b": 21.1, "c": 10.8, "nu": 1.12}
+    _defaults: ClassVar[dict[str, float]] = {"a": 6.4, "b": 3.0, "c": 1.7, "nu": 1.13}
 
     def lnt(self, lnk):
         """
@@ -1152,21 +1176,20 @@ class BondEfs(TransferComponent):
         Parameters
         ----------
         lnk : array_like
-            Wavenumbers [Mpc/h]
+            Natural log of wavenumbers [h/Mpc]
 
         Returns
         -------
         lnt : array_like
             The log of the transfer function at lnk.
         """
-        scale = (0.3 * 0.75**2) / (self.cosmo.Om0 * self.cosmo.h)
+        q = np.exp(lnk) / (self.cosmo.Om0 * self.cosmo.h)
 
-        a = self.params["a"] * scale
-        b = self.params["b"] * scale
-        c = self.params["c"] * scale
+        a = self.params["a"]
+        b = self.params["b"]
+        c = self.params["c"]
         nu = self.params["nu"]
-        k = np.exp(lnk)
-        return np.log((1 + (a * k + (b * k) ** 1.5 + (c * k) ** 2) ** nu) ** (-1 / nu))
+        return -np.log1p((a * q + (b * q) ** 1.5 + (c * q) ** 2) ** nu) / nu
 
 
 class EH(EH_BAO):

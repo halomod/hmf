@@ -24,6 +24,10 @@ HEATH77 = (
 LEO18 = "Leo, M., Baugh, C. M., Li, B., Pascoli, S., 2018. JCAP 04, 010. arXiv:1801.02547"
 SCHNEIDER13 = "Schneider, A., Smith, R. E., Reed, D., 2013. MNRAS 433, 1573. arXiv:1303.0839"
 BE84 = "Bond, J. R., Efstathiou, G., 1984. ApJ 285, L45. https://doi.org/10.1086/184362"
+EBW92 = (
+    "Efstathiou, G., Bond, J. R., White, S. D. M., 1992. MNRAS 258, 1P. "
+    "https://doi.org/10.1093/mnras/258.1.1P"
+)
 BODE01 = "Bode, P., Ostriker, J. P., Turok, N., 2001. ApJ 556, 93. https://doi.org/10.1086/321541"
 BRYAN98 = "Bryan, G. L., Norman, M. L., 1998. ApJ 495, 80. https://doi.org/10.1086/305262"
 DAVIS85 = (

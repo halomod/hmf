@@ -620,7 +620,9 @@ class Jenkins(BaseFittingFunction):
         halo_overdensity=0.2,
         halo_finder=None,
         softening=30.0,
-        transfer="BondEfs",
+        # Jenkins et al. (2001) Sect. 2.1: the 512^3 and Hubble-volume LCDM runs
+        # used a CMBFAST transfer function, the others Bond & Efstathiou.
+        transfer=["BondEfs", "BondEfs", "CMBFAST", "CMBFAST"],
         z_start=30.0,
         z_meas=(0.0, 5.0),
         ICS=None,
