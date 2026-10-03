@@ -388,9 +388,32 @@ def test_bocquet_mass_conversion_matches_nfw(cls, overdensity, z, m):
     fit = cls(nu2=np.array([1.0]), m=np.array([m]), z=z, cosmo=cosmo)
     expected = _nfw_mass_ratio(m, z, overdensity, cosmo)
     # Tolerance: the paper quotes "few percent" accuracy for its fits; the largest
-    # measured deviation is 5.6% (500c, z=1, 1e14). 7% also absorbs the M vs M/h
-    # ambiguity in the ln(M) term of the fit (~1%).
+    # measured deviation is 5.6% (500c, z=1, 1e14).
     assert fit.convert_mass()[0] == pytest.approx(expected, rel=0.07)
+
+
+@pytest.mark.parametrize(
+    ("cls", "overdensity"), _BOCQUET_CRIT_FITS, ids=lambda c: getattr(c, "__name__", str(c))
+)
+@pytest.mark.parametrize("z", [0.0, 1.0])
+def test_bocquet_mass_conversion_depends_on_mass_in_msun(cls, overdensity, z):
+    """The mass ratio is a function of the halo mass in Msun, so it cannot depend on h.
+
+    Bocquet+16's Eqs. 6 and A2 depend only on ln(M/Msun), Omega_m and z (their masses
+    carry no h). At fixed Omega_m(z), the same physical halo, m = M h in Msun/h, must
+    therefore get the same ratio whatever H0 is. Radiation is switched off so that
+    Omega_m(z) does not depend on h either. Evaluating the ln M term on m [Msun/h]
+    instead shifts the ratio by beta ln(h1/h2), ~1% for h = 0.5 vs 0.9.
+    """
+    m_sun = np.logspace(13, 16, 7)
+    ratios = []
+    for h in (0.5, 0.9):
+        cosmo = FlatLambdaCDM(H0=100 * h, Om0=0.272, Ob0=0.0456, Tcmb0=0.0)
+        fit = cls(nu2=np.ones_like(m_sun), m=m_sun * h, z=z, cosmo=cosmo)
+        ratios.append(fit.convert_mass())
+
+    # Tolerance: the two evaluations are algebraically identical, so only rounding.
+    np.testing.assert_allclose(ratios[0], ratios[1], rtol=1e-12)
 
 
 @pytest.mark.parametrize("variant", ["DMOnly", "Hydro"])
