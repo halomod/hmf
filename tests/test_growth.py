@@ -365,16 +365,25 @@ def test_cambgrowth_matter_species(m_nu):
         H0=70.0, Om0=0.3, Ob0=0.05, Tcmb0=2.7255, m_nu=[0.0, 0.0, m_nu] * u.eV
     )
     z = np.array([0.0, 0.5, 1.0, 2.0, 5.0])
-    d_tot = growth_factor.CambGrowth(cosmo).growth_factor(z)
+    gf_tot = growth_factor.CambGrowth(cosmo)
+    d_tot = gf_tot.growth_factor(z)
     d_cb = growth_factor.CambGrowth(cosmo, matter_species="cb").growth_factor(z)
 
     if m_nu == 0:
         np.testing.assert_allclose(d_cb, d_tot, rtol=1e-6)
     else:
-        # Neutrino free-streaming slows the late-time growth of delta_tot relative to
-        # delta_cb, so the (z=0-normalised) cb growth factor is larger at z > 0.
+        # delta_tot = (1 - f_nu) delta_cb + f_nu delta_nu with 0 <= delta_nu <= delta_cb.
+        # As neutrinos cool, delta_nu catches up with delta_cb, so delta_tot grows faster
+        # than delta_cb and the z=0-normalised cb growth factor is larger at z > 0.
+        # Since delta_tot / delta_cb lies in [1 - f_nu, 1], D_cb / D_tot <= 1 / (1 - f_nu).
+        p = gf_tot.p
+        f_nu = p.omnuh2 / (p.omnuh2 + p.omch2 + p.ombh2)
+        ratio = d_cb[1:] / d_tot[1:]
         assert d_cb[0] == pytest.approx(1.0)
-        assert np.all(d_cb[1:] > d_tot[1:] * (1 + 1e-4))
+        assert np.all(ratio > 1 + 1e-4)
+        assert np.all(ratio <= 1 / (1 - f_nu))
+        # The difference grows with redshift as the neutrinos were hotter.
+        assert np.all(np.diff(ratio) > 0)
 
 
 def test_cambgrowth_bad_matter_species():

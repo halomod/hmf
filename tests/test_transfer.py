@@ -189,24 +189,40 @@ def _camb_species_powers(m_nu):
             lnk_max=np.log(10.0),
         )
         powers[species] = t._unnormalised_power
-    return t.k, powers
+    camb_params = t.transfer.params["camb_params"]
+    f_nu = camb_params.omnuh2 / (camb_params.omnuh2 + camb_params.omch2 + camb_params.ombh2)
+    return t.k, powers, f_nu
 
 
 def test_camb_matter_species_agree_for_massless_neutrinos():
     """With massless neutrinos, P_cb and P_tot are the same spectrum."""
-    _, powers = _camb_species_powers([0.0, 0.0, 0.0])
+    _, powers, _ = _camb_species_powers([0.0, 0.0, 0.0])
     np.testing.assert_allclose(powers["cb"], powers["tot"], rtol=1e-6)
 
 
-def test_camb_matter_species_differ_for_massive_neutrinos():
-    """With massive neutrinos, neutrino free-streaming suppresses P_tot relative to P_cb."""
-    k, powers = _camb_species_powers([0.0, 0.0, 0.3])
-    ratio = powers["cb"] / powers["tot"]
+def test_camb_matter_species_neutrino_suppression():
+    """P_tot is suppressed relative to P_cb by neutrino free-streaming.
 
-    # Same shape on large scales, where neutrinos cluster like CDM.
-    np.testing.assert_allclose(ratio[k < 2e-3], 1.0, rtol=1e-3)
-    # At small scales P_tot ~ (1 - f_nu)^2 P_cb, with f_nu ~ 0.02 here.
-    assert np.all(ratio[k > 1.0] > 1.02)
+    On scales much larger than the free-streaming length neutrinos cluster like CDM,
+    so P_tot = P_cb. Well inside it, delta_nu -> 0 and delta_tot -> (1 - f_nu) delta_cb
+    with f_nu = Omega_nu / Omega_m, so P_tot / P_cb -> (1 - f_nu)^2.
+    """
+    previous_ratio = 1.0
+    for m_nu in (0.06, 0.15, 0.3):
+        k, powers, f_nu = _camb_species_powers([0.0, 0.0, m_nu])
+        ratio = powers["tot"] / powers["cb"]
+
+        # Large scales: the two fields agree.
+        np.testing.assert_allclose(ratio[k < 2e-3], 1.0, rtol=1e-3)
+
+        # Small scales: P_cb > P_tot, approaching the analytic free-streaming limit.
+        small = (k > 1.0) & (k < 10.0)
+        assert np.all(ratio[small] < 1)
+        np.testing.assert_allclose(ratio[small], (1 - f_nu) ** 2, rtol=1e-2)
+
+        # More massive neutrinos give stronger suppression.
+        assert np.max(ratio[small]) < previous_ratio
+        previous_ratio = np.min(ratio[small])
 
 
 def test_camb_default_matter_species_is_tot():
