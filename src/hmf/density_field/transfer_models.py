@@ -731,16 +731,22 @@ class BBKS(TransferComponent):
 
     These equations are taken from BBKS 1986, Eq. G3.
 
-    Further modifications can be made in the presence of baryons. Sugiyama 1995, Eq. 3.9
-    gives
+    Further modifications can be made in the presence of baryons. With
+    ``use_sugiyama_baryons``, the form of the Sugiyama (1995) preprint
+    (astro-ph/9412025, Eq. 3.9; also quoted by Liddle et al. 1996, Eq. 6) is used:
 
     .. math:: \Gamma \rightarrow \Gamma
-              \exp\left(-\Omega_{b,0}(1 + 1/\Omega_{m,0})\right)
+              \exp\left(-\Omega_{b,0}(1 + 1/\Omega_{m,0})\right).
 
-    and Liddle and Lythe (2000) Eq. 5.14 give a slight extra:
+    With ``use_liddle_baryons`` (the default), the published form of Sugiyama
+    (1995, ApJS 100, 281), as quoted by Meiksin, White & Peacock (1999, Eq. 4) and
+    Liddle & Lyth (2000, Eq. 5.14), is used:
 
     .. math:: \Gamma \rightarrow \Gamma
               \exp\left(-\Omega_{b,0}(1 + \sqrt{2h}/\Omega_{m,0})\right).
+
+    The two agree exactly at :math:`h = 0.5`. If both are set,
+    ``use_sugiyama_baryons`` takes precedence.
     """
 
     _defaults: ClassVar[dict[str, Any]] = {
@@ -778,9 +784,7 @@ class BBKS(TransferComponent):
         if self.params["use_sugiyama_baryons"]:
             Gamma *= np.exp(-self.cosmo.Ob0 * (1 + 1 / self.cosmo.Om0))
         elif self.params["use_liddle_baryons"]:
-            Gamma *= np.exp(
-                -self.cosmo.Ob0 * (1 + np.sqrt(self.cosmo.Ob0 * self.cosmo.h) / self.cosmo.Om0)
-            )
+            Gamma *= np.exp(-self.cosmo.Ob0 * (1 + np.sqrt(2 * self.cosmo.h) / self.cosmo.Om0))
 
         q = np.exp(lnk) / Gamma
 
