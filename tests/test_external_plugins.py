@@ -219,3 +219,21 @@ def test_framework_to_dict_plugins(ext_module):
 
 def test_framework_to_dict_no_plugins_for_builtin_models():
     assert "plugins" not in framework_to_dict(MassFunction(**TRANSFER))
+
+
+@pytest.mark.parametrize("path", [":Cls", "mod:", ".Cls"])
+def test_import_path_malformed(path):
+    with pytest.raises(ValueError, match="Could not interpret"):
+        get_mdl(path, "BaseFittingFunction")
+
+
+def test_cli_plugins_single_string(tmp_path, ext_module, ps_dndm):
+    cfg = f"""
+    plugins = "{ext_module}"
+    [params]
+    transfer_model = "EH"
+    hmf_model = "ScaledPS"
+    """
+    dndm = _run(tmp_path, cfg, tmp_path / "out")
+    np.testing.assert_allclose(dndm, 0.5 * ps_dndm, rtol=1e-6)
+    assert toml.load(tmp_path / "out" / "hmf_cfg.toml")["plugins"] == [ext_module]
