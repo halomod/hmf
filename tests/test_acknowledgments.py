@@ -9,7 +9,7 @@ import pytest
 from hmf import MassFunction, Transfer
 from hmf._internals import _references as refs
 from hmf._internals._cache import parameter, subframework
-from hmf._internals._framework import HMF_REFERENCE, Component, Framework, _get_references
+from hmf._internals._framework import HMF_REFERENCE, Component, Framework
 from hmf.cosmology.cosmo import Cosmology
 from hmf.density_field import transfer_models as tm
 from hmf.mass_function import fitting_functions as ff
@@ -43,14 +43,14 @@ def test_default_massfunction_has_no_duplicates():
     acks = mf.get_acknowledgments()
     assert acks[0] == HMF_REFERENCE
     assert len(acks) == len(set(acks))
-    assert _get_references(mf.hmf_model)[0] in acks
+    assert all(ref in acks for ref in mf.hmf_model.references)
     assert all(ref in acks for ref in mf.transfer_model.references)
     assert all(ref in acks for ref in mf.growth_model.references)
 
 
 def test_hmf_model_changes_fit_reference(mf):
-    tinker = _get_references(ff.Tinker08)[0]
-    st = _get_references(ff.ST)[0]
+    (tinker,) = ff.Tinker08.references
+    (st,) = ff.ST.references
 
     other = mf.clone(hmf_model="ST")
     assert st in other.get_acknowledgments()
@@ -112,21 +112,17 @@ def test_user_component_references(mf):
 
     acks = mf.clone(hmf_model=MyFit).get_acknowledgments()
     assert "Me, A., 2026. Nowhere 1, 1." in acks
-    # Explicit references take precedence over the inherited ``_ref``.
-    assert _get_references(ff.PS)[0] not in acks
+    # A subclass's own references replace those it would inherit.
+    assert ff.PS.references[0] not in acks
 
 
-def test_ref_fallback():
-    class OnlyRef(Component):
-        _ref = """Someone, B.,
-            2001. Journal 2, 3."""
-
-    assert _get_references(OnlyRef) == ("Someone, B., 2001. Journal 2, 3.",)
-
-    class Neither(Component):
-        pass
-
-    assert _get_references(Neither) == ()
+@pytest.mark.parametrize("name", sorted(ff.BaseFittingFunction.get_models()))
+def test_every_fitting_function_has_references(name):
+    fit = ff.BaseFittingFunction.get_models()[name]
+    assert fit.references
+    assert all(isinstance(ref, str) and ref == ref.strip() for ref in fit.references)
+    # The first reference is the one cited in the docstring.
+    assert " ".join(fit.references[0].split()) in " ".join(fit.__doc__.split())
 
 
 def test_inherited_references():
@@ -198,3 +194,11 @@ class _Shared(_Outer):
 def test_shared_subframework_visited_once():
     acks = _Shared().get_acknowledgments()
     assert acks == [HMF_REFERENCE, "Inner, I., 2000.", "Sub, S., 2010."]
+
+
+def test_component_without_references():
+    class NoRefs(Component):
+        pass
+
+    assert NoRefs.references == ()
+    assert _Inner(sub_model=NoRefs).get_acknowledgments() == [HMF_REFERENCE, "Inner, I., 2000."]

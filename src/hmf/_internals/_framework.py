@@ -29,9 +29,7 @@ class Component:
     _defaults: ClassVar[dict[str, Any]] = {}
 
     #: References to cite when this model is used, each a formatted citation string.
-    #: Subclasses inherit their parent's references unless they set their own. If
-    #: empty, :meth:`Framework.get_acknowledgments` falls back to a ``_ref`` string
-    #: on the class, if there is one.
+    #: Subclasses inherit their parent's references unless they set their own.
     references: ClassVar[tuple[str, ...]] = ()
 
     def __init__(self, **model_params):
@@ -55,19 +53,6 @@ HMF_REFERENCE = (
     "Murray, S. G., Power, C., Robotham, A. S. G., 2013. Astronomy and Computing 3, 23. "
     "arXiv:1306.6721"
 )
-
-
-def _get_references(cls: type) -> tuple[str, ...]:
-    """Return the references of a component class.
-
-    Uses the class's ``references`` attribute, falling back to its ``_ref`` string.
-    """
-    refs = tuple(getattr(cls, "references", ()) or ())
-    if not refs:
-        ref = getattr(cls, "_ref", None)
-        if isinstance(ref, str) and ref.strip():
-            refs = (" ".join(ref.split()),)
-    return refs
 
 
 def get_base_components() -> list[type[Component]]:
@@ -326,7 +311,7 @@ class Framework(metaclass=_Validator):
             model = getattr(self, name)
             if model is None:
                 continue
-            refs.extend(_get_references(model if isinstance(model, type) else type(model)))
+            refs.extend(getattr(model, "references", ()))
 
         for name in dir(type(self)):
             prop = getattr(type(self), name, None)
