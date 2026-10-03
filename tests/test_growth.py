@@ -337,9 +337,9 @@ def test_expected_warnings():
         ).growth_factor(0)
 
 
-def heath_growth_factor_einstein_de_sitter():
+def test_heath_growth_factor_einstein_de_sitter():
     """Test that Heath77GrowthFactor is correct for an Einstein-de Sitter universe."""
-    cosmo = Planck13.clone(Tcmb0=0.0, Om0=1.0, Ode0=0.0)
+    cosmo = Planck13.clone(Tcmb0=0.0, Om0=1.0, Ode0=0.0, to_nonflat=True)
     gf_heath = growth_factor.Heath77GrowthFactor(cosmo)
 
     z = np.linspace(0, 100, 1000)
@@ -426,4 +426,171 @@ def test_growthfactor_open_universe_uses_heath77():
     assert isinstance(gf._choose_solution(z), growth_factor.Heath77GrowthFactor)
     np.testing.assert_allclose(
         gf.growth_factor(z), growth_factor.ODEGrowthFactor(cosmo).growth_factor(z), rtol=1e-5
+    )
+
+
+# ---------------------------------------------------------------------------------------
+# Physical regression tests for dark energy, Einstein-de Sitter and open universes.
+# ---------------------------------------------------------------------------------------
+def _independent_growth(cosmo, z):
+    r"""Solve the linear growth equation independently of hmf.
+
+    Integrates :math:`D'' + (2 + d\ln E/d\ln a) D' - \frac32 \Omega_m(a) D = 0` in
+    :math:`\ln a`, with :math:`E(a)` from astropy and :math:`d\ln E/d\ln a` from a
+    central finite difference. Starts at :math:`a = 10^{-8}` on the growing mode: with
+    radiation D is constant there (D' = 0), otherwise D = a.
+    """
+    from scipy.integrate import solve_ivp
+
+    h = 1e-5
+
+    def dlne(lna):
+        return (
+            np.log(cosmo.efunc(np.exp(-(lna + h)) - 1))
+            - np.log(cosmo.efunc(np.exp(-(lna - h)) - 1))
+        ) / (2 * h)
+
+    def rhs(lna, y):
+        zz = np.exp(-lna) - 1
+        return [y[1], -(2 + dlne(lna)) * y[1] + 1.5 * cosmo.Om(zz) * y[0]]
+
+    lna0 = np.log(1e-8)
+    y0 = [1.0, 0.0] if cosmo.Tcmb0.value > 0 else [1e-8, 1e-8]
+    lna = np.log(1 / (1 + np.atleast_1d(z)))
+    t_eval = np.sort(np.unique(np.concatenate([lna, [0.0]])))
+    sol = solve_ivp(rhs, (lna0, 0.0), y0, t_eval=t_eval, rtol=1e-10, atol=1e-14, method="DOP853")
+    d = sol.y[0] / sol.y[0][-1]
+    f = sol.y[1] / sol.y[0]
+    idx = np.searchsorted(t_eval, lna)
+    return d[idx], f[idx]
+
+
+DE_COSMOS = {
+    "wcdm_w-0.8": cosmology.FlatwCDM(H0=67.7, Om0=0.31, Ob0=0.049, w0=-0.8, Tcmb0=2.7255),
+    "wcdm_w-1.2": cosmology.FlatwCDM(H0=67.7, Om0=0.31, Ob0=0.049, w0=-1.2, Tcmb0=2.7255),
+    "w0wacdm": cosmology.w0waCDM(
+        H0=67.7, Om0=0.31, Ode0=0.69, Ob0=0.049, w0=-0.9, wa=0.3, Tcmb0=2.7255
+    ),
+}
+
+
+@pytest.mark.parametrize("model", ["ODEGrowthFactor", "GrowthFactor"])
+@pytest.mark.parametrize("name", list(DE_COSMOS))
+def test_growth_matches_independent_ode(model, name):
+    """The ODE growth agrees with an independent solve using astropy's E(z).
+
+    Regression test: dlnE/dlna used to omit the dark-energy term (w != -1).
+    """
+    cosmo = DE_COSMOS[name]
+    z = np.array([0.0, 0.5, 1.0, 2.0, 5.0, 20.0])
+    d_ref, f_ref = _independent_growth(cosmo, z)
+    g = getattr(growth_factor, model)(cosmo)
+    # Tolerance: hmf's ODE is solved at rtol=1e-6 and splined, and f is a spline
+    # derivative; measured max 2e-6 in D and 1.5e-5 in f. The bug was 2.4% / 7%.
+    np.testing.assert_allclose(g.growth_factor(z), d_ref, rtol=1e-5)
+    np.testing.assert_allclose(g.growth_rate(z), f_ref, rtol=1e-4)
+
+
+@pytest.mark.parametrize(
+    "cosmo",
+    [
+        cosmology.FlatwCDM(H0=67.7, Om0=0.31, w0=-0.8, Tcmb0=0.0),
+        cosmology.FlatwCDM(H0=67.7, Om0=0.31, w0=-0.9, Tcmb0=0.0),
+        cosmology.Flatw0waCDM(H0=67.7, Om0=0.31, w0=-0.9, wa=0.15, Tcmb0=0.0),
+    ],
+    ids=["w-0.8", "w-0.9", "w0wa"],
+)
+def test_dark_energy_growth_rate_matches_linder(cosmo):
+    r"""For w > -1, :math:`f = \Omega_m(z)^\gamma` with :math:`\gamma = 0.55 + 0.05(1 + w(z=1))`.
+
+    Linder (2005) quotes this as accurate to ~0.5% in f; before the dark-energy term
+    was added to dlnE/dlna, f was 7% low at z=0 for w=-0.8.
+    """
+    z = np.array([0.0, 0.5, 1.0, 2.0, 3.0])
+    gamma = 0.55 + 0.05 * (1 + cosmo.w(1.0))
+    f = growth_factor.ODEGrowthFactor(cosmo).growth_rate(z)
+    # Tolerance: 1%, Linder's quoted accuracy plus margin.
+    np.testing.assert_allclose(f, cosmo.Om(z) ** gamma, rtol=1e-2)
+
+
+@pytest.mark.parametrize("name", ["wcdm_w-0.8", "wcdm_w-1.2", "w0wacdm"])
+def test_dark_energy_growth_matches_camb(name):
+    """The ODE growth factor agrees with CAMB's, and CambGrowth's rate with dlnD/dlna.
+
+    CAMB is an independent Boltzmann code. Its D is evaluated at k/h = 0.01, where
+    scale-dependent effects (baryons, dark-energy perturbations) are tiny.
+    """
+    cosmo = DE_COSMOS[name]
+    z = np.array([0.0, 0.5, 1.0, 2.0, 5.0])
+    camb_gf = growth_factor.CambGrowth(cosmo, matter_species="tot")
+    d_camb = camb_gf.growth_factor(z)
+    # Tolerance: measured < 2e-4 (scale dependence at k/h = 0.01); the bug was 2.4%.
+    np.testing.assert_allclose(
+        growth_factor.ODEGrowthFactor(cosmo).growth_factor(z), d_camb, rtol=1e-3
+    )
+
+    # CambGrowth's growth rate must be the log-derivative of CAMB's growth factor.
+    # (z > 0 only: CAMB cannot be evaluated at z < 0.)
+    zr = np.array([0.5, 1.0, 2.0])
+    lna = np.log(1 / (1 + zr))
+    eps = 0.02
+    fd = (
+        np.log(camb_gf.growth_factor(np.exp(-(lna + eps)) - 1))
+        - np.log(camb_gf.growth_factor(np.exp(-(lna - eps)) - 1))
+    ) / (2 * eps)
+    # Tolerance: O(eps^2) truncation plus CAMB's scale dependence; measured < 3e-4.
+    np.testing.assert_allclose(camb_gf.growth_rate(zr), fd, rtol=2e-3)
+
+
+@pytest.mark.parametrize("model", ["GrowthFactor", "Eisenstein97GrowthFactor"])
+def test_exact_einstein_de_sitter(model):
+    """In EdS (Omega_m=1, Omega_Lambda=0) the growing mode is exactly D = a, f = 1.
+
+    Regression test: these models used to raise ZeroDivisionError from
+    (Om0/Ode0)**(1/3).
+    """
+    cosmo = cosmology.LambdaCDM(H0=70.0, Om0=1.0, Ode0=0.0, Tcmb0=0.0)
+    g = getattr(growth_factor, model)(cosmo)
+    z = np.array([0.0, 0.5, 1.0, 3.0, 10.0])
+    np.testing.assert_allclose(g.growth_factor(z), 1 / (1 + z), rtol=1e-9)
+    np.testing.assert_allclose(g.growth_rate(z), 1.0, rtol=1e-9)
+
+
+@pytest.mark.parametrize("model", ["Heath77GrowthFactor", "GrowthFactor", "GenMFGrowth"])
+@pytest.mark.parametrize("om0", [0.1, 0.3, 0.5])
+def test_open_universe_growth_rate(model, om0):
+    r"""In an open, Lambda=0 universe, f agrees with the ODE and integral solutions.
+
+    Peebles (1980): :math:`f_0 \approx \Omega_m^{0.6}`, so 0 < f < 1 today. The ODE and
+    integral solutions are independent methods that agree with each other to ~1e-6.
+
+    Regression test: Heath77 (and GrowthFactor, which uses it here) gave f = -0.69 for
+    Omega_m = 0.1, and GenMFGrowth gave NaN.
+    """
+    cosmo = cosmology.LambdaCDM(H0=70.0, Om0=om0, Ode0=0.0, Tcmb0=0.0)
+    z = np.array([0.0, 0.5, 1.0, 3.0, 10.0])
+    f = getattr(growth_factor, model)(cosmo).growth_rate(z)
+
+    assert 0 < f[0] < 1
+    # Tolerance: Peebles' approximation is good to a few percent (measured 2%).
+    assert f[0] == pytest.approx(om0**0.6, rel=0.05)
+    # Tolerance: the ODE's f is a spline derivative of a rtol=1e-6 solution (measured
+    # max 1.4e-5); the integral solution is smoother (measured < 1e-7).
+    np.testing.assert_allclose(f, growth_factor.ODEGrowthFactor(cosmo).growth_rate(z), rtol=1e-4)
+    np.testing.assert_allclose(
+        f, growth_factor.IntegralGrowthFactor(cosmo).growth_rate(z), rtol=1e-6
+    )
+
+
+def test_closed_lambda0_heath_growth_rate():
+    """Heath77's growth rate is also right for a closed (Omega_m > 1) Lambda=0 universe."""
+    cosmo = cosmology.LambdaCDM(H0=70.0, Om0=1.5, Ode0=0.0, Tcmb0=0.0)
+    z = np.array([0.0, 0.5, 1.0, 3.0, 10.0])
+    f = growth_factor.Heath77GrowthFactor(cosmo).growth_rate(z)
+    # Growth outpaces EdS when curvature is positive.
+    assert np.all(f > 1)
+    # Tolerance: as above.
+    np.testing.assert_allclose(f, growth_factor.ODEGrowthFactor(cosmo).growth_rate(z), rtol=1e-4)
+    np.testing.assert_allclose(
+        f, growth_factor.IntegralGrowthFactor(cosmo).growth_rate(z), rtol=1e-6
     )
