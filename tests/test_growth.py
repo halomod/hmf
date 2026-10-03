@@ -3,6 +3,7 @@ import copy
 import numpy as np
 import pytest
 from astropy import cosmology
+from astropy import units as u
 from astropy.cosmology import Planck13, w0waCDM
 
 from hmf import MassFunction
@@ -356,3 +357,26 @@ def test_genmf_vs_integral_negative_omegal():
     d_integral = gf_integral.growth_factor(z)
 
     np.testing.assert_allclose(d_genmf, d_integral, rtol=0.05)
+
+
+@pytest.mark.parametrize("m_nu", [0.0, 0.3])
+def test_cambgrowth_matter_species(m_nu):
+    cosmo = cosmology.FlatLambdaCDM(
+        H0=70.0, Om0=0.3, Ob0=0.05, Tcmb0=2.7255, m_nu=[0.0, 0.0, m_nu] * u.eV
+    )
+    z = np.array([0.0, 0.5, 1.0, 2.0, 5.0])
+    d_tot = growth_factor.CambGrowth(cosmo).growth_factor(z)
+    d_cb = growth_factor.CambGrowth(cosmo, matter_species="cb").growth_factor(z)
+
+    if m_nu == 0:
+        np.testing.assert_allclose(d_cb, d_tot, rtol=1e-6)
+    else:
+        # Neutrino free-streaming slows the late-time growth of delta_tot relative to
+        # delta_cb, so the (z=0-normalised) cb growth factor is larger at z > 0.
+        assert d_cb[0] == pytest.approx(1.0)
+        assert np.all(d_cb[1:] > d_tot[1:] * (1 + 1e-4))
+
+
+def test_cambgrowth_bad_matter_species():
+    with pytest.raises(ValueError, match="matter_species must be one of"):
+        growth_factor.CambGrowth(Planck13, matter_species="nu")

@@ -139,6 +139,12 @@ class FromFile(TransferComponent):
 
 
 if HAVE_CAMB:
+    # CAMB's ``Transfer_*`` constants are 1-based (Fortran) indices into the first axis
+    # of ``MatterTransferData.transfer_data``; subtract one for the python index.
+    _CAMB_TRANSFER_COLUMNS: dict[str, int] = {
+        "tot": camb.model.Transfer_tot - 1,
+        "cb": camb.model.Transfer_nonu - 1,
+    }
 
     class CAMB(FromFile):
         r"""
@@ -160,6 +166,22 @@ if HAVE_CAMB:
                                      kmax by using an EH model. Can cause some problems
                                      if kmax is high, since CAMB diverges from the EH
                                      approximation.
+            **matter_species:** Which matter density field the transfer function
+                                describes. Either ``"tot"`` (default) or ``"cb"``.
+                                ``"tot"`` uses CAMB's ``Transfer_tot`` (the total
+                                matter perturbation, :math:`\delta_{\rm tot}`,
+                                including massive neutrinos), while ``"cb"`` uses
+                                CAMB's ``Transfer_nonu`` (the CDM+baryon
+                                perturbation, :math:`\delta_{\rm cb}`). The two are
+                                identical for massless neutrinos. Halo mass function
+                                fits calibrated on simulations with massive
+                                neutrinos should be used with ``"cb"``, since the
+                                HMF is found to be universal in terms of the
+                                CDM+baryon field (Costanzi et al. 2013; Castorina et
+                                al. 2014). Note that ``sigma_8`` then normalises the
+                                CDM+baryon spectrum, and that the mean density used
+                                elsewhere (``mean_density0``) is not changed by this
+                                option.
 
         Notes
         -----
@@ -179,10 +201,17 @@ if HAVE_CAMB:
             "dark_energy_params": {},
             "extrapolate_with_eh": None,
             "kmax": None,
+            "matter_species": "tot",
         }
 
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
+
+            if self.params["matter_species"] not in _CAMB_TRANSFER_COLUMNS:
+                raise ValueError(
+                    "matter_species must be one of "
+                    f"{sorted(_CAMB_TRANSFER_COLUMNS)}, got {self.params['matter_species']!r}."
+                )
 
             if not isinstance(self.cosmo, (cosmology.LambdaCDM, cosmology.wCDM, cosmology.w0waCDM)):
                 # Kept as ValueError (not TypeError): part of the public API contract,
@@ -267,7 +296,8 @@ if HAVE_CAMB:
             """
             camb_transfers = camb.get_transfer_functions(self.params["camb_params"])
             T = camb_transfers.get_matter_transfer_data().transfer_data
-            T = np.log(T[[0, 6], :, 0])
+            col = _CAMB_TRANSFER_COLUMNS[self.params["matter_species"]]
+            T = np.log(T[[camb.model.Transfer_kh - 1, col], :, 0])
 
             if lnk[0] < T[0, 0]:
                 lnkout, lnT = self._check_low_k(T[0, :], T[1, :], lnk[0])

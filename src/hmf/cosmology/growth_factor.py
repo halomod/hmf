@@ -783,20 +783,51 @@ class Carroll1992(GrowthFactor):
 
 
 if HAVE_CAMB:
+    # Names of CAMB's evolution variables (see ``camb.model.evolve_names``) for each
+    # supported matter species.
+    _CAMB_GROWTH_VARIABLES: dict[str, str] = {"tot": "delta_tot", "cb": "delta_nonu"}
 
     @_inherit
     class CambGrowth(GrowthFactor):
-        """
+        r"""
         Growth factor computed using CAMB at k/h = 1.0.
 
         Recommended for non-LambdaCDM cosmologies (e.g., wCDM) as it correctly
         deals with their growth evolution. For standard LCDM, other classes are
         preferred since this class requires re-calculating the transfer function.
 
+        Parameters
+        ----------
+        cosmo : :class:`astropy.cosmology.FLRW` instance
+            The cosmology used in the calculation.
+        \*\*model_parameters : unpack-dict
+            Parameters specific to this model.
+
+            **matter_species:** Which matter density field's growth is computed.
+                                Either ``"tot"`` (default), using CAMB's
+                                ``delta_tot`` (total matter, including massive
+                                neutrinos), or ``"cb"``, using CAMB's ``delta_nonu``
+                                (CDM+baryons only). The two are identical for
+                                massless neutrinos. Use ``"cb"`` together with the
+                                ``"cb"`` option of the CAMB transfer model when
+                                using halo mass function fits calibrated on
+                                massive-neutrino simulations (Costanzi et al. 2013;
+                                Castorina et al. 2014).
         """
+
+        _defaults: ClassVar[dict[str, Any]] = {
+            **BaseGrowthFactor._defaults,
+            "matter_species": "tot",
+        }
 
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
+
+            if self.params["matter_species"] not in _CAMB_GROWTH_VARIABLES:
+                raise ValueError(
+                    "matter_species must be one of "
+                    f"{sorted(_CAMB_GROWTH_VARIABLES)}, got {self.params['matter_species']!r}."
+                )
 
             # Save the CAMB object properly for use
             # Set the cosmology
@@ -843,7 +874,15 @@ if HAVE_CAMB:
         @cached_property
         def _t0(self):
             """The Transfer function at z=0."""
-            return self._camb_transfers.get_redshift_evolution(0.01, 0.0, ["delta_tot"])[0][0]
+            evolution = self._camb_transfers.get_redshift_evolution(
+                0.01, 0.0, [self._camb_variable]
+            )
+            return evolution[0][0]
+
+        @property
+        def _camb_variable(self) -> str:
+            """Name of the CAMB evolution variable for the chosen matter species."""
+            return _CAMB_GROWTH_VARIABLES[self.params["matter_species"]]
 
         def growth_factor(self, z):
             """
@@ -860,7 +899,9 @@ if HAVE_CAMB:
                 The normalised growth factor.
             """
             growth = (
-                self._camb_transfers.get_redshift_evolution(0.01, z, ["delta_tot"]).flatten()
+                self._camb_transfers.get_redshift_evolution(
+                    0.01, z, [self._camb_variable]
+                ).flatten()
                 / self._t0
             )
             if len(growth) == 1:

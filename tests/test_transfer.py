@@ -177,6 +177,51 @@ def test_camb_massive_neutrinos_affect_transfer():
     )
 
 
+def _camb_species_powers(m_nu):
+    cosmo = FlatLambdaCDM(H0=70.0, Om0=0.3, Ob0=0.05, Tcmb0=2.7255, m_nu=m_nu * u.eV)
+    powers = {}
+    for species in ("tot", "cb"):
+        t = Transfer(
+            cosmo_model=cosmo,
+            transfer_model="CAMB",
+            transfer_params={"extrapolate_with_eh": False, "matter_species": species},
+            lnk_min=np.log(1e-3),
+            lnk_max=np.log(10.0),
+        )
+        powers[species] = t._unnormalised_power
+    return t.k, powers
+
+
+def test_camb_matter_species_agree_for_massless_neutrinos():
+    """With massless neutrinos, P_cb and P_tot are the same spectrum."""
+    _, powers = _camb_species_powers([0.0, 0.0, 0.0])
+    np.testing.assert_allclose(powers["cb"], powers["tot"], rtol=1e-6)
+
+
+def test_camb_matter_species_differ_for_massive_neutrinos():
+    """With massive neutrinos, neutrino free-streaming suppresses P_tot relative to P_cb."""
+    k, powers = _camb_species_powers([0.0, 0.0, 0.3])
+    ratio = powers["cb"] / powers["tot"]
+
+    # Same shape on large scales, where neutrinos cluster like CDM.
+    np.testing.assert_allclose(ratio[k < 2e-3], 1.0, rtol=1e-3)
+    # At small scales P_tot ~ (1 - f_nu)^2 P_cb, with f_nu ~ 0.02 here.
+    assert np.all(ratio[k > 1.0] > 1.02)
+
+
+def test_camb_default_matter_species_is_tot():
+    t = Transfer(transfer_model="CAMB", transfer_params={"extrapolate_with_eh": False})
+    assert t.transfer.params["matter_species"] == "tot"
+
+
+def test_camb_bad_matter_species():
+    with pytest.raises(ValueError, match="matter_species must be one of"):
+        Transfer(
+            transfer_model="CAMB",
+            transfer_params={"extrapolate_with_eh": False, "matter_species": "nu"},
+        ).transfer
+
+
 def test_setting_kmax():
     t = Transfer(
         transfer_params={"extrapolate_with_eh": True, "kmax": 1.0},
