@@ -17,7 +17,7 @@ from .._internals._cache import cached_quantity, parameter
 from .._internals._framework import get_mdl
 from ..density_field import transfer
 from ..density_field import transfer_models as tm
-from ..density_field.filters import BaseFilter, TopHat
+from ..density_field.filters import BaseFilter, SharpKEllipsoid, TopHat
 from ..halos.mass_definitions import BaseMassDefinition as MassDef
 from ..halos.mass_definitions import SOGeneric, SOMean
 from . import fitting_functions as ff
@@ -341,12 +341,28 @@ class MassFunction(transfer.Transfer):
 
     @cached_quantity
     def filter(self):
-        """Instantiated model for filter/window functions.
+        r"""Instantiated model for filter/window functions.
 
         Note that this filter is *not* normalised -- i.e. the output of `filter.sigma(8)`
         will not be the input `sigma_8`.
+
+        Filters whose shape depends on the physical peak height (i.e.
+        :class:`~hmf.density_field.filters.SharpKEllipsoid`) are also given
+        :attr:`delta_c` and the factor converting their :math:`\sigma` to the
+        normalised :math:`\sigma` at redshift `z`.
         """
-        return self.filter_model(self.k, self._unnormalised_power, **self.filter_params)
+        kwargs = {}
+        if issubclass(self.filter_model, SharpKEllipsoid):
+            if clash := {"delta_c", "sigma_scale"} & set(self.filter_params):
+                raise ValueError(
+                    f"{sorted(clash)} cannot be set in filter_params: the filter's delta_c "
+                    "and sigma_scale are set by the MassFunction (use its delta_c instead)."
+                )
+            kwargs = {
+                "delta_c": self.delta_c,
+                "sigma_scale": self._normalisation * self.growth_factor,
+            }
+        return self.filter_model(self.k, self._unnormalised_power, **kwargs, **self.filter_params)
 
     @cached_quantity
     def halo_overdensity_mean(self):
@@ -534,31 +550,82 @@ class MassFunction(transfer.Transfer):
 
         Units: :math:`h^4 M_\odot^{-1} Mpc^{-3}`].
         """
+        if self._mass_conversion_active:
+            return self._converted_dndm
+
         # if self.z2 is None:  # #This is normally the case
         dndm = self.fsigma * self.mean_density0 * np.abs(self._dlnsdlnm) / self.m**2
         if isinstance(self.hmf, ff.Behroozi):
             ngtm_tinker = self._gtm(dndm)
 
             # THe Behroozi paper corrections assume masses in Msun, not Msun/h
-            dndm = self.hmf._modify_dndm(self.m / self.cosmo.h, dndm, self.z, ngtm_tinker)
+            dndm = self.hmf._modify_dndm(
+                self.m / self.cosmo.h, dndm, self.z, ngtm_tinker, h=self.cosmo.h
+            )
 
-        # Alter the mass definition
-        if (
+        return dndm
+
+    @property
+    def _mass_conversion_active(self) -> bool:
+        """Whether :attr:`dndm` is converted from the fit's measured mass definition."""
+        return (
             self.hmf.measured_mass_definition is not None
             and self.hmf.measured_mass_definition != self.mdef
             and not self.disable_mass_conversion
-        ):
-            # this uses NFW, but we can change that in halomod.
-            m_meas = self.mdef.change_definition(
-                self.m,
-                self.hmf.measured_mass_definition,
-                z=self.z,
-                cosmo=self.cosmo,
-            )[0]
+        )
 
-            dndm *= self.m / m_meas
+    @cached_quantity
+    def _converted_dndm(self):
+        r"""The mass function in ``mdef``, converted from the fit's measured definition.
 
-        return dndm
+        Masses in ``mdef``, :math:`M`, map one-to-one onto masses in the fit's measured
+        definition, :math:`M'(M)` (via an NFW profile, see
+        :meth:`~hmf.halos.mass_definitions.BaseMassDefinition.change_definition`). Number
+        conservation then gives
+
+        .. math:: \frac{dn}{dM}(M) = \frac{dn'}{dM'}\big(M'(M)\big) \frac{dM'}{dM},
+
+        so the fit is evaluated at :math:`M'(M)` (with :math:`\sigma`, its slope and
+        :math:`n_{\rm eff}` computed at those masses), and multiplied by the Jacobian.
+        """
+        measured = self.hmf.measured_mass_definition
+
+        # this uses NFW, but we can change that in halomod.
+        m_meas = self.mdef.change_definition(self.m, measured, z=self.z, cosmo=self.cosmo)[0]
+
+        # The NFW mapping M'(M) is smooth, so its log-slope is well-estimated by finite
+        # differences on the (log-uniform) mass grid.
+        dlnmeas_dlnm = np.gradient(np.log(m_meas), np.log(self.m))
+        jacobian = dlnmeas_dlnm * m_meas / self.m
+
+        # sigma and its slope at the measured-definition masses, computed directly from the
+        # filter (as for the main grid) rather than interpolated, so that masses outside
+        # the user's grid are handled without extrapolation.
+        radii = self.filter.mass_to_radius(m_meas, self.mean_density0)
+        sigma = self._normalisation * self.filter.sigma(radii) * self.growth_factor
+        dlnsdlnm = 0.5 * self.filter.dlnss_dlnm(radii)
+
+        fit = self.hmf_model(
+            m=m_meas,
+            nu2=(self.delta_c / sigma) ** 2,
+            z=self.z,
+            mass_definition=measured,
+            cosmo=self.cosmo,
+            delta_c=self.delta_c,
+            n_eff=-3.0 * (2.0 * dlnsdlnm + 1.0),
+            **self.hmf_params,
+        )
+
+        dndm_meas = fit.fsigma * self.mean_density0 * np.abs(dlnsdlnm) / m_meas**2
+
+        if isinstance(fit, ff.Behroozi):
+            # The correction needs the cumulative Tinker mass function in the measured
+            # definition at m_meas, which by number conservation equals the cumulative
+            # converted mass function at m.
+            ngtm_tinker = self._gtm(dndm_meas * jacobian)
+            dndm_meas = fit._modify_dndm(m_meas / self.cosmo.h, dndm_meas, self.z, ngtm_tinker)
+
+        return dndm_meas * jacobian
 
     @cached_quantity
     def dndlnm(self):

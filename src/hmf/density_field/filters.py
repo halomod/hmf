@@ -610,15 +610,70 @@ class SmoothK(BaseFilter):
 
 @_utils.inherit_docstrings
 class SharpKEllipsoid(SharpK):
-    """
+    r"""
     Fourier-space top-hat window function with ellipsoidal correction.
 
     See Schneider, Smith, Reed 2013.
 
     Refer to :class:`~Filter` for more details.
+
+    Parameters
+    ----------
+    k : array_like
+        Wavenumbers at which the power spectrum is defined.
+    power : array_like
+        The power spectrum at `k`. It need not be normalised, or be at the redshift
+        of interest: see `sigma_scale`.
+    delta_c : float, optional
+        Critical overdensity for collapse, used in the peak height that sets the
+        ellipticity of the patches.
+    sigma_scale : float, optional
+        Factor converting ``self.sigma`` to the physical mass variance at the
+        redshift of interest, i.e. the normalisation of `power` times the growth
+        factor. The default of 1 assumes `power` is already the normalised power
+        spectrum at that redshift.
+    \*\*model_parameters : unpacked-dict
+        Model parameters, see :attr:`~._defaults`.
+
+    Notes
+    -----
+    The ellipticity of a patch depends on its peak height (Schneider et al. 2013,
+    Appendix A), and therefore on the *physical* amplitude of the power spectrum and
+    on redshift, unlike the other quantities computed by the filter, which are
+    independent of the amplitude of the power. :class:`~hmf.MassFunction` builds
+    its filter from the un-normalised :math:`z=0` power spectrum, and passes
+    `delta_c` and `sigma_scale` so that :meth:`peak_height` is the physical one.
     """
 
     _defaults: ClassVar[dict[str, float]] = {"c": 2.0}
+
+    def __init__(
+        self,
+        k,
+        power,
+        *,
+        delta_c: float = 1.68647,
+        sigma_scale: float = 1.0,
+        **model_parameters,
+    ):
+        self.delta_c = delta_c
+        self.sigma_scale = sigma_scale
+        super().__init__(k, power, **model_parameters)
+
+    def peak_height(self, r):
+        r"""
+        Physical peak height, :math:`\nu = \delta_c^2/\sigma^2(r)`, at the redshift of interest.
+
+        This is :meth:`nu` with :math:`\sigma` rescaled by `sigma_scale` and with the
+        filter's `delta_c`. Schneider et al. 2013 define :math:`\nu` as the *square*
+        of the ratio (their Eqs. 13, 20), and use the same :math:`\nu` in Eq. A6.
+
+        Parameters
+        ----------
+        r : array_like
+            Radii
+        """
+        return (self.delta_c / (self.sigma_scale * self.sigma(r))) ** 2
 
     def xm(self, g, v):
         """
@@ -669,7 +724,7 @@ class SharpKEllipsoid(SharpK):
     def a3(self, r):
         """Short-axis scale with ellipsoidal correction."""
         g = self.gamma(r)
-        xm = self.xm(g, self.nu(r))
+        xm = self.xm(g, self.peak_height(r))
         em = self.em(xm)
         pm = self.pm(xm)
         return r / self.xi(pm, em)
