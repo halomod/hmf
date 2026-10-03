@@ -310,15 +310,19 @@ def parameter(kind):
                     setattr(self, recalc_prpa, {})
                     setattr(self, recalc_papr, {name: set()})
 
+            # Non-empty dicts are merged into an existing stored dict, so compare the
+            # *merged* result against the old value: a partial dict that changes
+            # nothing must not invalidate dependents. An empty dict clears.
+            if isinstance(val, dict) and isinstance(old_val, dict) and val:
+                new_val = {**old_val, **val}
+            elif isinstance(val, dict):
+                new_val = dict(val)
+            else:
+                new_val = val
+
             # If either the new value is different from the old, or we never set it before
-            if not obj_eq(val, old_val) or doset:
-                # Then if its a dict, we update it
-                if isinstance(val, dict) and hasattr(self, prop) and val:
-                    getattr(self, prop).update(val)
-                # Otherwise, just overwrite it. Note if dict is passed empty, it clears
-                # the whole dict.
-                else:
-                    setattr(self, prop, val)
+            if not obj_eq(new_val, old_val) or doset:
+                setattr(self, prop, new_val)
 
                 # Make sure children are updated
                 if kind != "switch" or doset:
