@@ -121,3 +121,36 @@ def test_roundtrip_cfg(tmpdir):
     second = np.genfromtxt(clidir / "hmf_dndm.txt")
 
     assert np.allclose(first, second)
+
+
+@pytest.mark.parametrize("hmf_model", ["PS", "Tinker08"])
+def test_roundtrip_cfg_default_mdef(tmpdir, hmf_model):
+    """A written config must re-run when the mass definition was left unset.
+
+    PS has no measured mass definition, so an unset ``mdef_model`` falls back to
+    SOMean. Writing that fallback out explicitly made the re-run fail (#374).
+    """
+    runner = CliRunner()
+
+    cfg = f"""
+        [params]
+        hmf_model = '{hmf_model}'
+        transfer_model = 'EH'
+        """
+
+    with (tmpdir / "cfg.toml").open("w") as fl:
+        fl.write(cfg)
+
+    first = tmpdir / "first"
+    first.mkdir()
+    result = runner.invoke(main, ["run", "-i", str(tmpdir / "cfg.toml"), "-o", str(first)])
+    assert result.exit_code == 0, result.output
+
+    second = tmpdir / "second"
+    second.mkdir()
+    result2 = runner.invoke(main, ["run", "-i", str(first / "hmf_cfg.toml"), "-o", str(second)])
+    assert result2.exit_code == 0, result2.output
+
+    np.testing.assert_allclose(
+        np.genfromtxt(second / "hmf_dndm.txt"), np.genfromtxt(first / "hmf_dndm.txt"), rtol=1e-10
+    )
