@@ -152,7 +152,7 @@ New tests are in `test_physical_wdm.py`.
 |---|---|---|---|
 | Viel05 / Bode01 transfer | T(k→0) = 1. | T(2π/λ_hm) = 1/2 (the definition of the half-mode scale). T is monotonic and → 0. | added |
 | λ_fs, λ_hm, M_fs, M_hm | Positivity and ordering only. | M_fs and M_hm match Schneider+12 Table 1 (10%). λ_hm/λ_fs = 13.93 (their Eq. 8). All fall with m_x. | added |
-| M_hm vs redshift | — | M_hm must not depend on z (the transfer function is z-independent and masses are comoving). Fails by a factor (1+z)³. | exposes bug (B3) |
+| M_hm vs redshift | `TestHalfModeMassComoving` in `test_wdm.py` (added with the fix in #358). | M_hm must not depend on z (the transfer function is z-independent and masses are comoving). This failed by a factor (1+z)³ before #358. | fixed (B3, #358) |
 | MassFunctionWDM / TransferWDM | dndm agrees with CDM at high M and is suppressed at low M (1e-3). | σ_WDM ≤ σ_CDM, converging at high M. dn/dm suppressed below M_hm and equal to CDM above 1000 M_hm. CDM limit as m_x → ∞. | added |
 | Schneider12_vCDM, Schneider12, Lovell14 | `test_high_m` (agreement at high M). | The factor lies in (0, 1], rises monotonically with M, and → 1. | added |
 
@@ -162,7 +162,7 @@ New tests are in `test_physical_wdm.py`.
 |---|---|---|---|
 | B1 | `Bhattacharya(normed=True)` | ∫f dlnν = 1. With q = 1, A = 0.3222. | 27.9 vs 1. A = 3.104 = 1/0.3222: `_norm` returns the reciprocal. |
 | B2 | `MassFunction.dndm` mass conversion | n_new(>M) = n_meas(>M_meas) | Ratio 0.69–1.02 (→200m) and 0.95–3.08 (→1600m). It evaluates dn/dM at M_new and uses M/M_meas instead of the Jacobian. |
-| B3 | `WDM.m_hm` | M_hm independent of z | ×27 at z = 2, from a (1+z)³ factor in `rho_mean`. |
+| B3 | `WDM.m_hm` | M_hm independent of z | ×27 at z = 2, from a (1+z)³ factor in `rho_mean`. **Fixed in #358**, which adds its own z-independence tests. |
 | B4 | `ODEGrowthFactor` (w ≠ −1) | Linder γ, plus an independent ODE | f is 7% low at w = −0.8 and D is 2.4% high. The DE term is missing from `dlne_dlna`. |
 | B5 | `GrowthFactor` / `Eisenstein97GrowthFactor` | EdS: D = a | ZeroDivisionError from (Ω_m/Ω_Λ)^{1/3}. |
 | B6 | `Peacock.cutmask` | Non-empty mask inside the calibrated range | Always False (`m < 1e10 and m > 1e15`). |
