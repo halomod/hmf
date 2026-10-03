@@ -147,15 +147,9 @@ def test_hmf_mass_definition_consistency(z, fit):
     used z=0 and the default Planck15 cosmology instead of the actual redshift and
     cosmology of the computation.
     """
-    from astropy.cosmology import FlatLambdaCDM
-
     # Use non-Planck15 cosmology to verify the cosmo parameter is correctly
     # propagated in the mass-definition conversion (bug was: Planck15 used everywhere).
     cosmo_params = {"Om0": 0.3, "H0": 70.0, "Ob0": 0.05}
-    cosmo = FlatLambdaCDM(**cosmo_params)
-
-    # At redshift z, SOCritical(200) has the same density threshold as SOMean(equiv)
-    equiv_overdensity = 200.0 / cosmo.Om(z)
 
     common = {
         "hmf_model": fit,
@@ -173,6 +167,11 @@ def test_hmf_mass_definition_consistency(z, fit):
         mdef_params={"overdensity": 200},
         **common,
     )
+    # At redshift z, SOCritical(200) has the same density threshold as SOMean(equiv).
+    # Om(z) must come from the MassFunction's own cosmology (which includes radiation
+    # and massive neutrinos): a bare FlatLambdaCDM(**cosmo_params) is off by ~0.5% at
+    # z=2, which the steep high-mass tail turns into a ~2% difference in dndm.
+    equiv_overdensity = 200.0 / h_crit.cosmo.Om(z)
     h_mean = MassFunction(
         mdef_model="SOMean",
         mdef_params={"overdensity": equiv_overdensity},
@@ -182,10 +181,10 @@ def test_hmf_mass_definition_consistency(z, fit):
     assert _conversion_is_active(h_crit)
     assert _conversion_is_active(h_mean)
 
-    # Allow ~2% tolerance: a small residual comes from the floating-point
-    # imprecision of equiv_overdensity = 200/Om(z) and the NFW c-M approximation.
-    # The original bug produced 20-50% errors, so this tolerance is well above that.
-    np.testing.assert_allclose(h_crit.dndm, h_mean.dndm, rtol=2e-2)
+    # The two definitions are then identical up to floating-point rounding, so both
+    # map to the same measured-definition masses and dndm must agree to near machine
+    # precision. The original bug produced 20-50% errors.
+    np.testing.assert_allclose(h_crit.dndm, h_mean.dndm, rtol=1e-8)
 
 
 def test_yung24_units_switch():
