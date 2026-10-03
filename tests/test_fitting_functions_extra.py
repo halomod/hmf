@@ -380,7 +380,6 @@ def test_behroozi_correction_vanishes_at_z_zero():
     assert theta == pytest.approx(1.0, abs=1e-4)
 
 
-@pytest.mark.filterwarnings("ignore:matter_species was not set")
 def test_behroozi_ngtm():
     """Ensure that ngtm for Behroozi / Tinker matches Behroozi Fig. 23.
 
@@ -394,7 +393,9 @@ def test_behroozi_ngtm():
         "Mmin": 9,
         "Mmax": 15.5,
         "dlog10m": 0.05,
-        "cosmo_params": {"H0": 70.0},
+        # Behroozi's calibration simulations have no massive neutrinos, so neither
+        # should this comparison (it would otherwise depend on matter_species).
+        "cosmo_params": {"H0": 70.0, "m_nu": 0.0},
         "mdef_model": md.SOVirial,
         "transfer_params": {"extrapolate_with_eh": True},
     }

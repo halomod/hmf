@@ -51,9 +51,9 @@ With massive neutrinos (as in the default ``Planck18`` cosmology), the CAMB-base
 can compute either the CDM+baryon field (``"cb"``, now the default) or the total matter
 field including neutrinos (``"tot"``, the default in earlier versions). ``"cb"`` is right
 for the halo mass function. Set the species explicitly to silence the warning, e.g.
-``MassFunction(transfer_params={"matter_species": "cb"})``. If your ``sigma_8`` is a
-measured value, also set ``sigma_8_species="tot"``. See :doc:`massive_neutrinos` for
-the details and recipes for other use cases.
+``MassFunction(transfer_params={"matter_species": "cb"})``. ``sigma_8`` still describes
+the total matter field by default, as measured values do (see ``sigma_8_species``). See
+:doc:`massive_neutrinos` for the details and recipes for other use cases.
 
 My mass function looks wrong at small masses, why?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

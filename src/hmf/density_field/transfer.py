@@ -45,7 +45,7 @@ class Transfer(cosmo.Cosmology):
     def __init__(
         self,
         sigma_8=0.8159,
-        sigma_8_species=None,
+        sigma_8_species="tot",
         n=0.9667,
         z=0.0,
         lnk_min=np.log(1e-8),  # noqa: B008
@@ -153,15 +153,19 @@ class Transfer(cosmo.Cosmology):
         """
         Which matter field :attr:`sigma_8` describes: ``"tot"``, ``"cb"`` or ``None``.
 
-        ``None`` (default) means the field set by the transfer model's
-        ``matter_species``, i.e. the field whose power spectrum is computed. Setting
-        ``"tot"`` while the transfer model uses ``"cb"`` normalises the CDM+baryon
-        power spectrum so that the *total* matter field (from the same model) has
-        r.m.s. :attr:`sigma_8`. This is what you want when ``sigma_8`` comes from an
-        experiment (e.g. Planck), since these quote the total-matter value.
+        The default, ``"tot"``, means :attr:`sigma_8` is the r.m.s. of the *total*
+        matter field (including massive neutrinos), which is how experiments such as
+        Planck quote it, and how the default :attr:`sigma_8` is defined. When the
+        transfer model computes the CDM+baryon field (``matter_species="cb"``, the
+        default), its power spectrum is normalised so that the total matter field from
+        the same model has r.m.s. :attr:`sigma_8`. ``"cb"`` means :attr:`sigma_8` is that of the
+        CDM+baryon field, and ``None`` means whichever field the transfer model
+        computes.
 
-        Transfer models that don't distinguish the two fields (i.e. have no
-        ``matter_species`` parameter, like ``EH`` or ``BBKS``) ignore this. See
+        This has no effect with massless neutrinos (the fields are then identical) or
+        for transfer models that don't distinguish the two fields (i.e. have no
+        ``matter_species`` parameter, like ``EH`` or ``BBKS``). Otherwise, normalising
+        a field other than the computed one needs a second transfer calculation. See
         :doc:`/massive_neutrinos`.
 
         :type: str or None
@@ -267,7 +271,11 @@ class Transfer(cosmo.Cosmology):
     def _sigma_8_transfer(self):
         """The transfer model of the field that :attr:`sigma_8` describes."""
         species = self.sigma_8_species
-        if species is None or self.transfer.params.get("matter_species", species) == species:
+        if (
+            species is None
+            or not self.cosmo.has_massive_nu
+            or self.transfer.params.get("matter_species", species) == species
+        ):
             return self.transfer
         return self.transfer_model(
             self.cosmo, **{**self.transfer.params, "matter_species": species}

@@ -312,6 +312,22 @@ def test_sigma_8_species_irrelevant_cases(sigma_8_species):
     )
 
 
+def test_sigma_8_species_default_and_none():
+    """By default sigma_8 is that of the total field; None means the computed field."""
+    cosmo = FlatLambdaCDM(H0=70.0, Om0=0.3, Ob0=0.05, Tcmb0=2.7255, m_nu=[0, 0, 0.3] * u.eV)
+    kwargs = {
+        "cosmo_model": cosmo,
+        "transfer_model": "CAMB",
+        "sigma_8": 0.8,
+        "transfer_params": {"extrapolate_with_eh": True, "matter_species": "cb"},
+    }
+    np.testing.assert_array_equal(
+        Transfer(**kwargs).power, Transfer(sigma_8_species="tot", **kwargs).power
+    )
+    t_none = Transfer(sigma_8_species=None, **kwargs)
+    assert _sigma_8_of(t_none) == pytest.approx(0.8, rel=1e-6)
+
+
 def test_bad_sigma_8_species():
     with pytest.raises(ValueError, match="sigma_8_species must be"):
         Transfer(transfer_model="EH", sigma_8_species="nu")

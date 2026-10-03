@@ -73,9 +73,14 @@ Since ``hmf`` is a halo mass function code, it uses ``"cb"`` by default.
 
     Earlier versions of ``hmf`` used ``"tot"``. If you don't set ``matter_species``
     and your cosmology has massive neutrinos, ``hmf`` warns you that the default has
-    changed. Set the species explicitly to silence the warning. For the default
-    ``Planck18`` cosmology the change to the mass function at fixed ``sigma_8`` is
-    below 0.1% between :math:`10^{10}` and :math:`10^{15}\,M_\odot/h`.
+    changed. Set the species explicitly to silence the warning.
+
+    For the default ``Planck18`` cosmology (:math:`\sum m_\nu = 0.06` eV) and
+    ``sigma_8``, the new defaults raise :math:`\sigma(M)` by 0.45% (that is,
+    :math:`1/(1 - f_\nu)`). This changes the mass function by about :math:`-0.2\%` below
+    :math:`10^{12}\,M_\odot/h`, :math:`+0.7\%` at :math:`10^{14}\,M_\odot/h` and
+    :math:`+2.9\%` at :math:`10^{15}\,M_\odot/h`, with larger changes for heavier
+    neutrinos.
 
 Keeping everything consistent
 -----------------------------
@@ -100,27 +105,32 @@ The mean density: nothing to set
     :math:`\bar\rho_{\rm cb}`, which is what ``"cb"`` needs.
 
 The normalisation: ``sigma_8_species``
-    ``sigma_8`` normalises the field you chose with ``matter_species`` unless you say
-    otherwise. But measured values of :math:`\sigma_8`, such as Planck's, are for the
-    *total* matter field. If your ``sigma_8`` is such a value and you use ``"cb"``, set
-    ``sigma_8_species="tot"``: ``hmf`` then normalises :math:`P_{\rm cb}` so that the
-    total matter field from the same transfer model has the given :math:`\sigma_8`.
-    The resulting :math:`\sigma_{8,\rm cb}` is slightly larger than :math:`\sigma_8`,
-    by at most a factor :math:`1/(1 - f_\nu)`.
+    Measured values of :math:`\sigma_8`, such as Planck's (and ``hmf``'s default), are
+    for the *total* matter field, so by default ``sigma_8_species="tot"``: with
+    ``"cb"``, ``hmf`` normalises :math:`P_{\rm cb}` so that the total matter field from
+    the same transfer model has the given :math:`\sigma_8`. The resulting
+    :math:`\sigma_{8,\rm cb}` is slightly larger than :math:`\sigma_8`, by at most a
+    factor :math:`1/(1 - f_\nu)`. This needs a second transfer calculation (with CAMB,
+    a second CAMB run), unless the neutrinos are massless. If your value of
+    :math:`\sigma_8` is for the CDM+baryon field (e.g. from a simulation), set
+    ``sigma_8_species="cb"``.
 
 Recipes
 -------
 
 Halo mass function with a measured (total-matter) :math:`\sigma_8`. This is the
-fully consistent choice for most uses::
+fully consistent choice for most uses, and the default; setting ``matter_species``
+explicitly just silences the warning::
 
     from hmf import MassFunction
 
+    mf = MassFunction(sigma_8=0.81, transfer_params={"matter_species": "cb"})
+
+Halo mass function with :math:`\sigma_8` of the CDM+baryon field, e.g. to match a
+simulation that quotes it::
+
     mf = MassFunction(
-        sigma_8=0.81,
-        sigma_8_species="tot",
-        transfer_model="CAMB",
-        transfer_params={"matter_species": "cb"},
+        sigma_8=0.82, sigma_8_species="cb", transfer_params={"matter_species": "cb"}
     )
 
 The same, if you use :class:`~hmf.cosmology.growth_factor.CambGrowth` (e.g. for a
@@ -128,7 +138,6 @@ wCDM cosmology)::
 
     mf = MassFunction(
         sigma_8=0.81,
-        sigma_8_species="tot",
         transfer_params={"matter_species": "cb"},
         growth_model="CambGrowth",
         growth_params={"matter_species": "cb"},

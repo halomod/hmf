@@ -53,10 +53,9 @@ def resolve_matter_species(species: str | None, cosmo: FLRW, model: str) -> str:
                 "(CDM + baryons). Earlier versions of hmf used 'tot' (total matter, "
                 "including massive neutrinos). 'cb' is the field that halo mass function "
                 "and bias fits are universal in (Costanzi+2013, Castorina+2014), and it "
-                "matches hmf's mean density, which excludes neutrinos. Note that "
-                "sigma_8 then normalises the CDM+baryon field unless you set "
-                "sigma_8_species='tot'. Set matter_species to 'cb' or 'tot' explicitly "
-                "to silence this warning.",
+                "matches hmf's mean density, which excludes neutrinos. sigma_8 still "
+                "normalises the total matter field (sigma_8_species='tot' by default). "
+                "Set matter_species to 'cb' or 'tot' explicitly to silence this warning.",
                 stacklevel=3,
             )
         return "cb"

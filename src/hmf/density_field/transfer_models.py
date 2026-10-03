@@ -216,10 +216,10 @@ if HAVE_CAMB:
                                 neutrinos. The default, ``None``, means ``"cb"``,
                                 with a warning if the cosmology has massive
                                 neutrinos (earlier versions of hmf used ``"tot"``).
-                                ``sigma_8`` normalises this field unless
-                                ``sigma_8_species`` is set on the
+                                By default ``sigma_8`` still describes the total
+                                matter field; see ``sigma_8_species`` on the
                                 :class:`~hmf.density_field.transfer.Transfer`
-                                framework. See :doc:`/massive_neutrinos`.
+                                framework and :doc:`/massive_neutrinos`.
 
         Notes
         -----
