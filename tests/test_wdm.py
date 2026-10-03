@@ -109,3 +109,76 @@ class TestMassFunctionAlter(TestMassFunction):
             transfer_model="EH",
         )
         self.cdm = hmf.MassFunction(transfer_model="EH")
+
+
+class TestHalfModeMassComoving:
+    """M_fs and M_hm are comoving, so they must not depend on redshift.
+
+    Reference: Schneider, Smith, Maccio & Moore (2012), MNRAS 424, 684, Eqs. 6-9.
+    The WDM transfer function is T(k) = [1 + (alpha k)^(2 nu)]^(-5/nu) (Eq. 6) with
+    nu = 1.12 and (Viel et al. 2005, Eq. 7)
+    alpha = 0.049 (m_x / keV)^-1.11 (Omega_wdm / 0.25)^0.11 (h / 0.7)^1.22 Mpc/h.
+    The half-mode scale, where T = 1/2, is
+    lambda_hm = 2 pi alpha (2^(nu/5) - 1)^(-1/(2 nu)) (Eq. 8), and
+    M_hm = (4 pi / 3) rho_bar (lambda_hm / 2)^3 (Eq. 9), with rho_bar the (comoving)
+    mean matter density.
+    """
+
+    # rho_crit,0 / h^2 = 3 (100 km/s/Mpc)^2 / (8 pi G) in Msun / Mpc^3.
+    RHO_CRIT_H2 = 2.77536627e11
+
+    @pytest.mark.parametrize("alter", ["Schneider12", "Lovell14", "Schneider12_vCDM"])
+    def test_masses_independent_of_z(self, alter):
+        mf = wdm.MassFunctionWDM(transfer_model="EH", alter_model=alter, wdm_mass=1.0)
+        m_hm, m_fs = [], []
+        for z in (0, 1, 3):
+            mf.update(z=z)
+            m_hm.append(mf.wdm.m_hm)
+            m_fs.append(mf.wdm.m_fs)
+        assert np.allclose(m_hm, m_hm[0], rtol=1e-12, atol=0)
+        assert np.allclose(m_fs, m_fs[0], rtol=1e-12, atol=0)
+
+    @pytest.mark.parametrize("mx", [0.5, 1.0, 3.0])
+    @pytest.mark.parametrize("z", [0, 3])
+    def test_m_hm_matches_schneider12(self, mx, z):
+        mf = wdm.MassFunctionWDM(transfer_model="EH", wdm_mass=mx, z=z)
+        cosmo = mf.cosmo
+        nu = 1.12
+
+        alpha = (
+            0.049 * mx**-1.11 * ((cosmo.Om0 - cosmo.Ob0) / 0.25) ** 0.11 * (cosmo.h / 0.7) ** 1.22
+        )
+        lam_hm = 2 * np.pi * alpha * (2 ** (nu / 5) - 1) ** (-1 / (2 * nu))
+
+        # lambda_hm is the scale at which the WDM transfer function is halved.
+        assert np.isclose(mf.wdm.transfer(2 * np.pi / lam_hm), 0.5, rtol=1e-10)
+
+        rho_bar0 = cosmo.Om0 * self.RHO_CRIT_H2  # h^2 Msun / Mpc^3, comoving
+        expected = (4 * np.pi / 3) * rho_bar0 * (lam_hm / 2) ** 3
+        assert np.isclose(mf.wdm.m_hm, expected, rtol=1e-4)
+
+    def test_z_update_does_not_recompute_wdm_transfer(self, monkeypatch):
+        calls = []
+        orig = wdm.Viel05.transfer
+
+        def counting_transfer(self, k):
+            calls.append(1)
+            return orig(self, k)
+
+        monkeypatch.setattr(wdm.Viel05, "transfer", counting_transfer)
+
+        mf = wdm.MassFunctionWDM(transfer_model="EH", wdm_mass=1.0)
+        assert "z" not in mf.get_dependencies("wdm", "_unnormalised_lnT")
+
+        mf.dndm
+        n = len(calls)
+        assert n > 0
+        for z in (1, 3):
+            mf.update(z=z)
+            mf.dndm
+        assert len(calls) == n
+
+    def test_z_argument_deprecated(self):
+        with pytest.warns(DeprecationWarning, match="z"):
+            w = wdm.Viel05(mx=1.0, z=3)
+        assert w.m_hm == wdm.Viel05(mx=1.0).m_hm
