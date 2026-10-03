@@ -134,11 +134,6 @@ class _FittedWDM(WDM, abstract=True):
         return (1 + (self.lam_eff_fs * k) ** (2 * nu)) ** (-5.0 / nu)
 
     @property
-    def lam_eff_fs(self):
-        r"""Effective free-streaming scale :math:`\alpha`, in comoving :math:`h^{-1}{\rm Mpc}`."""
-        raise NotImplementedError
-
-    @property
     def m_fs(self):
         r"""
         Free-streaming mass scale, in :math:`h^{-1}M_\odot`.
