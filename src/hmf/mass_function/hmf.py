@@ -540,7 +540,9 @@ class MassFunction(transfer.Transfer):
             ngtm_tinker = self._gtm(dndm)
 
             # THe Behroozi paper corrections assume masses in Msun, not Msun/h
-            dndm = self.hmf._modify_dndm(self.m / self.cosmo.h, dndm, self.z, ngtm_tinker)
+            dndm = self.hmf._modify_dndm(
+                self.m / self.cosmo.h, dndm, self.z, ngtm_tinker, h=self.cosmo.h
+            )
 
         # Alter the mass definition
         if (
