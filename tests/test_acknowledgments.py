@@ -246,10 +246,14 @@ def test_every_model_has_references():
     import hmf.alternatives.wdm  # noqa: F401  (registers the WDM models)
     from hmf._internals._framework import get_base_components
 
+    # Only hmf's own models: other packages (e.g. halomod, which hmf imports for
+    # mass conversions) register their components here too.
     missing = [
         f"{base.__name__}.{name}"
         for base in get_base_components()
         for name, model in getattr(base, "_plugins", {}).items()
-        if not model.references and name not in _UNCITED_MODELS.get(base.__name__, set())
+        if model.__module__.startswith("hmf.")
+        and not model.references
+        and name not in _UNCITED_MODELS.get(base.__name__, set())
     ]
     assert missing == []
