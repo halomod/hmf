@@ -62,3 +62,129 @@ def test_sigma8z():
 def test_neff_at_collapse():
     h = MassFunction(Mmin=8, Mmax=18, transfer_model="EH")
     assert np.allclose(h.n_eff_at_collapse, h.n_eff[np.argmin(np.abs(h.nu - 1.0))], rtol=0.05)
+
+
+def test_mdef_params_without_measured_mdef():
+    """Regression: mdef_params on a fit with no measured mdef (PS) used to crash."""
+    from hmf.halos.mass_definitions import SOMean
+
+    mf = MassFunction(hmf_model="PS", mdef_params={"overdensity": 300}, transfer_model="EH")
+    assert isinstance(mf.mdef, SOMean)
+    assert mf.mdef.params["overdensity"] == 300
+    assert np.all(np.isfinite(mf.dndm))
+    assert np.all(mf.dndm > 0)
+
+    # PS has no measured mass definition, so no mass conversion is applied and the
+    # chosen overdensity cannot change the mass function.
+    default = MassFunction(hmf_model="PS", transfer_model="EH")
+    np.testing.assert_allclose(mf.dndm, default.dndm, rtol=1e-12, atol=0)
+
+
+def test_mdef_params_update_measured_mdef():
+    """mdef_params override the parameters of a fit's measured mass definition."""
+    from hmf.halos.mass_definitions import SOMean
+
+    mf = MassFunction(
+        hmf_model="Tinker08", mdef_params={"overdensity": 300}, transfer_model="EH", z=0
+    )
+    assert isinstance(mf.mdef, SOMean)
+    assert mf.mdef.params["overdensity"] == 300
+    assert np.all(np.isfinite(mf.dndm))
+
+    # Delta=300m is a tabulated Tinker08 overdensity, so at z=0 the amplitude must be
+    # exactly the tabulated A_300 (not the default 200m value).
+    np.testing.assert_allclose(mf.hmf.A, mf.hmf.params["A_300"], rtol=1e-12, atol=0)
+    assert not np.isclose(mf.hmf.A, mf.hmf.params["A_200"], rtol=1e-6, atol=0)
+
+
+class _LntCounter:
+    """Wrap ``BondEfs.lnt`` so tests can count transfer-function evaluations."""
+
+    def __init__(self, monkeypatch: pytest.MonkeyPatch):
+        from hmf.density_field.transfer_models import BondEfs
+
+        self.calls = 0
+        original = BondEfs.lnt
+
+        def counting_lnt(model, lnk):
+            self.calls += 1
+            return original(model, lnk)
+
+        monkeypatch.setattr(BondEfs, "lnt", counting_lnt)
+
+
+def _bondefs_mf(**kwargs) -> MassFunction:
+    return MassFunction(
+        transfer_model="BondEfs",
+        transfer_params={"a": 37.1, "b": 21.1},
+        cosmo_params={"Om0": 0.3, "H0": 70.0},
+        **kwargs,
+    )
+
+
+@pytest.mark.parametrize(
+    "update",
+    [
+        {"cosmo_params": {"Om0": 0.3}},
+        {"transfer_params": {"a": 37.1}},
+        {"cosmo_params": {"Om0": 0.3}, "transfer_params": {"b": 21.1}},
+    ],
+)
+def test_noop_subset_dict_update_does_not_recompute_transfer(monkeypatch, update):
+    """Regression test for #109: a no-op partial dict update must not invalidate."""
+    counter = _LntCounter(monkeypatch)
+    mf = _bondefs_mf()
+    dndm = mf.dndm.copy()
+    assert counter.calls > 0
+
+    counter.calls = 0
+    mf.update(**update)
+    np.testing.assert_allclose(mf.dndm, dndm, rtol=0, atol=0)
+    assert counter.calls == 0
+
+    # The stored dicts are untouched by the no-op merge.
+    assert mf.cosmo_params == {"Om0": 0.3, "H0": 70.0}
+    assert mf.transfer_params == {"a": 37.1, "b": 21.1}
+
+
+@pytest.mark.parametrize(
+    ("update", "expected"),
+    [
+        (
+            {"cosmo_params": {"Om0": 0.32}},
+            {"cosmo_params": {"Om0": 0.32, "H0": 70.0}},
+        ),
+        (
+            {"transfer_params": {"a": 30.0}},
+            {"transfer_params": {"a": 30.0, "b": 21.1}},
+        ),
+    ],
+)
+def test_changing_subset_dict_update_invalidates(monkeypatch, update, expected):
+    """A partial dict update that changes a value must recompute and merge."""
+    counter = _LntCounter(monkeypatch)
+    mf = _bondefs_mf()
+    dndm_old = mf.dndm.copy()
+
+    counter.calls = 0
+    mf.update(**update)
+    dndm_new = mf.dndm
+    assert counter.calls > 0
+    assert not np.allclose(dndm_new, dndm_old, rtol=1e-6, atol=0)
+
+    fresh = _bondefs_mf()
+    fresh.update(**expected)
+    for key, value in expected.items():
+        assert getattr(mf, key) == value
+    np.testing.assert_allclose(dndm_new, fresh.dndm, rtol=1e-12, atol=0)
+
+
+def test_empty_dict_update_clears_params():
+    """Passing an empty dict still clears a ``*_params`` dict."""
+    mf = _bondefs_mf()
+    mf.dndm
+    mf.update(cosmo_params={})
+    assert mf.cosmo_params == {}
+
+    fresh = MassFunction(transfer_model="BondEfs", transfer_params={"a": 37.1, "b": 21.1})
+    np.testing.assert_allclose(mf.dndm, fresh.dndm, rtol=1e-12, atol=0)

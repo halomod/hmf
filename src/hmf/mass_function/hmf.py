@@ -272,13 +272,12 @@ class MassFunction(transfer.Transfer):
             if isinstance(mdef, SOGeneric):
                 mdef = mdef.preferred
 
-            # Update the actual parameters if the user has supplied any explicitly.
-            if self.mdef_params:
-                mdef.params.update(self.mdef_params)
-
             if mdef is None:
                 # Some mass functions don't have any set mass definition (eg. PS)
                 mdef = SOMean(**self.mdef_params)
+            elif self.mdef_params:
+                # Update the actual parameters if the user has supplied any explicitly.
+                mdef.params.update(self.mdef_params)
         else:
             mdef = self.mdef_model(**self.mdef_params)
 
