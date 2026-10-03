@@ -73,6 +73,17 @@ Ask first:
 - Bug fixes should include regression tests.
 - Use explicit numeric tolerances for floating-point comparisons.
 - Handle warnings intentionally (fix or filter in tests).
+- Physical features and physical bug fixes must be backed by *physical* tests,
+  not just tests that exercise the code for coverage. Acceptable physical tests
+  include:
+  - comparison against an analytic solution;
+  - a special case or limit in which the result is known (e.g. a parameter
+    choice that reduces the model to a simpler one);
+  - checking that values lie within physically reasonable bounds.
+
+  A test whose reference values come from an explicit rewrite of the function
+  under test is **not** a physical test. Re-implementing the same formula in
+  the test only checks that the code agrees with itself.
 
 ## API docs
 
