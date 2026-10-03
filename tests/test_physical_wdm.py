@@ -56,7 +56,7 @@ _SCHNEIDER12_COSMO = FlatLambdaCDM(H0=70.4, Om0=0.2726, Ob0=0.046, Tcmb0=2.725)
 @pytest.mark.parametrize(("mx", "m_fs", "m_hm"), _SCHNEIDER12_TABLE1)
 def test_free_streaming_and_half_mode_masses_match_schneider12(mx, m_fs, m_hm):
     """M_fs and M_hm reproduce Table 1 of Schneider et al. (2012) for their cosmology."""
-    w = wdm.Viel05(mx=mx, cosmo=_SCHNEIDER12_COSMO, z=0)
+    w = wdm.Viel05(mx=mx, cosmo=_SCHNEIDER12_COSMO)
     # Tolerance: the table quotes 2 significant figures (up to 4% rounding) and does
     # not state the exact mean density used; measured deviations are 3-8%.
     assert w.m_fs == pytest.approx(m_fs, rel=0.1)
