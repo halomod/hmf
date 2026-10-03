@@ -82,8 +82,8 @@ def test_power_shape_matches_class_pk(cosmo, species):
 
 @pytest.mark.parametrize(
     "cosmo",
-    [Planck18, FlatwCDM(H0=67.66, Om0=0.31, Ob0=0.049, Tcmb0=2.7255, w0=-0.9)],
-    ids=["planck18", "wcdm"],
+    [Planck18, FlatwCDM(H0=67.66, Om0=0.31, Ob0=0.049, Tcmb0=2.7255, w0=-0.9), MASSIVE],
+    ids=["planck18", "wcdm", "three_massive_nu"],
 )
 @pytest.mark.parametrize("species", ["tot", "cb"])
 def test_agrees_with_camb(cosmo, species):

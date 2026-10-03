@@ -16,7 +16,7 @@ from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 
 from .._internals import _references as refs
 from .._internals._framework import Component, pluggable
-from .._internals._utils import resolve_matter_species
+from .._internals._utils import resolve_matter_species, set_camb_cosmology
 
 try:
     import camb
@@ -373,8 +373,11 @@ if HAVE_CAMB:
         Notes
         -----
         Neutrino masses are passed to CAMB via the ``mnu`` parameter (sum of neutrino
-        masses in eV) and CAMB internally computes the neutrino physical density
-        ``omnuh2``. The cold dark matter density ``omch2`` is set from astropy's
+        masses in eV), from which CAMB computes the neutrino physical density
+        ``omnuh2``, and the individual masses in ``cosmo.m_nu`` set the number of
+        massive species and their mass eigenstates. So ``m_nu=[0.1, 0.1, 0.1]`` eV is
+        three massive species of 0.1 eV each (not one of 0.3 eV), which sets the
+        free-streaming scale correctly. The cold dark matter density ``omch2`` is set from astropy's
         ``Odm0`` attribute (i.e. ``cosmo.Odm0 * cosmo.h**2``), which represents
         CDM-only density (excluding neutrinos and baryons). In astropy, ``Om0``
         represents the sum of CDM and baryonic matter only (not massive neutrinos),
@@ -434,17 +437,7 @@ if HAVE_CAMB:
 
         def _set_camb_cosmology(self):
             """Set the cosmology (and transfer output) of the CAMBparams from ``cosmo``."""
-            self.params["camb_params"].set_cosmology(
-                H0=self.cosmo.H0.value,
-                ombh2=self.cosmo.Ob0 * self.cosmo.h**2,
-                omch2=self.cosmo.Odm0 * self.cosmo.h**2,
-                mnu=sum(self.cosmo.m_nu.value),
-                neutrino_hierarchy="degenerate",
-                omk=self.cosmo.Ok0,
-                nnu=self.cosmo.Neff,
-                standard_neutrino_neff=self.cosmo.Neff,
-                TCMB=self.cosmo.Tcmb0.value,
-            )
+            set_camb_cosmology(self.params["camb_params"], self.cosmo)
             self.params["camb_params"].WantTransfer = True
 
             # Set the DE equation of state. We only support constant w.

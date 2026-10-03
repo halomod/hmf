@@ -4,7 +4,7 @@ import camb
 import numpy as np
 import pytest
 from astropy import units as u
-from astropy.cosmology import FlatLambdaCDM, LambdaCDM
+from astropy.cosmology import FlatLambdaCDM, LambdaCDM, Planck18
 
 from hmf.density_field import transfer_models
 from hmf.density_field.transfer_models import CAMB, EH_BAO, FromArray, FromFile
@@ -204,6 +204,119 @@ def test_fromfile_two_column_file_ignores_matter_species(tmp_path, base_cosmo):
 def test_fromfile_bad_matter_species(base_cosmo):
     with pytest.raises(ValueError, match="matter_species must be one of"):
         FromFile(base_cosmo, matter_species="nu")
+
+
+def _direct_camb_lnt(cosmo, **neutrinos):
+    """Ln T_tot(k) from CAMB run directly, with CAMB's own neutrino options; returns (kh, lnT)."""
+    pars = camb.CAMBparams(DoLensing=False, Want_CMB=False, Want_CMB_lensing=False, WantCls=False)
+    pars.set_cosmology(
+        H0=cosmo.H0.value,
+        ombh2=cosmo.Ob0 * cosmo.h**2,
+        omch2=cosmo.Odm0 * cosmo.h**2,
+        nnu=cosmo.Neff,
+        standard_neutrino_neff=cosmo.Neff,
+        TCMB=cosmo.Tcmb0.value,
+        **neutrinos,
+    )
+    pars.WantTransfer = True
+    pars.Transfer.high_precision = False
+    pars.Transfer.k_per_logint = 0
+    pars.Transfer.kmax = 10.0
+    transfer = camb.get_transfer_functions(pars).get_matter_transfer_data().transfer_data
+    kh = transfer[camb.model.Transfer_kh - 1, :, 0]
+    t = transfer[camb.model.Transfer_tot - 1, :, 0]
+    return kh, np.log(t / t[0])
+
+
+def _hmf_camb(cosmo):
+    return CAMB(cosmo, matter_species="tot", extrapolate_with_eh=False, kmax=10.0)
+
+
+def test_camb_three_degenerate_neutrinos_match_direct_camb():
+    """m_nu=[0.1, 0.1, 0.1] eV is three massive species, not one of 0.3 eV.
+
+    Both have the same neutrino density, but lighter neutrinos free-stream on larger
+    scales, which changes T(k) at k ~ 0.01-1 h/Mpc by ~2%.
+    """
+    cosmo = Planck18.clone(m_nu=[0.1, 0.1, 0.1] * u.eV)
+    model = _hmf_camb(cosmo)
+
+    p = model.params["camb_params"]
+    assert p.num_nu_massive == 3
+    assert p.nu_mass_eigenstates == 1
+
+    kh, lnt_three = _direct_camb_lnt(cosmo, mnu=0.3, num_massive_neutrinos=3)
+    _, lnt_one = _direct_camb_lnt(cosmo, mnu=0.3, num_massive_neutrinos=1)
+
+    lnt = model.lnt(np.log(kh))
+    np.testing.assert_allclose(lnt, lnt_three, rtol=0, atol=1e-5)
+    # The one-species run is measurably different, so the test can tell them apart.
+    assert np.max(np.abs(lnt - lnt_one)) > 1e-2
+
+
+def test_camb_split_neutrino_masses_match_camb_normal_hierarchy():
+    """Non-degenerate masses become separate mass eigenstates.
+
+    CAMB's own ``neutrino_hierarchy="normal"`` uses two eigenstates (two light
+    species of equal mass and one heavy one); giving hmf those same three masses
+    must reproduce CAMB's normal-hierarchy transfer function.
+    """
+    mnu = 0.1
+    ref = camb.CAMBparams()
+    ref.set_cosmology(H0=67.66, mnu=mnu, neutrino_hierarchy="normal")
+    assert list(ref.nu_mass_numbers[:2]) == [2, 1]
+    m_light, m_heavy = (f * mnu / n for f, n in zip(ref.nu_mass_fractions[:2], [2, 1], strict=True))
+
+    cosmo = Planck18.clone(m_nu=[m_light, m_light, m_heavy] * u.eV)
+    model = _hmf_camb(cosmo)
+
+    p = model.params["camb_params"]
+    assert p.num_nu_massive == 3
+    assert p.nu_mass_eigenstates == 2
+
+    kh, lnt_normal = _direct_camb_lnt(cosmo, mnu=mnu, neutrino_hierarchy="normal")
+    np.testing.assert_allclose(model.lnt(np.log(kh)), lnt_normal, rtol=0, atol=1e-5)
+
+
+@pytest.mark.parametrize(
+    ("m_nu", "n_massive"),
+    [([0.0, 0.0, 0.0], 0), ([0.0, 0.0, 0.06], 1), ([0.0, 0.05, 0.05], 2), ([0.01, 0.02, 0.05], 3)],
+)
+def test_camb_neutrino_species_conserve_neff_and_mass(m_nu, n_massive):
+    """Each massive species keeps its share of Neff, and each eigenstate its share of mass."""
+    cosmo = Planck18.clone(m_nu=m_nu * u.eV)
+    p = CAMB(cosmo, matter_species="tot", extrapolate_with_eh=False).params["camb_params"]
+
+    n_eig = p.nu_mass_eigenstates
+    degeneracies = np.array(p.nu_mass_degeneracies[:n_eig])
+    numbers = np.array(p.nu_mass_numbers[:n_eig])
+    fractions = np.array(p.nu_mass_fractions[:n_eig])
+
+    assert p.num_nu_massive == n_massive
+    assert numbers.sum() == n_massive
+    assert p.num_nu_massless + degeneracies.sum() == pytest.approx(cosmo.Neff, rel=1e-10)
+
+    masses = np.array(m_nu)[np.array(m_nu) > 0]
+    if n_massive:
+        # Equal effective number of relativistic species per massive neutrino.
+        np.testing.assert_allclose(degeneracies / numbers, degeneracies[0] / numbers[0])
+        # Mass per species in each eigenstate is the input mass.
+        np.testing.assert_allclose(
+            np.sort(fractions * sum(m_nu) / numbers), np.unique(masses), rtol=1e-10
+        )
+
+
+def test_camb_getstate_keeps_neutrino_species():
+    """The pickle round trip re-applies the per-species neutrino masses."""
+    cosmo = Planck18.clone(m_nu=[0.01, 0.02, 0.05] * u.eV)
+    model = CAMB(cosmo, matter_species="tot", extrapolate_with_eh=False)
+
+    restored = CAMB.__new__(CAMB)
+    restored.__setstate__(model.__getstate__())
+
+    p, q = model.params["camb_params"], restored.params["camb_params"]
+    assert q.nu_mass_eigenstates == p.nu_mass_eigenstates == 3
+    np.testing.assert_allclose(q.nu_mass_fractions[:3], p.nu_mass_fractions[:3], rtol=1e-12)
 
 
 def test_boltzmann_transfer_subclass_must_implement_run(base_cosmo):
