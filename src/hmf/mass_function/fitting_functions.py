@@ -6,6 +6,8 @@ the included fitting functions are subclasses of this. See the documentation of
 :class:`~BaseFittingFunction` for details on how to define a new fitting function.
 """
 
+import inspect
+import re
 import warnings
 from copy import copy
 from typing import Any, ClassVar, override
@@ -113,12 +115,38 @@ class SimDetails:
             self.mmin = None
 
 
-def _makedoc(pdocs, lname, sname, eq, ref):
+def _makedoc(pdocs: str, lname: str, sname: str, eq: str, ref: str, note: str = "") -> str:
+    r"""Build the standard docstring of a fitting function.
+
+    A table of the model's default parameters is added automatically when the
+    class is defined (see :func:`_add_defaults_table`).
+
+    Parameters
+    ----------
+    pdocs
+        The parameters section, usually ``BaseFittingFunction._pdocs``.
+    lname
+        Long name of the fit, used in the summary line.
+    sname
+        Short name of the fit, used as a subscript in the equation.
+    eq
+        LaTeX form of :math:`f(\sigma)`.
+    ref
+        The reference for the fit.
+    note
+        An optional extra paragraph placed after the summary line.
+
+    Returns
+    -------
+    str
+        The docstring.
+    """
+    note = f"\n    {note}\n" if note else ""
     return (
         rf"""
     {lname} mass function fit.
-
-    For details on attributes, see documentation for :class:`FittingFunction`.
+    {note}
+    For details on attributes, see documentation for :class:`BaseFittingFunction`.
     """
         + pdocs
         + rf"""
@@ -141,42 +169,56 @@ class BaseFittingFunction(_framework.Component):
     Base-class for a halo mass function fit.
 
     This class should not be called directly, rather use a subclass which is
-    specific to a certain fitting formula. The only method necessary to define
-    for any subclass is `fsigma`, as well as a dictionary of default parameters
-    as a class variable `_defaults`. Model parameters defined here are accessed
-    through the :attr:`params` instance attribute (and may be overridden at
-    instantiation by the user). A subclass may optionally
-    define a :attr:`cutmask` property, to override the default behaviour of
-    returning True for the whole range.
+    specific to a certain fitting formula. The only property necessary to define
+    for any subclass is :attr:`fsigma`, as well as a dictionary of default
+    parameters as a class variable ``_defaults``. Model parameters defined here are
+    accessed through the ``params`` instance attribute (and may be overridden at
+    instantiation by the user). A subclass may optionally define a :attr:`cutmask`
+    property, to override the default behaviour of returning True for the whole
+    range.
 
-    In addition, several class attributes, `req_*`, identify the required
-    arguments for a given subclass. These must be set accordingly.
+    In addition, the class attributes :attr:`req_mass` and :attr:`req_neff` say
+    whether a subclass needs ``m`` and ``n_eff`` to be passed. These must be set
+    accordingly.
+
+    Every subclass is registered as a plugin (unless defined with
+    ``abstract=True``), so it can be used by name, e.g.
+    ``MassFunction(hmf_model="MySMT")``. When a subclass is defined, a table of its
+    ``_defaults`` is added to the Notes section of its docstring, and undocumented
+    :attr:`fsigma` and :attr:`cutmask` overrides get the docstrings defined here.
 
     Examples
     --------
-    The following would be an example of defining the Sheth-Tormen mass
-    function (which is already included), showing the basic idea of subclassing
-    this class:
+    The following defines the Sheth-Mo-Tormen mass function (which is already
+    included as :class:`SMT`), showing the basic idea of subclassing this class:
 
-    >>> class SMT(FittingFunction):
-    >>>     # Subclass requirements
-    >>>     req_sigma = False
-    >>>     req_z     = False
-    >>>
-    >>>     # Default parameters
-    >>>     _defaults = {"a":0.707, "p":0.3, "A":0.3222}
-    >>>
-    >>>     @property
-    >>>     def fsigma(self):
-    >>>        A = self.params['A']
-    >>>        a = self.params["a"]
-    >>>        p = self.params['p']
-    >>>
-    >>>        return (A * np.sqrt(2.0 * a / np.pi) * self.nu *
-    >>>               np.exp(-(a * self.nu2) / 2.0)
-    >>>               * (1 + (1.0 / (a * self.nu2)) ** p))
+    >>> from typing import ClassVar
+    >>> import numpy as np
+    >>> from hmf.mass_function.fitting_functions import BaseFittingFunction
+    >>> class MySMT(BaseFittingFunction):
+    ...     # Default parameters
+    ...     _defaults: ClassVar[dict[str, float]] = {"a": 0.707, "p": 0.3, "A": 0.3222}
+    ...
+    ...     @property
+    ...     def fsigma(self):
+    ...         A = self.params["A"]
+    ...         a = self.params["a"]
+    ...         p = self.params["p"]
+    ...         return (
+    ...             A
+    ...             * np.sqrt(2.0 * a / np.pi)
+    ...             * self.nu
+    ...             * np.exp(-(a * self.nu2) / 2.0)
+    ...             * (1 + (1.0 / (a * self.nu2)) ** p)
+    ...         )
+    >>> fit = MySMT(nu2=np.array([1.0, 4.0, 9.0]), a=0.75)
+    >>> fit.params["a"]
+    0.75
+    >>> fit.fsigma.shape
+    (3,)
 
-    In that example, we did not specify :attr:`cutmask`.
+    In that example, we did not specify :attr:`cutmask`, so all elements are
+    considered to be within the fitted range.
     """
 
     _pdocs = r"""
@@ -190,8 +232,7 @@ class BaseFittingFunction(_framework.Component):
         is True. Typically provides limits of applicability. Must correspond to
         `nu2`.
     z   : float, optional
-        The redshift. Only required if :attr:`req_z` is True, in which case the default
-        is 0.
+        The redshift. Only used by models that depend on redshift. Default is 0.
     n_eff : array_like, optional
         The effective spectral index at `m`. Only required if :attr:`req_neff` is True.
     mass_definition : :class:`hmf.halos.mass_definitions.MassDefinition` instance
@@ -201,8 +242,9 @@ class BaseFittingFunction(_framework.Component):
         A cosmology. Default is Planck15. Either `omegam_z` or `cosmo` is required if
         :attr:`req_omz` is True. If both are passed, omegam_z takes precedence.
     \*\*model_parameters : unpacked-dictionary
-        These parameters are model-specific. For any model, list the available
-        parameters (and their defaults) using ``<model>._defaults``
+        These parameters are model-specific. The available parameters and their
+        defaults are listed in the Notes section of each model (and are also
+        available as ``<model>._defaults``).
 
     """
     __doc__ += _pdocs
@@ -297,7 +339,7 @@ class BaseFittingFunction(_framework.Component):
 
     @property
     def nu(self):
-        """The peak height, sigma/delta_c."""
+        r"""The peak height, :math:`\nu = \delta_c/\sigma`."""
         return np.sqrt(self.nu2)
 
     @property
@@ -313,11 +355,15 @@ class BaseFittingFunction(_framework.Component):
     @property
     def cutmask(self):
         r"""
-        Logical mask for elements within the fitted range.
+        Boolean mask of the elements within the fit's calibrated range.
 
-        Specifies which elements of :attr:`fsigma` are within
-        the fitted range.
-
+        Has the same length as ``nu2``. An element is True if the corresponding
+        mass (or :math:`\sigma`, depending on the model) lies inside the range
+        over which the fit was calibrated against simulations, as given in the
+        reference paper. Elements outside that range are False: :attr:`fsigma`
+        is still computed there, but is an extrapolation. The default is True
+        everywhere. The mask is informational only; it is not applied anywhere
+        in ``hmf``.
         """
         return np.ones(len(self.nu2), dtype=bool)
 
@@ -328,6 +374,111 @@ class BaseFittingFunction(_framework.Component):
 
 # For backwards compatibility, alias FittingFunction to BaseFittingFunction.
 FittingFunction = BaseFittingFunction
+
+_SECTION_HEADER = re.compile(r"^([A-Z][A-Za-z ]*)\n-+[ \t]*$", flags=re.MULTILINE)
+
+
+def _defaults_table(defaults: dict[str, Any]) -> str:
+    """Render a model's default parameters as an RST table.
+
+    Parameters
+    ----------
+    defaults
+        The ``_defaults`` dictionary of a model.
+
+    Returns
+    -------
+    str
+        An unindented RST paragraph and simple table listing each key and default.
+    """
+    if not defaults:
+        return "Default model parameters: none (this model has no free parameters)."
+
+    keys = [f"``{k}``" for k in defaults]
+    vals = [repr(v) for v in defaults.values()]
+    kw = max(len("Parameter"), *map(len, keys))
+    vw = max(len("Default"), *map(len, vals))
+    rule = f"{'=' * kw}  {'=' * vw}"
+    rows = [f"{k:<{kw}}  {v}" for k, v in zip(keys, vals, strict=True)]
+    return "\n".join(
+        [
+            (
+                "Default model parameters (override them with keyword arguments, or with "
+                "``hmf_params`` in :class:`~hmf.mass_function.hmf.MassFunction`):"
+            ),
+            "",
+            rule,
+            f"{'Parameter':<{kw}}  Default",
+            rule,
+            *rows,
+            rule,
+        ]
+    )
+
+
+def _add_defaults_table(doc: str | None, defaults: dict[str, Any]) -> str:
+    """Add a table of default parameters to the Notes section of a docstring.
+
+    Parameters
+    ----------
+    doc
+        The (numpydoc-style) docstring of a fitting function, possibly None.
+    defaults
+        The ``_defaults`` dictionary of the fitting function.
+
+    Returns
+    -------
+    str
+        The dedented docstring with the table at the end of its Notes section. If
+        there is no Notes section, one is created before the References or
+        Examples section (or at the end).
+    """
+    doc = inspect.cleandoc(doc or "")
+    table = _defaults_table(defaults)
+    headers = list(_SECTION_HEADER.finditer(doc))
+    names = [h.group(1) for h in headers]
+
+    if "Notes" in names:
+        idx = names.index("Notes") + 1
+        insert = f"{table}\n\n"
+    else:
+        idx = next(
+            (i for i, name in enumerate(names) if name in ("References", "Examples")),
+            len(headers),
+        )
+        insert = f"Notes\n-----\n{table}\n\n"
+
+    pos = headers[idx].start() if idx < len(headers) else len(doc)
+    return f"{doc[:pos].rstrip()}\n\n{insert}{doc[pos:]}".rstrip() + "\n"
+
+
+_register_plugin = BaseFittingFunction.__init_subclass__.__func__
+
+
+def _init_fitting_function_subclass(cls: type[BaseFittingFunction], abstract: bool = False) -> None:
+    """Register a new fitting function and complete its documentation.
+
+    Parameters
+    ----------
+    cls
+        The newly-defined subclass.
+    abstract
+        If True, the subclass is not registered as a plugin.
+    """
+    _register_plugin(cls, abstract=abstract)
+
+    cls.__doc__ = _add_defaults_table(cls.__doc__, cls._defaults)
+
+    # Let undocumented overrides inherit the base-class docstrings.
+    for name in ("fsigma", "cutmask"):
+        prop = cls.__dict__.get(name)
+        if isinstance(prop, property) and not prop.__doc__:
+            prop.__doc__ = getattr(BaseFittingFunction, name).__doc__
+
+
+# The pluggable decorator sets __init_subclass__ on the class, so it has to be
+# extended after the class is created.
+BaseFittingFunction.__init_subclass__ = classmethod(_init_fitting_function_subclass)
 
 
 class PS(BaseFittingFunction):
@@ -421,6 +572,15 @@ class SMT(BaseFittingFunction):
 
 class ST(SMT):
     """Alias of :class:`SMT`."""
+
+    __doc__ = _makedoc(
+        BaseFittingFunction._pdocs,
+        "Sheth-Mo-Tormen",
+        "ST",
+        SMT._eq,
+        SMT._ref,
+        note="This is an alias of :class:`SMT` (Sheth-Tormen), kept for backwards compatibility.",
+    )
 
 
 class Jenkins(BaseFittingFunction):
@@ -725,7 +885,7 @@ class Angulo(BaseFittingFunction):
 
     req_mass = True
     _ref = """Angulo, R. E., et al., 2012. arXiv:1203.3216v1"""
-    _eq = r"$A \left[\left(\frac{d}{\sigma}\right)^b + 1 \right] \exp(-c/\sigma^2)$"
+    _eq = r"A \left[\left(\frac{d}{\sigma}\right)^b + 1 \right] \exp(-c/\sigma^2)"
     __doc__ = _makedoc(BaseFittingFunction._pdocs, "Angulo", "Ang", _eq, _ref)
     _defaults: ClassVar[dict[str, float]] = {"A": 0.201, "b": 1.7, "c": 1.172, "d": 2.08}
 
@@ -766,7 +926,14 @@ class Angulo(BaseFittingFunction):
 class AnguloBound(Angulo):
     """Bounded version of Angulo mass function fit."""
 
-    __doc__ = Angulo.__doc__
+    __doc__ = _makedoc(
+        BaseFittingFunction._pdocs,
+        "Bounded Angulo",
+        "Ang",
+        Angulo._eq,
+        Angulo._ref,
+        note="Same form as :class:`Angulo`, with the alternative (bound) parameter set.",
+    )
     _defaults: ClassVar[dict[str, float]] = {"A": 0.265, "b": 1.9, "c": 1.4, "d": 1.675}
 
 
@@ -823,7 +990,7 @@ class Watson(BaseFittingFunction):
         """Watson, W. A., et al., MNRAS, 2013. """
         """http://adsabs.harvard.edu/abs/2013MNRAS.433.1230W """
     )
-    _eq = r"\Gamma A \left((\frac{\beta}{\sigma}^\alpha+1\right)\exp(-\gamma/\sigma^2)"
+    _eq = r"\Gamma A \left(\left(\frac{\beta}{\sigma}\right)^\alpha+1\right)\exp(-\gamma/\sigma^2)"
     __doc__ = _makedoc(BaseFittingFunction._pdocs, "Watson", "WatS", _eq, Watson_FoF._ref)
 
     sim_definition = copy(Watson_FoF.sim_definition)
@@ -1597,6 +1764,26 @@ class Behroozi(Tinker08):
 
     {BaseFittingFunction._pdocs}
 
+    Notes
+    -----
+    :math:`f(\sigma)` is that of :class:`Tinker08`. The mass function is then
+    modified (Appendix G of [1]_; masses in :math:`M_\odot`) as
+
+    .. math::
+
+        \frac{{dn}}{{dM}} = \theta \frac{{dn_{{\rm T08}}}}{{dM}}
+            - n_{{\rm T08}}(>M) \frac{{d\theta}}{{dM}},
+
+    where
+
+    .. math::
+
+        \theta &= 10^{{\alpha (M/M_\star)^\gamma}}, \\
+        \alpha &= \frac{{0.144}}{{1 + \exp[14.79 (a - 0.213)]}}, \\
+        \gamma &= \frac{{0.5}}{{1 + \exp(6.5 a)}},
+
+    with :math:`a = 1/(1+z)` and :math:`M_\star = 10^{{11.5}} M_\odot`.
+
     References
     ----------
     .. [1] {_ref}
@@ -1996,6 +2183,25 @@ class Yung24(BaseFittingFunction):
     ------
     ValueError
         If ``z`` is outside the calibration range :math:`[6, 19]`.
+
+    Notes
+    -----
+    The Yung+24 [1]_ form is:
+
+    .. math::
+
+        f_{\rm Yung24}(\sigma) = A(z)\left[\left(\frac{\sigma}{b(z)}\right)^{-a(z)}
+            + 1\right]\exp\left(-\frac{c(z)}{\sigma^2}\right)
+
+    The ``*_0``, ``*_1`` and ``*_2`` parameters below are :math:`\chi_0, \chi_1, \chi_2`
+    for :math:`\chi \in \{A, a, b, c\}`. The defaults are those for
+    ``units="h"``; with ``units="physical"`` any coefficients not passed explicitly
+    are taken from Table A2 instead.
+
+    References
+    ----------
+    .. [1] Yung, L.Y.A., Somerville, R.S., Nguyen, T., Behroozi, P., Modi, C.,
+       Gardner, J.P., 2024. MNRAS 530, 4868. arXiv:2309.14408
     """
 
     req_z = True
