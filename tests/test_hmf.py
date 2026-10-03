@@ -61,6 +61,21 @@ def test_sigma8z():
     assert np.allclose(h.sigma8_z, 0.8)
 
 
+def test_sigma8z_matches_input_when_k_range_exceeds_sigma8_fallback_grid():
+    """The normalised power on the user's own k-grid must reproduce the input sigma_8.
+
+    For lnk in [-10, 12], sigma_8 normalisation uses a fallback grid (lnk_min > -15).
+    That grid used to be fixed at [-8, 8], so the k > e^8 part of the user's grid was
+    left out of the normalisation. A very blue spectrum (n=4) makes that part
+    non-negligible: sigma8_z was off by ~9e-4. The fallback grid now spans the user's
+    range with the same dlnk, so the two integrals are identical and agree to
+    floating-point precision. rtol=1e-10 leaves headroom above round-off (~1e-15)
+    while still failing on the old grid by six orders of magnitude.
+    """
+    h = MassFunction(transfer_model="EH", z=0.0, sigma_8=0.8, n=4.0, lnk_min=-10, lnk_max=12)
+    assert np.isclose(h.sigma8_z[0], 0.8, rtol=1e-10, atol=0)
+
+
 def test_neff_at_collapse():
     h = MassFunction(Mmin=8, Mmax=18, transfer_model="EH")
     assert np.allclose(h.n_eff_at_collapse, h.n_eff[np.argmin(np.abs(h.nu - 1.0))], rtol=0.05)
