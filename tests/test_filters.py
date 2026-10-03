@@ -6,6 +6,7 @@ in the development/ directory.
 """
 
 import warnings
+from typing import ClassVar
 
 import numpy as np
 import pytest
@@ -495,3 +496,74 @@ class TestSharpKEllipsoidAnalytic:
 
     def test_dlnss_dlnr(self, cls):
         assert np.allclose(cls.dlnss_dlnr(self.radii), -5.0, rtol=1e-6)
+
+    def test_sigma_scale_is_amplitude(self, cls):
+        # The ellipticity depends only on the physical amplitude of the power: a filter
+        # on P/s^2 with sigma_scale=s must give the same a3 (and peak height) as one on P.
+        s = 37.0
+        scaled = filters.SharpKEllipsoid(cls.k, cls.power / s**2, sigma_scale=s)
+        assert np.allclose(scaled.peak_height(self.radii), cls.nu(self.radii), rtol=1e-6)
+        assert np.allclose(scaled.a3(self.radii), self.a3(self.radii), rtol=1e-6)
+
+
+@pytest.mark.filterwarnings("ignore:matter_species was not set")
+class TestSharpKEllipsoidInMassFunction:
+    r"""Physical tests of the ellipsoidal correction as wired up by MassFunction.
+
+    The correction (Schneider, Smith & Reed 2013, Sec. 4.5 and Appendix A) depends on
+    the physical peak height :math:`\nu = \delta_c^2/\sigma^2(R, z)`. Comparing to
+    plain SharpK with the same ``c`` isolates it: the two only differ through
+    :math:`a_3(R) \neq R`.
+    """
+
+    kw: ClassVar[dict] = {"transfer_model": "EH", "Mmin": 8, "Mmax": 16, "dlog10m": 0.05}
+
+    def mfs(self, z):
+        from hmf import MassFunction
+
+        ell = MassFunction(filter_model="SharpKEllipsoid", z=z, **self.kw)
+        sph = MassFunction(filter_model="SharpK", filter_params={"c": 2.0}, z=z, **self.kw)
+        return ell, sph
+
+    def test_correction_is_significant_at_nu_one(self):
+        ell, sph = self.mfs(0.0)
+        i = np.argmin(np.abs(ell.nu - 1))
+        assert np.isclose(ell.nu[i], 1, atol=0.1)
+
+        # Schneider+13 Eqs. A6-A7: for gamma ~ 0.5-0.7 and nu ~ 1, x_m ~ 1.5-2, so
+        # e_m ~ 0.2 and p_m ~ 0.05, and Eq. 33 gives a3/R = 1/xi ~ 0.7-0.8: patches
+        # at nu ~ 1 are markedly aspherical (cf. their Fig. 7).
+        a3_r = ell.filter.a3(ell.radii[i]) / ell.radii[i]
+        assert 0.6 < a3_r < 0.85
+
+        # In dn/dm the shift R -> a3 largely cancels between dln(sigma^2)/dln(a3) and
+        # dln(a3)/dln(m), leaving a ~3% effect at nu ~ 1 for CDM. This is consistent with
+        # Schneider+13 Sec. 4.5: at z=0 the corrected model barely changes the CDM mass
+        # function. Before the fix, the difference was ~1e-6.
+        assert np.abs(ell.dndm[i] / sph.dndm[i] - 1) > 0.01
+
+    def test_high_peak_limit(self):
+        # Rare, high peaks are nearly spherical (BBKS; Schneider+13 Appendix A):
+        # e_m ~ 1/(sqrt(5) gamma nu) -> 0, so a3 -> R and the two mass functions agree.
+        ell, sph = self.mfs(0.0)
+        a3_r = ell.filter.a3(ell.radii) / ell.radii
+        assert ell.nu[-1] > 25
+        # More spherical with increasing nu (once nu dominates over the slow
+        # variation of gamma with R).
+        assert np.all(np.diff(a3_r[ell.nu > 1]) > 0)
+        assert np.isclose(a3_r[-1], 1, atol=0.03)
+
+        ratio = ell.dndm / sph.dndm
+        hi = ell.nu > 25
+        assert np.allclose(ratio[hi], 1, atol=0.05)
+
+    def test_correction_depends_on_redshift(self):
+        # At fixed mass, sigma(z) decreases with z so nu grows and the patches become
+        # more spherical (Schneider+13 Fig. 7, z=0 vs z=4.4).
+        ell, _ = self.mfs(0.0)
+        a3_r0 = ell.filter.a3(ell.radii) / ell.radii
+        ell.update(z=4.4)
+        a3_r4 = ell.filter.a3(ell.radii) / ell.radii
+        assert np.all(a3_r4 > a3_r0)
+        i = np.argmin(np.abs(ell.m - 1e12))
+        assert a3_r4[i] - a3_r0[i] > 0.05
