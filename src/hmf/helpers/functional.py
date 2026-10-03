@@ -10,6 +10,7 @@ functions to determine that order, and indeed perform the loops.
 
 import collections
 import itertools
+import warnings
 
 from ..mass_function import hmf
 
@@ -204,8 +205,11 @@ def get_hmf(
                 else:
                     yield [getattr(x, a) for a in req_qauntities], x
     elif len(lists) > 1:
-        # should be really fast.
-        order = get_best_param_order(framework, req_qauntities, **fast_kwargs)[::-1]
+        # should be really fast. The fast_kwargs deliberately use a crude k-range, so
+        # silence the k-range coverage warning for this ordering pass only.
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message="The k-range", category=UserWarning)
+            order = get_best_param_order(framework, req_qauntities, **fast_kwargs)[::-1]
 
         ordered_kwargs = collections.OrderedDict([])
         for item in order:

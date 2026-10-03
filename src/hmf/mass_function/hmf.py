@@ -16,11 +16,18 @@ from scipy.optimize import minimize
 from .._internals._cache import cached_quantity, parameter
 from .._internals._framework import get_mdl
 from ..density_field import transfer
+from ..density_field import transfer_models as tm
 from ..density_field.filters import BaseFilter, TopHat
 from ..halos.mass_definitions import BaseMassDefinition as MassDef
 from ..halos.mass_definitions import SOGeneric, SOMean
 from . import fitting_functions as ff
 from .integrate_hmf import hmf_integral_gtm as int_gtm
+
+# Bounds of the k-grid used to estimate how much of sigma(R) is lost by truncating the
+# user's k-range (see ``MassFunction._sigma_k_truncation_error``).
+_LNK_COVERAGE_FLOOR = -20.0  # power at k < e^-20 h/Mpc is negligible for any sigma(R)
+_KR_COVERAGE_CEIL = 1e3  # TopHat high-k tail beyond kR = 1e3 is < 1e-4 of sigma
+_K_COVERAGE_RTOL = 0.01  # warn when the estimated error in sigma exceeds this
 
 
 class MassFunction(transfer.Transfer):
@@ -134,6 +141,16 @@ class MassFunction(transfer.Transfer):
         super().validate()
         assert self.Mmin < self.Mmax, f"Mmin > Mmax: {self.Mmin}, {self.Mmax}"
         assert len(self.m) > 0, "mass vector has length zero!"
+
+        if self._sigma_k_truncation_error > _K_COVERAGE_RTOL:
+            warnings.warn(
+                f"The k-range [{self.k[0]:.3g}, {self.k[-1]:.3g}] h/Mpc does not cover the "
+                f"filter at the extreme radii [{self.radii[0]:.3g}, {self.radii[-1]:.3g}] "
+                f"Mpc/h: sigma(M) is in error by ~{100 * self._sigma_k_truncation_error:.1f}%. "
+                "Decrease lnk_min / increase lnk_max, or narrow Mmin/Mmax.",
+                UserWarning,
+                stacklevel=2,
+            )
 
         # Check whether the hmf component validates.
         self.hmf
@@ -355,6 +372,48 @@ class MassFunction(transfer.Transfer):
     def _unn_sigma0(self):
         """Un-normalised mass variance at z=0."""
         return self.filter.sigma(self.radii)
+
+    @cached_quantity
+    def _sigma_k_truncation_error(self) -> float:
+        r"""Estimated fractional error in :math:`\sigma` at the extreme radii from the k-range.
+
+        The power spectrum is extended (with the same ``dlnk``) down to
+        :math:`\ln k = -20` and up to :math:`kR_{\rm min} = 10^3`, and :math:`\sigma` at
+        the smallest and largest radii is compared between the extended and user grids.
+        Outside the user's range, the power spectrum takes the shape of a BBKS
+        (no-baryon) transfer function, rescaled to match :attr:`_unnormalised_power` at
+        each boundary. This avoids re-evaluating the (possibly expensive, e.g. CAMB)
+        transfer model, and handles any transfer model or power-spectrum modification
+        (e.g. WDM) approximately, which is sufficient for a percent-level check.
+        """
+        lnk = np.log(self.k)
+        dlnk = lnk[1] - lnk[0]
+        r = np.array([self.radii.min(), self.radii.max()])
+
+        n_lo = max(int(np.ceil((lnk[0] - _LNK_COVERAGE_FLOOR) / dlnk)), 0)
+        n_hi = max(int(np.ceil((np.log(_KR_COVERAGE_CEIL / r[0]) - lnk[-1]) / dlnk)), 0)
+        if n_lo == 0 and n_hi == 0:
+            return 0.0
+
+        shape = tm.BBKS(self.cosmo, use_liddle_baryons=False)
+
+        def tail(lnk_tail, i_boundary, p_boundary):
+            # lnk_tail[i_boundary] is the edge of the user grid, where the extrapolated
+            # power is matched to p_boundary (that point is then dropped by the caller).
+            p = np.exp(self.n * lnk_tail + 2 * shape.lnt(lnk_tail))
+            return p * p_boundary / p[i_boundary]
+
+        p_ext = self._unnormalised_power
+        if n_lo:
+            lnk_lo = lnk[0] + dlnk * np.arange(-n_lo, 1)
+            p_ext = np.concatenate([tail(lnk_lo, -1, p_ext[0])[:-1], p_ext])
+        if n_hi:
+            lnk_hi = lnk[-1] + dlnk * np.arange(0, n_hi + 1)
+            p_ext = np.concatenate([p_ext, tail(lnk_hi, 0, p_ext[-1])[1:]])
+
+        k_ext = np.exp(lnk[0] + dlnk * np.arange(-n_lo, len(lnk) + n_hi))
+        full = self.filter_model(k_ext, p_ext, **self.filter_params).sigma(r)
+        return float(np.max(np.abs(self.filter.sigma(r) / full - 1)))
 
     @cached_quantity
     def _sigma_0(self):
