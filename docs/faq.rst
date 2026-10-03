@@ -45,6 +45,16 @@ can specify more accurately what kind of model you want::
 Here the kind is the *name* of the class defining this component (see above section
 for how to determine what kinds are available).
 
+I get a warning that ``matter_species`` was not set. What should I do?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+With massive neutrinos (as in the default ``Planck18`` cosmology), the CAMB-based models
+can compute either the CDM+baryon field (``"cb"``, now the default) or the total matter
+field including neutrinos (``"tot"``, the default in earlier versions). ``"cb"`` is right
+for the halo mass function. Set the species explicitly to silence the warning, e.g.
+``MassFunction(transfer_params={"matter_species": "cb"})``. ``sigma_8`` still describes
+the total matter field by default, as measured values do (see ``sigma_8_species``). See
+:doc:`massive_neutrinos` for the details and recipes for other use cases.
+
 My mass function looks wrong at small masses, why?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 One common reason for this is that the mass function is being calculated at masses

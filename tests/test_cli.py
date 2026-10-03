@@ -13,6 +13,7 @@ def tmpdir(tmp_path_factory) -> Path:
 
 
 @pytest.mark.filterwarnings("ignore:'extrapolate_with_eh' was not set")
+@pytest.mark.filterwarnings("ignore:matter_species was not set")
 def test_no_config_or_args(tmpdir: Path):
     runner = CliRunner()
     result = runner.invoke(main, ["run", "--outdir", str(tmpdir)])

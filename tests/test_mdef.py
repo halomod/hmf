@@ -95,6 +95,7 @@ def test_from_colossus_name(colossus_cosmo):
         md.from_colossus_name("derp")
 
 
+@pytest.mark.filterwarnings("ignore:matter_species was not set")
 def test_change_dndm(colossus_cosmo):
     with pytest.warns(
         UserWarning,

@@ -393,7 +393,9 @@ def test_behroozi_ngtm():
         "Mmin": 9,
         "Mmax": 15.5,
         "dlog10m": 0.05,
-        "cosmo_params": {"H0": 70.0},
+        # Behroozi's calibration simulations have no massive neutrinos, so neither
+        # should this comparison (it would otherwise depend on matter_species).
+        "cosmo_params": {"H0": 70.0, "m_nu": 0.0},
         "mdef_model": md.SOVirial,
         "transfer_params": {"extrapolate_with_eh": True},
     }

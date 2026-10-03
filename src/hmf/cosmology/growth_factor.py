@@ -40,6 +40,7 @@ from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 from .._internals._framework import Component as Cmpt
 from .._internals._framework import pluggable
 from .._internals._utils import inherit_docstrings as _inherit
+from .._internals._utils import resolve_matter_species
 
 try:
     import camb
@@ -218,21 +219,28 @@ class GrowthFactor(BaseGrowthFactor):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+    def _delegate(self, cls: type[BaseGrowthFactor]) -> BaseGrowthFactor:
+        """Instantiate ``cls`` with those of our parameters that it accepts.
+
+        Subclasses (e.g. :class:`CambGrowth`) may have parameters the delegates lack.
+        """
+        return cls(self.cosmo, **{k: v for k, v in self.params.items() if k in cls._defaults})
+
     @cached_property
     def _ode_gf(self):
-        return ODEGrowthFactor(self.cosmo, **self.params)
+        return self._delegate(ODEGrowthFactor)
 
     @cached_property
     def _integral_gf(self):
-        return IntegralGrowthFactor(self.cosmo, **self.params)
+        return self._delegate(IntegralGrowthFactor)
 
     @cached_property
     def _eisenstein_gf(self):
-        return Eisenstein97GrowthFactor(self.cosmo, **self.params)
+        return self._delegate(Eisenstein97GrowthFactor)
 
     @cached_property
     def _heath_gf(self):
-        return Heath77GrowthFactor(self.cosmo, **self.params)
+        return self._delegate(Heath77GrowthFactor)
 
     def _choose_solution(self, z):
         if not isinstance(self.cosmo, cosmology.LambdaCDM):
@@ -783,20 +791,52 @@ class Carroll1992(GrowthFactor):
 
 
 if HAVE_CAMB:
+    # Names of CAMB's evolution variables (see ``camb.model.evolve_names``) for each
+    # supported matter species.
+    _CAMB_GROWTH_VARIABLES: dict[str, str] = {"tot": "delta_tot", "cb": "delta_nonu"}
 
     @_inherit
     class CambGrowth(GrowthFactor):
-        """
+        r"""
         Growth factor computed using CAMB at k/h = 1.0.
 
         Recommended for non-LambdaCDM cosmologies (e.g., wCDM) as it correctly
         deals with their growth evolution. For standard LCDM, other classes are
         preferred since this class requires re-calculating the transfer function.
 
+        Parameters
+        ----------
+        cosmo : :class:`astropy.cosmology.FLRW` instance
+            The cosmology used in the calculation.
+        \*\*model_parameters : unpack-dict
+            Parameters specific to this model.
+
+            **matter_species:** Which matter density field's growth is computed:
+                                ``"cb"``, using CAMB's ``delta_nonu`` (CDM+baryons
+                                only), or ``"tot"``, using CAMB's ``delta_tot``
+                                (total matter, including massive neutrinos). The two
+                                are identical for massless neutrinos. Use the same
+                                value as the transfer model's ``matter_species``;
+                                ``"cb"`` is right for halo mass function fits
+                                calibrated on massive-neutrino simulations
+                                (Costanzi et al. 2013; Castorina et al. 2014). The
+                                default, ``None``, means ``"cb"``, with a warning if
+                                the cosmology has massive neutrinos (earlier
+                                versions of hmf used ``"tot"``). See
+                                :doc:`/massive_neutrinos`.
         """
+
+        _defaults: ClassVar[dict[str, Any]] = {
+            **BaseGrowthFactor._defaults,
+            "matter_species": None,
+        }
 
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
+
+            self.params["matter_species"] = resolve_matter_species(
+                self.params["matter_species"], self.cosmo, "CambGrowth"
+            )
 
             # Save the CAMB object properly for use
             # Set the cosmology
@@ -843,7 +883,15 @@ if HAVE_CAMB:
         @cached_property
         def _t0(self):
             """The Transfer function at z=0."""
-            return self._camb_transfers.get_redshift_evolution(0.01, 0.0, ["delta_tot"])[0][0]
+            evolution = self._camb_transfers.get_redshift_evolution(
+                0.01, 0.0, [self._camb_variable]
+            )
+            return evolution[0][0]
+
+        @property
+        def _camb_variable(self) -> str:
+            """Name of the CAMB evolution variable for the chosen matter species."""
+            return _CAMB_GROWTH_VARIABLES[self.params["matter_species"]]
 
         def growth_factor(self, z):
             """
@@ -860,7 +908,9 @@ if HAVE_CAMB:
                 The normalised growth factor.
             """
             growth = (
-                self._camb_transfers.get_redshift_evolution(0.01, z, ["delta_tot"]).flatten()
+                self._camb_transfers.get_redshift_evolution(
+                    0.01, z, [self._camb_variable]
+                ).flatten()
                 / self._t0
             )
             if len(growth) == 1:

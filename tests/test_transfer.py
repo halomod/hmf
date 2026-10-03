@@ -1,9 +1,12 @@
+import warnings
+
 import camb
 import numpy as np
 import pytest
 from astropy import units as u
 from astropy.cosmology import FlatLambdaCDM, LambdaCDM, w0waCDM, wCDM
 
+from hmf.density_field.filters import TopHat
 from hmf.density_field.transfer import Transfer
 
 
@@ -71,6 +74,7 @@ def test_data(datadir):
     assert np.sqrt(np.mean(np.square(t.power - pdata[:, 1]))) < 0.001
 
 
+@pytest.mark.filterwarnings("ignore:matter_species was not set")
 def test_camb_extrapolation():
     t = Transfer(transfer_params={"extrapolate_with_eh": True}, transfer_model="CAMB")
 
@@ -83,6 +87,7 @@ def test_camb_extrapolation():
     assert np.isclose(eh[-1], camb[-1], rtol=1e-1)
 
 
+@pytest.mark.filterwarnings("ignore:matter_species was not set")
 def test_camb_neutrinos():
     # Correct parameter settings:
     cosmo_model = FlatLambdaCDM(Om0=0.3, H0=70.0, Ob0=0.05, m_nu=[0, 0, 0.06], Tcmb0=2.7255)
@@ -138,6 +143,7 @@ def test_camb_neutrinos():
     assert np.isclose(sum_omega_astropy, sum_omega_camb, rtol=1e-2)
 
 
+@pytest.mark.filterwarnings("ignore:matter_species was not set")
 def test_camb_massive_neutrinos_affect_transfer():
     """Verify that massive neutrinos produce a different transfer function from massless ones.
 
@@ -177,6 +183,165 @@ def test_camb_massive_neutrinos_affect_transfer():
     )
 
 
+def _camb_species_powers(m_nu):
+    cosmo = FlatLambdaCDM(H0=70.0, Om0=0.3, Ob0=0.05, Tcmb0=2.7255, m_nu=m_nu * u.eV)
+    powers = {}
+    for species in ("tot", "cb"):
+        t = Transfer(
+            cosmo_model=cosmo,
+            transfer_model="CAMB",
+            transfer_params={"extrapolate_with_eh": False, "matter_species": species},
+            lnk_min=np.log(1e-3),
+            lnk_max=np.log(10.0),
+        )
+        powers[species] = t._unnormalised_power
+    camb_params = t.transfer.params["camb_params"]
+    f_nu = camb_params.omnuh2 / (camb_params.omnuh2 + camb_params.omch2 + camb_params.ombh2)
+    return t.k, powers, f_nu
+
+
+def test_camb_matter_species_agree_for_massless_neutrinos():
+    """With massless neutrinos, P_cb and P_tot are the same spectrum."""
+    _, powers, _ = _camb_species_powers([0.0, 0.0, 0.0])
+    np.testing.assert_allclose(powers["cb"], powers["tot"], rtol=1e-6)
+
+
+def test_camb_matter_species_neutrino_suppression():
+    """P_tot is suppressed relative to P_cb by neutrino free-streaming.
+
+    On scales much larger than the free-streaming length neutrinos cluster like CDM,
+    so P_tot = P_cb. Well inside it, delta_nu -> 0 and delta_tot -> (1 - f_nu) delta_cb
+    with f_nu = Omega_nu / Omega_m, so P_tot / P_cb -> (1 - f_nu)^2.
+    """
+    previous_ratio = 1.0
+    for m_nu in (0.06, 0.15, 0.3):
+        k, powers, f_nu = _camb_species_powers([0.0, 0.0, m_nu])
+        ratio = powers["tot"] / powers["cb"]
+
+        # Large scales: the two fields agree.
+        np.testing.assert_allclose(ratio[k < 2e-3], 1.0, rtol=1e-3)
+
+        # Small scales: P_cb > P_tot, approaching the analytic free-streaming limit.
+        small = (k > 1.0) & (k < 10.0)
+        assert np.all(ratio[small] < 1)
+        np.testing.assert_allclose(ratio[small], (1 - f_nu) ** 2, rtol=1e-2)
+
+        # More massive neutrinos give stronger suppression.
+        assert np.max(ratio[small]) < previous_ratio
+        previous_ratio = np.min(ratio[small])
+
+
+def test_camb_default_matter_species_is_cb_with_warning():
+    """The default changed from "tot" to "cb"; users with massive neutrinos are told."""
+    cosmo = FlatLambdaCDM(H0=70.0, Om0=0.3, Ob0=0.05, Tcmb0=2.7255, m_nu=[0, 0, 0.06] * u.eV)
+    t = Transfer(
+        cosmo_model=cosmo, transfer_model="CAMB", transfer_params={"extrapolate_with_eh": False}
+    )
+    with pytest.warns(UserWarning, match="matter_species was not set for CAMB"):
+        species = t.transfer.params["matter_species"]
+    assert species == "cb"
+
+
+@pytest.mark.parametrize(
+    ("m_nu", "transfer_params"),
+    [
+        ([0, 0, 0], {"extrapolate_with_eh": False}),
+        ([0, 0, 0.06], {"extrapolate_with_eh": False, "matter_species": "cb"}),
+        ([0, 0, 0.06], {"extrapolate_with_eh": False, "matter_species": "tot"}),
+    ],
+)
+def test_camb_matter_species_no_warning(m_nu, transfer_params):
+    """No warning when the species is set, or when it can't matter (massless neutrinos)."""
+    cosmo = FlatLambdaCDM(H0=70.0, Om0=0.3, Ob0=0.05, Tcmb0=2.7255, m_nu=m_nu * u.eV)
+    t = Transfer(cosmo_model=cosmo, transfer_model="CAMB", transfer_params=transfer_params)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message="matter_species was not set")
+        t.transfer
+
+
+def _sigma_8_of(t):
+    return TopHat(t.k, t.power).sigma(8.0)[0]
+
+
+def test_sigma_8_species_tot_normalises_total_field():
+    """sigma_8_species='tot' normalises P_cb so that the total field has the given sigma_8.
+
+    The result must be the same universe as normalising P_tot directly: P_cb = P_tot on
+    large scales, P_tot/P_cb -> (1 - f_nu)^2 on small scales, and since
+    delta_tot / delta_cb lies in [1 - f_nu, 1], sigma_8 <= sigma_8,cb <= sigma_8 / (1 - f_nu).
+    """
+    cosmo = FlatLambdaCDM(H0=70.0, Om0=0.3, Ob0=0.05, Tcmb0=2.7255, m_nu=[0, 0, 0.3] * u.eV)
+    kwargs = {"cosmo_model": cosmo, "transfer_model": "CAMB", "sigma_8": 0.8}
+    t_tot = Transfer(
+        transfer_params={"extrapolate_with_eh": True, "matter_species": "tot"}, **kwargs
+    )
+    t_cb = Transfer(
+        transfer_params={"extrapolate_with_eh": True, "matter_species": "cb"},
+        sigma_8_species="tot",
+        **kwargs,
+    )
+    camb_params = t_cb.transfer.params["camb_params"]
+    f_nu = camb_params.omnuh2 / (camb_params.omnuh2 + camb_params.omch2 + camb_params.ombh2)
+
+    k = t_tot.k
+    ratio = t_tot.power / t_cb.power
+    np.testing.assert_allclose(ratio[(k > 1e-5) & (k < 1e-3)], 1.0, rtol=1e-3)
+    np.testing.assert_allclose(ratio[(k > 1) & (k < 10)], (1 - f_nu) ** 2, rtol=1e-2)
+
+    assert _sigma_8_of(t_tot) == pytest.approx(0.8, rel=1e-6)
+    assert 0.8 * (1 + 1e-3) < _sigma_8_of(t_cb) <= 0.8 / (1 - f_nu)
+
+
+@pytest.mark.parametrize("sigma_8_species", ["cb", "tot"])
+def test_sigma_8_species_irrelevant_cases(sigma_8_species):
+    """sigma_8_species changes nothing for massless neutrinos or species-blind models."""
+    cosmo = FlatLambdaCDM(H0=70.0, Om0=0.3, Ob0=0.05, Tcmb0=2.7255, m_nu=[0, 0, 0] * u.eV)
+    camb_kwargs = {
+        "cosmo_model": cosmo,
+        "transfer_model": "CAMB",
+        "transfer_params": {"extrapolate_with_eh": True, "matter_species": "cb"},
+    }
+    np.testing.assert_allclose(
+        Transfer(sigma_8_species=sigma_8_species, **camb_kwargs).power,
+        Transfer(**camb_kwargs).power,
+        rtol=1e-6,
+    )
+    np.testing.assert_array_equal(
+        Transfer(transfer_model="EH", sigma_8_species=sigma_8_species).power,
+        Transfer(transfer_model="EH").power,
+    )
+
+
+def test_sigma_8_species_default_and_none():
+    """By default sigma_8 is that of the total field; None means the computed field."""
+    cosmo = FlatLambdaCDM(H0=70.0, Om0=0.3, Ob0=0.05, Tcmb0=2.7255, m_nu=[0, 0, 0.3] * u.eV)
+    kwargs = {
+        "cosmo_model": cosmo,
+        "transfer_model": "CAMB",
+        "sigma_8": 0.8,
+        "transfer_params": {"extrapolate_with_eh": True, "matter_species": "cb"},
+    }
+    np.testing.assert_array_equal(
+        Transfer(**kwargs).power, Transfer(sigma_8_species="tot", **kwargs).power
+    )
+    t_none = Transfer(sigma_8_species=None, **kwargs)
+    assert _sigma_8_of(t_none) == pytest.approx(0.8, rel=1e-6)
+
+
+def test_bad_sigma_8_species():
+    with pytest.raises(ValueError, match="sigma_8_species must be"):
+        Transfer(transfer_model="EH", sigma_8_species="nu")
+
+
+def test_camb_bad_matter_species():
+    with pytest.raises(ValueError, match="matter_species must be one of"):
+        Transfer(
+            transfer_model="CAMB",
+            transfer_params={"extrapolate_with_eh": False, "matter_species": "nu"},
+        ).transfer
+
+
+@pytest.mark.filterwarnings("ignore:matter_species was not set")
 def test_setting_kmax():
     t = Transfer(
         transfer_params={"extrapolate_with_eh": True, "kmax": 1.0},

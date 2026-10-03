@@ -15,4 +15,5 @@ with ``hmf``, and use it efficiently.
     examples/change_mass_definition
     examples/fitting
     examples/plugins_and_extending
+    massive_neutrinos
     faq

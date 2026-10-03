@@ -3,6 +3,7 @@ import copy
 import numpy as np
 import pytest
 from astropy import cosmology
+from astropy import units as u
 from astropy.cosmology import Planck13, w0waCDM
 
 from hmf import MassFunction
@@ -98,6 +99,7 @@ def test_heath_vs_ode_no_omegal(omegam):
         "GenMFGrowth",
     ],
 )
+@pytest.mark.filterwarnings("ignore:matter_species was not set")
 def test_growth_factor_monotonic(model):
     cosmo = Planck13
     gf = getattr(growth_factor, model)(cosmo)
@@ -165,6 +167,7 @@ def test_unsupported_cosmo():
     growth_factor.CambGrowth(cosmo=cosmo).growth_factor(0)
 
 
+@pytest.mark.filterwarnings("ignore:matter_species was not set")
 def test_pickleability_of_cambgrowth():
     gf = growth_factor.CambGrowth(Planck13)
     gf_at_1 = gf.growth_factor(1.0)
@@ -356,3 +359,71 @@ def test_genmf_vs_integral_negative_omegal():
     d_integral = gf_integral.growth_factor(z)
 
     np.testing.assert_allclose(d_genmf, d_integral, rtol=0.05)
+
+
+@pytest.mark.parametrize("m_nu", [0.0, 0.3])
+def test_cambgrowth_matter_species(m_nu):
+    cosmo = cosmology.FlatLambdaCDM(
+        H0=70.0, Om0=0.3, Ob0=0.05, Tcmb0=2.7255, m_nu=[0.0, 0.0, m_nu] * u.eV
+    )
+    z = np.array([0.0, 0.5, 1.0, 2.0, 5.0])
+    gf_tot = growth_factor.CambGrowth(cosmo, matter_species="tot")
+    d_tot = gf_tot.growth_factor(z)
+    d_cb = growth_factor.CambGrowth(cosmo, matter_species="cb").growth_factor(z)
+
+    if m_nu == 0:
+        np.testing.assert_allclose(d_cb, d_tot, rtol=1e-6)
+    else:
+        # delta_tot = (1 - f_nu) delta_cb + f_nu delta_nu with 0 <= delta_nu <= delta_cb.
+        # As neutrinos cool, delta_nu catches up with delta_cb, so delta_tot grows faster
+        # than delta_cb and the z=0-normalised cb growth factor is larger at z > 0.
+        # Since delta_tot / delta_cb lies in [1 - f_nu, 1], D_cb / D_tot <= 1 / (1 - f_nu).
+        p = gf_tot.p
+        f_nu = p.omnuh2 / (p.omnuh2 + p.omch2 + p.ombh2)
+        ratio = d_cb[1:] / d_tot[1:]
+        assert d_cb[0] == pytest.approx(1.0)
+        assert np.all(ratio > 1 + 1e-4)
+        assert np.all(ratio <= 1 / (1 - f_nu))
+        # The difference grows with redshift as the neutrinos were hotter.
+        assert np.all(np.diff(ratio) > 0)
+
+
+def test_cambgrowth_bad_matter_species():
+    with pytest.raises(ValueError, match="matter_species must be one of"):
+        growth_factor.CambGrowth(Planck13, matter_species="nu")
+
+
+def test_cambgrowth_default_matter_species_is_cb_with_warning():
+    cosmo = cosmology.FlatLambdaCDM(
+        H0=70.0, Om0=0.3, Ob0=0.05, Tcmb0=2.7255, m_nu=[0.0, 0.0, 0.06] * u.eV
+    )
+    with pytest.warns(UserWarning, match="matter_species was not set for CambGrowth"):
+        gf = growth_factor.CambGrowth(cosmo)
+    assert gf.params["matter_species"] == "cb"
+
+
+@pytest.mark.parametrize("matter_species", ["cb", "tot"])
+def test_cambgrowth_growth_rate(matter_species):
+    """CambGrowth's growth rate is f ~ Omega_m(z)^0.55 (Linder 2005), to ~1% in LCDM.
+
+    Regression test: the extra matter_species parameter used to be passed on to the
+    ODE solver that computes the growth rate, which rejected it.
+    """
+    gf = growth_factor.CambGrowth(Planck13, matter_species=matter_species)
+    for z in (0.0, 1.0, 3.0):
+        assert gf.growth_rate(z) == pytest.approx(Planck13.Om(z) ** 0.55, rel=1e-2)
+
+
+def test_growthfactor_open_universe_uses_heath77():
+    """In an open, Lambda=0, radiation-free universe, GrowthFactor uses Heath (1977).
+
+    Heath's closed form is exact here, so it must agree with the numerical ODE solution.
+    """
+    cosmo = cosmology.LambdaCDM(H0=70.0, Om0=0.3, Ode0=0.0, Tcmb0=0.0)
+    gf = growth_factor.GrowthFactor(cosmo)
+    z = np.array([0.5, 1.0, 3.0, 10.0])
+
+    assert isinstance(gf._choose_solution(z), growth_factor.Heath77GrowthFactor)
+    np.testing.assert_allclose(
+        gf.growth_factor(z), growth_factor.ODEGrowthFactor(cosmo).growth_factor(z), rtol=1e-5
+    )
