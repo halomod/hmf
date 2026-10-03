@@ -52,3 +52,4 @@ Other Calculations and Utilities
    hmf.mass_function.integrate_hmf
    hmf.helpers.sample
    hmf.helpers.functional
+   hmf.exceptions

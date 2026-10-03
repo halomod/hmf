@@ -22,7 +22,6 @@ The factor :math:`\frac{d\ln R}{d\ln m}` is typically 1/3, but this is not
 necessarily the case for window functions of arbitrary shape.
 """
 
-import collections
 import warnings
 from typing import ClassVar, override
 
@@ -453,8 +452,15 @@ class SharpK(BaseFilter):
     @override
     def dlnss_dlnr(self, r):
         sigma = self.sigma(r)
-        power = Spline(self.k, self.power)(1 / r)
+        power = self._power_interpolator()(-np.log(r))
         return -power / (2 * np.pi**2 * sigma**2 * r**3)
+
+    def _power_interpolator(self):
+        """Return P(ln k), interpolated in log-log space where possible."""
+        if np.all(self.power > 0):
+            spl = Spline(np.log(self.k), np.log(self.power))
+            return lambda lnk: np.exp(spl(lnk))
+        return Spline(np.log(self.k), self.power)
 
     @override
     def mass_to_radius(self, m, rho_mean):
@@ -466,27 +472,29 @@ class SharpK(BaseFilter):
 
     @override
     def sigma(self, r, order=0):
-        if not isinstance(r, collections.abc.Iterable):
-            r = np.atleast_1d(r)
+        r = np.atleast_1d(np.asarray(r, dtype=float))
 
         if self.k.max() < 1 / r.min():
             warnings.warn("Warning: Maximum r*k less than 1!", stacklevel=2)
-
-        # # Need to re-define this because the integral needs to go exactly kr=1
-        # # or else the function 'jitters'
-        sigma = np.zeros(len(r))
-        power = Spline(self.k, self.power)
-        for i, rr in enumerate(r):
-            k = np.logspace(
-                np.log10(self.k[0]),
-                min(np.log10(self.k.max()), np.log10(1.0 / rr)),
-                max(100, len(self.k) - i),
+        if self.k.min() >= 1 / r.max():
+            raise ValueError(
+                f"SharpK.sigma needs 1/r > k.min()={self.k.min():.4g}, got r={r.max():.4g}."
             )
 
-            p = power(k)
-            dlnk = np.log(k[1] / k[0])
-            integ = p * k ** (3 + 2 * order)
-            sigma[i] = (0.5 / (np.pi**2)) * intg.simpson(integ, dx=dlnk)
+        # The integral must end exactly at k = 1/r, or sigma 'jitters' with r. We
+        # integrate in ln(k) on a uniform grid from k.min() to the cutoff, with P(k)
+        # interpolated in log-log space. The grid depends only on r (not on its position
+        # in the input array), and is at least as fine as the input k grid.
+        lnkmin = np.log(self.k.min())
+        dlnk = min(0.05, (np.log(self.k.max()) - lnkmin) / (len(self.k) - 1))
+        power = self._power_interpolator()
+        sigma = np.zeros(len(r))
+        for i, rr in enumerate(r):
+            lnkmax = np.log(min(self.k.max(), 1.0 / rr))
+            n = max(50, int(np.ceil((lnkmax - lnkmin) / dlnk / 2)))
+            lnk = np.linspace(lnkmin, lnkmax, 2 * n + 1)  # odd, for Simpson's rule
+            integ = power(lnk) * np.exp((3 + 2 * order) * lnk)
+            sigma[i] = (0.5 / (np.pi**2)) * intg.simpson(integ, x=lnk)
 
         return np.sqrt(sigma)
 
