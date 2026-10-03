@@ -6,6 +6,7 @@ from colossus.cosmology.cosmology import setCosmology
 
 # require colossus for this test
 from colossus.halo.mass_defs import changeMassDefinition
+from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 
 import hmf.halos.mass_definitions as md
 from hmf import MassFunction
@@ -262,3 +263,75 @@ def test_find_new_concentration_failure_warns():
             h=lambda x: 0.0,
             x_guess=5.0,
         )
+
+
+def _smt(**kwargs):
+    """An SMT mass function (measured in SOVirial) at z=0 with the EH transfer function."""
+    return MassFunction(hmf_model="SMT", transfer_model="EH", z=0.0, dlog10m=0.05, **kwargs)
+
+
+@pytest.mark.filterwarnings("ignore:Your input mass definition")
+@pytest.mark.parametrize("overdensity", [200, 1600])
+def test_mass_conversion_conserves_cumulative_counts(overdensity):
+    """A one-to-one relabelling of halo masses must conserve their number.
+
+    For M' = M'(M) the measured-definition mass of a halo with mass M in the new
+    definition, n_new(>M) = n_meas(>M'(M)).
+    """
+    meas = _smt(Mmin=9, Mmax=17)
+    assert meas.mdef == md.SOVirial()
+    ln_ngtm_meas = Spline(np.log(meas.m), np.log(meas.ngtm))
+
+    new = _smt(
+        Mmin=10,
+        Mmax=15.5,
+        mdef_model="SOMean",
+        mdef_params={"overdensity": overdensity},
+        disable_mass_conversion=False,
+    )
+    m_meas = new.mdef.change_definition(new.m, meas.mdef, z=0.0, cosmo=new.cosmo)[0]
+    # The conversion is non-trivial over the whole range (M'/M ~ 0.81-0.89 for 200m
+    # and ~ 1.35-1.66 for 1600m), so this isn't satisfied by accident.
+    assert np.all(np.abs(m_meas / new.m - 1) > 0.05)
+
+    sel = new.m <= 3e15
+    ratio = new.ngtm[sel] / np.exp(ln_ngtm_meas(np.log(m_meas[sel])))
+
+    # Before the fix the ratio drifted from ~1.02 to ~0.46 (200m) and from ~0.95 to
+    # ~12 (1600m). After it, the measured maximum deviation is 3.5e-4 (200m) and 1.9e-3
+    # (1600m) at dlog10m=0.05, falling ~20x at dlog10m=0.01: it is the error from
+    # integrating dn/dm on the grid and from the finite-difference Jacobian, both
+    # O(dlog10m^2). 5e-3 leaves room for that, and is ~100x below the bug's size.
+    np.testing.assert_allclose(ratio, 1, rtol=5e-3)
+
+
+@pytest.mark.filterwarnings("ignore:Your input mass definition")
+def test_mass_conversion_to_same_definition_is_identity():
+    """Converting to a definition with the same halo density as the measured one is a no-op."""
+    virial = _smt()
+    cosmo = virial.cosmo
+
+    # SOMean with the same density threshold as SOVirial at z=0.
+    overdensity = md.SOVirial().halo_density(0.0, cosmo) / md.SOMean().mean_density(0.0, cosmo)
+    same = _smt(
+        mdef_model="SOMean",
+        mdef_params={"overdensity": overdensity},
+        disable_mass_conversion=False,
+    )
+    assert same.mdef != virial.mdef  # so that the conversion is actually applied
+    assert same._mass_conversion_active
+
+    np.testing.assert_allclose(same.dndm, virial.dndm, rtol=1e-6, atol=0)
+
+
+@pytest.mark.filterwarnings("ignore:Your input mass definition")
+def test_disabled_mass_conversion_is_unchanged(monkeypatch):
+    """With conversion disabled (the default), dndm is the fit evaluated at m, untouched."""
+    monkeypatch.setattr(MassFunction, "ERROR_ON_BAD_MDEF", False)
+    native = _smt()
+    for kwargs in [{}, {"mdef_model": "SOMean", "mdef_params": {"overdensity": 1600}}]:
+        h = _smt(**kwargs)
+        assert not h._mass_conversion_active
+        expected = h.fsigma * h.mean_density0 * np.abs(h._dlnsdlnm) / h.m**2
+        np.testing.assert_array_equal(h.dndm, expected)
+        np.testing.assert_array_equal(h.dndm, native.dndm)
