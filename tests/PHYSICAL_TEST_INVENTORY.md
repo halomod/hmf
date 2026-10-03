@@ -78,7 +78,7 @@ New tests are in `test_physical_transfer.py`.
 | BBKS | `test_bbks_sugiyama` (non-physical). | T → 1, monotonic. With zero baryons it matches the EH98 shape to 10%. | added |
 | BBKS Liddle baryons | — | The code uses √(Ω_b h); the docstring and Sugiyama (1995) use √(2h) (B11). | suspected bug (no test) |
 | BondEfs | None. | T → 1, monotonic. | added |
-| CAMB | Regression against stored data. Neutrino-species tests are physical: P_tot < P_cb, and they agree for massless neutrinos. | EH agreement to 6% in P(k). | existing + added |
+| CAMB | Regression against stored data. Neutrino-species tests are physical: P_tot < P_cb, and they agree for massless neutrinos. | EH agreement to 6% in P(k). Each massive species in `m_nu` reaches CAMB: 3 x 0.1 eV matches CAMB run with three massive species (and differs from one 0.3 eV species by >1%), split masses match CAMB's normal hierarchy, and Neff and the mass sum are conserved. | existing + added |
 | FromFile / FromArray | — | **None possible:** these are user-supplied tables. FromArray is used with T = 1 to build the self-similar tests. | none possible |
 | Transfer: σ8 normalisation | `test_sigma8z`: σ(8) = σ8. `test_sigma_8_species_*`. | σ(8) = σ8 for a power law (`test_physical_sigma.py`). | existing + added |
 | Transfer: P(k) | — | P ∝ k^{n_s} on large scales. P(z) = D(z)² P(0). | added |
@@ -92,6 +92,7 @@ New tests are in `test_physical_growth.py`.
 |---|---|---|---|
 | ODEGrowthFactor | Agrees with the integral method and with Heath (independent methods). D ∝ a² in radiation domination, f → 1 in matter domination, monotonic. | D = a and f = 1 exactly in EdS. Linder f = Ω_m^0.55 (1%). CPT92 g₀ (1%). f = dlnD/dlna. Peebles f₀ ≈ Ω_m^0.6 in open universes. | added |
 | ODEGrowthFactor for wCDM | — | Linder γ = 0.55 + 0.05(1+w), plus an independent ODE solve. Fails: the dark-energy term is missing from dlnE/dlna. | exposes bug (B4) |
+| ODEGrowthFactor with massive neutrinos | — | dlnE/dlna equals a finite difference of astropy's `efunc`. D matches CAMB `delta_nonu` at k/h = 5, below the free-streaming scale, to 2e-4. D and f match an independent momentum-form ODE that needs only E(z), to 2e-5. All failed before the fix: the time dependence of `nu_relative_density` was dropped from dlnE/dlna, so D was 0.2–0.9% low at z = 10. | fixed |
 | GrowthFactor (selector) | Selector tests. Tinker08 within 1% of ODE. Heath in open universes (D only). | Linder (with and without radiation). CPT92 g₀. Near-EdS limit (Ω_Λ = 1e-6). | added |
 | GrowthFactor in exact EdS | — | D = a. Fails with ZeroDivisionError via Eisenstein97. | exposes bug (B5) |
 | GrowthFactor / Heath77 growth rate in open universes | — | Peebles f₀ ≈ Ω_m^0.6, and 0 < f < 1. Heath77's rate is wrong (f = −0.69 at Ω_m = 0.1). | exposes bug (B7) |
@@ -100,7 +101,7 @@ New tests are in `test_physical_growth.py`.
 | Heath77GrowthFactor | Agrees with ODE (D). | EdS (D = a, f = 1). Its growth rate in open universes fails (B7). | added / exposes bug |
 | GenMFGrowth | Within 5% of ODE (an approximation). | EdS, Linder, f = dlnD/dlna in ΛCDM. Its growth rate is NaN in open universes (B8). | added / exposes bug |
 | Carroll1992 | Within 5% of ODE. | EdS exact. The Lahav growth rate agrees with ODE to 1%. | added |
-| CambGrowth | Linder (ΛCDM). Neutrino-species bounds. | Its growth rate for wCDM goes through the ODE, which fails (B4). | existing |
+| CambGrowth | Linder (ΛCDM). Neutrino-species bounds. 3 x 0.1 eV growth matches CAMB with three massive species. | Its growth rate for wCDM goes through the ODE, which fails (B4). | existing |
 | FromFile / FromArray | — | **None possible:** user-supplied tables. | none possible |
 | D(z=0) = 1 | — | **None needed:** this holds by construction (D⁺/D⁺(0)) for every model, so a test would only repeat the code. | none possible |
 

@@ -486,20 +486,37 @@ def test_tinker08_native_so_definition_consistency(z):
 
 @pytest.mark.parametrize(
     ("z", "rtol"),
-    [(0.0, 5e-3), (2.0, 1e-2), (4.0, 5e-3), (6.0, 3e-2), (8.0, 8e-2), (10.0, 1.5e-1)],
+    [(0.0, 2e-3), (2.0, 2e-3), (4.0, 1e-2), (6.0, 2.5e-2), (8.0, 4e-2), (10.0, 5e-2)],
 )
 def test_tinker08_matches_colossus(z, rtol):
-    """Tinker08 should remain reasonably close to the Colossus implementation.
+    """Tinker08 should remain close to the Colossus implementation.
 
     This compares the native `200m` Tinker08 prediction against Colossus at several
-    redshifts using a matched cosmology. The tolerance widens with redshift because the
-    remaining mismatch is still driven mostly by different high-z growth treatments and
-    by the fact that `hmf` uses more precise Tinker08 coefficients while Colossus uses
-    rounded table values. After tightening the selector threshold, the agreement is good
-    enough to use a meaningfully stricter external regression than before. See
-    `docs/technical/colossus_comparison.rst` for a longer explanation.
+    redshifts, with everything that is a deliberate input difference matched:
+
+    - The cosmology. Colossus has no massive-neutrino background, so `m_nu=0` is
+      set in hmf (whose default carries 0.06 eV). With 0.06 eV the extra
+      non-relativistic density in E(z) changes the growth history, and with sigma_8
+      fixed at z=0 that changes sigma(M, z>0). In the tail that shifts the HMF by
+      about +6% to +47% at z=8 to 10 (at fixed coefficients).
+    - The Tinker08 coefficients. Colossus uses the rounded table values, so they are
+      passed in here. hmf's more precise defaults alone shift the HMF by up to
+      about -14% at z=10.
+
+    These tolerances were previously tuned to a partial cancellation between those
+    two mismatches. Once the massive-neutrino term in `dlne_dlna` was made exact,
+    the cancellation broke at z=4 and 6.
+
+    What remains is the growth factor. Colossus's high-z growth approximation is
+    5e-4 to 7e-4 below CAMB's CDM+baryon growth at k/h=5 for z=4 to 10 in this
+    cosmology. hmf's ODE is within 2e-4. The HMF tail amplifies the difference by
+    dln f/dln sigma, which is large for rare halos. That predicts residuals of 0.8%,
+    1.9%, 2.7% and 3.7% at M=1e13 for z=4, 6, 8 and 10, and the measured ones are
+    0.8%, 1.9%, 2.9% and 4.0%. Each tolerance is about 1.25x the measured
+    maximum over masses. Low redshift, where the growth agrees to 1e-4, is held to
+    2e-3. See `docs/technical/colossus_comparison.rst`.
     """
-    cosmo_params = {"H0": 67.74, "Om0": 0.3089, "Ob0": 0.0486}
+    cosmo_params = {"H0": 67.74, "Om0": 0.3089, "Ob0": 0.0486, "m_nu": 0.0}
     setCosmology(
         "hmf-tinker08-test",
         {
@@ -514,6 +531,7 @@ def test_tinker08_matches_colossus(z, rtol):
 
     hmf = MassFunction(
         hmf_model="Tinker08",
+        hmf_params={"A_200": 0.186, "a_200": 1.47, "b_200": 2.57, "c_200": 1.19},
         transfer_model="EH",
         mdef_model="SOMean",
         mdef_params={"overdensity": 200},
