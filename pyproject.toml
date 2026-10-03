@@ -35,10 +35,9 @@ dependencies = [
     "astropy>=6.0",
     "deprecation",
     "click",
-    "toml>=0.10.1",
     "rich",
-    "cached_property",
-    "camb>=1.0.0"
+    "camb>=1.0.0",
+    "tomli-w>=1.0",
 ]
 
 [project.optional-dependencies]
@@ -61,6 +60,7 @@ docs = [
     "sphinx-autoapi",
     "nbsphinx>=0.9.8",
     "ipython>=9.11.0",
+    "pypandoc-binary>=1.17",
 ]
 
 tests = [

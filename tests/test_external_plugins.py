@@ -3,11 +3,11 @@
 import re
 import sys
 import textwrap
+import tomllib
 from pathlib import Path
 
 import numpy as np
 import pytest
-import toml
 from click.testing import CliRunner
 
 from hmf import MassFunction
@@ -174,7 +174,7 @@ def test_cli_plugins_key(tmp_path, ext_module, ps_dndm):
     # Default scale is 0.5
     np.testing.assert_allclose(dndm, 0.5 * ps_dndm, rtol=1e-6)
 
-    written = toml.load(tmp_path / "out" / "hmf_cfg.toml")
+    written = tomllib.loads((tmp_path / "out" / "hmf_cfg.toml").read_text())
     assert written["plugins"] == [ext_module]
     assert written["params"]["hmf_model"] == "ScaledPS"
 
@@ -233,4 +233,4 @@ def test_cli_plugins_single_string(tmp_path, ext_module, ps_dndm):
     """
     dndm = _run(tmp_path, cfg, tmp_path / "out")
     np.testing.assert_allclose(dndm, 0.5 * ps_dndm, rtol=1e-6)
-    assert toml.load(tmp_path / "out" / "hmf_cfg.toml")["plugins"] == [ext_module]
+    assert tomllib.loads((tmp_path / "out" / "hmf_cfg.toml").read_text())["plugins"] == [ext_module]

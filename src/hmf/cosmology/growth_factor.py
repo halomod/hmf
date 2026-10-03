@@ -61,14 +61,14 @@ LOW_RADIATION_THRESHOLD = 5.0e-4
 class BaseGrowthFactor(Cmpt):
     r"""General class for a growth factor calculation.
 
-    Sub-classes must implement :method:`_d_plus_unnormalized`, which should take a
+    Sub-classes must implement :meth:`_d_plus_unnormalized`, which should take a
     single argument -- the redshift, ``z`` -- and return an array or float (depending
     on the input type) of the un-normalized growth factor, :math:`D^+(a)`. Most
     typically, the normalization of this function is such that :math:`D^+(a) \approx a`
     at early times, but this is not enforced, and does not affect the user-facing
     methods of the class.
 
-    Sub-classes *may* also implement :method:`growth_rate`, which takes the same
+    Sub-classes *may* also implement :meth:`growth_rate`, which takes the same
     argument and returns the growth rate:
 
     .. math:: f(a) = d\ln D^+ / d\ln a.

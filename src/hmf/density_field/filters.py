@@ -291,7 +291,7 @@ class BaseFilter(_framework.Component):
         return (delta_c / self.sigma(r)) ** 2
 
 
-# For backwards compatibility, alias Filter to BaseFilter.
+#: Alias of :class:`BaseFilter`, kept for backwards compatibility.
 Filter = BaseFilter
 
 

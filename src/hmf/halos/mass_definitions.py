@@ -206,7 +206,7 @@ class BaseMassDefinition(_framework.Component):
         return self.__class__.__name__ == other.__class__.__name__ and self.params == other.params
 
 
-# For backwards compatibility, alias MassDefinition to BaseMassDefinition.
+#: Alias of :class:`BaseMassDefinition`, kept for backwards compatibility.
 MassDefinition = BaseMassDefinition
 
 
