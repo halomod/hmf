@@ -7,6 +7,7 @@ into the standard CDM Frameworks, and provide an example of how one would go abo
 for other alternative cosmologies.
 """
 
+import warnings
 from typing import ClassVar, override
 
 import astropy.units as u
@@ -41,21 +42,36 @@ class WDM(Component):
     cosmo : `hmf.cosmo.Cosmology` instance
         A cosmology.
 
-    z : float
-        Redshift.
+    z : float, optional
+        Deprecated and ignored. The WDM transfer function and its characteristic
+        (comoving) scales and masses are independent of redshift.
 
     \*\*model_parameters : unpack-dict
         Parameters specific to a model.
         To see the default values, check the :attr:`_defaults`
         class attribute.
+
+    Attributes
+    ----------
+    rho_mean : float
+        Comoving mean matter density, in :math:`h^2 M_\odot {\rm Mpc}^{-3}`.
     """
 
-    def __init__(self, mx, cosmo=Planck15, z=0, **model_params):
+    def __init__(self, mx, cosmo=Planck15, z: float | None = None, **model_params):
+        if z is not None:
+            warnings.warn(
+                "The 'z' argument to WDM models is deprecated and ignored: WDM transfer "
+                "functions and their comoving mass scales do not depend on redshift.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         self.mx = mx
         self.cosmo = cosmo
-        self.rho_mean = (1 + z) ** 3 * (
-            self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h**2
-        ).to(u.solMass / u.Mpc**3).value
+        self.rho_mean = (
+            (self.cosmo.Om0 * self.cosmo.critical_density0 / self.cosmo.h**2)
+            .to(u.solMass / u.Mpc**3)
+            .value
+        )
         self.Oc0 = cosmo.Om0 - cosmo.Ob0
 
         super().__init__(**model_params)
@@ -91,8 +107,8 @@ class Viel05(WDM):
         Mass of the particle in keV
     cosmo : `hmf.cosmo.Cosmology` instance
         A cosmology.
-    z : float
-        Redshift.
+    z : float, optional
+        Deprecated and ignored. See :class:`WDM`.
     \*\*model_parameters : unpack-dict
         Parameters specific to a model. Available parameters are as follows.
         To see the default values, check the :attr:`_defaults`
@@ -348,7 +364,7 @@ class TransferWDM(Transfer):
 
         Contains quantities relevant to WDM.
         """
-        return self.wdm_model(mx=self.wdm_mass, cosmo=self.cosmo, z=self.z, **self.wdm_params)
+        return self.wdm_model(mx=self.wdm_mass, cosmo=self.cosmo, **self.wdm_params)
 
     @override
     @cached_quantity
