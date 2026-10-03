@@ -126,16 +126,19 @@ class BaseGrowthFactor(Cmpt):
         :math:`E'(a)/E(a) \equiv (1/a)*dlnE/dlna` in its definition.
 
         This implementation simply uses the exact definition from astropy of E(a)
-        and writes down the derivative analytically. With massive neutrinos, the
-        radiation term is :math:`\Omega_\gamma (1 + N(z)) a^{-4}`, where
-        :math:`N(z)` is astropy's ``nu_relative_density``. :math:`N` varies with
-        time as the neutrinos become non-relativistic, so its derivative is included,
-        computed by central finite difference in :math:`\ln(1+z)`.
+        and writes down the derivative analytically. The dark-energy density scales as
+        :math:`\rho_{\rm DE}(a) \propto \exp(-3\int (1+w)\, d\ln a)`, so its
+        logarithmic derivative is :math:`-3(1+w(a))`, which vanishes only for a
+        cosmological constant. With massive neutrinos, the radiation term is
+        :math:`\Omega_\gamma (1 + N(z)) a^{-4}`, where :math:`N(z)` is astropy's
+        ``nu_relative_density``. :math:`N` varies with time as the neutrinos become
+        non-relativistic, so its derivative is included, computed by central finite
+        difference in :math:`\ln(1+z)`.
         """
         a = 1 / (1 + z)
 
         if self.cosmo.has_massive_nu:
-            # d(Ogamma0 * N(z) * a^-4)/da = -4 Ogamma0 N a^-5 + Ogamma0 a^-5 dN/dlna,
+            # d(Ogamma0 * (1 + N(z)) * a^-4)/dlna = Ogamma0 a^-4 (-4 (1 + N) + dN/dlna),
             # with dN/dlna = -dN/dln(1+z).
             h = 1e-4
             lnzp1 = np.log1p(z)
@@ -147,11 +150,13 @@ class BaseGrowthFactor(Cmpt):
         else:
             Or = -4 * (self.cosmo.Ogamma0 + self.cosmo.Onu0)
 
-        Or = Or * a**-5
-        Om = -3 * self.cosmo.Om0 * a**-4
-        Ok = -2 * self.cosmo.Ok0 * a**-3
+        # Each term is d(E^2)/dln(a) for the corresponding component.
+        Or = Or * a**-4
+        Om = -3 * self.cosmo.Om0 * a**-3
+        Ok = -2 * self.cosmo.Ok0 * a**-2
+        Ode = -3 * (1 + self.cosmo.w(z)) * self.cosmo.Ode0 * self.cosmo.de_density_scale(z)
 
-        return a * 0.5 * (Or + Om + Ok) * self.cosmo.inv_efunc(z) ** 2
+        return 0.5 * (Or + Om + Ok + Ode) * self.cosmo.inv_efunc(z) ** 2
 
     @abstractmethod
     def _d_plus_unnormalized(self, z):
@@ -573,6 +578,11 @@ class Eisenstein97GrowthFactor(IntegralGrowthFactor):
         from scipy.special import ellipeinc, ellipkinc
 
         a = 1 / (1 + z)
+        if self.cosmo.Ode0 == 0:
+            # Flat with no dark energy is Einstein-de Sitter, where D^+ = a exactly
+            # (the v -> infinity limit of the formula below).
+            return a
+
         v = 1 / a * (self.cosmo.Om0 / self.cosmo.Ode0) ** (1 / 3)
 
         beta = np.arccos((v + 1 - np.sqrt(3)) / (v + 1 + np.sqrt(3)))
@@ -600,6 +610,11 @@ class Heath77GrowthFactor(IntegralGrowthFactor):
 
     These results apply when Lambda = 0 and the radiation density is negligible, and is
     given in Eq 13 of Heath 1977.
+
+    Heath's expression tends to :math:`|1 - \Omega_{m,0}|/(5\Omega_{m,0}/2)\, a` as
+    :math:`a \to 0`. We divide by that constant so that :math:`D^+(a) \to a`, the
+    normalisation assumed by the growth rate inherited from
+    :class:`IntegralGrowthFactor`.
     """
 
     def _validate_assumptions(self, z: float | np.ndarray):
@@ -626,7 +641,8 @@ class Heath77GrowthFactor(IntegralGrowthFactor):
         term1 = (6 * sigma0 * z + 4 * sigma0 + 1) / np.abs(2 * sigma0 - 1)
         term2 = 3 * theta * sigma0 * np.sqrt(p) / np.abs(2 * sigma0 - 1) ** (3 / 2)
 
-        return term1 - term2
+        # Normalise so that D^+ -> a as a -> 0 (see class docstring).
+        return (term1 - term2) * 5 * sigma0 / np.abs(2 * sigma0 - 1)
 
 
 @_inherit
@@ -758,9 +774,30 @@ class GenMFGrowth(BaseGrowthFactor):
             x = a * xn
             aofx = self._general_case(w, x)
             return aofx / aofxn
-        dn = 1 + 3 / w + (3 * ((1 + w) ** 0.5) / w**1.5) * np.log((1 + w) ** 0.5 - w**0.5)
-        x = w * a
-        return (1 + 3 / x + (3 * ((1 + x) ** 0.5) / x**1.5) * np.log((1 + x) ** 0.5 - x**0.5)) / dn
+        return self._open_case(w * a) / self._open_case(w)
+
+    @staticmethod
+    def _open_case(x):
+        r"""Growing mode of an open, Lambda=0 universe, as a function of x = w a.
+
+        This is :math:`1 + 3/x - 3\sqrt{1+x}\,{\rm arcsinh}(\sqrt{x})/x^{3/2}`, which
+        cancels catastrophically at small x, so its Taylor series is used there.
+        """
+        x = np.asarray(x, dtype=float)
+        small = x < 1e-2
+        xs = np.where(small, x, 1.0)
+        xl = np.where(small, 1.0, x)
+        series = xs * (
+            2 / 5
+            + xs
+            * (
+                -8 / 35
+                + xs * (16 / 105 + xs * (-128 / 1155 + xs * (256 / 3003 - xs * 1024 / 15015)))
+            )
+        )
+        closed = 1 + 3 / xl + (3 * ((1 + xl) ** 0.5) / xl**1.5) * np.log((1 + xl) ** 0.5 - xl**0.5)
+        out = np.where(small, series, closed)
+        return out if out.ndim else float(out)
 
 
 @_inherit
@@ -809,11 +846,21 @@ if HAVE_CAMB:
     @_inherit
     class CambGrowth(GrowthFactor):
         r"""
-        Growth factor computed using CAMB at k/h = 1.0.
+        Growth factor computed using CAMB at :math:`k = 0.01\,{\rm Mpc}^{-1}`.
+
+        CAMB takes wavenumbers in :math:`{\rm Mpc}^{-1}`, not :math:`h/{\rm Mpc}`, so
+        this is :math:`k/h = 0.01/h` (about 0.015 for :math:`h \approx 0.68`).
 
         Recommended for non-LambdaCDM cosmologies (e.g., wCDM) as it correctly
         deals with their growth evolution. For standard LCDM, other classes are
         preferred since this class requires re-calculating the transfer function.
+
+        With massive neutrinos the growth is scale-dependent. At this scale the
+        neutrinos partly cluster, so the CDM+baryon (``"cb"``) field grows faster
+        than in the small-scale limit computed by :class:`ODEGrowthFactor`, in which
+        the neutrinos are a smooth background. Normalised to 1 at z = 0, the growth
+        factor here is therefore lower at high redshift: by about 2.2% at z = 10 for
+        a 0.3 eV neutrino.
 
         Parameters
         ----------
@@ -881,9 +928,9 @@ if HAVE_CAMB:
 
             p.WantTransfer = True
 
-            # Set the DE equation of state. We only support constant w.
+            # Set the DE equation of state (constant w, or w0-wa).
             if hasattr(cosmo, "w0"):
-                p.set_dark_energy(w=cosmo.w0)
+                p.set_dark_energy(w=cosmo.w0, wa=getattr(cosmo, "wa", 0.0))
 
             return p
 
