@@ -204,3 +204,19 @@ def test_fromfile_two_column_file_ignores_matter_species(tmp_path, base_cosmo):
 def test_fromfile_bad_matter_species(base_cosmo):
     with pytest.raises(ValueError, match="matter_species must be one of"):
         FromFile(base_cosmo, matter_species="nu")
+
+
+def test_boltzmann_transfer_subclass_must_implement_run(base_cosmo):
+    """A Boltzmann-code model must say how to run its code and identify its runs."""
+
+    class Incomplete(transfer_models._BoltzmannTransfer, abstract=True):
+        _defaults = {"extrapolate_with_eh": False, "matter_species": "cb"}  # noqa: RUF012
+
+    model = Incomplete(base_cosmo)
+    with pytest.raises(NotImplementedError):
+        model._results_key()
+    with pytest.raises(NotImplementedError):
+        model._compute_transfers()
+    with pytest.raises(NotImplementedError):
+        model.lnt(np.log(np.array([0.1, 1.0])))
+    assert "Incomplete" not in transfer_models.TransferComponent.get_models()
