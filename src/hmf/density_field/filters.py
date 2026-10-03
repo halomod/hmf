@@ -32,6 +32,7 @@ from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 from scipy.special import expit
 
 from .._internals import _framework, _utils
+from .._internals import _references as refs
 
 
 @_framework.pluggable
@@ -545,6 +546,8 @@ class SmoothK(BaseFilter):
        arXiv:1801.02547.
     """
 
+    references: ClassVar[tuple[str, ...]] = (refs.LEO18,)
+
     _defaults: ClassVar[dict[str, float]] = {"beta": 4.8, "c": 3.3}
 
     @override
@@ -617,6 +620,8 @@ class SharpKEllipsoid(SharpK):
 
     Refer to :class:`~Filter` for more details.
     """
+
+    references: ClassVar[tuple[str, ...]] = (refs.SCHNEIDER13,)
 
     _defaults: ClassVar[dict[str, float]] = {"c": 2.0}
 

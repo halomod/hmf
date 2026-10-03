@@ -414,6 +414,8 @@ def subframework(f):
             return value
 
     update_wrapper(_get_property, f)
+    # Lets Framework.get_acknowledgments find sub-frameworks.
+    _get_property._is_subframework = True
 
     def _del_property(self):
         try:

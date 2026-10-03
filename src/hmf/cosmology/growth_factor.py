@@ -37,6 +37,7 @@ from astropy import cosmology
 from scipy.integrate import solve_ivp
 from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 
+from .._internals import _references as refs
 from .._internals._framework import Component as Cmpt
 from .._internals._framework import pluggable
 from .._internals._utils import inherit_docstrings as _inherit
@@ -215,6 +216,8 @@ class GrowthFactor(BaseGrowthFactor):
     - Otherwise, solve the full ODE numerically (also presented in the docs).
 
     """
+
+    references: ClassVar[tuple[str, ...]] = (refs.EH97, refs.HEATH77)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -529,6 +532,8 @@ class Eisenstein97GrowthFactor(IntegralGrowthFactor):
     constant and negligible radiation (i.e. low redshifts).
     """
 
+    references: ClassVar[tuple[str, ...]] = (refs.EH97,)
+
     def _validate_assumptions(self, z: float | np.ndarray):
         super()._validate_assumptions(z)
 
@@ -590,6 +595,8 @@ class Heath77GrowthFactor(IntegralGrowthFactor):
     These results apply when Lambda = 0 and the radiation density is negligible, and is
     given in Eq 13 of Heath 1977.
     """
+
+    references: ClassVar[tuple[str, ...]] = (refs.HEATH77,)
 
     def _validate_assumptions(self, z: float | np.ndarray):
         super()._validate_assumptions(z)
@@ -764,6 +771,8 @@ class Carroll1992(GrowthFactor):
     non-zero redshifts if redshift-dependent values for Omega_m and Omega_L are used.
     """
 
+    references: ClassVar[tuple[str, ...]] = (refs.CARROLL92,)
+
     def _d_plus_unnormalized(self, z):
         """Calculate the unnormalized growth factor."""
         a = 1 / (1 + z)
@@ -825,6 +834,8 @@ if HAVE_CAMB:
                                 versions of hmf used ``"tot"``). See
                                 :doc:`/massive_neutrinos`.
         """
+
+        references: ClassVar[tuple[str, ...]] = (refs.CAMB,)
 
         _defaults: ClassVar[dict[str, Any]] = {
             **BaseGrowthFactor._defaults,

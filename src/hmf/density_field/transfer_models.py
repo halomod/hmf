@@ -14,6 +14,7 @@ import numpy as np
 from astropy import cosmology
 from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 
+from .._internals import _references as refs
 from .._internals._framework import Component, pluggable
 from .._internals._utils import resolve_matter_species
 
@@ -233,6 +234,8 @@ if HAVE_CAMB:
         accounted for separately by CAMB from the ``mnu`` parameter, ensuring the
         total matter density (CDM + baryons + neutrinos) is correctly captured.
         """
+
+        references: ClassVar[tuple[str, ...]] = (refs.CAMB,)
 
         _defaults: ClassVar[dict[str, Any]] = {
             "camb_params": None,
@@ -530,6 +533,8 @@ class EH_BAO(TransferComponent):
         are no model parameters.
     """
 
+    references: ClassVar[tuple[str, ...]] = (refs.EH98,)
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._set_params()
@@ -742,6 +747,8 @@ class BBKS(TransferComponent):
     .. math:: \Gamma \rightarrow \Gamma
               \exp\left(-\Omega_{b,0}(1 + \sqrt{2h}/\Omega_{m,0})\right).
     """
+
+    references: ClassVar[tuple[str, ...]] = (refs.BBKS86,)
 
     _defaults: ClassVar[dict[str, Any]] = {
         "a": 2.34,

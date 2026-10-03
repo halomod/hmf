@@ -79,6 +79,12 @@ class Cosmology(_framework.Framework):
         self.cosmo_model = cosmo_model
         self.cosmo_params = cosmo_params or {}
 
+    def _extra_references(self) -> tuple[str, ...]:
+        # The source of the base cosmological parameters, for astropy's built-in
+        # realizations (e.g. Planck18). Custom FLRW instances usually have none.
+        ref = " ".join(str(self.cosmo_model.meta.get("reference", "")).split())
+        return (*super()._extra_references(), *((ref,) if ref else ()))
+
     @_cache.parameter("model")
     def cosmo_model(self, val):
         """

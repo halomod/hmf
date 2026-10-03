@@ -28,6 +28,12 @@ class Component:
 
     _defaults: ClassVar[dict[str, Any]] = {}
 
+    #: References to cite when this model is used, each a formatted citation string.
+    #: Subclasses inherit their parent's references unless they set their own. If
+    #: empty, :meth:`Framework.get_acknowledgments` falls back to a ``_ref`` string
+    #: on the class, if there is one.
+    references: ClassVar[tuple[str, ...]] = ()
+
     def __init__(self, **model_params):
         # Check that all parameters passed are valid
         for k in model_params:
@@ -42,6 +48,26 @@ class Component:
     def get_models(cls) -> dict[str, type]:
         """Get a dictionary of all implemented models for this component."""
         return cls._plugins
+
+
+#: The reference for hmf itself, always included by :meth:`Framework.get_acknowledgments`.
+HMF_REFERENCE = (
+    "Murray, S. G., Power, C., Robotham, A. S. G., 2013. Astronomy and Computing 3, 23. "
+    "arXiv:1306.6721"
+)
+
+
+def _get_references(cls: type) -> tuple[str, ...]:
+    """Return the references of a component class.
+
+    Uses the class's ``references`` attribute, falling back to its ``_ref`` string.
+    """
+    refs = tuple(getattr(cls, "references", ()) or ())
+    if not refs:
+        ref = getattr(cls, "_ref", None)
+        if isinstance(ref, str) and ref.strip():
+            refs = (" ".join(ref.split()),)
+    return refs
 
 
 def get_base_components() -> list[type[Component]]:
@@ -213,6 +239,11 @@ class Framework(metaclass=_Validator):
 
     _validate = True
 
+    #: References for the framework itself (not its component models), each a
+    #: formatted citation string. References of parent framework classes are
+    #: included too.
+    references: ClassVar[tuple[str, ...]] = ()
+
     def validate(self):
         """Perform validation of the input parameters as they relate to each other."""
 
@@ -243,6 +274,64 @@ class Framework(metaclass=_Validator):
         clone = copy.deepcopy(self)
         clone.update(**kwargs)
         return clone
+
+    def _extra_references(self) -> tuple[str, ...]:
+        """References that depend on the framework's parameters (not its models).
+
+        Override in subclasses whose citations depend on parameter values. The
+        default returns nothing.
+        """
+        return ()
+
+    def get_acknowledgments(self) -> list[str]:
+        """Get the references to cite for the current setup of the framework.
+
+        The list contains the reference for hmf itself, the framework's own
+        ``references`` (including those of parent framework classes), references
+        that depend on the framework's parameters, the ``references`` of the
+        component model chosen for every ``*_model`` parameter, and those of any
+        sub-frameworks. Duplicates are removed, keeping the first occurrence.
+
+        All references are gathered from the model *classes*, so this does not
+        compute any quantity.
+
+        Returns
+        -------
+        list of str
+            Formatted citations to include in a paper that uses this framework.
+
+        Examples
+        --------
+        >>> from hmf import MassFunction
+        >>> refs = MassFunction(hmf_model="Tinker08").get_acknowledgments()
+        """
+        refs = [HMF_REFERENCE]
+        self._collect_references(refs, seen=set())
+        return list(dict.fromkeys(refs))
+
+    def _collect_references(self, refs: list[str], seen: set[int]) -> None:
+        """Append the references of this framework and its sub-frameworks to refs."""
+        if id(self) in seen:
+            return
+        seen.add(id(self))
+
+        for kls in reversed(type(self).__mro__):
+            refs.extend(kls.__dict__.get("references", ()))
+
+        refs.extend(self._extra_references())
+
+        for name in getattr(self, "_" + self.__class__.__name__ + "__recalc_par_prop"):
+            if not name.endswith("_model"):
+                continue
+            model = getattr(self, name)
+            if model is None:
+                continue
+            refs.extend(_get_references(model if isinstance(model, type) else type(model)))
+
+        for name in dir(type(self)):
+            prop = getattr(type(self), name, None)
+            if isinstance(prop, property) and getattr(prop.fget, "_is_subframework", False):
+                getattr(self, name)._collect_references(refs, seen)
 
     @classmethod
     def get_all_parameter_names(cls):
