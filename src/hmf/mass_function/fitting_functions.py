@@ -402,8 +402,10 @@ def _defaults_table(defaults: dict[str, Any]) -> str:
     rows = [f"{k:<{kw}}  {v}" for k, v in zip(keys, vals, strict=True)]
     return "\n".join(
         [
-            "Default model parameters (override them with keyword arguments, or with "
-            "``hmf_params`` in :class:`~hmf.mass_function.hmf.MassFunction`):",
+            (
+                "Default model parameters (override them with keyword arguments, or with "
+                "``hmf_params`` in :class:`~hmf.mass_function.hmf.MassFunction`):"
+            ),
             "",
             rule,
             f"{'Parameter':<{kw}}  Default",
@@ -1537,7 +1539,9 @@ class Tinker08(BaseFittingFunction):
             # verbatim (via Tinker08/Tinker10, which share this __init__) by
             # tests/test_fitting_functions_extra.py::test_tinker08_non_so_raises and
             # ::test_tinker10_non_so_raises.
-            raise ValueError("The Tinker fitting function is a spherical-overdensity function.")
+            raise ValueError(  # noqa: TRY004
+                "The Tinker fitting function is a spherical-overdensity function."
+            )
         delta_halo = self.mass_definition.halo_overdensity_mean(self.z, self.cosmo)
 
         if delta_halo not in self.delta_virs:
