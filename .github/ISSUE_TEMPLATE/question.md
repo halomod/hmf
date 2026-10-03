@@ -2,7 +2,7 @@
 name: Question
 about: Ask a question about how to use hmf
 title: "[Question]"
-labels: 'Type: question'
+labels: 'type: question'
 assignees: steven-murray
 
 ---

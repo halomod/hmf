@@ -541,9 +541,11 @@ class SharpKEllipsoid(SharpK):
         """
         Ellipsoid axis ratio correction factor.
 
-        Computed from ellipticity and prolateness parameters.
+        Computed from ellipticity and prolateness parameters, such that
+        ``xi**3 = (a1/a3) * (a2/a3)``. Note that Eq. 33 of Schneider et al. 2013
+        has a typo in the numerator (``3 p_m`` should be ``3 e_m``).
         """
-        return ((1 + 4 * pm) ** 2 / (1 - 3 * em + pm) / (1 - 2 * pm)) ** (1.0 / 6.0)
+        return ((1 + 3 * em + pm) ** 2 / (1 - 3 * em + pm) / (1 - 2 * pm)) ** (1.0 / 6.0)
 
     def a3(self, r):
         """Short-axis scale with ellipsoidal correction."""

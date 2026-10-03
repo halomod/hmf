@@ -2,7 +2,7 @@
 name: Feature request
 about: Suggest an idea for this project
 title: "[Feature Req]"
-labels: 'Type: feature'
+labels: 'type: feature: ui'
 assignees: steven-murray
 
 ---

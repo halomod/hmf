@@ -2,7 +2,7 @@
 categories:
   - title: ":boom: Breaking Changes"
     labels:
-      - "API breaking"
+      - "API Breaking"
   - title: ":rocket: Features"
     labels:
       - "type: feature: ui"
