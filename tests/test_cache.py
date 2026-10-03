@@ -3,6 +3,7 @@ import pytest
 
 import hmf._internals._cache as cache
 from hmf._internals._cache import cached_quantity, hidden_loc, obj_eq, parameter, subframework
+from hmf._internals._framework import Framework
 
 
 class _CacheBase:
@@ -299,3 +300,166 @@ def test_failed_cached_quantity_cleans_subframework_bookkeeping():
     assert getattr(child, hidden_loc(child, "recalc_prop_par")) == initial_child_prpa
     assert getattr(child, hidden_loc(child, "recalc_par_prop")) == initial_child_papr
     assert getattr(child, hidden_loc(child, "active_q")) == set()
+
+
+class _Branchy(Framework):
+    """A quantity that reads ``b`` only when ``a`` is True."""
+
+    def __init__(self, a: bool = False, b: int = 1, c: int = 10):
+        self._validate = False
+        self.calls = 0
+        self.a = a
+        self.b = b
+        self.c = c
+        self._validate = True
+
+    def validate(self):
+        pass
+
+    @parameter("param")
+    def a(self, val):
+        return val
+
+    @parameter("param")
+    def b(self, val):
+        return val
+
+    @parameter("param")
+    def c(self, val):
+        return val
+
+    @cached_quantity
+    def q(self):
+        self.calls += 1
+        return self.b if self.a else 0
+
+    @cached_quantity
+    def parent(self):
+        return self.q + self.c
+
+
+class _BranchySupered(_Branchy):
+    @cached_quantity
+    def q(self):
+        return 100 + super().q
+
+
+def test_new_branch_dependencies_indexed_on_recompute():
+    """Parameters first read on a recompute must still invalidate the quantity."""
+    obj = _Branchy(a=False, b=1)
+    assert obj.q == 0
+    assert obj.get_dependencies("q") == {"a"}
+
+    obj.update(a=True)
+    assert obj.q == 1
+    assert obj.get_dependencies("q") == {"a", "b"}
+
+    obj.update(b=2)
+    assert obj.q == 2
+    assert obj.calls == 3
+
+
+def test_stale_dependencies_dropped_on_recompute():
+    """Dependencies of a branch no longer taken are dropped from the index."""
+    obj = _Branchy(a=True, b=1)
+    assert obj.q == 1
+    obj.update(a=False)
+    assert obj.q == 0
+    assert obj.get_dependencies("q") == {"a"}
+
+    calls = obj.calls
+    obj.update(b=5)
+    assert obj.q == 0
+    assert obj.calls == calls
+
+
+def test_new_branch_dependencies_reach_parents():
+    """A parent recomputed alongside its child picks up the child's new dependencies."""
+    obj = _Branchy(a=False, b=1, c=10)
+    assert obj.parent == 10
+
+    obj.update(a=True)
+    assert obj.parent == 11
+    assert {"a", "b", "c"} <= obj.get_dependencies("parent")
+
+    obj.update(b=2)
+    assert obj.parent == 12
+
+
+def test_new_branch_dependencies_indexed_when_supered():
+    """An overridden quantity calling ``super()`` is re-indexed on recompute too."""
+    obj = _BranchySupered(a=False, b=1)
+    assert obj.q == 100
+
+    obj.update(a=True)
+    assert obj.q == 101
+    obj.update(b=2)
+    assert obj.q == 102
+    assert getattr(obj, hidden_loc(obj, "active_q")) == set()
+
+
+def test_failed_recompute_leaves_clean_index():
+    """An exception during a recompute leaves no partial index, and the next access works."""
+
+    class _Boom(_Branchy):
+        @cached_quantity
+        def q(self):
+            if self.a and self.b < 0:
+                raise ValueError("boom")
+            return self.b if self.a else 0
+
+    obj = _Boom(a=False, b=1)
+    assert obj.q == 0
+    obj.update(a=True, b=-1)
+    with pytest.raises(ValueError, match="boom"):
+        _ = obj.q
+
+    assert getattr(obj, hidden_loc(obj, "active_q")) == set()
+    assert "q" not in getattr(obj, hidden_loc(obj, "recalc"))
+    assert "q" not in getattr(obj, hidden_loc(obj, "recalc_prop_par"))
+
+    obj.update(b=3)
+    assert obj.q == 3
+    obj.update(b=4)
+    assert obj.q == 4
+
+
+class _BranchyChild:
+    def __init__(self):
+        self._validate = False
+        self.x = 1
+
+    @parameter("param")
+    def x(self, val):
+        return val
+
+
+class _BranchyParent:
+    def __init__(self):
+        self._validate = False
+        self.a = False
+
+    @parameter("param")
+    def a(self, val):
+        return val
+
+    @subframework
+    def sub(self):
+        return _BranchyChild()
+
+    @cached_quantity
+    def q(self):
+        return self.sub.x if self.a else 0
+
+
+def test_new_branch_subframework_dependencies_indexed_on_recompute():
+    """Sub-framework parameters first read on a recompute must invalidate the quantity."""
+    obj = _BranchyParent()
+    assert obj.q == 0
+
+    obj.a = True
+    assert obj.q == 1
+
+    obj.sub.x = 2
+    assert obj.q == 2
+    assert getattr(obj.sub, hidden_loc(obj.sub, "active_q")) == set()

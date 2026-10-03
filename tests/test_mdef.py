@@ -335,3 +335,38 @@ def test_disabled_mass_conversion_is_unchanged(monkeypatch):
         expected = h.fsigma * h.mean_density0 * np.abs(h._dlnsdlnm) / h.m**2
         np.testing.assert_array_equal(h.dndm, expected)
         np.testing.assert_array_equal(h.dndm, native.dndm)
+
+
+@pytest.mark.filterwarnings("ignore:Your input mass definition")
+def test_disabling_mass_conversion_after_conversion_recomputes(monkeypatch):
+    """Re-disabling mass conversion must take effect (dependencies re-indexed on recompute).
+
+    ``dndm`` first reads ``disable_mass_conversion`` only once the mass definitions differ,
+    i.e. on a *recompute*. That dependency used to go unindexed, so toggling it back
+    returned the stale, converted ``dndm``.
+    """
+    monkeypatch.setattr(MassFunction, "ERROR_ON_BAD_MDEF", False)
+    mf = _smt()
+    native = mf.dndm.copy()
+
+    mf.update(mdef_model="SOMean", mdef_params={"overdensity": 200}, disable_mass_conversion=False)
+    converted = mf.dndm.copy()
+    # SOMean(200) is ~10-50% off SOVirial over this mass range, so the conversion is real.
+    assert np.all(np.abs(converted / native - 1) > 0.05)
+    assert "disable_mass_conversion" in mf.get_dependencies("dndm")
+
+    mf.update(disable_mass_conversion=True)
+    # With conversion disabled, dndm is the fit evaluated at m, untouched.
+    np.testing.assert_allclose(mf.dndm, native, rtol=1e-12, atol=0)
+
+
+@pytest.mark.filterwarnings("ignore:Your input mass definition")
+def test_disabling_mass_conversion_after_conversion_raises():
+    """An updated object must raise on a bad mass definition, just like a fresh one."""
+    mf = _smt()
+    _ = mf.dndm
+    mf.update(mdef_model="SOMean", mdef_params={"overdensity": 200}, disable_mass_conversion=False)
+    _ = mf.dndm
+
+    with pytest.raises(ValueError, match="does not match the mass definition"):
+        mf.update(disable_mass_conversion=True)

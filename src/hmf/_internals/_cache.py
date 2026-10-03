@@ -10,7 +10,6 @@ updated.
 
 import warnings
 from contextlib import suppress
-from copy import deepcopy
 from functools import update_wrapper
 
 from numpy import array_equal
@@ -25,8 +24,12 @@ def hidden_loc(obj, name):
     return ("_" + obj.__class__.__name__ + "__" + name).replace("___", "__")
 
 
-def _rollback_failed_quantity_index(self: object, name: str) -> None:
-    """Remove partial dependency bookkeeping left by a failed cached quantity."""
+def _clear_quantity_index(self: object, name: str) -> None:
+    """Remove a cached quantity's value and dependency bookkeeping.
+
+    Used both to roll back partial bookkeeping left by a failed evaluation, and to clear
+    a stale quantity's index before it is recomputed and re-indexed.
+    """
     prop = hidden_loc(self, name)
     recalc = getattr(self, hidden_loc(self, "recalc"))
     recalc_prpa = getattr(self, hidden_loc(self, "recalc_prop_par"))
@@ -71,7 +74,7 @@ def _finalize_quantity_index(self: object, name: str, supered: bool) -> None:
         recalc_papr[par].add(name)
 
     if not supered:
-        recalc_prpa[name] = deepcopy(recalc_prpa[name])
+        recalc_prpa[name] = set(recalc_prpa[name])
         activeq.remove(name)
 
     recalc[name] = False
@@ -161,15 +164,13 @@ def cached_quantity(f):
         if not recalc.get(name, True):
             return getattr(self, prop)
 
-        # Otherwise, if its in recalc, and needs updating, just update it
-        if name in recalc:
-            value = f(self)
-            setattr(self, prop, value)
-
-            # Ensure it doesn't need to be recalculated again
-            recalc[name] = False
-
-            return value
+        # Otherwise, if it's indexed but stale, drop its old index so that its
+        # dependencies are re-discovered from scratch below, exactly as on first
+        # evaluation: a recompute may take a different code branch and read different
+        # parameters. If it's already active, the method has been supered, and the
+        # outermost call has already cleared the index.
+        if name in recalc and name not in activeq:
+            _clear_quantity_index(self, name)
 
         # Otherwise, we need to create its index for caching.
         # if name is already there, can only be because the method has been supered.
@@ -188,7 +189,7 @@ def cached_quantity(f):
             return value
         except Exception:
             if not supered:
-                _rollback_failed_quantity_index(self, name)
+                _clear_quantity_index(self, name)
             raise
 
     update_wrapper(_get_property, f)
