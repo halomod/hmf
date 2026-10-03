@@ -181,3 +181,20 @@ class _Outer(Framework):
 def test_subframework_references():
     acks = _Outer().get_acknowledgments()
     assert acks == [HMF_REFERENCE, "Inner, I., 2000.", "Sub, S., 2010."]
+
+
+class _Shared(_Outer):
+    _inner = _Inner()
+
+    @subframework
+    def inner(self):
+        return self._inner
+
+    @subframework
+    def also_inner(self):
+        return self._inner
+
+
+def test_shared_subframework_visited_once():
+    acks = _Shared().get_acknowledgments()
+    assert acks == [HMF_REFERENCE, "Inner, I., 2000.", "Sub, S., 2010."]
