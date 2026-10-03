@@ -1,3 +1,5 @@
+import importlib
+
 import numpy as np
 import pytest
 
@@ -107,3 +109,146 @@ def test_halofit_vs_camb():
     assert np.all(np.abs(ratio - 1) < 5e-3), (
         f"hmf halofit differs from CAMB by more than 0.5%: max ratio deviation = {max_dev:.4f}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for the vectorised _get_spec (#24) and default cosmology (#111)
+# ---------------------------------------------------------------------------
+
+
+def _get_spec_reference(
+    k: np.ndarray, delta_k: np.ndarray, exact_root: bool = False
+) -> tuple[float, float, float]:
+    """Copy of the pre-#24 ``_get_spec`` (hmf main @ 3ffd4cc).
+
+    Kept as the reference that the faster implementation must reproduce. With
+    ``exact_root=False`` it is verbatim. The old Nelder-Mead stops once
+    ``|ln sigma^2| < ~1e-4``, leaving ``ln k_nl`` off by up to a few 1e-4; with
+    ``exact_root=True`` the root is instead solved to machine precision and only
+    the (slow) spline derivatives are kept, isolating the derivative calculation.
+    """
+    from scipy.integrate import simpson
+    from scipy.interpolate import InterpolatedUnivariateSpline
+    from scipy.optimize import brentq, minimize
+
+    def get_log_sigma2(lnr):
+        R = np.exp(lnr)
+        integrand = delta_k * np.exp(-((k * R) ** 2))
+        return np.log(simpson(integrand, x=np.log(k)))
+
+    def get_sigma_abs(lnr):
+        return np.abs(get_log_sigma2(lnr))
+
+    if exact_root:
+        with np.errstate(divide="ignore"):  # sigma^2 underflows to 0 at huge R
+            rnl = np.exp(brentq(get_log_sigma2, -15, 15, xtol=1e-14))
+    else:
+        res = minimize(
+            get_sigma_abs, x0=[1.0], options={"xatol": np.log(1.1)}, method="Nelder-Mead"
+        )
+        rnl = np.exp(res.x)
+    knl = 1 / rnl
+
+    lnr = np.linspace(np.log(0.75 * rnl), np.log(1.25 * rnl), 20)
+    lnsig = [get_log_sigma2(r) for r in lnr]
+    sig_of_r = InterpolatedUnivariateSpline(lnr, lnsig, k=5)
+    dev1, dev2 = sig_of_r.derivatives(np.log(rnl))[1:3]
+
+    return float(np.squeeze(knl)), -dev1 - 3.0, -dev2
+
+
+@pytest.mark.parametrize("z", [0.0, 1.0, 3.0])
+@pytest.mark.parametrize("takahashi", [True, False])
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"transfer_model": "EH", "lnk_max": 7},
+        {"transfer_model": "EH"},
+        {"transfer_model": "EH", "lnk_max": 7, "sigma_8": 1.001},
+        {"transfer_model": "BBKS", "lnk_min": -10, "lnk_max": 5},
+    ],
+)
+def test_nonlinear_power_matches_reference(monkeypatch, z, takahashi, kwargs):
+    """The fast ``_get_spec`` reproduces the old algorithm.
+
+    Against the old algorithm with an exactly-solved root the agreement is ~1e-10.
+    Against the verbatim old code it is limited to <1e-3 by the old minimiser's
+    tolerance on the non-linear scale (the new root is the more accurate one).
+    """
+    # ``hmf.density_field.halofit`` is shadowed by the function of the same name.
+    halofit_module = importlib.import_module("hmf.density_field.halofit")
+
+    t = transfer.Transfer(z=z, takahashi=takahashi, **kwargs)
+    new = hmf_halofit(t.k, t.delta_k, z=z, cosmo=t.cosmo, takahashi=takahashi)
+    # The framework, which is what users actually call, goes through the same path.
+    np.testing.assert_allclose(t.nonlinear_delta_k, new, rtol=1e-12, atol=0)
+
+    def run_with(**kw):
+        monkeypatch.setattr(
+            halofit_module, "_get_spec", lambda k, dk: _get_spec_reference(k, dk, **kw)
+        )
+        return hmf_halofit(t.k, t.delta_k, z=z, cosmo=t.cosmo, takahashi=takahashi)
+
+    np.testing.assert_allclose(new, run_with(exact_root=True), rtol=1e-8, atol=0)
+    np.testing.assert_allclose(new, run_with(exact_root=False), rtol=1e-3, atol=0)
+
+
+@pytest.mark.parametrize("z", [0.0, 1.0, 3.0])
+def test_get_spec_matches_reference(z):
+    """knl, n_eff and the curvature each agree with the old implementation."""
+    from hmf.density_field.halofit import _get_spec
+
+    t = transfer.Transfer(transfer_model="EH", lnk_max=7, z=z)
+    knl, neff, ncur = _get_spec(t.k, t.delta_k)
+
+    knl_ref, neff_ref, ncur_ref = _get_spec_reference(t.k, t.delta_k, exact_root=True)
+    assert knl == pytest.approx(knl_ref, rel=1e-10)
+    assert neff == pytest.approx(neff_ref, rel=1e-8)
+    assert ncur == pytest.approx(ncur_ref, rel=1e-6)
+
+    knl_ref, neff_ref, ncur_ref = _get_spec_reference(t.k, t.delta_k)
+    assert knl == pytest.approx(knl_ref, rel=5e-4)
+    assert neff == pytest.approx(neff_ref, rel=1e-4)
+    assert ncur == pytest.approx(ncur_ref, rel=1e-3)
+
+
+@pytest.mark.parametrize("takahashi", [True, False])
+def test_default_cosmo(takahashi):
+    """#111: no cosmo, an hmf Cosmology framework, and its FLRW all agree."""
+    from hmf.cosmology.cosmo import Cosmology
+
+    t = transfer.Transfer(transfer_model="EH", lnk_max=7)
+    k, dk = t.k, t.delta_k
+
+    from_flrw = hmf_halofit(k, dk, z=1.0, cosmo=Cosmology().cosmo, takahashi=takahashi)
+    from_none = hmf_halofit(k, dk, z=1.0, takahashi=takahashi)
+    from_framework = hmf_halofit(k, dk, z=1.0, cosmo=Cosmology(), takahashi=takahashi)
+
+    np.testing.assert_allclose(from_none, from_flrw, rtol=1e-12, atol=0)
+    np.testing.assert_allclose(from_framework, from_flrw, rtol=1e-12, atol=0)
+
+
+def test_framework_cosmo_params_respected():
+    """An hmf Cosmology framework with custom params uses those params, not the default."""
+    from hmf.cosmology.cosmo import Cosmology
+
+    t = transfer.Transfer(transfer_model="EH", lnk_max=7)
+    k, dk = t.k, t.delta_k
+
+    cosmo = Cosmology(cosmo_params={"Om0": 0.2})
+    from_framework = hmf_halofit(k, dk, z=1.0, cosmo=cosmo)
+    from_flrw = hmf_halofit(k, dk, z=1.0, cosmo=cosmo.cosmo)
+    default = hmf_halofit(k, dk, z=1.0, cosmo=Cosmology().cosmo)
+
+    np.testing.assert_allclose(from_framework, from_flrw, rtol=1e-12, atol=0)
+    assert not np.allclose(from_framework, default, rtol=1e-3, atol=0)
+
+
+def test_get_spec_warns_without_nonlinear_scale():
+    """If sigma(R) never crosses unity on the k-range, warn and keep going."""
+    from hmf.density_field.halofit import _get_spec
+
+    t = transfer.Transfer(transfer_model="EH", lnk_max=7, z=500.0)
+    with pytest.warns(UserWarning, match="non-linear scale"):
+        knl, neff, ncur = _get_spec(t.k, t.delta_k)
+    assert np.isfinite([knl, neff, ncur]).all()
