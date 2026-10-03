@@ -1,5 +1,7 @@
 """Tests of HMF."""
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -62,3 +64,34 @@ def test_sigma8z():
 def test_neff_at_collapse():
     h = MassFunction(Mmin=8, Mmax=18, transfer_model="EH")
     assert np.allclose(h.n_eff_at_collapse, h.n_eff[np.argmin(np.abs(h.nu - 1.0))], rtol=0.05)
+
+
+def test_default_k_range_does_not_warn():
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message=".*k-range.*")
+        h = MassFunction(transfer_model="EH")
+    assert h._sigma_k_truncation_error < 1e-3
+
+
+def test_narrow_lnk_max_with_small_mmin_warns():
+    # R(Mmin=6) ~ 0.014 Mpc/h, so k_max = e^3 ~ 20 h/Mpc gives k_max * R_min ~ 0.3.
+    with pytest.warns(UserWarning, match="k-range"):
+        MassFunction(transfer_model="EH", Mmin=6, lnk_max=3)
+
+
+def test_high_lnk_min_with_large_mmax_warns():
+    # R(Mmax=16) ~ 30 Mpc/h, so k_min = e^-3 ~ 0.05 h/Mpc gives k_min * R_max ~ 1.5.
+    with pytest.warns(UserWarning, match="k-range"):
+        MassFunction(transfer_model="EH", Mmax=16, lnk_min=-3)
+
+
+def test_k_truncation_error_matches_wide_grid():
+    """The estimated truncation error should match a direct comparison to a wide grid."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        h = MassFunction(transfer_model="EH", Mmin=8, Mmax=16, lnk_min=-4, lnk_max=4)
+        wide = MassFunction(transfer_model="EH", Mmin=8, Mmax=16, lnk_min=-20, lnk_max=14)
+    expected = np.max(np.abs(h.sigma[[0, -1]] / wide.sigma[[0, -1]] - 1))
+    assert expected > 0.01
+    # Tails are extrapolated with a BBKS shape, so agreement is approximate.
+    assert np.isclose(h._sigma_k_truncation_error, expected, rtol=0.1)

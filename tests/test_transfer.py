@@ -235,3 +235,13 @@ def test_bbks_sugiyama():
     t2 = Transfer(transfer_model="BBKS")
 
     assert not np.allclose(t.transfer_function, t2.transfer_function)
+
+
+def test_sigma8_normalisation_grid_extends_to_user_range():
+    """The fallback sigma_8 grid must include the user's k-range where it exceeds [-8, 8].
+
+    A very blue spectrum (n=4) makes the k > e^8 tail of the sigma_8 integral non-negligible.
+    """
+    t = Transfer(transfer_model="EH", n=4.0, lnk_min=-10, lnk_max=12)
+    ref = Transfer(transfer_model="EH", n=4.0, lnk_min=-20, lnk_max=12)
+    assert np.isclose(t._unn_sig8, ref._unn_sig8, rtol=1e-6, atol=0)
