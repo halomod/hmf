@@ -252,3 +252,96 @@ def test_get_spec_warns_without_nonlinear_scale():
     with pytest.warns(UserWarning, match="non-linear scale"):
         knl, neff, ncur = _get_spec(t.k, t.delta_k)
     assert np.isfinite([knl, neff, ncur]).all()
+
+
+# ---------------------------------------------------------------------------
+# Physical tests: limits and bounds that any correct HALOFIT must satisfy,
+# independent of how _get_spec is implemented.
+# ---------------------------------------------------------------------------
+
+
+def _nl_to_lin_ratio(z: float, takahashi: bool) -> tuple[np.ndarray, np.ndarray, float]:
+    """Return k, P_nl/P_lin and k_nl for an EH Transfer at redshift z."""
+    from hmf.density_field.halofit import _get_spec
+
+    t = transfer.Transfer(transfer_model="EH", z=z, takahashi=takahashi)
+    knl = _get_spec(t.k, t.delta_k)[0]
+    return t.k, t.nonlinear_delta_k / t.delta_k, knl
+
+
+@pytest.mark.parametrize("z", [0.0, 1.0, 3.0])
+@pytest.mark.parametrize("takahashi", [True, False])
+def test_low_k_reduces_to_linear(z, takahashi):
+    """On large scales the non-linear power reduces to the linear power.
+
+    For k << k_nl the halo term is negligible and the quasi-linear term is
+    P_lin * exp(-y/4 - y^2/8) with y = k/k_nl, so to leading order
+    P_nl/P_lin = 1 - k/(4 k_nl). (k <= 0.005 is excluded because halofit
+    returns the linear power there by construction.)
+    """
+    k, ratio, knl = _nl_to_lin_ratio(z, takahashi)
+    m = (k > 0.005) & (k <= 0.01)
+    suppression = 1 - ratio[m]
+
+    # Converges to linear: k_nl >~ 0.36 h/Mpc at z=0 (and grows with z), so the
+    # leading-order suppression is at most 0.01/(4*0.36) ~ 7e-3. Measured <= 6.5e-3.
+    assert np.all(suppression > 0)
+    assert np.all(suppression < 1e-2)
+
+    # ...and the deviation is the expected leading-order damping. The (positive)
+    # halo term and the O(Delta_lin) quasi-linear corrections make the measured
+    # suppression slightly smaller than k/(4 k_nl): 0.88-0.995 of it here.
+    np.testing.assert_array_less(0.8, suppression / (k[m] / (4 * knl)))
+    np.testing.assert_array_less(suppression / (k[m] / (4 * knl)), 1.05)
+
+
+@pytest.mark.parametrize("z", [0.0, 1.0, 3.0])
+def test_nonlinear_scale_satisfies_sigma_unity(z):
+    """k_nl is defined by sigma^2(R = 1/k_nl) = 1 with a Gaussian window."""
+    from scipy.integrate import simpson
+
+    from hmf.density_field.halofit import _get_spec
+
+    t = transfer.Transfer(transfer_model="EH", z=z)
+    knl = _get_spec(t.k, t.delta_k)[0]
+    sigma2 = simpson(t.delta_k * np.exp(-((t.k / knl) ** 2)), x=np.log(t.k))
+    assert sigma2 == pytest.approx(1.0, rel=1e-8)
+
+
+def test_nonlinear_scale_grows_with_redshift():
+    """Structure is less evolved at higher z, so the non-linear scale moves to higher k."""
+    from hmf.density_field.halofit import _get_spec
+
+    knls = []
+    for z in [0.0, 0.5, 1.0, 2.0, 3.0]:
+        t = transfer.Transfer(transfer_model="EH", z=z)
+        knls.append(_get_spec(t.k, t.delta_k)[0])
+    assert np.all(np.diff(knls) > 0)
+
+
+@pytest.mark.parametrize("takahashi", [True, False])
+def test_high_k_boost_at_z0(takahashi):
+    """At z=0 and 1 <~ k <~ 10 h/Mpc, scales are deep in the non-linear regime.
+
+    Gravitational collapse (the one-halo term) boosts the power well above
+    linear there. Measured P_nl/P_lin >= 5.8 over this range; we require > 4.
+    """
+    k, ratio, _ = _nl_to_lin_ratio(0.0, takahashi)
+    m = (k >= 1) & (k <= 10)
+    assert np.all(ratio[m] > 4)
+
+
+@pytest.mark.parametrize("takahashi", [True, False])
+def test_nonlinear_boost_decreases_with_redshift(takahashi):
+    """At fixed high k, the non-linear boost shrinks as z grows (less collapse)."""
+    redshifts = [0.0, 0.5, 1.0, 2.0, 3.0]
+    kvals = np.array([1.0, 3.0, 10.0])
+    boosts = []
+    for z in redshifts:
+        k, ratio, _ = _nl_to_lin_ratio(z, takahashi)
+        boosts.append(np.interp(np.log(kvals), np.log(k), ratio))
+    boosts = np.array(boosts)  # shape (z, k)
+
+    assert np.all(np.diff(boosts, axis=0) < 0)
+    # Still non-linear (boost > 1) at the highest redshift for these k.
+    assert np.all(boosts[-1] > 1)
