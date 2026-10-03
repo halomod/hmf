@@ -17,10 +17,15 @@ framework can list the references for its current setup::
     ...     print(ref)
 
 The list starts with the ``hmf`` paper, followed by the references of the
-framework itself (e.g. HALOFIT for the non-linear power spectrum, and the source
-of the cosmological parameters), and then those of each chosen component model.
-It is gathered from the model classes alone, so it does not compute anything.
-Changing a model (e.g. ``mf.update(hmf_model="ST")``) changes the list.
+framework itself (e.g. the source of the cosmological parameters), and then
+those of each chosen component model. It is gathered from the model classes
+alone, so it does not compute anything. Changing a model (e.g.
+``mf.update(hmf_model="ST")``) changes the list.
+
+The list covers the chosen models, not the methods behind every quantity a
+framework can compute. For example, HALOFIT (used only for
+``nonlinear_power``) is not included; if you use a quantity like that, its
+docstring says what to cite.
 
 When you write your own component, set its ``references`` class attribute to a
 tuple of citation strings so that it is included::

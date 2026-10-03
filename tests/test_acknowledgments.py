@@ -64,14 +64,11 @@ def test_transfer_model_changes_reference(mf):
     assert refs.EH98 not in other.get_acknowledgments()
 
 
-def test_takahashi_switch():
-    t = Transfer(transfer_model="EH")
-    assert refs.SMITH03 in t.get_acknowledgments()
-    assert refs.TAKAHASHI12 in t.get_acknowledgments()
-
-    t.update(takahashi=False)
-    assert refs.SMITH03 in t.get_acknowledgments()
-    assert refs.TAKAHASHI12 not in t.get_acknowledgments()
+def test_halofit_not_cited():
+    # HALOFIT is only used for the non-linear power spectrum, which the
+    # mass function never needs, so it is cited in those docstrings instead.
+    acks = Transfer(transfer_model="EH").get_acknowledgments()
+    assert not any("Smith, R. E." in ref or "Takahashi, R." in ref for ref in acks)
 
 
 def test_does_not_compute_transfer(mf, monkeypatch):

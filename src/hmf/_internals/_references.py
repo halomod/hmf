@@ -21,8 +21,6 @@ HEATH77 = (
 )
 LEO18 = "Leo, M., Baugh, C. M., Li, B., Pascoli, S., 2018. JCAP 04, 010. arXiv:1801.02547"
 SCHNEIDER13 = "Schneider, A., Smith, R. E., Reed, D., 2013. MNRAS 433, 1573. arXiv:1303.0839"
-SMITH03 = "Smith, R. E., et al., 2003. MNRAS 341, 1311. arXiv:astro-ph/0207664"
-TAKAHASHI12 = "Takahashi, R., et al., 2012. ApJ 761, 152. arXiv:1208.2701"
 BE84 = "Bond, J. R., Efstathiou, G., 1984. ApJ 285, L45. https://doi.org/10.1086/184362"
 BODE01 = "Bode, P., Ostriker, J. P., Turok, N., 2001. ApJ 556, 93. https://doi.org/10.1086/321541"
 BRYAN98 = "Bryan, G. L., Norman, M. L., 1998. ApJ 495, 80. https://doi.org/10.1086/305262"
