@@ -109,6 +109,31 @@ def test_bhattacharya_normed_uses_norm():
     assert np.isfinite(fit.params["A"])
 
 
+@pytest.mark.parametrize("z", [0.0, 1.0])
+def test_bhattacharya_normed_conserves_mass(z):
+    """With normed=True, all mass is in haloes: int f(nu) dln(nu) = 1.
+
+    The low-nu tail of f goes as nu^(q-2p) ~ nu^0.18, so the grid must extend to
+    extremely small nu for the integral to converge.
+    """
+    lnnu = np.linspace(np.log(1e-40), np.log(30.0), 200_001)
+    nu = np.exp(lnnu)
+    fit = ff.Bhattacharya(nu2=nu**2, m=np.full_like(nu, 1e12), z=z, normed=True)
+
+    assert np.trapezoid(fit.fsigma, lnnu) == pytest.approx(1.0, abs=1e-3)
+
+
+def test_bhattacharya_normed_q1_reduces_to_smt():
+    """With q=1, the Bhattacharya form is SMT, so its normalisation must be SMT's."""
+    nu2 = np.array([0.5, 1.0, 4.0])
+    btc = ff.Bhattacharya(nu2=nu2, m=np.full(3, 1e12), q=1.0, p=0.3, normed=True)
+    smt = ff.SMT(nu2=nu2, a=btc.params["a"], p=0.3)
+
+    # 0.3222 is the classic Sheth-Tormen normalisation for p=0.3.
+    assert btc.params["A"] == pytest.approx(0.3222, abs=1e-4)
+    np.testing.assert_allclose(btc.fsigma, smt.fsigma, rtol=1e-12)
+
+
 def test_tinker10_non_so_raises():
     with pytest.raises(ValueError):
         ff.Tinker10(nu2=np.array([1.0]), mass_definition=md.FOF(linking_length=0.2))
@@ -183,11 +208,12 @@ def test_lnsigma_cutmasks(fit_cls, nu2, expected):
     assert np.array_equal(fit.cutmask, expected)
 
 
-def test_peacock_cutmask_all_false():
-    m = np.array([1e8, 1e12, 1e16])
+def test_peacock_cutmask_calibrated_range():
+    """Peacock (2007) fits Warren+06, so it is valid where Warren+06 is: 1e10-1e15 Msun/h."""
+    m = np.array([1e8, 2e10, 1e12, 5e14, 1e16])
     fit = ff.Peacock(nu2=np.ones_like(m), m=m)
 
-    assert np.all(~fit.cutmask)
+    assert np.array_equal(fit.cutmask, np.array([False, True, True, True, False]))
 
 
 def test_tinker08_non_so_raises():
@@ -419,3 +445,50 @@ def test_behroozi_ngtm():
     assert np.isclose(ngtm_behroozi(10) - ngtm_tinker(10), 0.02, atol=0.005)
     assert np.isclose(ngtm_behroozi(11.5) - ngtm_tinker(11.5), 0.02, atol=0.005)
     assert np.isclose(ngtm_behroozi(13) - ngtm_tinker(13), 0.02, atol=0.005)
+
+
+@pytest.mark.parametrize("z", [1.0, 4.0, 8.0])
+def test_behroozi_cumulative_is_theta_times_tinker(z):
+    """Behroozi+13 App. G defines the correction as n_B(>M) = theta(M) * n_T08(>M).
+
+    dn/dM is the (negative) derivative of n(>M), so this holds only if dtheta/dM is
+    taken in the same mass units as dn/dM (Msun/h).
+    """
+    kw = {
+        "z": z,
+        "Mmin": 9,
+        "Mmax": 16,
+        "dlog10m": 0.01,
+        "mdef_model": md.SOVirial,
+        "transfer_params": {"extrapolate_with_eh": True, "matter_species": "cb"},
+    }
+    tinker = MassFunction(hmf_model="Tinker08", **kw)
+    behroozi = MassFunction(hmf_model="Behroozi", **kw)
+
+    sel = tinker.m < 1e13  # avoid the far exponential tail, where ngtm -> 0
+    theta = np.array([_behroozi_theta(behroozi.hmf, m, z) for m in tinker.m[sel] / tinker.cosmo.h])
+
+    np.testing.assert_allclose(behroozi.ngtm[sel] / tinker.ngtm[sel], theta, rtol=5e-4)
+
+
+@pytest.mark.parametrize(
+    ("fit_cls", "expected"),
+    [
+        (ff.Tinker08, md.SOMean(overdensity=200)),
+        (ff.Tinker10, md.SOMean(overdensity=200)),
+        (ff.Watson, md.SOVirial()),
+    ],
+)
+def test_generic_so_fits_default_to_preferred_mdef(fit_cls, expected):
+    """Fits measured with a generic SO definition default to their preferred one.
+
+    This matches what MassFunction does, so direct instantiation without a
+    mass_definition gives the same f(sigma) as passing the preferred definition.
+    """
+    nu2 = np.array([0.5, 1.0, 4.0])
+    fit = fit_cls(nu2=nu2)
+    explicit = fit_cls(nu2=nu2, mass_definition=expected)
+
+    assert fit.mass_definition == expected
+    assert type(fit.mass_definition) is type(expected)
+    np.testing.assert_allclose(fit.fsigma, explicit.fsigma, rtol=1e-12)

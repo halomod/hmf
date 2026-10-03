@@ -288,9 +288,12 @@ class BaseFittingFunction(_framework.Component):
 
         self.measured_mass_definition = self.get_measured_mdef()
 
-        # Set default mass definition.
+        # Set default mass definition. A generic SO definition has no density of its
+        # own, so use its preferred definition, as MassFunction does.
         if self.mass_definition is None and self.measured_mass_definition is not None:
             self.mass_definition = self.measured_mass_definition
+            if isinstance(self.mass_definition, md.SOGeneric):
+                self.mass_definition = self.mass_definition.preferred
 
     @classmethod
     def get_measured_mdef(cls):
@@ -877,7 +880,8 @@ class Peacock(BaseFittingFunction):
     @override
     @property
     def cutmask(self):
-        return np.logical_and(self.m < 1e10, self.m > 1e15)
+        # Peacock (2007) fits Warren+06, so is calibrated over the same mass range.
+        return np.logical_and(self.m > 1e10, self.m < 1e15)
 
 
 class Angulo(BaseFittingFunction):
@@ -1252,11 +1256,10 @@ class Bhattacharya(SMT):
         if self.params.get("A") is not None:
             return self.params["A"]
 
+        # A is the reciprocal of the integral of f/A over ln(1/sigma).
         p, q = self.params["p"], self.params["q"]
-        return (
-            2 ** (-1 / 2 - p + q / 2)
-            * (2**p * sp.gamma(q / 2) + sp.gamma(-p + q / 2))
-            / np.sqrt(np.pi)
+        return np.sqrt(np.pi) / (
+            2 ** (-1 / 2 - p + q / 2) * (2**p * sp.gamma(q / 2) + sp.gamma(-p + q / 2))
         )
 
 
@@ -1813,11 +1816,30 @@ class Behroozi(Tinker08):
         },
     )
 
-    def _modify_dndm(self, m: np.ndarray, dndm: np.ndarray, z: float, ngtm_tinker: np.ndarray):
+    def _modify_dndm(
+        self,
+        m: np.ndarray,
+        dndm: np.ndarray,
+        z: float,
+        ngtm_tinker: np.ndarray,
+        h: float = 1.0,
+    ):
         """
         Apply modifications to dndm in Appendix G of Behroozi+13.
 
-        Note that the mass here is assumed to be in Msun, NOT Msun/h.
+        Parameters
+        ----------
+        m
+            Halo masses in Msun, NOT Msun/h (the fit's pivot mass is in Msun).
+        dndm
+            The Tinker08 mass function, per unit mass in Msun/h.
+        z
+            Redshift.
+        ngtm_tinker
+            The cumulative Tinker08 mass function, n(>m).
+        h
+            Hubble parameter, used to take dtheta/dM per unit Msun/h, consistent
+            with ``dndm``.
         """
         a = 1 / (1 + z)
         alpha = 0.144 / (1 + np.exp(14.79 * (a - 0.213)))  # Behroozi+13 Eq G2.
@@ -1826,7 +1848,8 @@ class Behroozi(Tinker08):
         mscale = (m / mstar) ** gamma
         theta = 10 ** (alpha * mscale)  # 10^(Eq G2), the multiplicative factor in Eq G3
 
-        dthetadM = theta * np.log(10) * alpha * gamma * mscale / m
+        # Derivative per unit mass in Msun/h, the units of dndm.
+        dthetadM = theta * np.log(10) * alpha * gamma * mscale / (m * h)
 
         # if ngtm_tinker is very small (ie. 0), dthetadM will be nan.
         res = dndm * theta - ngtm_tinker * dthetadM
