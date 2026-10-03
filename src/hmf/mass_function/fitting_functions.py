@@ -17,6 +17,7 @@ import scipy.special as sp
 from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 
 from .._internals import _framework
+from .._internals import _references as refs
 from ..cosmology import cosmo as csm
 from ..halos import mass_definitions as md
 
@@ -115,7 +116,9 @@ class SimDetails:
             self.mmin = None
 
 
-def _makedoc(pdocs: str, lname: str, sname: str, eq: str, ref: str, note: str = "") -> str:
+def _makedoc(
+    pdocs: str, lname: str, sname: str, eq: str, references: tuple[str, ...], note: str = ""
+) -> str:
     r"""Build the standard docstring of a fitting function.
 
     A table of the model's default parameters is added automatically when the
@@ -131,8 +134,8 @@ def _makedoc(pdocs: str, lname: str, sname: str, eq: str, ref: str, note: str = 
         Short name of the fit, used as a subscript in the equation.
     eq
         LaTeX form of :math:`f(\sigma)`.
-    ref
-        The reference for the fit.
+    references
+        The references for the fit. The first is cited in the notes.
     note
         An optional extra paragraph placed after the summary line.
 
@@ -142,6 +145,7 @@ def _makedoc(pdocs: str, lname: str, sname: str, eq: str, ref: str, note: str = 
         The docstring.
     """
     note = f"\n    {note}\n" if note else ""
+    ref_lines = "\n".join(f"    .. [{i}] {ref}" for i, ref in enumerate(references, start=1))
     return (
         rf"""
     {lname} mass function fit.
@@ -158,7 +162,7 @@ def _makedoc(pdocs: str, lname: str, sname: str, eq: str, ref: str, note: str = 
 
     References
     ----------
-    .. [1] {ref}
+{ref_lines}
     """
     )
 
@@ -492,12 +496,14 @@ class PS(BaseFittingFunction):
     req_z = False  #: Whether redshift is required for this model.
 
     _eq = r"\sqrt{\frac{2}{\pi}}\nu\exp(-0.5\nu^2)"
-    _ref = (
-        r"Press, W. H., Schechter, P., 1974. ApJ 187, 425-438. "
-        "http://adsabs.harvard.edu/full/1974ApJ...187..425P"
+    references: ClassVar[tuple[str, ...]] = (
+        (
+            "Press, W. H., Schechter, P., 1974. ApJ 187, 425-438. "
+            "http://adsabs.harvard.edu/full/1974ApJ...187..425P"
+        ),
     )
 
-    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Press-Schechter", "PS", _eq, _ref)
+    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Press-Schechter", "PS", _eq, references)
     normalized = True
 
     @override
@@ -514,11 +520,13 @@ class SMT(BaseFittingFunction):
     req_z = False
 
     _eq = r"A\sqrt{2a/\pi}\nu\exp(-a\nu^2/2)(1+(a\nu^2)^{-p})"
-    _ref = (
-        r"Sheth, R. K., Mo, H. J., Tormen, G., May 2001. MNRAS 323 (1), 1-12. "
-        r"http://doi.wiley.com/10.1046/j.1365-8711.2001.04006.x"
+    references: ClassVar[tuple[str, ...]] = (
+        (
+            "Sheth, R. K., Mo, H. J., Tormen, G., May 2001. MNRAS 323 (1), 1-12. "
+            "http://doi.wiley.com/10.1046/j.1365-8711.2001.04006.x"
+        ),
     )
-    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Sheth-Mo-Tormen", "SMT", _eq, _ref)
+    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Sheth-Mo-Tormen", "SMT", _eq, references)
 
     _defaults: ClassVar[dict[str, Any]] = {"a": 0.707, "p": 0.3, "A": None}
     normalized = True
@@ -581,7 +589,7 @@ class ST(SMT):
         "Sheth-Mo-Tormen",
         "ST",
         SMT._eq,
-        SMT._ref,
+        SMT.references,
         note="This is an alias of :class:`SMT` (Sheth-Tormen), kept for backwards compatibility.",
     )
 
@@ -593,11 +601,13 @@ class Jenkins(BaseFittingFunction):
     req_z = False
 
     _eq = r"A\exp\left(-\left|\ln\sigma^{-1}+b\right|^c\right)"
-    _ref = (
-        r"Jenkins, A. R., et al., Feb. 2001. MNRAS 321 (2), 372-384. "
-        r"http://doi.wiley.com/10.1046/j.1365-8711.2001.04029.x"
+    references: ClassVar[tuple[str, ...]] = (
+        (
+            "Jenkins, A. R., et al., Feb. 2001. MNRAS 321 (2), 372-384. "
+            "http://doi.wiley.com/10.1046/j.1365-8711.2001.04029.x"
+        ),
     )
-    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Jenkins", "Jenkins", _eq, _ref)
+    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Jenkins", "Jenkins", _eq, references)
     _defaults: ClassVar[dict[str, float]] = {"A": 0.315, "b": 0.61, "c": 3.8}
     normalized = False
 
@@ -646,11 +656,13 @@ class Warren(BaseFittingFunction):
         r"A\left[\left(\frac{e}{\sigma}\right)^b + c\right]\exp"
         r"\left(\frac{d}{\sigma^2}\right)"
     )
-    _ref = (
-        r"Warren, M. S., et al., Aug. 2006. ApJ 646 (2), 881-885."
-        r"http://adsabs.harvard.edu/abs/2006ApJ...646..881W"
+    references: ClassVar[tuple[str, ...]] = (
+        (
+            "Warren, M. S., et al., Aug. 2006. ApJ 646 (2), 881-885. "
+            "http://adsabs.harvard.edu/abs/2006ApJ...646..881W"
+        ),
     )
-    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Warren", "Warren", _eq, _ref)
+    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Warren", "Warren", _eq, references)
 
     _defaults: ClassVar[dict[str, float]] = {
         "A": 0.7234,
@@ -722,8 +734,13 @@ class Reed03(SMT):
     req_sigma = True
 
     _eq = r"f_{\rm SMT}(\sigma)\exp\left(-\frac{c}{\sigma \cosh^5(2\sigma)}\right)"
-    _ref = r"""Reed, D., et al., Dec. 2003. MNRAS 346 (2), 565-572. http://adsabs.harvard.edu/abs/2003MNRAS.346..565R"""
-    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Reed03", "R03", _eq, _ref)
+    references: ClassVar[tuple[str, ...]] = (
+        (
+            "Reed, D., et al., Dec. 2003. MNRAS 346 (2), 565-572. "
+            "http://adsabs.harvard.edu/abs/2003MNRAS.346..565R"
+        ),
+    )
+    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Reed03", "R03", _eq, references)
 
     _defaults: ClassVar[dict[str, float]] = {"a": 0.707, "p": 0.3, "A": 0.3222, "c": 0.7}
     normalized = False
@@ -768,11 +785,8 @@ class Reed07(BaseFittingFunction):
         r"A\sqrt{2a/\pi}\left[1+(\frac{1}{a\nu^2})^p+0.6G_1+0.4G_2\right]\nu"
         r"\exp\left(-ca\nu^2/2-\frac{0.03\nu^{0.6}}{(n_{\rm eff}+3)^2}\right)"
     )
-    _ref = (
-        """Reed, D. S., et al., Jan. 2007. MNRAS 374 (1), 2-15. """
-        """http://adsabs.harvard.edu/abs/2007MNRAS.374....2R"""
-    )
-    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Reed07", "R07", _eq, _ref)
+    references: ClassVar[tuple[str, ...]] = (refs.REED07,)
+    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Reed07", "R07", _eq, references)
 
     _defaults: ClassVar[dict[str, float]] = {"A": 0.3222, "p": 0.3, "c": 1.08, "a": 0.764}
 
@@ -854,8 +868,13 @@ class Peacock(BaseFittingFunction):
     req_mass = True
 
     _eq = r"\nu\exp(-c\nu^2)(2cd\nu+ba\nu^{b-1})/d^2"
-    _ref = """Peacock, J. A., Aug. 2007. MNRAS 379 (3), 1067-1074. http://adsabs.harvard.edu/abs/2007MNRAS.379.1067P"""
-    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Peacock", "Pck", _eq, _ref)
+    references: ClassVar[tuple[str, ...]] = (
+        (
+            "Peacock, J. A., Aug. 2007. MNRAS 379 (3), 1067-1074. "
+            "http://adsabs.harvard.edu/abs/2007MNRAS.379.1067P"
+        ),
+    )
+    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Peacock", "Pck", _eq, references)
     _defaults: ClassVar[dict[str, float]] = {"a": 1.529, "b": 0.704, "c": 0.412}
 
     sim_definition = copy(Warren.sim_definition)
@@ -888,9 +907,14 @@ class Angulo(BaseFittingFunction):
     """Angulo mass function fit."""
 
     req_mass = True
-    _ref = """Angulo, R. E., et al., 2012. arXiv:1203.3216v1"""
+    references: ClassVar[tuple[str, ...]] = (
+        (
+            "Angulo, R. E., et al., 2012. MNRAS 426, 2046. "
+            "https://doi.org/10.1111/j.1365-2966.2012.21830.x"
+        ),
+    )
     _eq = r"A \left[\left(\frac{d}{\sigma}\right)^b + 1 \right] \exp(-c/\sigma^2)"
-    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Angulo", "Ang", _eq, _ref)
+    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Angulo", "Ang", _eq, references)
     _defaults: ClassVar[dict[str, float]] = {"A": 0.201, "b": 1.7, "c": 1.172, "d": 2.08}
 
     sim_definition = SimDetails(
@@ -935,7 +959,7 @@ class AnguloBound(Angulo):
         "Bounded Angulo",
         "Ang",
         Angulo._eq,
-        Angulo._ref,
+        Angulo.references,
         note="Same form as :class:`Angulo`, with the alternative (bound) parameter set.",
     )
     _defaults: ClassVar[dict[str, float]] = {"A": 0.265, "b": 1.9, "c": 1.4, "d": 1.675}
@@ -946,11 +970,10 @@ class Watson_FoF(Warren):
 
     req_mass = False
 
-    _ref = (
-        """Watson, W. A., et al., MNRAS, 2013. """
-        """http://adsabs.harvard.edu/abs/2013MNRAS.433.1230W """
+    references: ClassVar[tuple[str, ...]] = (
+        ("Watson, W. A., et al., 2013. MNRAS 433, 1230. https://doi.org/10.1093/mnras/stt791"),
     )
-    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Watson FoF", "WatF", Warren._eq, _ref)
+    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Watson FoF", "WatF", Warren._eq, references)
     _defaults: ClassVar[dict[str, float]] = {
         "A": 0.282,
         "b": 2.163,
@@ -990,10 +1013,7 @@ class Watson(BaseFittingFunction):
     req_dhalo = True
     req_omz = True
 
-    _ref = (
-        """Watson, W. A., et al., MNRAS, 2013. """
-        """http://adsabs.harvard.edu/abs/2013MNRAS.433.1230W """
-    )
+    references: ClassVar[tuple[str, ...]] = Watson_FoF.references
     _eq = r"\Gamma A \left(\left(\frac{\beta}{\sigma}\right)^\alpha+1\right)\exp(-\gamma/\sigma^2)"
     _note = r"""
     Three AHF fits from Watson+13 (v4/published) are used, by redshift. At
@@ -1017,7 +1037,7 @@ class Watson(BaseFittingFunction):
     sensitivity".
     """
     __doc__ = _makedoc(
-        BaseFittingFunction._pdocs, "Watson", "WatS", _eq, Watson_FoF._ref, note=_note.strip()
+        BaseFittingFunction._pdocs, "Watson", "WatS", _eq, Watson_FoF.references, note=_note.strip()
     )
 
     sim_definition = copy(Watson_FoF.sim_definition)
@@ -1116,8 +1136,13 @@ class Crocce(Warren):
 
     req_z = True
 
-    _ref = """Crocce, M., et al. MNRAS 403 (3), 1353-1367. http://doi.wiley.com/10.1111/j.1365-2966.2009.16194.x"""
-    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Crocce", "Cro", Warren._eq, _ref)
+    references: ClassVar[tuple[str, ...]] = (
+        (
+            "Crocce, M., et al., 2010. MNRAS 403, 1353. "
+            "https://doi.org/10.1111/j.1365-2966.2009.16194.x"
+        ),
+    )
+    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Crocce", "Cro", Warren._eq, references)
     _defaults: ClassVar[dict[str, Any]] = {
         "A_a": 0.58,
         "A_b": 0.13,
@@ -1166,8 +1191,13 @@ class Courtin(SMT):
     """Courtin mass function fit."""
 
     req_sigma = True
-    _ref = """Courtin, J., et al., Oct. 2010. MNRAS 1931. http://doi.wiley.com/10.1111/j.1365-2966.2010.17573.x"""
-    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Courtin", "Ctn", SMT._eq, _ref)
+    references: ClassVar[tuple[str, ...]] = (
+        (
+            "Courtin, J., et al., 2011. MNRAS 410, 1911. "
+            "https://doi.org/10.1111/j.1365-2966.2010.17573.x"
+        ),
+    )
+    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Courtin", "Ctn", SMT._eq, references)
     _defaults: ClassVar[dict[str, float]] = {"A": 0.348, "a": 0.695, "p": 0.1}
 
     normalized = False
@@ -1203,8 +1233,13 @@ class Bhattacharya(SMT):
     req_mass = True
 
     _eq = r"f_{\rm SMT}(\sigma) (\nu\sqrt{a})^{q-1}"
-    _ref = """Bhattacharya, S., et al., May 2011. ApJ 732 (2), 122. http://labs.adsabs.harvard.edu/ui/abs/2011ApJ...732..122B"""
-    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Bhattacharya", "Btc", _eq, _ref)
+    references: ClassVar[tuple[str, ...]] = (
+        (
+            "Bhattacharya, S., et al., May 2011. ApJ 732 (2), 122. "
+            "http://labs.adsabs.harvard.edu/ui/abs/2011ApJ...732..122B"
+        ),
+    )
+    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Bhattacharya", "Btc", _eq, references)
     _defaults: ClassVar[dict[str, Any]] = {
         "A_a": 0.333,
         "A_b": 0.11,
@@ -1298,8 +1333,13 @@ class Tinker08(BaseFittingFunction):
     req_dhalo = True
 
     _eq = r"A\left(\frac{\sigma}{b}^{-a}+1\right)\exp(-c/\sigma^2)"
-    _ref = r"""Tinker, J., et al., 2008. ApJ 688, 709-728. http://iopscience.iop.org/0004-637X/688/2/709"""
-    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Tinker08", "Tkr", _eq, _ref)
+    references: ClassVar[tuple[str, ...]] = (
+        (
+            "Tinker, J., et al., 2008. ApJ 688, 709-728. "
+            "http://iopscience.iop.org/0004-637X/688/2/709"
+        ),
+    )
+    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Tinker08", "Tkr", _eq, references)
 
     sim_definition = SimDetails(
         L=[
@@ -1622,8 +1662,13 @@ class Tinker10(BaseFittingFunction):
     req_dhalo = True
 
     _eq = r"(1+(\beta\nu)^{-2\phi})\nu^{2\eta+1}\exp(-\gamma\nu^2/2)"
-    _ref = """Tinker, J., et al., 2010. ApJ 724, 878. http://iopscience.iop.org/0004-637X/724/2/878/pdf/apj_724_2_878.pdf"""
-    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Tinker10", "Tkr", _eq, _ref)
+    references: ClassVar[tuple[str, ...]] = (
+        (
+            "Tinker, J., et al., 2010. ApJ 724, 878. "
+            "http://iopscience.iop.org/0004-637X/724/2/878/pdf/apj_724_2_878.pdf"
+        ),
+    )
+    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Tinker10", "Tkr", _eq, references)
 
     sim_definition = copy(Tinker08.sim_definition)
 
@@ -1784,8 +1829,11 @@ class Tinker10(BaseFittingFunction):
 class Behroozi(Tinker08):
     """Behroozi mass function fit."""
 
-    _ref = (
-        r"""Behroozi, P., Weschler, R. and Conroy, C., ApJ, 2013, http://arxiv.org/abs/1207.6105"""
+    references: ClassVar[tuple[str, ...]] = (
+        (
+            "Behroozi, P. S., Wechsler, R. H., Conroy, C., 2013. ApJ 770, 57. "
+            "https://doi.org/10.1088/0004-637X/770/1/57"
+        ),
     )
     __doc__ = rf"""
     Behroozi mass function fit [1]_.
@@ -1817,7 +1865,7 @@ class Behroozi(Tinker08):
 
     References
     ----------
-    .. [1] {_ref}
+    .. [1] {references[0]}
     """
 
     normalized = False
@@ -1888,8 +1936,13 @@ class Behroozi(Tinker08):
 class Pillepich(Warren):
     """Pillepich mass function fit."""
 
-    _ref = r"""Pillepich, A., et al., 2010, arxiv:0811.4176"""
-    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Pillepich", "Pillepich", Warren._eq, _ref)
+    references: ClassVar[tuple[str, ...]] = (
+        (
+            "Pillepich, A., Porciani, C., Hahn, O., 2010. MNRAS 402, 191. "
+            "https://doi.org/10.1111/j.1365-2966.2009.15914.x"
+        ),
+    )
+    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Pillepich", "Pillepich", Warren._eq, references)
     _defaults: ClassVar[dict[str, float]] = {
         "A": 0.6853,
         "b": 1.868,
@@ -1926,8 +1979,13 @@ class Pillepich(Warren):
 class Manera(SMT):
     """Manera mass function fit."""
 
-    _ref = r"""Manera, M., et al., 2010, arxiv:0906.1314"""
-    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Manera", "Man", SMT._eq, _ref)
+    references: ClassVar[tuple[str, ...]] = (
+        (
+            "Manera, M., Sheth, R. K., Scoccimarro, R., 2010. MNRAS 402, 589. "
+            "https://doi.org/10.1111/j.1365-2966.2009.15921.x"
+        ),
+    )
+    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Manera", "Man", SMT._eq, references)
     # These are for z=0, new ML method, l_linnk = 0.2
     _defaults: ClassVar[dict[str, Any]] = {"A": None, "a": 0.709, "p": 0.289}
 
@@ -1959,8 +2017,10 @@ class Ishiyama(Warren):
     """Ishiyama mass function fit."""
 
     _eq = r"A\left[\left(\frac{e}{\sigma}\right)^b + 1\right]\exp(\frac{d}{\sigma^2})"
-    _ref = r"""Ishiyama, T., et al., 2015, arxiv:1412.2860"""
-    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Ishiyama", "Ishiyama", _eq, _ref)
+    references: ClassVar[tuple[str, ...]] = (
+        ("Ishiyama, T., et al., 2015. PASJ 67, 61. https://doi.org/10.1093/pasj/psv021"),
+    )
+    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Ishiyama", "Ishiyama", _eq, references)
 
     _defaults: ClassVar[dict[str, float]] = {
         "A": 0.193,
@@ -2003,8 +2063,10 @@ class Bocquet200mDMOnly(Warren):
     """Bocquet mass function fit for 200m definition with dark matter only."""
 
     _eq = r"A\left[\left(\frac{e}{\sigma}\right)^b + 1\right]\exp(-\frac{d}{\sigma^2})"
-    _ref = r"""Bocquet, S., et al., 2016, MNRAS 456 2361"""
-    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Bocquet", "Bocquet", _eq, _ref)
+    references: ClassVar[tuple[str, ...]] = (
+        ("Bocquet, S., et al., 2016. MNRAS 456, 2361. https://doi.org/10.1093/mnras/stv2657"),
+    )
+    __doc__ = _makedoc(BaseFittingFunction._pdocs, "Bocquet", "Bocquet", _eq, references)
     _defaults: ClassVar[dict[str, Any]] = {
         # Bocquet+16 v3 (published) Table 2. Paper (a, b, c) -> code (b, e, d).
         "A": 0.175,
@@ -2075,7 +2137,7 @@ class Bocquet200mHydro(Bocquet200mDMOnly):
         "Bocquet",
         "Bocquet",
         Bocquet200mDMOnly._eq,
-        Bocquet200mDMOnly._ref,
+        Bocquet200mDMOnly.references,
     )
     _defaults: ClassVar[dict[str, Any]] = {
         # Bocquet+16 v3 (published) Table 2. Paper (a, b, c) -> code (b, e, d).
@@ -2099,7 +2161,7 @@ class Bocquet200cDMOnly(Bocquet200mDMOnly):
         "Bocquet",
         "Bocquet",
         Bocquet200mDMOnly._eq,
-        Bocquet200mDMOnly._ref,
+        Bocquet200mDMOnly.references,
     )
 
     _defaults: ClassVar[dict[str, Any]] = {
@@ -2140,7 +2202,7 @@ class Bocquet200cHydro(Bocquet200cDMOnly):
         "Bocquet",
         "Bocquet",
         Bocquet200mDMOnly._eq,
-        Bocquet200mDMOnly._ref,
+        Bocquet200mDMOnly.references,
     )
 
     _defaults: ClassVar[dict[str, Any]] = {
@@ -2165,7 +2227,7 @@ class Bocquet500cDMOnly(Bocquet200cDMOnly):
         "Bocquet",
         "Bocquet",
         Bocquet200mDMOnly._eq,
-        Bocquet200mDMOnly._ref,
+        Bocquet200mDMOnly.references,
     )
 
     _defaults: ClassVar[dict[str, Any]] = {
@@ -2202,7 +2264,7 @@ class Bocquet500cHydro(Bocquet500cDMOnly):
         "Bocquet",
         "Bocquet",
         Bocquet200mDMOnly._eq,
-        Bocquet200mDMOnly._ref,
+        Bocquet200mDMOnly.references,
     )
 
     _defaults: ClassVar[dict[str, Any]] = {
@@ -2266,9 +2328,12 @@ class Yung24(BaseFittingFunction):
     req_z = True
 
     _eq = r"A(z)\left[(\sigma/b(z))^{-a(z)} + 1\right]\exp(-c(z)/\sigma^2)"
-    _ref = (
-        "Yung, L.Y.A., Somerville, R.S., Nguyen, T., Behroozi, P., Modi, C., "
-        "Gardner, J.P., 2024. MNRAS 530, 4868. arXiv:2309.14408"
+    references: ClassVar[tuple[str, ...]] = (
+        (
+            "Yung, L.Y.A., Somerville, R.S., Nguyen, T., Behroozi, P., Modi, C., Gardner, "
+            "J.P., 2024. MNRAS 530, 4868. "
+            "arXiv:2309.14408"
+        ),
     )
 
     sim_definition = SimDetails(

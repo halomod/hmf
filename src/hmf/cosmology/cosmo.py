@@ -12,6 +12,7 @@ may be used as inputs.
 """
 
 import sys
+from typing import Any, override
 
 import astropy.units as u
 import deprecation
@@ -78,6 +79,15 @@ class Cosmology(_framework.Framework):
         # Set all given parameters
         self.cosmo_model = cosmo_model
         self.cosmo_params = cosmo_params or {}
+
+    @override
+    def _model_references(self, name: str, model: Any) -> tuple[str, ...]:
+        if name != "cosmo_model":
+            return super()._model_references(name, model)
+        # The source of the cosmological parameters, for astropy's built-in
+        # realizations (e.g. Planck18). Custom FLRW instances usually have none.
+        ref = " ".join(str(model.meta.get("reference", "")).split())
+        return (ref,) if ref else ()
 
     @_cache.parameter("model")
     def cosmo_model(self, val):

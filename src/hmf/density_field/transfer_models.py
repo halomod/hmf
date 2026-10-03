@@ -14,6 +14,7 @@ import numpy as np
 from astropy import cosmology
 from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 
+from .._internals import _references as refs
 from .._internals._framework import Component, pluggable
 from .._internals._utils import resolve_matter_species
 
@@ -233,6 +234,8 @@ if HAVE_CAMB:
         accounted for separately by CAMB from the ``mnu`` parameter, ensuring the
         total matter density (CDM + baryons + neutrinos) is correctly captured.
         """
+
+        references: ClassVar[tuple[str, ...]] = (refs.CAMB,)
 
         _defaults: ClassVar[dict[str, Any]] = {
             "camb_params": None,
@@ -574,6 +577,8 @@ class EH_BAO(TransferComponent):
         are no model parameters.
     """
 
+    references: ClassVar[tuple[str, ...]] = (refs.EH98,)
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._set_params()
@@ -793,6 +798,8 @@ class BBKS(TransferComponent):
     ``use_sugiyama_baryons`` takes precedence.
     """
 
+    references: ClassVar[tuple[str, ...]] = (refs.BBKS86,)
+
     _defaults: ClassVar[dict[str, Any]] = {
         "a": 2.34,
         "b": 3.89,
@@ -864,6 +871,8 @@ class BondEfs(TransferComponent):
 
     .. math:: \alpha = \frac{0.3\times 0.75^2}{\Omega_{m,0} h^2}.
     """
+
+    references: ClassVar[tuple[str, ...]] = (refs.BE84,)
 
     _defaults: ClassVar[dict[str, float]] = {"a": 37.1, "b": 21.1, "c": 10.8, "nu": 1.12}
 

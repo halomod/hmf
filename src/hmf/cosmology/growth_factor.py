@@ -37,6 +37,7 @@ from astropy import cosmology
 from scipy.integrate import solve_ivp
 from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 
+from .._internals import _references as refs
 from .._internals._framework import Component as Cmpt
 from .._internals._framework import pluggable
 from .._internals._utils import inherit_docstrings as _inherit
@@ -221,6 +222,8 @@ class GrowthFactor(BaseGrowthFactor):
 
     """
 
+    references: ClassVar[tuple[str, ...]] = (refs.EH97, refs.HEATH77, refs.PEEBLES80)
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -320,6 +323,8 @@ class ODEGrowthFactor(BaseGrowthFactor):
     time the solution is calculated. The default values should be sufficient for most
     cosmologies.
     """
+
+    references: ClassVar[tuple[str, ...]] = (refs.PEEBLES80,)
 
     @cached_property
     def _ode_solution(self):
@@ -429,6 +434,8 @@ class IntegralGrowthFactor(BaseGrowthFactor):
     .. math:: \frac{d\ln D^+}{d\ln a} = dlnH/dln(a) + 2.5 \frac{\Omega_m(a)}{a^2 H^2(a) D^+(a)}.
     """
 
+    references: ClassVar[tuple[str, ...]] = (refs.HEATH77,)
+
     def _validate_assumptions(self, z: float | np.ndarray):
 
         if np.any(self.radiation_density(z) > LOW_RADIATION_THRESHOLD):
@@ -534,6 +541,8 @@ class Eisenstein97GrowthFactor(IntegralGrowthFactor):
     constant and negligible radiation (i.e. low redshifts).
     """
 
+    references: ClassVar[tuple[str, ...]] = (refs.EH97,)
+
     def _validate_assumptions(self, z: float | np.ndarray):
         super()._validate_assumptions(z)
 
@@ -605,6 +614,8 @@ class Heath77GrowthFactor(IntegralGrowthFactor):
     normalisation assumed by the growth rate inherited from
     :class:`IntegralGrowthFactor`.
     """
+
+    references: ClassVar[tuple[str, ...]] = (refs.HEATH77,)
 
     def _validate_assumptions(self, z: float | np.ndarray):
         super()._validate_assumptions(z)
@@ -714,6 +725,8 @@ class GenMFGrowth(BaseGrowthFactor):
         :zmax: Maximum redshift to integrate to. Only used for :meth:`growth_factor_fn`.
     """
 
+    references: ClassVar[tuple[str, ...]] = (refs.REED07,)
+
     def _validate_assumptions(self, z):
         if not isinstance(self.cosmo, cosmology.LambdaCDM):
             # Kept as ValueError (not TypeError): part of the public API contract,
@@ -801,6 +814,8 @@ class Carroll1992(GrowthFactor):
     non-zero redshifts if redshift-dependent values for Omega_m and Omega_L are used.
     """
 
+    references: ClassVar[tuple[str, ...]] = (refs.CARROLL92,)
+
     def _d_plus_unnormalized(self, z):
         """Calculate the unnormalized growth factor."""
         a = 1 / (1 + z)
@@ -862,6 +877,8 @@ if HAVE_CAMB:
                                 versions of hmf used ``"tot"``). See
                                 :doc:`/massive_neutrinos`.
         """
+
+        references: ClassVar[tuple[str, ...]] = (refs.CAMB,)
 
         _defaults: ClassVar[dict[str, Any]] = {
             **BaseGrowthFactor._defaults,
