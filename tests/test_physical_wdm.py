@@ -90,12 +90,21 @@ def mf_pair():
 def test_wdm_sigma_suppressed_and_converges_to_cdm(mf_pair):
     """WDM removes small-scale power, so sigma_WDM <= sigma_CDM, converging at high M."""
     cdm, warm = mf_pair
-    # Both are normalised to the same sigma_8. WDM slightly suppresses sigma(8 Mpc/h)
-    # itself, so the WDM amplitude is renormalised up by that tiny amount, and on large
-    # scales sigma_WDM may exceed sigma_CDM by it (measured 1e-4).
-    assert np.all(warm.sigma <= cdm.sigma * (1 + 1e-3))
+    # Before the sigma_8 normalisation, T_WDM <= 1 at every k, so the variance can only
+    # be lower, strictly so at every mass.
+    assert np.all(warm._unn_sigma0 < cdm._unn_sigma0)
+    # Both are then normalised to the same sigma_8. WDM slightly suppresses
+    # sigma(8 Mpc/h) itself, so its amplitude is scaled up by a factor just above 1
+    # (measured 1 + 1.9e-4 for m_x = 1 keV).
+    renorm = warm._normalisation / cdm._normalisation
+    assert 1 < renorm < 1 + 1e-3
+    # The suppression weakens monotonically with scale, so sigma_WDM/sigma_CDM rises
+    # with mass towards that renormalisation factor.
+    ratio = warm.sigma / cdm.sigma
+    assert np.all(np.diff(ratio) > 0)
+    assert np.all(ratio <= renorm)
     # Tolerance: at M = 1e15 (R ~ 13 Mpc/h >> lambda_hm ~ 0.7 Mpc/h) only the sigma_8
-    # renormalisation above remains; measured 1e-4.
+    # renormalisation remains; measured 1.1e-4.
     assert warm.sigma[-1] == pytest.approx(cdm.sigma[-1], rel=1e-3)
     # Well below M_hm (~1e10) sigma is strongly suppressed.
     assert warm.sigma[0] < 0.7 * cdm.sigma[0]
@@ -106,6 +115,8 @@ def test_wdm_mass_function_suppressed_below_half_mode_mass(mf_pair):
     cdm, warm = mf_pair
     low = warm.m < warm.wdm.m_hm / 10
     high = warm.m > warm.wdm.m_hm * 1000
+    assert np.any(low)
+    assert np.any(high)
     assert np.all(warm.dndm[low] < cdm.dndm[low])
     # Tolerance: above 1000 M_hm the transfer function deviates from 1 by < 1e-4.
     np.testing.assert_allclose(warm.dndm[high], cdm.dndm[high], rtol=1e-2)
