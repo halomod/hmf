@@ -35,6 +35,7 @@ from typing import Any, ClassVar
 import numpy as np
 from astropy import cosmology
 from scipy.integrate import solve_ivp
+from scipy.interpolate import CubicSpline
 from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 
 from .._internals import _references as refs
@@ -49,6 +50,13 @@ try:
     HAVE_CAMB = True
 except ImportError:  # pragma: nocover
     HAVE_CAMB = False
+
+try:
+    import classy
+
+    HAVE_CLASS = True
+except ImportError:  # pragma: nocover
+    HAVE_CLASS = False
 
 
 # The low-radiation analytic/integral branches are only used while they keep the
@@ -998,3 +1006,144 @@ if HAVE_CAMB:
             self.__dict__ = state
 
             self.p = self._get_camb_params(self.cosmo)
+
+
+@_inherit
+class ClassGrowth(BaseGrowthFactor):
+    r"""
+    Growth factor computed using CLASS at :math:`k = 0.01\,{\rm Mpc}^{-1}`.
+
+    This needs the optional ``classy`` package (the Python wrapper of CLASS), which
+    you can install with ``pip install hmf[class]``. It is the CLASS counterpart of
+    :class:`CambGrowth`, and like it is evaluated at the reference wavenumber
+    :attr:`k_ref` :math:`= 0.01\,{\rm Mpc}^{-1}` (not :math:`h/{\rm Mpc}`), i.e.
+    :math:`k/h = 0.01/h`, about 0.015 for :math:`h \approx 0.68`. This is on large
+    enough scales that baryon and dark-energy perturbations have a negligible effect,
+    and small enough that the growth of the (synchronous-gauge) density contrast is
+    that of the sub-horizon growth equation to better than :math:`10^{-3}` for
+    :math:`z \lesssim 20`.
+
+    The growth factor is :math:`D(z) = \sqrt{P(k_{\rm ref}, z) / P(k_{\rm ref}, 0)}`,
+    with :math:`P` CLASS's linear power spectrum, which is how CLASS defines its own
+    scale-dependent growth factor (``classy.Class.scale_dependent_growth_factor_D``).
+    The growth rate, :math:`f = d\ln D / d\ln a`, is the derivative of a spline of
+    :math:`\ln D` in :math:`\ln a` through the redshifts at which CLASS tabulates
+    :math:`P(k, z)`, which is also how CLASS computes it
+    (``classy.Class.scale_dependent_growth_factor_f``). CLASS's scale-*independent*
+    growth rate is not used, since it ignores massive neutrinos, so it would not be
+    consistent with :math:`D` for ``matter_species="tot"``.
+
+    With massive neutrinos the growth is scale-dependent; see :class:`CambGrowth`.
+
+    A single CLASS run gives the growth factor at all redshifts up to ``z_max``. It is
+    made the first time the growth factor or rate is needed and kept with the
+    component (including when it is pickled). It is not shared with the ``CLASS``
+    transfer model, which needs CLASS's output at :math:`z=0` only.
+
+    Parameters
+    ----------
+    cosmo : :class:`astropy.cosmology.FLRW` instance
+        The cosmology used in the calculation. Must be a
+        :class:`~astropy.cosmology.LambdaCDM`, :class:`~astropy.cosmology.wCDM` or
+        :class:`~astropy.cosmology.w0waCDM` (or one of their flat versions), with the
+        baryon density and CMB temperature set. It is converted to CLASS input as for
+        the ``CLASS`` transfer model (see
+        :func:`~hmf.density_field.transfer_models.class_cosmology`).
+    \*\*model_parameters : unpack-dict
+        Parameters specific to this model.
+
+        **matter_species:** Which matter density field's growth is computed:
+                            ``"cb"``, using CLASS's CDM+baryon power spectrum, or
+                            ``"tot"``, using its total matter power spectrum
+                            (including massive neutrinos). The two are identical
+                            for massless neutrinos. Use the same value as the
+                            transfer model's ``matter_species``. The default,
+                            ``None``, means ``"cb"``, with a warning if the
+                            cosmology has massive neutrinos. See
+                            :class:`CambGrowth` and :doc:`/massive_neutrinos`.
+        **z_max:** The maximum redshift at which the growth factor can be computed
+                   (CLASS's ``z_max_pk``). Default 20. Larger values make CLASS
+                   slightly slower.
+    """
+
+    references: ClassVar[tuple[str, ...]] = (refs.CLASS_I, refs.CLASS_II)
+
+    #: The reference wavenumber [1/Mpc] at which the growth is evaluated.
+    k_ref: ClassVar[float] = 0.01
+
+    _defaults: ClassVar[dict[str, Any]] = {"matter_species": None, "z_max": 20.0}
+
+    def __init__(self, *args, **kwargs):
+        if not HAVE_CLASS:
+            raise ImportError(
+                "ClassGrowth needs the classy package. Install it with "
+                "`pip install hmf[class]` (or `pip install classy`)."
+            )
+        super().__init__(*args, **kwargs)
+
+        # Imported here, as the density_field package imports this module.
+        from ..density_field.transfer_models import check_boltzmann_cosmology
+
+        check_boltzmann_cosmology(self.cosmo, "ClassGrowth")
+        self.params["matter_species"] = resolve_matter_species(
+            self.params["matter_species"], self.cosmo, "ClassGrowth"
+        )
+        if not self.params["z_max"] > 0:
+            raise ValueError(f"z_max must be positive, got {self.params['z_max']}.")
+
+    def _class_input(self) -> dict[str, Any]:
+        """The full input parameters for CLASS."""
+        from ..density_field.transfer_models import class_cosmology
+
+        params = class_cosmology(self.cosmo)
+        params.update(
+            {
+                "output": "mPk",
+                "z_max_pk": float(self.params["z_max"]),
+                # Only k_ref is needed; a low maximum k makes CLASS much faster.
+                "P_k_max_1/Mpc": 10 * self.k_ref,
+                # As in the CLASS transfer model (and CAMB).
+                "gauge": "synchronous",
+            }
+        )
+        return params
+
+    @cached_property
+    def _lnd_spline(self) -> Spline:
+        r"""Spline of :math:`\ln D` in :math:`\ln a`, through CLASS's redshifts."""
+        cl = classy.Class()
+        cl.set(self._class_input())
+        try:
+            cl.compute()
+            pk, k, z = cl.get_pk_and_k_and_z(
+                nonlinear=False, only_clustering_species=self.params["matter_species"] == "cb"
+            )
+        finally:
+            cl.struct_cleanup()
+            cl.empty()
+
+        lnpk = CubicSpline(np.log(k), np.log(pk), axis=0)(np.log(self.k_ref))
+        order = np.argsort(z)[::-1]  # increasing ln(a)
+        lna = -np.log1p(z[order])
+        lnd = 0.5 * (lnpk[order] - lnpk[order][-1])
+        return Spline(lna, lnd)
+
+    def _validate_assumptions(self, z: float | np.ndarray):
+        """Check that ``z`` is within the range of redshifts computed by CLASS."""
+        z = np.asarray(z)
+        if np.any(z < 0) or np.any(z > self.params["z_max"]):
+            raise ValueError(
+                f"ClassGrowth can only compute the growth for 0 <= z <= z_max = "
+                f"{self.params['z_max']}. Increase z_max for higher redshifts."
+            )
+
+    @staticmethod
+    def _like_input(z, out: np.ndarray) -> float | np.ndarray:
+        """Return ``out`` as a float if ``z`` is a scalar."""
+        return float(out) if np.ndim(z) == 0 else out
+
+    def _d_plus_unnormalized(self, z):
+        return self._like_input(z, np.exp(self._lnd_spline(-np.log1p(z))))
+
+    def _growth_rate(self, z):
+        return self._like_input(z, self._lnd_spline.derivative()(-np.log1p(z)))

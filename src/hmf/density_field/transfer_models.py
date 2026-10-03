@@ -186,6 +186,40 @@ class FromFile(TransferComponent):
         return Spline(lnkout, lnT, k=1)(lnk)
 
 
+def check_boltzmann_cosmology(cosmo: cosmology.FLRW, name: str) -> None:
+    """
+    Raise an error if a Boltzmann code (CAMB, CLASS) cannot compute ``cosmo``.
+
+    Parameters
+    ----------
+    cosmo
+        The cosmology.
+    name
+        Name of the model using the Boltzmann code, used in the error messages.
+
+    Raises
+    ------
+    ValueError
+        If ``cosmo`` is not a LambdaCDM, wCDM or w0waCDM cosmology, or does not set
+        the baryon density or the CMB temperature.
+    """
+    if not isinstance(cosmo, (cosmology.LambdaCDM, cosmology.wCDM, cosmology.w0waCDM)):
+        # Kept as ValueError (not TypeError): part of the public API contract,
+        # asserted verbatim by
+        # tests/test_transfer_models.py::test_camb_rejects_non_lcdm_cosmology.
+        raise ValueError(f"{name} will only work with LCDM or wCDM cosmologies")  # noqa: TRY004
+
+    if cosmo.Ob0 is None or cosmo.Ob0 == 0.0:
+        raise ValueError(
+            f"To use {name}, you must set the baryon density in the cosmology explicitly."
+        )
+
+    if cosmo.Tcmb0.value == 0:
+        raise ValueError(
+            f"If using {name}, the CMB temperature must be set explicitly in the cosmology."
+        )
+
+
 class _BoltzmannTransfer(FromFile, abstract=True):
     r"""
     Shared machinery for transfer models computed by a Boltzmann code (CAMB, CLASS).
@@ -211,22 +245,7 @@ class _BoltzmannTransfer(FromFile, abstract=True):
 
     def _validate_cosmology(self) -> None:
         """Raise an error if the Boltzmann code cannot compute ``cosmo``."""
-        name = type(self).__name__
-        if not isinstance(self.cosmo, (cosmology.LambdaCDM, cosmology.wCDM, cosmology.w0waCDM)):
-            # Kept as ValueError (not TypeError): part of the public API contract,
-            # asserted verbatim by
-            # tests/test_transfer_models.py::test_camb_rejects_non_lcdm_cosmology.
-            raise ValueError(f"{name} will only work with LCDM or wCDM cosmologies")  # noqa: TRY004
-
-        if self.cosmo.Ob0 is None or self.cosmo.Ob0 == 0.0:
-            raise ValueError(
-                f"To use {name}, you must set the baryon density in the cosmology explicitly."
-            )
-
-        if self.cosmo.Tcmb0.value == 0:
-            raise ValueError(
-                f"If using {name}, the CMB temperature must be set explicitly in the cosmology."
-            )
+        check_boltzmann_cosmology(self.cosmo, type(self).__name__)
 
     def _setup_extrapolation(self) -> None:
         """Create the EH transfer used to extrapolate to high k, if requested."""
