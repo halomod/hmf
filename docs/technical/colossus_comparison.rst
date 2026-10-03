@@ -29,7 +29,9 @@ The comparisons discussed here were made with:
 
 - the native ``200m`` form of ``Tinker08``,
 - matched flat cosmologies with ``H0 = 67.74``, ``Om0 = 0.3089``,
-  ``Ob0 = 0.0486``, ``sigma8 = 0.8159``, and ``ns = 0.9667``,
+  ``Ob0 = 0.0486``, ``sigma8 = 0.8159``, and ``ns = 0.9667``, and massless
+  neutrinos (``m_nu = 0`` in ``hmf``, whose default cosmology has 0.06 eV,
+  because Colossus has no massive-neutrino background),
 - the ``EH`` transfer model in ``hmf``, and
 - direct comparisons of ``dndlnm`` at representative masses
   :math:`10^{11}`, :math:`10^{12}`, and :math:`10^{13}\,M_\odot/h`.
@@ -54,29 +56,22 @@ Several obvious suspects were checked and found not to be the dominant cause:
 The main causes of the residual difference
 ------------------------------------------
 
-Two effects dominate the remaining mismatch.
+Three effects matter. Two are input mismatches that the regression test
+removes, and one is a genuine algorithmic difference.
 
-High-redshift growth implementation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Massive-neutrino background
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-After the selector update, ``hmf`` uses the full ODE growth solution whenever
-the radiation fraction exceeds the calibrated threshold (essentially for z>1.5).
-Colossus uses a different hybrid approach for LCDM cosmologies:
-
-- an analytic matter-radiation approximation at high redshift, and
-- an integral solution at low redshift,
-
-with a transition regime between them.
-
-These are both reasonable algorithmic choices, but they do not produce exactly
-the same high-redshift growth history. In the matched comparison used here,
-``hmf`` ends up with a slightly larger :math:`\sigma(M, z)` than Colossus at
-high redshift, typically by about :math:`0.26`--:math:`0.34\%` over
-``z = 6``--``10`` for the masses tested.
-
-That difference is tiny in :math:`\sigma` itself, but it is evaluated in the
-exponential tail of the halo mass function, where very small shifts in
-:math:`\sigma` can produce multi-percent shifts in abundance.
+The default ``hmf`` cosmology carries a 0.06 eV neutrino. Colossus has no
+massive-neutrino background. At fixed ``Om0`` (which in astropy excludes
+neutrinos) the extra non-relativistic density changes :math:`E(z)` and so the
+growth history. With :math:`\sigma_8` fixed at :math:`z=0`, ``hmf`` then has a
+larger :math:`\sigma(M, z)` at high redshift. This was the main source of the
+"slightly larger high-redshift :math:`\sigma`" previously attributed to the
+growth algorithm. At fixed Tinker08 coefficients it raises the ``hmf``
+abundance by about 6--47% at ``z = 8``--``10`` over
+:math:`10^{11}`--:math:`10^{13}\,M_\odot/h`. Set ``m_nu = 0`` to compare
+like with like.
 
 Tinker08 coefficient precision
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -99,35 +94,44 @@ Colossus uses the rounded table values:
 
 At fixed :math:`\sigma`, this coefficient rounding changes :math:`f(\sigma)` by
 only a little at low redshift, but by several percent in the high-redshift
-tail. In the matched tests performed here, the coefficient choice alone
-accounts for approximately:
+tail. The more precise ``hmf`` coefficients lower the abundance relative to
+Colossus by up to about 6% at ``z = 6`` and 14% at ``z = 10``, depending on mass.
+The regression test passes the rounded values through ``hmf_params``.
 
-- :math:`2`--:math:`6\%` at ``z = 6``,
-- :math:`3`--:math:`10\%` at ``z = 8``, and
-- :math:`4`--:math:`15\%` at ``z = 10``,
+High-redshift growth implementation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-depending on mass.
+``hmf`` uses the full ODE growth solution whenever the radiation fraction
+exceeds the calibrated threshold (essentially for z>1.5). Colossus uses a
+hybrid approach for LCDM cosmologies:
 
-How the effects combine
------------------------
+- an analytic matter-radiation approximation at high redshift, and
+- an integral solution at low redshift,
 
-The two dominant effects push in opposite directions:
+with a transition regime between them.
 
-- the slightly larger high-redshift :math:`\sigma(M, z)` in ``hmf`` tends to
-  increase the abundance relative to Colossus, while
-- the more precise ``Tinker08`` coefficients in ``hmf`` tend to decrease the
-  abundance relative to Colossus' rounded table.
+With cosmology and coefficients matched, this is the only remaining
+difference. Against CAMB's CDM+baryon growth at :math:`k/h = 5`, the Colossus
+growth factor is 5--7 :math:`\times 10^{-4}` low at ``z = 4``--``10``, while
+``hmf`` is within :math:`2\times 10^{-4}`. The halo abundance is very
+sensitive to :math:`\sigma` in the exponential tail, so the residual is
+:math:`\approx (d\ln f/d\ln\sigma)\,\delta\ln D`. That predicts 0.8%, 1.9%,
+2.7% and 3.7% at :math:`10^{13}\,M_\odot/h` for ``z = 4, 6, 8, 10``, against
+measured values of 0.8%, 1.9%, 2.9% and 4.0%.
 
-Because these effects partially cancel, the final mismatch is significantly
-smaller than either ingredient by itself. For the matched setup used in the
-external regression test, the resulting ``hmf`` versus Colossus difference is
-typically of order:
+Resulting agreement
+-------------------
 
-- ``z = 6``: :math:`\sim 0.1\%` to :math:`2.7\%`,
-- ``z = 8``: :math:`\sim 1\%` to :math:`7\%`,
-- ``z = 10``: :math:`\sim 2\%` to :math:`14\%`,
+With the cosmology and the Tinker08 coefficients matched, the ``hmf`` versus
+Colossus difference over :math:`10^{11}`--:math:`10^{13}\,M_\odot/h` is:
 
-over the range :math:`10^{11}`--:math:`10^{13}\,M_\odot/h`.
+- ``z = 0``--``2``: below :math:`0.1\%`,
+- ``z = 4``: up to :math:`0.8\%`,
+- ``z = 6``: up to :math:`1.9\%`,
+- ``z = 8``: up to :math:`2.9\%`,
+- ``z = 10``: up to :math:`4.0\%`,
+
+all at the high-mass end, with ``hmf`` above Colossus.
 
 References
 ----------

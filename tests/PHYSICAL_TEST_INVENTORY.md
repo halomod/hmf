@@ -92,6 +92,7 @@ New tests are in `test_physical_growth.py`.
 |---|---|---|---|
 | ODEGrowthFactor | Agrees with the integral method and with Heath (independent methods). D ∝ a² in radiation domination, f → 1 in matter domination, monotonic. | D = a and f = 1 exactly in EdS. Linder f = Ω_m^0.55 (1%). CPT92 g₀ (1%). f = dlnD/dlna. Peebles f₀ ≈ Ω_m^0.6 in open universes. | added |
 | ODEGrowthFactor for wCDM | — | Linder γ = 0.55 + 0.05(1+w), plus an independent ODE solve. Fails: the dark-energy term is missing from dlnE/dlna. | exposes bug (B4) |
+| ODEGrowthFactor with massive neutrinos | — | dlnE/dlna equals a finite difference of astropy's `efunc`. D matches CAMB `delta_nonu` at k/h = 5, below the free-streaming scale, to 2e-4. D and f match an independent momentum-form ODE that needs only E(z), to 2e-5. All failed before the fix: the time dependence of `nu_relative_density` was dropped from dlnE/dlna, so D was 0.2–0.9% low at z = 10. | fixed |
 | GrowthFactor (selector) | Selector tests. Tinker08 within 1% of ODE. Heath in open universes (D only). | Linder (with and without radiation). CPT92 g₀. Near-EdS limit (Ω_Λ = 1e-6). | added |
 | GrowthFactor in exact EdS | — | D = a. Fails with ZeroDivisionError via Eisenstein97. | exposes bug (B5) |
 | GrowthFactor / Heath77 growth rate in open universes | — | Peebles f₀ ≈ Ω_m^0.6, and 0 < f < 1. Heath77's rate is wrong (f = −0.69 at Ω_m = 0.1). | exposes bug (B7) |

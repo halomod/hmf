@@ -130,18 +130,29 @@ class BaseGrowthFactor(Cmpt):
         and writes down the derivative analytically. The dark-energy density scales as
         :math:`\rho_{\rm DE}(a) \propto \exp(-3\int (1+w)\, d\ln a)`, so its
         logarithmic derivative is :math:`-3(1+w(a))`, which vanishes only for a
-        cosmological constant.
+        cosmological constant. With massive neutrinos, the radiation term is
+        :math:`\Omega_\gamma (1 + N(z)) a^{-4}`, where :math:`N(z)` is astropy's
+        ``nu_relative_density``. :math:`N` varies with time as the neutrinos become
+        non-relativistic, so its derivative is included, computed by central finite
+        difference in :math:`\ln(1+z)`.
         """
         a = 1 / (1 + z)
 
-        Or = self.cosmo.Ogamma0 + (
-            self.cosmo.Onu0
-            if not self.cosmo.has_massive_nu
-            else self.cosmo.Ogamma0 * self.cosmo.nu_relative_density(z)
-        )
+        if self.cosmo.has_massive_nu:
+            # d(Ogamma0 * (1 + N(z)) * a^-4)/dlna = Ogamma0 a^-4 (-4 (1 + N) + dN/dlna),
+            # with dN/dlna = -dN/dln(1+z).
+            h = 1e-4
+            lnzp1 = np.log1p(z)
+            dn_dlna = -(
+                self.cosmo.nu_relative_density(np.expm1(lnzp1 + h))
+                - self.cosmo.nu_relative_density(np.expm1(lnzp1 - h))
+            ) / (2 * h)
+            Or = self.cosmo.Ogamma0 * (-4 * (1 + self.cosmo.nu_relative_density(z)) + dn_dlna)
+        else:
+            Or = -4 * (self.cosmo.Ogamma0 + self.cosmo.Onu0)
 
         # Each term is d(E^2)/dln(a) for the corresponding component.
-        Or = -4 * Or * a**-4
+        Or = Or * a**-4
         Om = -3 * self.cosmo.Om0 * a**-3
         Ok = -2 * self.cosmo.Ok0 * a**-2
         Ode = -3 * (1 + self.cosmo.w(z)) * self.cosmo.Ode0 * self.cosmo.de_density_scale(z)
@@ -850,11 +861,21 @@ if HAVE_CAMB:
     @_inherit
     class CambGrowth(GrowthFactor):
         r"""
-        Growth factor computed using CAMB at k/h = 0.01.
+        Growth factor computed using CAMB at :math:`k = 0.01\,{\rm Mpc}^{-1}`.
+
+        CAMB takes wavenumbers in :math:`{\rm Mpc}^{-1}`, not :math:`h/{\rm Mpc}`, so
+        this is :math:`k/h = 0.01/h` (about 0.015 for :math:`h \approx 0.68`).
 
         Recommended for non-LambdaCDM cosmologies (e.g., wCDM) as it correctly
         deals with their growth evolution. For standard LCDM, other classes are
         preferred since this class requires re-calculating the transfer function.
+
+        With massive neutrinos the growth is scale-dependent. At this scale the
+        neutrinos partly cluster, so the CDM+baryon (``"cb"``) field grows faster
+        than in the small-scale limit computed by :class:`ODEGrowthFactor`, in which
+        the neutrinos are a smooth background. Normalised to 1 at z = 0, the growth
+        factor here is therefore lower at high redshift: by about 2.2% at z = 10 for
+        a 0.3 eV neutrino.
 
         Parameters
         ----------
