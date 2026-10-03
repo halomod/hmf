@@ -112,6 +112,39 @@ def test_k_truncation_error_matches_wide_grid():
     assert np.isclose(h._sigma_k_truncation_error, expected, rtol=0.1)
 
 
+def test_mdef_params_without_measured_mdef():
+    """Regression: mdef_params on a fit with no measured mdef (PS) used to crash."""
+    from hmf.halos.mass_definitions import SOMean
+
+    mf = MassFunction(hmf_model="PS", mdef_params={"overdensity": 300}, transfer_model="EH")
+    assert isinstance(mf.mdef, SOMean)
+    assert mf.mdef.params["overdensity"] == 300
+    assert np.all(np.isfinite(mf.dndm))
+    assert np.all(mf.dndm > 0)
+
+    # PS has no measured mass definition, so no mass conversion is applied and the
+    # chosen overdensity cannot change the mass function.
+    default = MassFunction(hmf_model="PS", transfer_model="EH")
+    np.testing.assert_allclose(mf.dndm, default.dndm, rtol=1e-12, atol=0)
+
+
+def test_mdef_params_update_measured_mdef():
+    """mdef_params override the parameters of a fit's measured mass definition."""
+    from hmf.halos.mass_definitions import SOMean
+
+    mf = MassFunction(
+        hmf_model="Tinker08", mdef_params={"overdensity": 300}, transfer_model="EH", z=0
+    )
+    assert isinstance(mf.mdef, SOMean)
+    assert mf.mdef.params["overdensity"] == 300
+    assert np.all(np.isfinite(mf.dndm))
+
+    # Delta=300m is a tabulated Tinker08 overdensity, so at z=0 the amplitude must be
+    # exactly the tabulated A_300 (not the default 200m value).
+    np.testing.assert_allclose(mf.hmf.A, mf.hmf.params["A_300"], rtol=1e-12, atol=0)
+    assert not np.isclose(mf.hmf.A, mf.hmf.params["A_200"], rtol=1e-6, atol=0)
+
+
 class _LntCounter:
     """Wrap ``BondEfs.lnt`` so tests can count transfer-function evaluations."""
 
