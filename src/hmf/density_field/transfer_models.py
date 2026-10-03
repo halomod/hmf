@@ -15,6 +15,7 @@ from astropy import cosmology
 from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 
 from .._internals._framework import Component, pluggable
+from .._internals._utils import resolve_matter_species
 
 try:
     import camb
@@ -88,26 +89,26 @@ class FromFile(TransferComponent):
 
         :fname: str
             Location of the file to import.
-        :matter_species: str
-            Which matter density field to read from a CAMB-format file. Either
-            ``"tot"`` (default), the total matter transfer function (column 6,
-            CAMB's ``Transfer_tot``, including massive neutrinos), or ``"cb"``, the
-            CDM+baryon transfer function (column 7, CAMB's ``Transfer_nonu``). See
-            :class:`CAMB` for when to use ``"cb"``. A two-column ``(k, T)`` file is
-            used as-is, whatever this is set to.
+        :matter_species: str or None
+            Which matter density field to read from a CAMB-format file: ``"cb"``, the
+            CDM+baryon transfer function (column 7, CAMB's ``Transfer_nonu``), or
+            ``"tot"``, the total matter transfer function (column 6, CAMB's
+            ``Transfer_tot``, including massive neutrinos). See :class:`CAMB` for
+            when to use which. The default, ``None``, means ``"cb"`` if the file has
+            that column, with a warning if the cosmology has massive neutrinos, and
+            ``"tot"`` for older CAMB files without it. A two-column ``(k, T)`` file
+            is used as-is, whatever this is set to.
     """
 
-    _defaults: ClassVar[dict[str, str]] = {"fname": "", "matter_species": "tot"}
+    _defaults: ClassVar[dict[str, str | None]] = {"fname": "", "matter_species": None}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         # Subclasses that don't read CAMB columns (e.g. FromArray) don't have the option.
-        species = self.params.get("matter_species", "tot")
-        if species not in _CAMB_FILE_COLUMNS:
-            raise ValueError(
-                f"matter_species must be one of {sorted(_CAMB_FILE_COLUMNS)}, got {species!r}."
-            )
+        # The default (None) is resolved in lnt, once we know the file's columns.
+        if self.params.get("matter_species") is not None:
+            resolve_matter_species(self.params["matter_species"], self.cosmo, type(self).__name__)
 
     def _check_low_k(self, lnk, lnT, lnkmin):
         """
@@ -149,10 +150,19 @@ class FromFile(TransferComponent):
             The log of the transfer function at lnk.
         """
         data = np.genfromtxt(self.params["fname"])
-        col = _CAMB_FILE_COLUMNS[self.params["matter_species"]]
+        species = self.params["matter_species"]
+        if species is None:
+            # Only a CAMB file that has the CDM+baryon column is affected by the default.
+            species = (
+                resolve_matter_species(None, self.cosmo, "FromFile")
+                if data.shape[1] > _CAMB_FILE_COLUMNS["cb"]
+                else "tot"
+            )
+
+        col = _CAMB_FILE_COLUMNS[species]
         if data.shape[1] > col:
             T = np.log(data[:, [0, col]].T)
-        elif self.params["matter_species"] == "tot" or data.shape[1] == 2:
+        elif species == "tot" or data.shape[1] == 2:
             T = np.log(data[:, [0, 1]].T)
         else:
             raise ValueError(
@@ -191,21 +201,25 @@ if HAVE_CAMB:
                                      if kmax is high, since CAMB diverges from the EH
                                      approximation.
             **matter_species:** Which matter density field the transfer function
-                                describes. Either ``"tot"`` (default) or ``"cb"``.
+                                describes: ``"cb"`` or ``"tot"``. ``"cb"`` uses
+                                CAMB's ``Transfer_nonu`` (the CDM+baryon
+                                perturbation, :math:`\delta_{\rm cb}`), while
                                 ``"tot"`` uses CAMB's ``Transfer_tot`` (the total
                                 matter perturbation, :math:`\delta_{\rm tot}`,
-                                including massive neutrinos), while ``"cb"`` uses
-                                CAMB's ``Transfer_nonu`` (the CDM+baryon
-                                perturbation, :math:`\delta_{\rm cb}`). The two are
-                                identical for massless neutrinos. Halo mass function
-                                fits calibrated on simulations with massive
-                                neutrinos should be used with ``"cb"``, since the
-                                HMF is found to be universal in terms of the
-                                CDM+baryon field (Costanzi et al. 2013; Castorina et
-                                al. 2014). Note that ``sigma_8`` then normalises the
-                                CDM+baryon spectrum, and that the mean density used
-                                elsewhere (``mean_density0``) is not changed by this
-                                option.
+                                including massive neutrinos). The two are identical
+                                for massless neutrinos. Halo mass function fits
+                                calibrated on simulations with massive neutrinos
+                                should be used with ``"cb"``, since the HMF is found
+                                to be universal in terms of the CDM+baryon field
+                                (Costanzi et al. 2013; Castorina et al. 2014); it
+                                also matches ``mean_density0``, which excludes
+                                neutrinos. The default, ``None``, means ``"cb"``,
+                                with a warning if the cosmology has massive
+                                neutrinos (earlier versions of hmf used ``"tot"``).
+                                ``sigma_8`` normalises this field unless
+                                ``sigma_8_species`` is set on the
+                                :class:`~hmf.density_field.transfer.Transfer`
+                                framework. See :doc:`/massive_neutrinos`.
 
         Notes
         -----
@@ -225,7 +239,7 @@ if HAVE_CAMB:
             "dark_energy_params": {},
             "extrapolate_with_eh": None,
             "kmax": None,
-            "matter_species": "tot",
+            "matter_species": None,
         }
 
         def __init__(self, *args, **kwargs):
@@ -236,6 +250,10 @@ if HAVE_CAMB:
                 # asserted verbatim by
                 # tests/test_transfer_models.py::test_camb_rejects_non_lcdm_cosmology.
                 raise ValueError("CAMB will only work with LCDM or wCDM cosmologies")  # noqa: TRY004
+
+            self.params["matter_species"] = resolve_matter_species(
+                self.params["matter_species"], self.cosmo, "CAMB"
+            )
 
             # Save the CAMB object properly for use
             # Set the cosmology

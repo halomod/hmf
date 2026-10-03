@@ -365,7 +365,7 @@ def test_cambgrowth_matter_species(m_nu):
         H0=70.0, Om0=0.3, Ob0=0.05, Tcmb0=2.7255, m_nu=[0.0, 0.0, m_nu] * u.eV
     )
     z = np.array([0.0, 0.5, 1.0, 2.0, 5.0])
-    gf_tot = growth_factor.CambGrowth(cosmo)
+    gf_tot = growth_factor.CambGrowth(cosmo, matter_species="tot")
     d_tot = gf_tot.growth_factor(z)
     d_cb = growth_factor.CambGrowth(cosmo, matter_species="cb").growth_factor(z)
 
@@ -389,3 +389,24 @@ def test_cambgrowth_matter_species(m_nu):
 def test_cambgrowth_bad_matter_species():
     with pytest.raises(ValueError, match="matter_species must be one of"):
         growth_factor.CambGrowth(Planck13, matter_species="nu")
+
+
+def test_cambgrowth_default_matter_species_is_cb_with_warning():
+    cosmo = cosmology.FlatLambdaCDM(
+        H0=70.0, Om0=0.3, Ob0=0.05, Tcmb0=2.7255, m_nu=[0.0, 0.0, 0.06] * u.eV
+    )
+    with pytest.warns(UserWarning, match="matter_species was not set for CambGrowth"):
+        gf = growth_factor.CambGrowth(cosmo)
+    assert gf.params["matter_species"] == "cb"
+
+
+@pytest.mark.parametrize("matter_species", ["cb", "tot"])
+def test_cambgrowth_growth_rate(matter_species):
+    """CambGrowth's growth rate is f ~ Omega_m(z)^0.55 (Linder 2005), to ~1% in LCDM.
+
+    Regression test: the extra matter_species parameter used to be passed on to the
+    ODE solver that computes the growth rate, which rejected it.
+    """
+    gf = growth_factor.CambGrowth(Planck13, matter_species=matter_species)
+    for z in (0.0, 1.0, 3.0):
+        assert gf.growth_rate(z) == pytest.approx(Planck13.Om(z) ** 0.55, rel=1e-2)

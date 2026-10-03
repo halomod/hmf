@@ -45,6 +45,7 @@ class Transfer(cosmo.Cosmology):
     def __init__(
         self,
         sigma_8=0.8159,
+        sigma_8_species=None,
         n=0.9667,
         z=0.0,
         lnk_min=np.log(1e-8),  # noqa: B008
@@ -64,6 +65,7 @@ class Transfer(cosmo.Cosmology):
         # Set all given parameters
         self.n = n
         self.sigma_8 = sigma_8
+        self.sigma_8_species = sigma_8_species
         self.growth_params = growth_params or {}
         self.use_splined_growth = use_splined_growth
         self.lnk_min = lnk_min
@@ -144,6 +146,28 @@ class Transfer(cosmo.Cosmology):
         """
         if val < 0.1 or val > 10:
             raise ValueError(f"sigma_8 out of bounds, {val}")
+        return val
+
+    @parameter("param")
+    def sigma_8_species(self, val):
+        """
+        Which matter field :attr:`sigma_8` describes: ``"tot"``, ``"cb"`` or ``None``.
+
+        ``None`` (default) means the field set by the transfer model's
+        ``matter_species``, i.e. the field whose power spectrum is computed. Setting
+        ``"tot"`` while the transfer model uses ``"cb"`` normalises the CDM+baryon
+        power spectrum so that the *total* matter field (from the same model) has
+        r.m.s. :attr:`sigma_8`. This is what you want when ``sigma_8`` comes from an
+        experiment (e.g. Planck), since these quote the total-matter value.
+
+        Transfer models that don't distinguish the two fields (i.e. have no
+        ``matter_species`` parameter, like ``EH`` or ``BBKS``) ignore this. See
+        :doc:`/massive_neutrinos`.
+
+        :type: str or None
+        """
+        if val not in (None, "tot", "cb"):
+            raise ValueError(f"sigma_8_species must be None, 'tot' or 'cb', got {val!r}")
         return val
 
     @parameter("param")
@@ -240,15 +264,29 @@ class Transfer(cosmo.Cosmology):
         return self.k**self.n * np.exp(self._unnormalised_lnT) ** 2
 
     @cached_quantity
+    def _sigma_8_transfer(self):
+        """The transfer model of the field that :attr:`sigma_8` describes."""
+        species = self.sigma_8_species
+        if species is None or self.transfer.params.get("matter_species", species) == species:
+            return self.transfer
+        return self.transfer_model(
+            self.cosmo, **{**self.transfer.params, "matter_species": species}
+        )
+
+    @cached_quantity
     def _unn_sig8(self):
         # Always use a TopHat for sigma_8, and always use full k-range
+        transfer = self._sigma_8_transfer
         if self.lnk_min > -15 or self.lnk_max < 9:
             lnk = np.arange(-8, 8, self.dlnk)
-            t = self.transfer.lnt(lnk)
+            t = transfer.lnt(lnk)
             p = np.exp(lnk) ** self.n * np.exp(t) ** 2
             filt = filters.TopHat(np.exp(lnk), p)
-        else:
+        elif transfer is self.transfer:
             filt = filters.TopHat(self.k, self._unnormalised_power)
+        else:
+            p = self.k**self.n * np.exp(transfer.lnt(np.log(self.k))) ** 2
+            filt = filters.TopHat(self.k, p)
 
         return filt.sigma(8.0)[0]
 
