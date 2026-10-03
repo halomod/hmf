@@ -4,7 +4,7 @@ Instructions for AI coding agents working in this repository.
 
 ## Do
 
-- Use `uv run` for all project tooling commands (pytest, ruff, etc.).
+- Use `uv run` for all project tooling commands (pytest, prek, etc.).
 - Set up the environment with `uv sync`; prefer `uv sync --locked --all-extras --dev`
   for CI parity.
 - Add type hints for all new parameters.
@@ -25,12 +25,17 @@ Instructions for AI coding agents working in this repository.
 
 ## Commands
 
-File-scoped quality checks (preferred):
+File-scoped quality checks (preferred). Run lint and format through the
+pre-commit hooks, not by calling `ruff` directly:
 
 ```bash
-uv run ruff format path/to/file.py
-uv run ruff check --fix path/to/file.py
+uv run prek run --files path/to/file.py [path/to/other.py ...]
 ```
+
+The hooks pin their own ruff version in `.pre-commit-config.yaml`, which is
+what pre-commit.ci enforces. The ruff in the uv environment can lag behind it,
+and a different version can disagree with the hooks (e.g. strip a `# noqa`
+the pinned version needs). Do not call `uv run ruff ...` for checks or fixes.
 
 Targeted tests (preferred):
 
@@ -52,7 +57,7 @@ Allowed without prompt:
 
 - read, list, and search files
 - edit source, tests, and docs text files relevant to the task
-- run file-scoped ruff checks
+- run file-scoped prek checks (`uv run prek run --files ...`)
 - run one or a few targeted pytest files
 
 Ask first:
