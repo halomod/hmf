@@ -385,7 +385,6 @@ def test_get_dependencies_and_parameter_info(capsys):
             return self.x + 1
 
     obj = Simple()
-    setattr(obj, "_" + obj.__class__.__name__ + "__recalc_prop_par_static", {"q": {"x"}})
 
     assert obj.get_dependencies("q") == {"x"}
 
@@ -408,3 +407,72 @@ def test_parameter_info_empty_doc(capsys):
     assert EmptyDoc.parameter_info() is None
     output = capsys.readouterr().out
     assert "empty" in output
+
+
+def test_get_dependencies_massfunction():
+    """N1: get_dependencies must work from the real dependency index."""
+    mf = MassFunction(transfer_model="EH")
+
+    growth_deps = mf.get_dependencies("growth_factor")
+    assert "z" in growth_deps
+    assert "hmf_model" not in growth_deps
+
+    sigma_deps = mf.get_dependencies("sigma")
+    assert {"z", "transfer_model", "sigma_8"} <= sigma_deps
+    assert "hmf_model" not in sigma_deps
+
+    assert "hmf_model" in mf.get_dependencies("dndm")
+    assert mf.get_dependencies("sigma", "dndm") == sigma_deps | mf.get_dependencies("dndm")
+
+    # Asking for dependencies must not mutate the index.
+    assert mf.get_dependencies("sigma") == sigma_deps
+
+
+def test_parameter_info_triple_newline_terminates(capsys):
+    """N3: collapsing triple newlines in parameter_info must terminate."""
+
+    class TripleNewline(Framework):
+        def __init__(self):
+            self._validate = False
+            self.x = 1
+            self._validate = True
+
+        @parameter("param")
+        def x(self, val):
+            """Value for x.
+
+            More details on x.
+            """
+            return val
+
+    assert TripleNewline.parameter_info() is None
+    output = capsys.readouterr().out
+    assert "x" in output
+    assert "\n\n\n" not in output
+
+
+def test_component_defaults_not_shared():
+    """N6: nested mutable defaults must not be shared between instances."""
+
+    class NestedDefaults(Component):
+        _defaults: typing.ClassVar[dict[str, typing.Any]] = {
+            "nested": {"a": 1},
+            "items": [1, 2],
+            "obj": None,
+        }
+
+    one = NestedDefaults()
+    two = NestedDefaults()
+
+    one.params["nested"]["a"] = 2
+    one.params["items"].append(3)
+
+    assert two.params["nested"] == {"a": 1}
+    assert two.params["items"] == [1, 2]
+    assert NestedDefaults._defaults["nested"] == {"a": 1}
+    assert NestedDefaults._defaults["items"] == [1, 2]
+
+    # Explicitly passed parameters are stored as given, not copied.
+    passed = {"b": 3}
+    three = NestedDefaults(nested=passed)
+    assert three.params["nested"] is passed

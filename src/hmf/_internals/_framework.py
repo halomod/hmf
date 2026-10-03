@@ -34,7 +34,7 @@ class Component:
                 raise ValueError(f"{k} is not a valid argument for {self.__class__.__name__}.")
 
         # Gather model parameters
-        self.params = copy.copy(self._defaults)
+        self.params = copy.deepcopy(self._defaults)
         self.params.update(model_params)
 
     @classmethod
@@ -307,13 +307,13 @@ class Framework(metaclass=_Validator):
         deps : set
             A set containing all parameters on which quantities in q are dependent.
         """
+        recalc_prpa = getattr(self, "_" + self.__class__.__name__ + "__recalc_prop_par")
+
         deps = set()
         for quant in q:
+            # Accessing the quantity populates its entry in the dependency index.
             getattr(self, quant)
-
-            deps.update(
-                getattr(self, "_" + self.__class__.__name__ + "__recalc_prop_par_static")[quant]
-            )
+            deps.update(recalc_prpa[quant])
 
         return deps
 
@@ -351,5 +351,5 @@ class Framework(metaclass=_Validator):
 
             docs += "\n    ".join(objdoc) + "\n\n"
             while "\n\n\n" in docs:
-                docs.replace("\n\n\n", "\n\n")
+                docs = docs.replace("\n\n\n", "\n\n")
         print(docs[:-1])  # noqa
