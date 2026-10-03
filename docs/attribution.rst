@@ -9,23 +9,31 @@ Citing the models you use
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 Most models in ``hmf`` (fitting functions, transfer functions, growth factors,
 filters, etc.) come from published papers, which should also be cited. Every
-framework can list the references for its current setup::
+framework can list the references for its current setup, grouped by the
+parameter that selects each model::
 
     >>> from hmf import MassFunction
     >>> mf = MassFunction(hmf_model="Tinker08", transfer_model="EH")
-    >>> for ref in mf.get_acknowledgments():
-    ...     print(ref)
+    >>> for source, refs in mf.get_acknowledgments().items():
+    ...     print(source, refs)
 
-The list starts with the ``hmf`` paper, followed by the references of the
-framework itself (e.g. the source of the cosmological parameters), and then
-those of each chosen component model. It is gathered from the model classes
-alone, so it does not compute anything. Changing a model (e.g.
-``mf.update(hmf_model="ST")``) changes the list.
+The first entry, ``"hmf"``, is the ``hmf`` paper itself. Each ``*_model``
+parameter (``"hmf_model"``, ``"transfer_model"``, ``"growth_model"``, etc.)
+then gives the references of the model currently set on it; ``"cosmo_model"``
+gives the source of the cosmological parameters for astropy's built-in
+cosmologies. A model with nothing to cite gives an empty tuple. The references
+are read from the model classes, so this does not compute anything, and
+changing a model (e.g. ``mf.update(hmf_model="ST")``) changes the result.
 
-The list covers the chosen models, not the methods behind every quantity a
-framework can compute. For example, HALOFIT (used only for
-``nonlinear_power``) is not included; if you use a quantity like that, its
-docstring says what to cite.
+For a bibliography, ask for a single list with duplicates removed::
+
+    >>> bibliography = mf.get_acknowledgments(flat=True)
+
+The keys say which model each citation belongs to, so you can drop those for
+models that played no part in your results. The result covers the
+chosen models, not the methods behind every quantity a framework can compute:
+HALOFIT, used only for ``nonlinear_power``, is not included, and the docstring
+of a quantity like that says what to cite.
 
 When you write your own component, set its ``references`` class attribute to a
 tuple of citation strings so that it is included::

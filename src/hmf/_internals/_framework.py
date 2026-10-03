@@ -5,7 +5,7 @@ import logging
 import re
 import sys
 import warnings
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal, overload
 
 import deprecation
 
@@ -260,63 +260,92 @@ class Framework(metaclass=_Validator):
         clone.update(**kwargs)
         return clone
 
-    def _extra_references(self) -> tuple[str, ...]:
-        """References that depend on the framework's parameters (not its models).
+    def _model_references(self, name: str, model: Any) -> tuple[str, ...]:
+        """Return the references for the model set on the ``name`` parameter.
 
-        Override in subclasses whose citations depend on parameter values. The
-        default returns nothing.
+        Override in subclasses whose models are not :class:`Component` classes
+        (e.g. an astropy cosmology). The default uses the model's ``references``.
         """
-        return ()
+        return tuple(getattr(model, "references", ()))
 
-    def get_acknowledgments(self) -> list[str]:
+    @overload
+    def get_acknowledgments(self, flat: Literal[False] = False) -> dict[str, tuple[str, ...]]: ...
+
+    @overload
+    def get_acknowledgments(self, flat: Literal[True]) -> list[str]: ...
+
+    def get_acknowledgments(self, flat: bool = False) -> dict[str, tuple[str, ...]] | list[str]:
         """Get the references to cite for the current setup of the framework.
 
-        The list contains the reference for hmf itself, the framework's own
-        ``references`` (including those of parent framework classes), references
-        that depend on the framework's parameters, the ``references`` of the
-        component model chosen for every ``*_model`` parameter, and those of any
-        sub-frameworks. Duplicates are removed, keeping the first occurrence.
+        The references are grouped by where they come from, in this order:
 
-        All references are gathered from the model *classes*, so this does not
-        compute any quantity.
+        - ``"hmf"``: the paper describing hmf itself.
+        - The framework's class name (e.g. ``"MassFunction"``): the framework's own
+          ``references``, including those of its parent framework classes. Only
+          present if there are any.
+        - Each ``*_model`` parameter (e.g. ``"hmf_model"``, ``"transfer_model"``):
+          the references of the model currently set on it. A model with nothing to
+          cite gives an empty tuple; a parameter set to ``None`` is left out.
+        - Each sub-framework, with its keys prefixed by the sub-framework's name
+          (e.g. ``"tracer.transfer_model"``).
+
+        The keys say which model each citation belongs to, not whether that model
+        was used in a quantity you computed. All references are read from the model
+        *classes*, so this does not compute anything.
+
+        Parameters
+        ----------
+        flat
+            If True, return a single list of all the references with duplicates
+            removed (keeping the first occurrence), e.g. for a paper's
+            bibliography.
 
         Returns
         -------
-        list of str
-            Formatted citations to include in a paper that uses this framework.
+        dict or list
+            A dict mapping each source to a tuple of formatted citations, or a flat
+            list of citations if ``flat`` is True.
 
         Examples
         --------
         >>> from hmf import MassFunction
-        >>> refs = MassFunction(hmf_model="Tinker08").get_acknowledgments()
+        >>> mf = MassFunction(hmf_model="Tinker08")
+        >>> by_model = mf.get_acknowledgments()
+        >>> bibliography = mf.get_acknowledgments(flat=True)
         """
-        refs = [HMF_REFERENCE]
-        self._collect_references(refs, seen=set())
-        return list(dict.fromkeys(refs))
+        refs = {"hmf": (HMF_REFERENCE,)}
+        self._collect_references(refs, prefix="", seen=set())
+        if flat:
+            return list(dict.fromkeys(ref for group in refs.values() for ref in group))
+        return refs
 
-    def _collect_references(self, refs: list[str], seen: set[int]) -> None:
-        """Append the references of this framework and its sub-frameworks to refs."""
+    def _collect_references(
+        self, refs: dict[str, tuple[str, ...]], prefix: str, seen: set[int]
+    ) -> None:
+        """Add the references of this framework and its sub-frameworks to refs."""
         if id(self) in seen:
             return
         seen.add(id(self))
 
-        for kls in reversed(type(self).__mro__):
-            refs.extend(kls.__dict__.get("references", ()))
-
-        refs.extend(self._extra_references())
+        own = tuple(
+            ref
+            for kls in reversed(type(self).__mro__)
+            for ref in kls.__dict__.get("references", ())
+        )
+        if own:
+            refs[prefix.rstrip(".") or type(self).__name__] = own
 
         for name in getattr(self, "_" + self.__class__.__name__ + "__recalc_par_prop"):
             if not name.endswith("_model"):
                 continue
             model = getattr(self, name)
-            if model is None:
-                continue
-            refs.extend(getattr(model, "references", ()))
+            if model is not None:
+                refs[prefix + name] = self._model_references(name, model)
 
         for name in dir(type(self)):
             prop = getattr(type(self), name, None)
             if isinstance(prop, property) and getattr(prop.fget, "_is_subframework", False):
-                getattr(self, name)._collect_references(refs, seen)
+                getattr(self, name)._collect_references(refs, prefix + name + ".", seen)
 
     @classmethod
     def get_all_parameter_names(cls):

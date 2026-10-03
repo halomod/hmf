@@ -25,22 +25,48 @@ def mf():
 def test_default_contents(mf):
     acks = mf.get_acknowledgments()
 
-    assert acks[0] == HMF_REFERENCE
-    assert len(acks) == len(set(acks))
-    assert any(ref.startswith("Tinker, J., et al., 2008. ApJ 688") for ref in acks)
-    assert refs.EH98 in acks
-    for ref in (*mf.growth_model.references, *mf.filter_model.references):
-        assert ref in acks
+    assert next(iter(acks)) == "hmf"
+    assert acks["hmf"] == (HMF_REFERENCE,)
+    assert len(acks["hmf_model"]) == 1
+    assert acks["hmf_model"][0].startswith("Tinker, J., et al., 2008. ApJ 688")
+    assert acks["transfer_model"] == (refs.EH98,)
+    assert acks["growth_model"] == mf.growth_model.references
+    assert acks["filter_model"] == mf.filter_model.references
 
     # The default cosmology (Planck18) carries its own reference.
-    assert any("Planck" in ref for ref in acks)
+    assert len(acks["cosmo_model"]) == 1
+    assert "Planck" in acks["cosmo_model"][0]
+
+    # No mass definition is set, so there is nothing to cite for it.
+    assert "mdef_model" not in acks
+
+
+def test_model_without_references_gives_empty_tuple(mf):
+    assert mf.clone(filter_model="TopHat").get_acknowledgments()["filter_model"] == ()
+
+
+def test_subframework_keys_are_prefixed():
+    assert _Outer().get_acknowledgments() == {
+        "hmf": (HMF_REFERENCE,),
+        "inner": ("Inner, I., 2000.",),
+        "inner.sub_model": ("Sub, S., 2010.",),
+    }
+
+
+def test_flat_list(mf):
+    acks = mf.get_acknowledgments()
+    flat = mf.get_acknowledgments(flat=True)
+
+    assert flat[0] == HMF_REFERENCE
+    assert len(flat) == len(set(flat))
+    assert set(flat) == {ref for group in acks.values() for ref in group}
 
 
 def test_default_massfunction_has_no_duplicates():
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
         mf = MassFunction()
-    acks = mf.get_acknowledgments()
+    acks = mf.get_acknowledgments(flat=True)
     assert acks[0] == HMF_REFERENCE
     assert len(acks) == len(set(acks))
     assert all(ref in acks for ref in mf.hmf_model.references)
@@ -52,22 +78,20 @@ def test_hmf_model_changes_fit_reference(mf):
     (tinker,) = ff.Tinker08.references
     (st,) = ff.ST.references
 
-    other = mf.clone(hmf_model="ST")
-    assert st in other.get_acknowledgments()
-    assert tinker not in other.get_acknowledgments()
-    assert tinker in mf.get_acknowledgments()
+    assert mf.clone(hmf_model="ST").get_acknowledgments()["hmf_model"] == (st,)
+    assert mf.get_acknowledgments()["hmf_model"] == (tinker,)
 
 
 def test_transfer_model_changes_reference(mf):
     other = mf.clone(transfer_model="BBKS")
-    assert refs.BBKS86 in other.get_acknowledgments()
-    assert refs.EH98 not in other.get_acknowledgments()
+    assert other.get_acknowledgments()["transfer_model"] == (refs.BBKS86,)
+    assert refs.EH98 not in other.get_acknowledgments(flat=True)
 
 
 def test_halofit_not_cited():
     # HALOFIT is only used for the non-linear power spectrum, which the
     # mass function never needs, so it is cited in those docstrings instead.
-    acks = Transfer(transfer_model="EH").get_acknowledgments()
+    acks = Transfer(transfer_model="EH").get_acknowledgments(flat=True)
     assert not any("Smith, R. E." in ref or "Takahashi, R." in ref for ref in acks)
 
 
@@ -100,7 +124,7 @@ def test_does_not_run_camb(monkeypatch):
     monkeypatch.setattr(camb, "get_transfer_functions", fail)
     monkeypatch.setattr(camb, "get_results", fail)
 
-    assert refs.CAMB in mf.get_acknowledgments()
+    assert mf.get_acknowledgments()["transfer_model"] == (refs.CAMB,)
 
 
 def test_user_component_references(mf):
@@ -108,9 +132,8 @@ def test_user_component_references(mf):
         references: ClassVar[tuple[str, ...]] = ("Me, A., 2026. Nowhere 1, 1.",)
 
     acks = mf.clone(hmf_model=MyFit).get_acknowledgments()
-    assert "Me, A., 2026. Nowhere 1, 1." in acks
     # A subclass's own references replace those it would inherit.
-    assert ff.PS.references[0] not in acks
+    assert acks["hmf_model"] == ("Me, A., 2026. Nowhere 1, 1.",)
 
 
 @pytest.mark.parametrize("name", sorted(ff.BaseFittingFunction.get_models()))
@@ -132,15 +155,15 @@ def test_framework_references_include_parents():
         references: ClassVar[tuple[str, ...]] = ("Child, C., 2020.",)
 
     acks = Child().get_acknowledgments()
-    assert acks[0] == HMF_REFERENCE
-    assert "Child, C., 2020." in acks
+    assert list(acks)[:2] == ["hmf", "Child"]
+    assert acks["Child"] == ("Child, C., 2020.",)
 
 
 def test_custom_cosmology_without_reference():
     from astropy.cosmology import FlatLambdaCDM
 
     acks = Cosmology(cosmo_model=FlatLambdaCDM(H0=70, Om0=0.3)).get_acknowledgments()
-    assert acks == [HMF_REFERENCE]
+    assert acks == {"hmf": (HMF_REFERENCE,), "cosmo_model": ()}
 
 
 class _SubComponent(Component):
@@ -172,7 +195,7 @@ class _Outer(Framework):
 
 
 def test_subframework_references():
-    acks = _Outer().get_acknowledgments()
+    acks = _Outer().get_acknowledgments(flat=True)
     assert acks == [HMF_REFERENCE, "Inner, I., 2000.", "Sub, S., 2010."]
 
 
@@ -189,8 +212,13 @@ class _Shared(_Outer):
 
 
 def test_shared_subframework_visited_once():
-    acks = _Shared().get_acknowledgments()
-    assert acks == [HMF_REFERENCE, "Inner, I., 2000.", "Sub, S., 2010."]
+    # Sub-frameworks are visited in alphabetical order, so the shared one is
+    # listed once, under the first name.
+    assert _Shared().get_acknowledgments() == {
+        "hmf": (HMF_REFERENCE,),
+        "also_inner": ("Inner, I., 2000.",),
+        "also_inner.sub_model": ("Sub, S., 2010.",),
+    }
 
 
 def test_component_without_references():
@@ -198,7 +226,11 @@ def test_component_without_references():
         pass
 
     assert NoRefs.references == ()
-    assert _Inner(sub_model=NoRefs).get_acknowledgments() == [HMF_REFERENCE, "Inner, I., 2000."]
+    assert _Inner(sub_model=NoRefs).get_acknowledgments() == {
+        "hmf": (HMF_REFERENCE,),
+        "_Inner": ("Inner, I., 2000.",),
+        "sub_model": (),
+    }
 
 
 # Generic methods or user-supplied data, which have nothing to cite.
