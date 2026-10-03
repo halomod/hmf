@@ -2,6 +2,7 @@
 
 import copy
 import logging
+import re
 import sys
 import warnings
 from typing import Any, ClassVar
@@ -350,6 +351,6 @@ class Framework(metaclass=_Validator):
                     break
 
             docs += "\n    ".join(objdoc) + "\n\n"
-            while "\n\n\n" in docs:
-                docs = docs.replace("\n\n\n", "\n\n")
+
+        docs = re.sub(r"\n{3,}", "\n\n", docs)
         print(docs[:-1])  # noqa
