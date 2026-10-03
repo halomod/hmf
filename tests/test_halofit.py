@@ -123,7 +123,8 @@ def _get_spec_reference(
 
     Kept as the reference that the faster implementation must reproduce. With
     ``exact_root=False`` it is verbatim. The old Nelder-Mead stops once
-    ``|ln sigma^2| < ~1e-4``, leaving ``ln k_nl`` off by up to a few 1e-4; with
+    ``|ln sigma^2| < ~1e-4``, leaving ``ln k_nl`` off by 1e-5 to a few 1e-3,
+    depending on the spectrum (e.g. 3e-3 for BBKS at z=3); with
     ``exact_root=True`` the root is instead solved to machine precision and only
     the (slow) spline derivatives are kept, isolating the derivative calculation.
     """
@@ -172,7 +173,7 @@ def test_nonlinear_power_matches_reference(monkeypatch, z, takahashi, kwargs):
     """The fast ``_get_spec`` reproduces the old algorithm.
 
     Against the old algorithm with an exactly-solved root the agreement is ~1e-10.
-    Against the verbatim old code it is limited to <1e-3 by the old minimiser's
+    Against the verbatim old code it is limited to <5e-3 by the old minimiser's
     tolerance on the non-linear scale (the new root is the more accurate one).
     """
     # ``hmf.density_field.halofit`` is shadowed by the function of the same name.
@@ -190,7 +191,7 @@ def test_nonlinear_power_matches_reference(monkeypatch, z, takahashi, kwargs):
         return hmf_halofit(t.k, t.delta_k, z=z, cosmo=t.cosmo, takahashi=takahashi)
 
     np.testing.assert_allclose(new, run_with(exact_root=True), rtol=1e-8, atol=0)
-    np.testing.assert_allclose(new, run_with(exact_root=False), rtol=1e-3, atol=0)
+    np.testing.assert_allclose(new, run_with(exact_root=False), rtol=5e-3, atol=0)
 
 
 @pytest.mark.parametrize("z", [0.0, 1.0, 3.0])
