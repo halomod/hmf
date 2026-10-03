@@ -30,10 +30,46 @@ import warnings
 
 import numpy as np
 from scipy.integrate import simpson as _simps
-from scipy.interpolate import InterpolatedUnivariateSpline as Spline
-from scipy.optimize import minimize
+from scipy.optimize import brentq
 
 from ..cosmology.cosmo import Cosmology as CosmologyClass
+
+
+def _sigma2_moments(
+    lnr: np.ndarray, k: np.ndarray, delta_k: np.ndarray, nmax: int = 2
+) -> np.ndarray:
+    r"""
+    Gaussian-smoothed variance and its moments, vectorised over radius.
+
+    Computes, for every :math:`R = e^{\ln R}` at once,
+
+    .. math::
+
+        s_n(R) = \int \Delta^2(k)\, (kR)^{2n}\, e^{-(kR)^2}\, \mathrm{d}\ln k,
+        \qquad n = 0, \ldots, n_\mathrm{max},
+
+    so that :math:`s_0 = \sigma^2(R)`.
+
+    Parameters
+    ----------
+    lnr : array_like
+        Natural log of the smoothing radii [Mpc/h], any shape.
+    k : array_like
+        Wavenumbers [h/Mpc], 1D.
+    delta_k : array_like
+        Dimensionless power spectrum at `k`.
+    nmax : int, optional
+        Highest moment to compute.
+
+    Returns
+    -------
+    moments : np.ndarray
+        Array of shape ``(nmax + 1,) + np.shape(lnr)`` holding :math:`s_0, \ldots,
+        s_{n_\mathrm{max}}`.
+    """
+    x = (k * np.exp(np.asarray(lnr))[..., None]) ** 2
+    integrands = delta_k * np.exp(-x) * np.stack([x**n for n in range(nmax + 1)])
+    return _simps(integrands, x=np.log(k), axis=-1)
 
 
 def _get_spec(k: np.ndarray, delta_k: np.ndarray, sigma_8=None) -> tuple[float, float, float]:
@@ -61,6 +97,12 @@ def _get_spec(k: np.ndarray, delta_k: np.ndarray, sigma_8=None) -> tuple[float, 
         C = -\frac{\mathrm{d}^2\ln\sigma^2}{\mathrm{d}(\ln R)^2}
             \bigg|_{R_\mathrm{nl}}
 
+    Since σ²(R) decreases monotonically with R, R_nl is bracketed by tabulating
+    σ²(R) on a coarse grid (in a single vectorised integration) and then refined
+    with a root-find (:func:`scipy.optimize.brentq`) on ln σ²(ln R). The derivatives are
+    evaluated analytically from the moments of the Gaussian window (see
+    :func:`_sigma2_moments`), rather than by numerical differentiation.
+
     Parameters
     ----------
     k : array_like
@@ -82,37 +124,39 @@ def _get_spec(k: np.ndarray, delta_k: np.ndarray, sigma_8=None) -> tuple[float, 
 
     """
 
-    # Initialize sigma spline
-    def get_log_sigma2(lnr):
-        R = np.exp(lnr)
-        integrand = delta_k * np.exp(-((k * R) ** 2))
-        return np.log(_simps(integrand, x=np.log(k)))
+    def log_sigma2(lnr):
+        return np.log(_sigma2_moments(lnr, k, delta_k, nmax=0)[0])
 
-    def get_sigma_abs(lnr):
-        return np.abs(get_log_sigma2(lnr))
+    # Tabulate ln sigma^2 on a coarse grid of R covering the scales probed by the
+    # k-range (with some margin, since the Gaussian window still has support a little
+    # beyond 1/k). sigma^2 decreases monotonically with R, so the sign change of
+    # ln sigma^2 brackets R_nl, which is then refined with a root-find.
+    lnr_grid = np.arange(-np.log(k.max()) - 2.0, -np.log(k.min()) + 2.0, 1.0)
+    with np.errstate(divide="ignore"):
+        lnsig_grid = log_sigma2(lnr_grid)
 
-    res = minimize(get_sigma_abs, x0=[1.0], options={"xatol": np.log(1.1)}, method="Nelder-Mead")
-
-    if not res.success:
+    crossing = np.flatnonzero((lnsig_grid[:-1] > 0) & (lnsig_grid[1:] <= 0))
+    if crossing.size:
+        i = crossing[0]
+        lnrnl = brentq(log_sigma2, lnr_grid[i], lnr_grid[i + 1], xtol=1e-10)
+    else:
+        lnrnl = lnr_grid[np.argmin(np.abs(lnsig_grid))]
         warnings.warn(
-            f"Could not determine non-linear scale! Failed with error: {res.message}. "
-            f"Continuing with best-fit non-linear scale: r_nl={np.exp(res.x)}, with "
-            f"log_sigma^2 = {res.fun}",
+            "Could not determine non-linear scale: sigma(R) does not cross unity for "
+            f"R in [{np.exp(lnr_grid[0]):.3g}, {np.exp(lnr_grid[-1]):.3g}] Mpc/h. "
+            f"Continuing with r_nl={np.exp(lnrnl):.3g}; HALOFIT results will be unreliable.",
             stacklevel=2,
         )
 
-    rnl = np.exp(res.x)
-    knl = 1 / rnl
-
-    lnr = np.linspace(np.log(0.75 * rnl), np.log(1.25 * rnl), 20)
-    lnsig = [get_log_sigma2(r) for r in lnr]
-    sig_of_r = Spline(lnr, lnsig, k=5)
-    dev1, dev2 = sig_of_r.derivatives(np.log(rnl))[1:3]
+    s0, s1, s2 = _sigma2_moments(lnrnl, k, delta_k)
+    # d ln(s0) / d ln R and d^2 ln(s0) / d (ln R)^2, using ds_n/dlnR = 2n s_n - 2 s_{n+1}.
+    dev1 = -2 * s1 / s0
+    dev2 = 4 * (s2 - s1) / s0 - dev1**2
 
     n_eff = -dev1 - 3.0
     n_curv = -dev2
 
-    return knl, n_eff, n_curv
+    return 1 / np.exp(lnrnl), n_eff, n_curv
 
 
 def halofit(k, delta_k, *, sigma_8=None, z=0, cosmo=None, takahashi=True):
@@ -130,10 +174,12 @@ def halofit(k, delta_k, *, sigma_8=None, z=0, cosmo=None, takahashi=True):
         at all.
     z : float
         Redshift
-    cosmo : :class:`hmf.cosmo.Cosmology` instance, optional
-        An instance of either the `Cosmology` class provided in the `hmf` package, or
-        any subclass of `FLRW` from `astropy`. Default is the default cosmology from
-        the :mod:`hmf.cosmo` module.
+    cosmo : :class:`astropy.cosmology.FLRW` or :class:`hmf.cosmology.Cosmology`, optional
+        The cosmology used for the redshift-dependent density parameters. Either any
+        astropy ``FLRW`` instance, or an hmf :class:`~hmf.cosmology.Cosmology`
+        framework (in which case its :attr:`~hmf.cosmology.Cosmology.cosmo` is used,
+        including any ``cosmo_params``). Default is the default cosmology of the
+        :class:`~hmf.cosmology.Cosmology` framework (Planck18).
     takahashi : bool, optional
         Whether to use updated parameters from Takahashi+2012. Otherwise use
         original from Smith+2003.
@@ -160,7 +206,9 @@ def halofit(k, delta_k, *, sigma_8=None, z=0, cosmo=None, takahashi=True):
         warnings.warn("sigma_8 is not used any more, and will be removed in v4", stacklevel=2)
 
     if cosmo is None:
-        cosmo = CosmologyClass()
+        cosmo = CosmologyClass().cosmo
+    elif isinstance(cosmo, CosmologyClass):
+        cosmo = cosmo.cosmo
 
     # Get physical parameters
     rknl, neff, rncur = _get_spec(k, delta_k)
