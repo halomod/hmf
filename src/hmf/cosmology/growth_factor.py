@@ -41,7 +41,7 @@ from .._internals import _references as refs
 from .._internals._framework import Component as Cmpt
 from .._internals._framework import pluggable
 from .._internals._utils import inherit_docstrings as _inherit
-from .._internals._utils import resolve_matter_species
+from .._internals._utils import resolve_matter_species, set_camb_cosmology
 
 try:
     import camb
@@ -931,17 +931,7 @@ if HAVE_CAMB:
                     "If using CAMB, the CMB temperature must be set explicitly in the cosmology."
                 )
 
-            p.set_cosmology(
-                H0=cosmo.H0.value,
-                ombh2=cosmo.Ob0 * cosmo.h**2,
-                omch2=(cosmo.Om0 - cosmo.Ob0) * cosmo.h**2,
-                mnu=sum(cosmo.m_nu.value),
-                neutrino_hierarchy="degenerate",
-                omk=cosmo.Ok0,
-                nnu=cosmo.Neff,
-                standard_neutrino_neff=cosmo.Neff,
-                TCMB=cosmo.Tcmb0.value,
-            )
+            set_camb_cosmology(p, cosmo)
 
             p.WantTransfer = True
 

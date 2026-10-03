@@ -78,7 +78,7 @@ New tests are in `test_physical_transfer.py`.
 | BBKS | `test_bbks_sugiyama` (non-physical). | T → 1, monotonic. With zero baryons it matches the EH98 shape to 10%. | added |
 | BBKS Liddle baryons | — | The code uses √(Ω_b h); the docstring and Sugiyama (1995) use √(2h) (B11). | suspected bug (no test) |
 | BondEfs | None. | T → 1, monotonic. | added |
-| CAMB | Regression against stored data. Neutrino-species tests are physical: P_tot < P_cb, and they agree for massless neutrinos. | EH agreement to 6% in P(k). | existing + added |
+| CAMB | Regression against stored data. Neutrino-species tests are physical: P_tot < P_cb, and they agree for massless neutrinos. | EH agreement to 6% in P(k). Each massive species in `m_nu` reaches CAMB: 3 x 0.1 eV matches CAMB run with three massive species (and differs from one 0.3 eV species by >1%), split masses match CAMB's normal hierarchy, and Neff and the mass sum are conserved. | existing + added |
 | FromFile / FromArray | — | **None possible:** these are user-supplied tables. FromArray is used with T = 1 to build the self-similar tests. | none possible |
 | Transfer: σ8 normalisation | `test_sigma8z`: σ(8) = σ8. `test_sigma_8_species_*`. | σ(8) = σ8 for a power law (`test_physical_sigma.py`). | existing + added |
 | Transfer: P(k) | — | P ∝ k^{n_s} on large scales. P(z) = D(z)² P(0). | added |
@@ -101,7 +101,7 @@ New tests are in `test_physical_growth.py`.
 | Heath77GrowthFactor | Agrees with ODE (D). | EdS (D = a, f = 1). Its growth rate in open universes fails (B7). | added / exposes bug |
 | GenMFGrowth | Within 5% of ODE (an approximation). | EdS, Linder, f = dlnD/dlna in ΛCDM. Its growth rate is NaN in open universes (B8). | added / exposes bug |
 | Carroll1992 | Within 5% of ODE. | EdS exact. The Lahav growth rate agrees with ODE to 1%. | added |
-| CambGrowth | Linder (ΛCDM). Neutrino-species bounds. | Its growth rate for wCDM goes through the ODE, which fails (B4). | existing |
+| CambGrowth | Linder (ΛCDM). Neutrino-species bounds. 3 x 0.1 eV growth matches CAMB with three massive species. | Its growth rate for wCDM goes through the ODE, which fails (B4). | existing |
 | FromFile / FromArray | — | **None possible:** user-supplied tables. | none possible |
 | D(z=0) = 1 | — | **None needed:** this holds by construction (D⁺/D⁺(0)) for every model, so a test would only repeat the code. | none possible |
 
