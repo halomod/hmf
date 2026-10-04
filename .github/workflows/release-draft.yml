@@ -1,6 +1,11 @@
 name: Update Draft Release
 
-on: push
+# Only main: release-drafter points the draft release at the ref of the triggering
+# push, so a push to any other branch would retarget the next release at that branch.
+on:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: write
