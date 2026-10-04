@@ -62,7 +62,7 @@ def cosmology_key(cosmo: FLRW) -> tuple[Any, ...]:
         tuples of floats, and ``(value, unit string)`` pairs for Quantities.
     """
     params = getattr(cosmo, "parameters", None)
-    if not isinstance(params, Mapping):  # astropy < 6.1
+    if not isinstance(params, Mapping):  # pragma: no cover - astropy < 6.1
         params = {name: getattr(cosmo, name) for name in type(cosmo).__parameters__}
     cls = type(cosmo)
     return (
