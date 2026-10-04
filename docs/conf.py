@@ -11,6 +11,8 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 
+import os
+import shutil
 import sys
 import time
 from importlib.metadata import version as _version
@@ -20,6 +22,18 @@ from pathlib import Path
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 sys.path.insert(0, str(Path("../").resolve()))
+
+# nbsphinx needs the pandoc executable. If it isn't installed on the system, use the
+# one bundled with pypandoc-binary (in the docs dependency group).
+if shutil.which("pandoc") is None:
+    try:
+        import pypandoc
+
+        os.environ["PATH"] = (
+            str(Path(pypandoc.get_pandoc_path()).parent) + os.pathsep + os.environ["PATH"]
+        )
+    except (ImportError, OSError):
+        pass
 
 # -- General configuration -----------------------------------------------------
 
@@ -69,6 +83,10 @@ numpydoc_show_class_members = False
 
 autosummary_generate = True
 numpydoc_show_class_members = False
+
+# Prefix section labels with their document, so that pages with the same title (e.g.
+# growth_factor.FromFile and transfer_models.FromFile) don't clash.
+autosectionlabel_prefix_document = True
 
 
 # Add any paths that contain templates here, relative to this directory.
@@ -170,7 +188,7 @@ html_theme = "furo"
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ["_static"]
+html_static_path = []
 
 # If not '', a 'Last updated on:' timestamp is inserted at every page bottom,
 # using the given strftime format.
@@ -299,5 +317,3 @@ intersphinx_mapping = {
     "astropy": ("https://docs.astropy.org/en/stable/", None),
 }
 
-
-mathjax_path = "http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"

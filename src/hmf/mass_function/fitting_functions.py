@@ -381,7 +381,7 @@ class BaseFittingFunction(_framework.Component):
         r"""The function :math:`f(\sigma)\equiv\nu f(\nu)`."""
 
 
-# For backwards compatibility, alias FittingFunction to BaseFittingFunction.
+#: Alias of :class:`BaseFittingFunction`, kept for backwards compatibility.
 FittingFunction = BaseFittingFunction
 
 _SECTION_HEADER = re.compile(r"^([A-Z][A-Za-z ]*)\n-+[ \t]*$", flags=re.MULTILINE)

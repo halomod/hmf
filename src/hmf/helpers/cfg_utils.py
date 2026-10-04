@@ -1,9 +1,11 @@
 """Utilities for interacting with hmf TOML configs."""
 
-from collections.abc import Sequence
-from datetime import UTC, datetime
+from collections.abc import Mapping, Sequence
+from datetime import UTC, date, datetime, time
 from inspect import signature
+from typing import Any
 
+import numpy as np
 from astropy.units import Quantity
 
 from hmf._internals._framework import Framework
@@ -89,3 +91,31 @@ def framework_to_dict(obj: Framework, plugins: Sequence[str] = ()) -> dict:
         out["plugins"] = plugins
 
     return out
+
+
+def to_toml_compatible(obj: Any) -> Any:
+    """Convert a config (e.g. from :func:`framework_to_dict`) to TOML-writable types.
+
+    TOML has no null, so ``None`` values in tables are dropped, and reload as the
+    default. NumPy scalars and arrays become Python scalars and lists. Any other
+    object that TOML can not represent is written as its ``str``.
+
+    Parameters
+    ----------
+    obj
+        The config, or a value in it.
+
+    Returns
+    -------
+    Any
+        A copy of ``obj`` that ``tomli_w`` can write.
+    """
+    if isinstance(obj, Mapping):
+        return {str(k): to_toml_compatible(v) for k, v in obj.items() if v is not None}
+    if isinstance(obj, np.ndarray | np.generic):
+        return to_toml_compatible(obj.tolist())
+    if isinstance(obj, list | tuple):
+        return [to_toml_compatible(v) for v in obj]
+    if isinstance(obj, str | bool | int | float | date | time):
+        return obj
+    return str(obj)

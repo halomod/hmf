@@ -46,7 +46,7 @@ Here the kind is the *name* of the class defining this component (see above sect
 for how to determine what kinds are available).
 
 I get a warning that ``matter_species`` was not set. What should I do?
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 With massive neutrinos (as in the default ``Planck18`` cosmology), the CAMB-based models
 can compute either the CDM+baryon field (``"cb"``, now the default) or the total matter
 field including neutrinos (``"tot"``, the default in earlier versions). ``"cb"`` is right

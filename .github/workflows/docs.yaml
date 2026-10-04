@@ -1,0 +1,31 @@
+name: Docs
+
+# Build the docs on every push and on pull requests into main, so that a broken docs
+# build is caught before it reaches Read the Docs. Notebooks are not executed here.
+on:
+  push:
+  pull_request:
+    branches:
+      - 'main'
+
+jobs:
+  docs:
+    name: Build Docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Install
+        # The same environment as .readthedocs.yml. pandoc comes from pypandoc-binary.
+        run: uv sync --locked --group docs
+      - name: Build Docs
+        run: |
+          uv run sphinx-build -b html -D nbsphinx_execute=never -W --keep-going docs docs/_build/html
