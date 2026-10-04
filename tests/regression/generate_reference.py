@@ -575,8 +575,10 @@ def main() -> None:
         harness = _load_harness()
         print("Half steps:")
         half, _, _ = compute(DLNK / 2, DLOG10M / 2)
-        print("Half steps, mass step halved again, for n(>M):")
-        half_fine, _, _ = compute(DLNK / 2, DLOG10M / 4)
+        # The mass step halved again, for n(>M). dn/dM converges in k to ~1e-7, so
+        # this keeps the base dlnk: (dlnk/2, dlog10m/4) needs too much memory.
+        print("Mass step quartered, for n(>M):")
+        half_fine, _, _ = compute(DLNK, DLOG10M / 4)
         print("Wider k range:")
         wide, _, _ = compute(DLNK, DLOG10M, LNK_RANGE_WIDE)
         print("Wider k range, mass step halved, for n(>M):")
@@ -585,7 +587,9 @@ def main() -> None:
             "half_steps": {
                 "dlnk": DLNK / 2,
                 "dlog10m": DLOG10M / 2,
-                "note": "n(>M) is extrapolated from dlog10m/2 and dlog10m/4 here.",
+                "note": (
+                    "n(>M) is extrapolated from (dlnk/2, dlog10m/2) and (dlnk, dlog10m/4) here."
+                ),
                 "quantities": convergence(arrays, richardson_ngtm(half, half_fine), cases, harness),
             },
             "wider_k_range": {
