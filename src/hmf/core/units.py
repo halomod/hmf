@@ -379,6 +379,11 @@ R = TypeVar("R")
 S = TypeVar("S")
 
 
+# Bound once, for the boundary's fast path.
+_Quantity: Any = u.Quantity
+_view: Callable[..., Any] = np.ndarray.view
+
+
 def _quantity_from_array(out: Any, unit: u.UnitBase, where: str) -> u.Quantity:
     """Attach ``unit`` to a kernel output without copying it.
 
@@ -419,6 +424,25 @@ def _check_boundary_units(
     for unit in returns if isinstance(returns, tuple) else (returns,):
         if unit is not None and not isinstance(unit, u.UnitBase):
             raise TypeError("unit_boundary: each unit in 'returns' must be an astropy unit.")
+
+
+def _boundary_specs(
+    fn: Callable[..., Any], inputs: Mapping[str, u.UnitBase], where: str
+) -> list[tuple[str, int | None, u.UnitBase]]:
+    """``(name, position, unit)`` of each argument in ``inputs`` of the method ``fn``.
+
+    The position excludes ``self``, and is None for a keyword-only argument.
+    """
+    params = list(inspect.signature(fn).parameters.values())[1:]  # drop self
+    names = [p.name for p in params]
+    specs: list[tuple[str, int | None, u.UnitBase]] = []
+    for name, unit in inputs.items():
+        if name not in names:
+            raise TypeError(f"unit_boundary: {where} has no argument {name!r}.")
+        param = params[names.index(name)]
+        position = names.index(name) if param.kind is not param.KEYWORD_ONLY else None
+        specs.append((name, position, unit))
+    return specs
 
 
 def unit_boundary(
@@ -480,19 +504,9 @@ def unit_boundary(
 
     def decorator(fn: Callable[Concatenate[S, P], R]) -> Callable[Concatenate[S, P], R]:
         where = f"{fn.__qualname__}()"
-        params = list(inspect.signature(fn).parameters.values())[1:]  # drop self
-        names = [p.name for p in params]
-        # (name, position or None if keyword-only, canonical unit)
-        specs: list[tuple[str, int | None, u.UnitBase]] = []
-        for name, unit in inputs.items():
-            if name not in names:
-                raise TypeError(f"unit_boundary: {where} has no argument {name!r}.")
-            param = params[names.index(name)]
-            position = names.index(name) if param.kind is not param.KEYWORD_ONLY else None
-            specs.append((name, position, unit))
+        specs = _boundary_specs(fn, inputs, where)
         # The arguments that may be passed by position, as (name, position, unit).
         positional = tuple((n, p, unit) for n, p, unit in specs if p is not None)
-        returns_tuple = isinstance(returns, tuple)
 
         def convert(instance: Any, name: str, x: Any, unit: u.UnitBase) -> Any:
             if isinstance(x, u.Quantity):
@@ -511,32 +525,47 @@ def unit_boundary(
             raise UnitBoundaryError(_missing_unit_message(where, name, x, unit))
 
         # This wrapper is the boundary's fixed cost, budgeted at 2 µs per call and
-        # gated in benchmarks/test_gates.py: keep the common path free of work.
+        # gated in benchmarks/test_gates.py, so the common case (a plain Quantity
+        # in exactly the canonical unit, and a plain ndarray out) is inlined; anything
+        # else goes through convert() and _quantity_from_array().
+        single_return = isinstance(returns, u.UnitBase)
+
         @functools.wraps(fn)
         def wrapper(self: S, /, *args: P.args, **kwargs: P.kwargs) -> R:
             if args:
                 n_args = len(args)
-                new_args = None
                 for name, position, unit in positional:
                     if position < n_args:
-                        if new_args is None:
-                            new_args = list(args)
-                        new_args[position] = convert(self, name, args[position], unit)
-                if new_args is not None:
-                    args = tuple(new_args)  # type: ignore[assignment]
+                        x: Any = args[position]
+                        if type(x) is _Quantity and x._unit is unit:
+                            x = _view(x, np.ndarray)
+                        else:
+                            x = convert(self, name, x, unit)
+                        if position == 0:
+                            args = (x, *args[1:])  # type: ignore[assignment]
+                        else:
+                            args = (*args[:position], x, *args[position + 1 :])  # type: ignore[assignment]
             if kwargs:
                 for name, _, unit in specs:
                     if name in kwargs:
-                        kwargs[name] = convert(self, name, kwargs[name], unit)
+                        x = kwargs[name]
+                        if type(x) is _Quantity and x._unit is unit:
+                            kwargs[name] = _view(x, np.ndarray)
+                        else:
+                            kwargs[name] = convert(self, name, x, unit)
             out: Any = fn(self, *args, **kwargs)
+            if single_return:
+                if type(out) is np.ndarray:
+                    q = _view(out, _Quantity)
+                    q._unit = returns
+                    return q  # type: ignore[no-any-return]
+                return _quantity_from_array(out, returns, where)  # type: ignore[no-any-return]
             if returns is None:
                 return out  # type: ignore[no-any-return]
-            if returns_tuple:
-                return tuple(  # type: ignore[return-value]
-                    o if r is None else _quantity_from_array(o, r, where)
-                    for o, r in zip(out, returns, strict=True)
-                )
-            return _quantity_from_array(out, returns, where)  # type: ignore[no-any-return]
+            return tuple(  # type: ignore[return-value]
+                o if r is None else _quantity_from_array(o, r, where)
+                for o, r in zip(out, returns, strict=True)
+            )
 
         wrapper.__unit_boundary__ = {"inputs": dict(inputs), "returns": returns}  # type: ignore[attr-defined]
         return wrapper

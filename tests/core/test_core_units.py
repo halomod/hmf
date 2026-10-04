@@ -345,3 +345,27 @@ def test_overhead_sanity(toy):
     n = 2000
     per_call = min(timeit.repeat(lambda: toy.mass(m, z=0.0), number=n, repeat=5)) / n
     assert per_call < 50e-6
+
+
+class _SubQuantity(u.Quantity):
+    """A Quantity subclass: not the exact type the boundary's fast path checks for."""
+
+
+@pytest.mark.parametrize("by_keyword", [False, True])
+def test_fast_and_general_paths_agree(toy, by_keyword):
+    """The inlined path (exact Quantity, canonical unit) and the general one give the
+    same plain-array input to the kernel, by position or by keyword.
+    """
+    m = np.logspace(10, 15, 7)
+    inputs = {
+        "canonical": m * Msun_h,  # fast path
+        "subclass": _SubQuantity(m, Msun_h),  # general path, no conversion
+        "physical": (m / toy.H0.to_value(H0_unit) * 100) * u.Msun,  # general, converted
+    }
+    for name, q in inputs.items():
+        out, _ = toy.raw(m=q) if by_keyword else toy.raw(q)
+        assert type(out) is np.ndarray, name
+        np.testing.assert_allclose(out, m, rtol=1e-14, err_msg=name)
+    # The input is viewed, not copied, on the fast path.
+    q = m * Msun_h
+    assert np.shares_memory(toy.raw(q)[0], q)
