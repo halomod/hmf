@@ -15,15 +15,15 @@ Inputs
 mass-definition object, only already-resolved physical inputs (the
 :class:`~hmf.core.stage.Stage` that computes the mass function resolves them):
 
-=============  ===================================================================
-``sigma``      :math:`\sigma(m, z)`; always required.
-``z``          redshift.
-``omega_m_z``  the matter density parameter at ``z``, :math:`\Omega_m(z)`.
-``delta_halo`` the halo overdensity relative to the **mean** density, :math:`\Delta_m`.
-``delta_c``    the critical overdensity for collapse, :math:`\delta_c`.
-``n_eff``      the effective spectral index at ``m``.
-``m``          the halo mass, in canonical Msun/h.
-=============  ===================================================================
+================  ===================================================================
+``sigma``         :math:`\sigma(m, z)`; always required.
+``z``             redshift.
+``omega_m_z``     the matter density parameter at ``z``, :math:`\Omega_m(z)`.
+``delta_halo``    the halo overdensity relative to the **mean** density, :math:`\Delta_m`.
+``delta_c``       the critical overdensity for collapse, :math:`\delta_c`.
+``n_eff``         the effective spectral index at ``m``.
+``m``             the halo mass, in canonical Msun/h.
+================  ===================================================================
 
 Each fit lists the ones it needs in :attr:`FittingFunction.requires`. All of them
 broadcast against each other.
