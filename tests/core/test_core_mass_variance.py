@@ -549,3 +549,41 @@ def test_against_v3(flt):
         s3, dlnss = old.sigma_and_dlnss_dlnm(r)
     np.testing.assert_allclose(mv.sigma(m), s3, rtol=1e-5)
     np.testing.assert_allclose(mv.dlnsigma_dlnm(m), dlnss / 2, rtol=2e-4)
+
+
+def test_tail_integral_kernel():
+    """A power-law tail integrates in closed form; divergent or zero terms are handled."""
+    from hmf.core._kernels.mass_variance import tail_integral
+
+    # int_{k_e}^inf k^3 P (kR)^-4 dlnk with k^3 P = k^(3+n), n = -3: k_e^0 x_e^-4 / 4.
+    got = tail_integral(1.0, -3.0, 10.0, ((1.0, -4.0),), high=True)
+    assert got == pytest.approx(1e-4 / 4, rel=1e-14)
+    # Low-k: int_0^{k_e} k^(3+n) dlnk with n = 1 is k3p_e / 4.
+    assert tail_integral(2.0, 1.0, 1e-3, ((1.0, 0.0),), high=False) == pytest.approx(0.5)
+    # Divergent terms give inf, unless their coefficient is 0.
+    assert tail_integral(1.0, 2.0, 10.0, ((1.0, -4.0),), high=True) == np.inf
+    assert tail_integral(1.0, 2.0, 10.0, ((0.0, -4.0),), high=True, oscillating=((0.0, -1.0),)) == 0
+    assert tail_integral(1.0, 2.0, 10.0, (), high=True, oscillating=((1.0, -1.0),)) == np.inf
+    # The oscillating bound is 2 a k3p x^(q-1) / omega.
+    got = tail_integral(1.0, -3.0, 10.0, (), high=True, oscillating=((1.0, -3.0),), omega=2.0)
+    assert got == pytest.approx(1e-4, rel=1e-14)
+
+
+def test_sharpk_tail_bounds():
+    tb = SharpK().tail_bounds()
+    assert tb.high_w2 == () and tb.high_wdw == () and tb.low_wdw == ()  # noqa: PT018
+    assert tb.low_w2 == ((1.0, 0.0),)
+
+
+def test_m_from_sigma_with_off_lattice_range():
+    """The default range need not sit on lattice nodes: the inside nodes are used."""
+    mv = _mv(accuracy=MassAccuracy(log10_m_min=0.011, log10_m_max=17.49))
+    m = np.logspace(0.03, 17.47, 50) * Msun_h
+    np.testing.assert_allclose(mv.m_from_sigma(mv.sigma(m)).value, m.value, rtol=1e-11)
+    with pytest.raises(ValueError, match="outside"):
+        mv.m_from_sigma(mv.sigma(10**0.015 * Msun_h))
+
+
+def test_non_positive_power_raises():
+    with pytest.raises(ValueError, match="finite and > 0"):
+        _mv(AnalyticPower(lambda k: np.where(k > 1e3, 0.0, k**-1.0))).sigma(1e12 * Msun_h)

@@ -106,3 +106,10 @@ def test_equality_and_hash():
     assert hash(a) == hash(b)
     assert a != _power_law_table(n=-1.4)
     assert a != _power_law_table(H0=70 * H0_unit)
+
+
+def test_h0_validated():
+    with pytest.raises(UnitBoundaryError, match="H0 must be a Quantity"):
+        _power_law_table(H0=70.0)
+    with pytest.raises(u.UnitConversionError, match="H0 must be in"):
+        _power_law_table(H0=70 * u.km)
