@@ -24,7 +24,7 @@ def test_neg_dc():
 
 
 def test_big_dc():
-    with pytest.raises(ValueError, match=r"delta_c must be < 10.0"):
+    with pytest.raises(ValueError, match=r"delta_c must be ≤ 10"):
         MassFunction(delta_c=20.0)
 
 
@@ -84,7 +84,7 @@ def test_nu_fn_accurate_between_grid_points():
 
 def test_nu():
     h = MassFunction(Mmin=8, Mmax=18, transfer_model="EH")
-    assert np.allclose(h.nu_fn(h.m), h.nu)
+    assert np.allclose(h.nu_fn(h.m), h.nu2)
 
 
 def test_sigma8z():
@@ -109,21 +109,23 @@ def test_sigma8z_matches_input_when_k_range_exceeds_sigma8_fallback_grid():
 
 def test_neff_at_collapse():
     h = MassFunction(Mmin=8, Mmax=18, transfer_model="EH")
-    assert np.allclose(h.n_eff_at_collapse, h.n_eff[np.argmin(np.abs(h.nu - 1.0))], rtol=0.05)
+    assert np.allclose(h.n_eff_at_collapse, h.n_eff[np.argmin(np.abs(h.nu2 - 1.0))], rtol=0.05)
 
 
+@pytest.mark.parametrize("filter_model", ["TopHat", "SharpKEllipsoid"])
 @pytest.mark.parametrize(("mmin", "mmax"), [(10, 13), (12, 13), (13.5, 15), (14.5, 16), (5, 10)])
-def test_neff_at_collapse_independent_of_mass_grid(mmin, mmax):
+def test_neff_at_collapse_independent_of_mass_grid(mmin, mmax, filter_model):
     """n_eff at nu=1 does not depend on the mass grid (regression).
 
     The reference is n_eff interpolated at nu=1 on a wide, fine grid, which brackets
     nu=1. It used to return the n_eff at the nearest grid edge (or extrapolate wildly)
     when nu=1 was off the grid: e.g. +2.08 for Mmin=13.5 against about -2.01.
     """
-    wide = MassFunction(Mmin=3, Mmax=18, dlog10m=0.01, transfer_model="EH")
-    ref = np.interp(0.0, np.log(wide.nu), wide.n_eff)
+    kw = {"transfer_model": "EH", "filter_model": filter_model}
+    wide = MassFunction(Mmin=5, Mmax=16, dlog10m=0.01, **kw)
+    ref = np.interp(0.0, np.log(wide.nu2), wide.n_eff)
 
-    h = MassFunction(Mmin=mmin, Mmax=mmax, transfer_model="EH")
+    h = MassFunction(Mmin=mmin, Mmax=mmax, **kw)
     assert h.n_eff_at_collapse == pytest.approx(ref, abs=1e-4)
     # Physically sensible: CDM n_eff at the nonlinear scale lies between -3 and -1.
     assert -3 < h.n_eff_at_collapse < -1

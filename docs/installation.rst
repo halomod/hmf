@@ -21,8 +21,9 @@ greater than v6.
 Using CLASS
 -----------
 To use the `CLASS <https://class-code.net>`_ Boltzmann code for the transfer function
-(``transfer_model="CLASS"``), you need its Python wrapper, ``classy``, which is not
-installed by default (nor by ``hmf[extra]``). Install it with::
+(``transfer_model="CLASS"``) or the growth factor (``growth_model="ClassGrowth"``),
+you need its Python wrapper, ``classy``, which is not installed by default (nor by
+``hmf[extra]``). Install it with::
 
     pip install hmf[class]
 

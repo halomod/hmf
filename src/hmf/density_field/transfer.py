@@ -13,6 +13,7 @@ import numpy as np
 from .._internals._cache import cached_quantity, parameter
 from .._internals._framework import get_mdl
 from ..cosmology import cosmo
+from ..cosmology import growth_factor as gf
 from ..density_field import filters
 from ..density_field import transfer_models as tm
 from .halofit import halofit as _hfit
@@ -93,16 +94,32 @@ class Transfer(cosmo.Cosmology):
     @override
     def validate(self):
         super().validate()
-        assert self.lnk_min < self.lnk_max, f"lnk_min >= lnk_max: {self.lnk_min}, {self.lnk_max}"
-        assert len(self.k) > 1, f"len(k) < 2: {len(self.k)}"
+        if not self.lnk_min < self.lnk_max:
+            raise ValueError(
+                f"lnk_min must be less than lnk_max, got lnk_min={self.lnk_min}, "
+                f"lnk_max={self.lnk_max}"
+            )
+        if len(self.k) < 2:
+            raise ValueError(
+                f"The k vector must have at least 2 entries, got {len(self.k)} from "
+                f"lnk_min={self.lnk_min}, lnk_max={self.lnk_max} and dlnk={self.dlnk}."
+            )
 
     @parameter("model")
     def growth_model(self, val):
         """
         The model to use to calculate the growth function/growth rate.
 
+        ``"ClassGrowth"`` needs the optional ``classy`` package
+        (``pip install hmf[class]``).
+
         :type: `hmf.growth_factor.BaseGrowthFactor` subclass
         """
+        if not gf.HAVE_CLASS and val in ["ClassGrowth", gf.ClassGrowth]:
+            raise ValueError(
+                "You cannot use the ClassGrowth growth model since classy isn't installed. "
+                "Install it with `pip install hmf[class]`."
+            )
         return get_mdl(val, "BaseGrowthFactor")
 
     @parameter("param")
@@ -237,17 +254,17 @@ class Transfer(cosmo.Cosmology):
         """
         Redshift.
 
-        Must be greater than 0.
+        Must be non-negative.
 
         :type: float
         """
         try:
             val = float(val)
         except ValueError as e:
-            raise ValueError("z must be a number (", val, ")") from e
+            raise ValueError(f"z must be a number, got {val!r}") from e
 
         if val < 0:
-            raise ValueError("z must be > 0 (", val, ")")
+            raise ValueError(f"z must be ≥ 0, got {val}")
 
         return val
 

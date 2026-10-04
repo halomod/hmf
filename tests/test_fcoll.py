@@ -24,10 +24,10 @@ def test_fcoll(getmf, model):
     num = getmf.rho_gtm / getmf.mean_density0
 
     if getmf.hmf_model.__name__ == "PS":
-        anl = fcoll_PS(np.sqrt(getmf.nu))
+        anl = fcoll_PS(getmf.peak_height)
 
     elif getmf.hmf_model.__name__ == "Peacock":
-        anl = fcoll_Peacock(np.sqrt(getmf.nu))
+        anl = fcoll_Peacock(getmf.peak_height)
     else:
         print(getmf.hmf_model.__name__)
 
@@ -77,7 +77,7 @@ class TestCumulants:
     def test_ranges_cut(self, peacock, Mmin, Mmax):
         peacock.update(Mmin=Mmin, Mmax=Mmax)
 
-        anl = fcoll_Peacock(np.sqrt(peacock.nu))
+        anl = fcoll_Peacock(peacock.peak_height)
         num = peacock.rho_gtm / peacock.mean_density0
         mask = np.logical_and(peacock.m > 10**10, peacock.m < 10**15)
         np.testing.assert_allclose(num[mask], anl[mask], rtol=0.4)

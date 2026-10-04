@@ -13,7 +13,12 @@ import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 from scipy.optimize import brentq
 
-from .._internals._cache import cached_quantity, parameter
+from .._internals._cache import (
+    _clear_quantity_index,
+    cached_quantity,
+    hidden_loc,
+    parameter,
+)
 from .._internals._framework import get_mdl
 from ..density_field import transfer
 from ..density_field import transfer_models as tm
@@ -149,8 +154,13 @@ class MassFunction(transfer.Transfer):
     @override
     def validate(self):
         super().validate()
-        assert self.Mmin < self.Mmax, f"Mmin > Mmax: {self.Mmin}, {self.Mmax}"
-        assert len(self.m) > 0, "mass vector has length zero!"
+        if not self.Mmin < self.Mmax:
+            raise ValueError(f"Mmin must be less than Mmax, got Mmin={self.Mmin}, Mmax={self.Mmax}")
+        if len(self.m) == 0:
+            raise ValueError(
+                f"The mass vector is empty: no masses between Mmin={self.Mmin} and "
+                f"Mmax={self.Mmax} with dlog10m={self.dlog10m}."
+            )
 
         if self._sigma_k_truncation_error > _K_COVERAGE_RTOL:
             warnings.warn(
@@ -228,12 +238,12 @@ class MassFunction(transfer.Transfer):
         try:
             val = float(val)
         except ValueError as e:
-            raise ValueError("delta_c must be a number: ", val) from e
+            raise ValueError(f"delta_c must be a number, got {val!r}") from e
 
         if val <= 0:
-            raise ValueError("delta_c must be > 0 (", val, ")")
+            raise ValueError(f"delta_c must be > 0, got {val}")
         if val > 10.0:
-            raise ValueError("delta_c must be < 10.0 (", val, ")")
+            raise ValueError(f"delta_c must be ≤ 10, got {val}")
 
         return val
 
@@ -340,7 +350,7 @@ class MassFunction(transfer.Transfer):
         """Instantiated model for the hmf fitting function."""
         return self.hmf_model(
             m=self.m,
-            nu2=self.nu,
+            nu2=self.nu2,
             z=self.z,
             mass_definition=self.mdef,
             cosmo=self.cosmo,
@@ -395,9 +405,14 @@ class MassFunction(transfer.Transfer):
         return 10 ** np.arange(self.Mmin, self.Mmax, self.dlog10m)
 
     @cached_quantity
+    def _unn_sigma0_and_dlnss_dlnm(self):
+        """Un-normalised mass variance at z=0 and its log-slope, computed together."""
+        return self.filter.sigma_and_dlnss_dlnm(self.radii)
+
+    @cached_quantity
     def _unn_sigma0(self):
         """Un-normalised mass variance at z=0."""
-        return self.filter.sigma(self.radii)
+        return self._unn_sigma0_and_dlnss_dlnm[0]
 
     @cached_quantity
     def _sigma_k_truncation_error(self) -> float:
@@ -470,7 +485,7 @@ class MassFunction(transfer.Transfer):
         .. math:: frac{d\ln\sigma}{d\ln m} = \frac{3}{2\sigma^2\pi^2R^4}\int_0^\infty
                   \frac{dW^2(kR)}{dM}\frac{P(k)}{k^2}dk
         """
-        return 0.5 * self.filter.dlnss_dlnm(self.radii)
+        return 0.5 * self._unn_sigma0_and_dlnss_dlnm[1]
 
     @cached_quantity
     def sigma(self):
@@ -478,23 +493,50 @@ class MassFunction(transfer.Transfer):
         return self._sigma_0 * self.growth_factor
 
     @cached_quantity
+    def peak_height(self):
+        r"""The peak height, :math:`\nu = \delta_c/\sigma`, ``len=len(m)``.
+
+        This is the same :math:`\nu` as the fitting function's ``hmf.nu``.
+        """
+        return self.delta_c / self.sigma
+
+    @cached_quantity
+    def nu2(self):
+        r"""The squared peak height, :math:`\nu^2 = \left(\frac{\delta_c}{\sigma}\right)^2`, ``len=len(m)``."""  # noqa: E501
+        return self.peak_height**2
+
+    @property
     def nu(self):
-        r"""The parameter :math:`\nu = \left(\frac{\delta_c}{\sigma}\right)^2`, ``len=len(m)``."""
-        return (self.delta_c / self.sigma) ** 2
+        r"""Deprecated: the *squared* peak height, :math:`(\delta_c/\sigma)^2`.
+
+        .. deprecated:: 3.7
+            ``nu`` is :math:`\nu^2`, not the peak height :math:`\nu`. It will be
+            removed in v4. Use :attr:`nu2` for :math:`\nu^2`, or
+            :attr:`peak_height` for :math:`\nu = \delta_c/\sigma`.
+        """
+        warnings.warn(
+            "MassFunction.nu is the *squared* peak height (delta_c/sigma)^2, not the "
+            "peak height. It is deprecated and will be removed in v4. Use "
+            "MassFunction.nu2 for (delta_c/sigma)^2, or MassFunction.peak_height for "
+            "delta_c/sigma.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.nu2
 
     @cached_quantity
     def nu_fn(self):
         r"""
-        The nu parameter as a callable function.
+        The squared peak height as a callable function of mass.
 
-        The parameter :math:`\nu = \left(\frac{\delta_c}{\sigma}\right)^2`,
-        with length equal to ``len(m)``.
+        A spline of :attr:`nu2`, :math:`\nu^2 = \left(\frac{\delta_c}{\sigma}\right)^2`,
+        against ``m``.
 
-        The spline is a cubic in :math:`\ln m`-:math:`\ln \nu` space, in which
-        :math:`\nu(m)` is close to a power law, so interpolation is accurate between
+        The spline is a cubic in :math:`\ln m`-:math:`\ln \nu^2` space, in which
+        :math:`\nu^2(m)` is close to a power law, so interpolation is accurate between
         the grid points. It extrapolates (as a cubic in log-log space) outside ``m``.
         """
-        return _LogLogSpline(self.m, self.nu)
+        return _LogLogSpline(self.m, self.nu2)
 
     @cached_quantity
     def mass_nonlinear(self):
@@ -570,8 +612,10 @@ class MassFunction(transfer.Transfer):
         ValueError
             If :math:`\nu = 1` is not reached for any radius supported by the k grid.
         """
-        r = np.atleast_1d(self._radius_nonlinear)
-        return float(-3.0 * (self.filter.dlnss_dlnm(r)[0] + 1.0))
+        # Some filters (e.g. SharpKEllipsoid) need several radii to evaluate the slope,
+        # so use a small grid centred on R_nl and take its central value.
+        r = self._radius_nonlinear * np.exp(np.linspace(-0.1, 0.1, 11))
+        return float(-3.0 * (self.filter.dlnss_dlnm(r)[5] + 1.0))
 
     @cached_quantity
     def fsigma(self):
@@ -636,8 +680,9 @@ class MassFunction(transfer.Transfer):
         # filter (as for the main grid) rather than interpolated, so that masses outside
         # the user's grid are handled without extrapolation.
         radii = self.filter.mass_to_radius(m_meas, self.mean_density0)
-        sigma = self._normalisation * self.filter.sigma(radii) * self.growth_factor
-        dlnsdlnm = 0.5 * self.filter.dlnss_dlnm(radii)
+        unn_sigma, dlnss_dlnm = self.filter.sigma_and_dlnss_dlnm(radii)
+        sigma = self._normalisation * unn_sigma * self.growth_factor
+        dlnsdlnm = 0.5 * dlnss_dlnm
 
         fit = self.hmf_model(
             m=m_meas,
@@ -702,11 +747,9 @@ class MassFunction(transfer.Transfer):
         if (m[-1] < 10**16.5 and not np.isnan(dndm[-1]) and dndm[-1] != 0) and not isinstance(
             self.hmf, ff.Behroozi
         ):
-            new_mf = copy.deepcopy(self)
-            new_mf.update(Mmin=np.log10(self.m[-1]) + self.dlog10m, Mmax=18)
-            dndm = np.concatenate((dndm, new_mf.dndm))
-
-            m = np.concatenate((m, new_mf.m))
+            m_ext, dndm_ext = self._gtm_extension_dndm()
+            dndm = np.concatenate((dndm, dndm_ext))
+            m = np.concatenate((m, m_ext))
 
         ngtm = int_gtm(m[dndm > 0], dndm[dndm > 0], mass_density)
 
@@ -719,6 +762,33 @@ class MassFunction(transfer.Transfer):
 
         # Since ngtm may have been extended, we cut it back
         return ngtm[:size]
+
+    def _gtm_extension_dndm(self):
+        """Masses and ``dndm`` above the top of ``m``, up to 1e18, for :meth:`_gtm`.
+
+        These come from a copy of this framework with ``Mmin=log10(m[-1]) + dlog10m``
+        and ``Mmax=18``, so every quantity in the chain to ``dndm`` (including any
+        overridden by a subclass) is computed exactly as for ``m``. The copy is made
+        once and kept: on later calls its parameters are synced with this framework's,
+        so its cache only recomputes what changed (e.g. not the z-independent sigma
+        when only z changes).
+        """
+        ext = self.__dict__.get("_gtm_extension_framework")
+        if ext is None:
+            ext = copy.deepcopy(self)
+            # Forget any quantities that were mid-evaluation on self when copied
+            # (e.g. ngtm): they will never finish on the copy.
+            for name in list(getattr(ext, hidden_loc(ext, "active_q"))):
+                _clear_quantity_index(ext, name)
+            self._gtm_extension_framework = ext
+
+        params = {
+            name: getattr(self, name)
+            for name in self.get_all_parameter_names()
+            if name not in ("Mmin", "Mmax")
+        }
+        ext.update(Mmin=np.log10(self.m[-1]) + self.dlog10m, Mmax=18, **params)
+        return ext.m, ext.dndm
 
     @cached_quantity
     def ngtm(self):

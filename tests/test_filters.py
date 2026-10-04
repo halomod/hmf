@@ -94,7 +94,7 @@ class TestTopHat:
 
     def test_nu(self, cls):
         R = 1.0
-        nu = cls.nu(R)
+        nu = cls.nu2(R)
 
         assert np.isfinite(nu).all()
 
@@ -334,7 +334,7 @@ class TestSharpKEllipsoid:
     def test_gamma_xi_a3(self, cls):
         r = np.array([0.5])
         g = cls.gamma(r)
-        xm = cls.xm(g, cls.nu(r))
+        xm = cls.xm(g, cls.nu2(r))
         em = cls.em(xm)
         pm = cls.pm(xm)
 
@@ -534,7 +534,9 @@ class TestSharpKEllipsoidAnalytic:
         assert np.allclose(cls.gamma(self.radii), np.sqrt(45) / 7, rtol=1e-6)
 
     def test_nu(self, cls):
-        assert np.allclose(cls.nu(self.radii), self.delta_c**2 / self.sigma2(self.radii), rtol=1e-6)
+        assert np.allclose(
+            cls.nu2(self.radii), self.delta_c**2 / self.sigma2(self.radii), rtol=1e-6
+        )
 
     def test_a3(self, cls):
         # At nu ~ 1 the correction is O(10%), so this discriminates the xi formula.
@@ -548,7 +550,7 @@ class TestSharpKEllipsoidAnalytic:
         # on P/s^2 with sigma_scale=s must give the same a3 (and peak height) as one on P.
         s = 37.0
         scaled = filters.SharpKEllipsoid(cls.k, cls.power / s**2, sigma_scale=s)
-        assert np.allclose(scaled.peak_height(self.radii), cls.nu(self.radii), rtol=1e-6)
+        assert np.allclose(scaled.peak_height(self.radii), cls.nu2(self.radii), rtol=1e-6)
         assert np.allclose(scaled.a3(self.radii), self.a3(self.radii), rtol=1e-6)
 
 
@@ -573,8 +575,8 @@ class TestSharpKEllipsoidInMassFunction:
 
     def test_correction_is_significant_at_nu_one(self):
         ell, sph = self.mfs(0.0)
-        i = np.argmin(np.abs(ell.nu - 1))
-        assert np.isclose(ell.nu[i], 1, atol=0.1)
+        i = np.argmin(np.abs(ell.nu2 - 1))
+        assert np.isclose(ell.nu2[i], 1, atol=0.1)
 
         # Schneider+13 Eqs. A6-A7: for gamma ~ 0.5-0.7 and nu ~ 1, x_m ~ 1.5-2, so
         # e_m ~ 0.2 and p_m ~ 0.05, and Eq. 33 gives a3/R = 1/xi ~ 0.7-0.8: patches
@@ -593,14 +595,14 @@ class TestSharpKEllipsoidInMassFunction:
         # e_m ~ 1/(sqrt(5) gamma nu) -> 0, so a3 -> R and the two mass functions agree.
         ell, sph = self.mfs(0.0)
         a3_r = ell.filter.a3(ell.radii) / ell.radii
-        assert ell.nu[-1] > 25
+        assert ell.nu2[-1] > 25
         # More spherical with increasing nu (once nu dominates over the slow
         # variation of gamma with R).
-        assert np.all(np.diff(a3_r[ell.nu > 1]) > 0)
+        assert np.all(np.diff(a3_r[ell.nu2 > 1]) > 0)
         assert np.isclose(a3_r[-1], 1, atol=0.03)
 
         ratio = ell.dndm / sph.dndm
-        hi = ell.nu > 25
+        hi = ell.nu2 > 25
         assert np.allclose(ratio[hi], 1, atol=0.05)
 
     def test_correction_depends_on_redshift(self):

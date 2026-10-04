@@ -1,0 +1,60 @@
+name: Benchmarks
+
+# Record hmf's performance on every PR into main and every push to main.
+#
+# Timings are informational only: shared runners are too noisy to gate on, so a
+# slowdown never fails this workflow. The comparison against the committed
+# baseline goes to the job summary, and the raw results are uploaded as an
+# artifact. The workflow *does* fail on the suite's hard assertions (CAMB call
+# counts and "no recompute" checks), which count calls rather than time them.
+on:
+  push:
+    branches:
+      - 'main'
+  pull_request:
+    branches:
+      - 'main'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: benchmarks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmarks:
+    name: Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - uses: fortran-lang/setup-fortran@v1
+        with:
+          compiler: gcc
+          version: 13
+      - name: Install
+        run: uv sync --locked --all-extras --dev
+      - name: Run benchmarks (fails only on call-count assertions)
+        run: |
+          uv run pytest benchmarks --no-cov -p no:cacheprovider \
+            --benchmark-json=benchmark-results.json
+      - name: Compare with the baseline (never fails on timings)
+        if: ${{ !cancelled() && hashFiles('benchmark-results.json') != '' }}
+        run: |
+          uv run python benchmarks/compare.py benchmarks/baseline.json benchmark-results.json \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v5
+        if: ${{ !cancelled() && hashFiles('benchmark-results.json') != '' }}
+        with:
+          name: benchmark-results
+          path: benchmark-results.json

@@ -77,6 +77,7 @@ dev = [
     {include-group = "docs"},
     {include-group = "tests"},
     "prek>=0.3.8",
+    "pytest-benchmark>=5.3.0",
     "ruff>=0.16.9",
 ]
 
@@ -170,6 +171,9 @@ ignore = [
     "PT011", # pytest.raises too broad - acceptable in tests
     "PT012", # pytest.raises with multiple statements - acceptable in tests
     "PT030", # pytest.warns too broad - acceptable in tests
+]
+"benchmarks/*.py" = [
+    "PLR0206", # pytest.fixture is a property-decorator above, but fixtures take arguments
 ]
 "docs/conf.py" = [
     "A",  # conf.py can shadow builtins

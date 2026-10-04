@@ -14,11 +14,12 @@ from typing import ClassVar, override
 import astropy.units as u
 import numpy as np
 import scipy as sp
-from astropy.cosmology import Planck15
+from astropy.cosmology import Planck15  # noqa: F401 (kept importable from here)
 
 from .._internals import _framework
 from .._internals import _references as refs
 from ..cosmology import Cosmology
+from ..cosmology.cosmo import DEFAULT_COSMOLOGY
 
 __all__ = [
     "FOF",
@@ -37,16 +38,16 @@ class BaseMassDefinition(_framework.Component):
     """A base class for a Mass Definition."""
 
     @staticmethod
-    def critical_density(z=0, cosmo=Planck15):
+    def critical_density(z=0, cosmo=DEFAULT_COSMOLOGY):
         """Get the critical density of the Universe at redshift z, [h^2 Msun/Mpc^3]."""
         return (cosmo.critical_density(z) / cosmo.h**2).to(u.Msun / u.Mpc**3).value
 
     @classmethod
-    def mean_density(cls, z=0, cosmo=Planck15):
+    def mean_density(cls, z=0, cosmo=DEFAULT_COSMOLOGY):
         """Get the mean density of the Universe at redshift z, [h^2 Msun / Mpc^3]."""
         return cosmo.Om(z) * cls.critical_density(z, cosmo)
 
-    def halo_density(self, z=0, cosmo=Planck15):
+    def halo_density(self, z=0, cosmo=DEFAULT_COSMOLOGY):
         r"""
         The density of haloes under this definition.
 
@@ -59,15 +60,15 @@ class BaseMassDefinition(_framework.Component):
         """The name of the mass definition in Colossus format, if applicable."""
         return None
 
-    def halo_overdensity_mean(self, z=0, cosmo=Planck15):
+    def halo_overdensity_mean(self, z=0, cosmo=DEFAULT_COSMOLOGY):
         """Compute the halo overdensity with respect to the mean density."""
         return self.halo_density(z, cosmo) / self.mean_density(z, cosmo)
 
-    def halo_overdensity_crit(self, z=0, cosmo=Planck15):
+    def halo_overdensity_crit(self, z=0, cosmo=DEFAULT_COSMOLOGY):
         """Compute the halo overdensity with respect to the critical density."""
         return self.halo_density(z, cosmo) / self.critical_density(z, cosmo)
 
-    def m_to_r(self, m, z=0, cosmo=Planck15):
+    def m_to_r(self, m, z=0, cosmo=DEFAULT_COSMOLOGY):
         r"""
         Return the radius corresponding to m for this mass definition.
 
@@ -86,7 +87,7 @@ class BaseMassDefinition(_framework.Component):
         except AttributeError as e:
             raise AttributeError(f"{self.__class__.__name__} cannot convert mass to radius.") from e
 
-    def r_to_m(self, r, z=0, cosmo=Planck15):
+    def r_to_m(self, r, z=0, cosmo=DEFAULT_COSMOLOGY):
         r"""
         Return the mass corresponding to r for this mass definition.
 
@@ -109,7 +110,9 @@ class BaseMassDefinition(_framework.Component):
         a, b, c, ms = 6.71, -0.091, 0.44, 2e12
         return a / (1 + z) ** c * (m / ms) ** b
 
-    def change_definition(self, m: np.ndarray, mdef, profile=None, c=None, z=0, cosmo=Planck15):
+    def change_definition(
+        self, m: np.ndarray, mdef, profile=None, c=None, z=0, cosmo=DEFAULT_COSMOLOGY
+    ):
         r"""
         Change the spherical overdensity mass definition.
 
@@ -238,7 +241,7 @@ class SOMean(SphericalOverdensity):
 
     _defaults: ClassVar[dict[str, float]] = {"overdensity": 200}
 
-    def halo_density(self, z=0, cosmo=Planck15):
+    def halo_density(self, z=0, cosmo=DEFAULT_COSMOLOGY):
         """The density of haloes under this definition."""
         return self.params["overdensity"] * self.mean_density(z, cosmo)
 
@@ -253,7 +256,7 @@ class SOCritical(SphericalOverdensity):
 
     _defaults: ClassVar[dict[str, float]] = {"overdensity": 200}
 
-    def halo_density(self, z=0, cosmo=Planck15):
+    def halo_density(self, z=0, cosmo=DEFAULT_COSMOLOGY):
         """The density of haloes under this definition."""
         return self.params["overdensity"] * self.critical_density(z, cosmo)
 
@@ -271,7 +274,7 @@ class SOVirial(SphericalOverdensity):
 
     references: ClassVar[tuple[str, ...]] = (refs.BRYAN98,)
 
-    def halo_density(self, z=0, cosmo=Planck15):
+    def halo_density(self, z=0, cosmo=DEFAULT_COSMOLOGY):
         """The density of haloes under this definition."""
         x = cosmo.Om(z) - 1
         overdensity = 18 * np.pi**2 + 82 * x - 39 * x**2
@@ -294,7 +297,7 @@ class FOF(BaseMassDefinition):
 
     _defaults: ClassVar[dict[str, float]] = {"linking_length": 0.2}
 
-    def halo_density(self, z=0, cosmo=Planck15):
+    def halo_density(self, z=0, cosmo=DEFAULT_COSMOLOGY):
         r"""
         The density of halos under this mass definition.
 

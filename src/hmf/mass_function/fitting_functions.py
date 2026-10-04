@@ -244,7 +244,8 @@ class BaseFittingFunction(_framework.Component):
         A halo mass definition. Only required for fits which explicitly include a
         parameterization for halo definition.
     cosmo : :class:`astropy.cosmology.FLRW` instance, optional
-        A cosmology. Default is Planck15. Either `omegam_z` or `cosmo` is required if
+        A cosmology. Default is :data:`hmf.cosmology.cosmo.DEFAULT_COSMOLOGY`
+        (Planck18), as for the frameworks. Either `omegam_z` or `cosmo` is required if
         :attr:`req_omz` is True. If both are passed, omegam_z takes precedence.
     \*\*model_parameters : unpacked-dictionary
         These parameters are model-specific. The available parameters and their
@@ -270,7 +271,7 @@ class BaseFittingFunction(_framework.Component):
         z: float = 0.0,
         n_eff: np.ndarray | None = None,
         mass_definition: md.BaseMassDefinition | None = None,
-        cosmo: csm.FLRW = csm.Planck15,
+        cosmo: csm.FLRW = csm.DEFAULT_COSMOLOGY,
         delta_c: float = 1.68647,
         **model_parameters,
     ):
