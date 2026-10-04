@@ -1,7 +1,8 @@
 """Unit-free numerical kernels of the v4 core.
 
-This subpackage will hold the numerics behind every public method of
-:mod:`hmf.core`. It is empty for now; this docstring sets the rules every kernel
+This subpackage holds the numerics behind every public method of :mod:`hmf.core`,
+one module per topic (e.g. :mod:`~hmf.core._kernels.transfer`,
+:mod:`~hmf.core._kernels.growth`). This docstring sets the rules every kernel
 follows.
 
 Conventions
