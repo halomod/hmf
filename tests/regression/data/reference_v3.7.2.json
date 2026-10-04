@@ -336,6 +336,7 @@
   "Watson_FoF",
   "Yung24"
  ],
+ "ngtm_behroozi_tail_fraction": 1e-05,
  "camb_lnk_valid_min": {
   "planck18": -9.012812614440918,
   "lcdm_massless_nu": -9.012812614440918,
@@ -411,9 +412,9 @@
      "worst_case": "dndm/w0wacdm/CAMB/TopHat/Behroozi"
     },
     "ngtm": {
-     "max_ratio_to_tolerance": 1.6590000548961474,
-     "max_rel_diff": 0.0007184296429244563,
-     "worst_case": "ngtm/lcdm_mnu0p3/CAMB/TopHat/Behroozi"
+     "max_ratio_to_tolerance": 0.009639144095191102,
+     "max_rel_diff": 1.08196278670869e-05,
+     "worst_case": "ngtm/planck18/CAMB/SharpK/SMT"
     },
     "fsigma": {
      "max_ratio_to_tolerance": 0.000773118444775429,
