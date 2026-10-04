@@ -1,0 +1,25 @@
+name: Auto Label
+
+# Labels pull requests from the `autolabeler` rules in .github/release-drafter.yml.
+# This is a separate workflow so that pull-request events never run the release
+# drafter itself (release-draft.yml), which would retarget the draft release.
+#
+# pull_request_target runs in the base repository's context, so it can label PRs from
+# forks. That is safe here only because no PR code is checked out or run: the action
+# reads the PR's metadata and the base branch's config. Never add a checkout step.
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  auto-label:
+    name: Auto Label
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: release-drafter/release-drafter/autolabeler@v7.7.0
