@@ -14,7 +14,7 @@ from typing import Any, ClassVar, override
 
 import numpy as np
 import scipy.special as sp
-from scipy.interpolate import InterpolatedUnivariateSpline as Spline
+from scipy.interpolate import CubicSpline
 
 from .._internals import _framework
 from .._internals import _references as refs
@@ -1329,6 +1329,19 @@ class Bhattacharya(SMT):
         )
 
 
+def _log_delta_spline(delta_virs: np.ndarray, values: np.ndarray):
+    r"""Interpolate Tinker fit parameters between the tabulated overdensities.
+
+    Uses a natural cubic spline in :math:`\log_{10}\Delta`, as recommended in App. B
+    of Tinker et al. (2008); with the tabulated parameters it reproduces their
+    Table B3 of second derivatives.
+
+    Returns a callable of :math:`\Delta`.
+    """
+    spl = CubicSpline(np.log10(delta_virs), values, bc_type="natural")
+    return lambda delta: spl(np.log10(delta))
+
+
 class Tinker08(BaseFittingFunction):
     """Tinker 2008 mass function fit."""
 
@@ -1624,10 +1637,10 @@ class Tinker08(BaseFittingFunction):
             b_array = np.array([self.params[f"b_{d}"] for d in self.delta_virs])
             c_array = np.array([self.params[f"c_{d}"] for d in self.delta_virs])
 
-            A_func = Spline(self.delta_virs, A_array)
-            a_func = Spline(self.delta_virs, a_array)
-            b_func = Spline(self.delta_virs, b_array)
-            c_func = Spline(self.delta_virs, c_array)
+            A_func = _log_delta_spline(self.delta_virs, A_array)
+            a_func = _log_delta_spline(self.delta_virs, a_array)
+            b_func = _log_delta_spline(self.delta_virs, b_array)
+            c_func = _log_delta_spline(self.delta_virs, c_array)
 
             A_0 = A_func(delta_halo)
             a_0 = a_func(delta_halo)
@@ -1755,10 +1768,10 @@ class Tinker10(BaseFittingFunction):
             phi_array = np.array([self.params[f"phi_{d}"] for d in self.delta_virs])
             eta_array = np.array([self.params[f"eta_{d}"] for d in self.delta_virs])
 
-            beta_func = Spline(self.delta_virs, beta_array)
-            gamma_func = Spline(self.delta_virs, gamma_array)
-            phi_func = Spline(self.delta_virs, phi_array)
-            eta_func = Spline(self.delta_virs, eta_array)
+            beta_func = _log_delta_spline(self.delta_virs, beta_array)
+            gamma_func = _log_delta_spline(self.delta_virs, gamma_array)
+            phi_func = _log_delta_spline(self.delta_virs, phi_array)
+            eta_func = _log_delta_spline(self.delta_virs, eta_array)
 
             beta_0 = beta_func(delta_halo)
             gamma_0 = gamma_func(delta_halo)
