@@ -334,9 +334,11 @@ def parameter(kind):
                         getattr(self, recalc)[pr] = True
                 else:
                     # Switches mean that dependencies could depend on new parameters,
-                    # so need to re-index
-                    for pr in getattr(self, recalc_papr)[name]:
-                        delattr(self, pr)
+                    # so need to re-index. Clear the whole index (including this
+                    # parameter's own list of dependents), so that flipping the switch
+                    # again before they are recomputed doesn't try to delete them twice.
+                    for pr in list(getattr(self, recalc_papr)[name]):
+                        _clear_quantity_index(self, pr)
 
                 if not doset and self._validate:
                     warnings.warn(
