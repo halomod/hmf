@@ -560,12 +560,15 @@ def test_tinker08_extrapolation_is_monotonic_in_delta():
 
 @pytest.mark.parametrize("z", [0.0, 1.0])
 def test_tinker08_unphysical_extrapolation_raises(z):
-    """At Delta=5000 the spline extrapolates to b<0, which used to give NaN dn/dm."""
+    """Far enough out, the spline extrapolates to unphysical parameters (here A<0).
+
+    Unphysical parameters used to give NaN or negative dn/dm silently.
+    """
     with (
         pytest.warns(HMFExtrapolationWarning),
-        pytest.raises(ValueError, match=r"parameter b=.* is unphysical"),
+        pytest.raises(ValueError, match=r"parameter A=.* is unphysical"),
     ):
-        ff.Tinker08(nu2=_NU2, z=z, mass_definition=md.SOMean(overdensity=5000))
+        ff.Tinker08(nu2=_NU2, z=z, mass_definition=md.SOMean(overdensity=5e4))
 
 
 def test_tinker08_redshift_evolution_undefined_below_delta_75():
@@ -577,8 +580,11 @@ def test_tinker08_redshift_evolution_undefined_below_delta_75():
 
 
 def test_tinker10_unphysical_extrapolation_raises():
-    with pytest.warns(HMFExtrapolationWarning), pytest.raises(ValueError, match="beta must be > 0"):
-        ff.Tinker10(nu2=_NU2, z=0.0, mass_definition=md.SOMean(overdensity=10000))
+    with (
+        pytest.warns(HMFExtrapolationWarning),
+        pytest.raises(ValueError, match="gamma must be > 0"),
+    ):
+        ff.Tinker10(nu2=_NU2, z=0.0, mass_definition=md.SOMean(overdensity=5e4))
 
 
 def test_behroozi_does_not_warn_at_virial_overdensity():
@@ -593,9 +599,81 @@ def test_tinker08_mass_function_unphysical_delta_raises():
     kw = {
         "hmf_model": "Tinker08",
         "mdef_model": "SOMean",
-        "mdef_params": {"overdensity": 5000},
+        "mdef_params": {"overdensity": 5e4},
         "transfer_model": "EH",
         "disable_mass_conversion": True,
     }
     with pytest.warns(HMFExtrapolationWarning), pytest.raises(ValueError, match="unphysical"):
         MassFunction(**kw).dndm
+
+
+# ---------------------------------------------------------------------------------------
+# Interpolation of the Tinker parameters between tabulated overdensities
+# ---------------------------------------------------------------------------------------
+_T08_DELTAS = (200, 300, 400, 600, 800, 1200, 1600, 2400, 3200)
+
+# Tinker et al. (2008), Table B3: second derivatives of the f(sigma) parameters with
+# respect to log10(Delta), for the spline they recommend for interpolating in Delta.
+_T08_TABLE_B3 = {
+    "A": (0.00, 0.50, -1.56, 3.05, -2.95, 1.07, -0.71, 0.21, 0.00),
+    "a": (0.00, 1.19, -6.34, 21.36, -10.95, 2.59, -0.85, -2.07, 0.00),
+    "b": (0.00, -1.08, 12.61, -20.96, 24.08, -6.64, 3.84, -2.09, 0.00),
+    "c": (0.00, 0.94, -0.43, 4.61, 0.01, 1.21, 1.43, 0.33, 0.00),
+}
+
+
+def _t08_param(name, delta):
+    fit = ff.Tinker08(nu2=np.array([1.0]), z=0.0, mass_definition=md.SOMean(overdensity=delta))
+    return float(getattr(fit, name))
+
+
+@pytest.mark.parametrize("name", ["A", "a", "b", "c"])
+def test_tinker08_interpolation_matches_table_b3(name):
+    """Interpolation in Delta reproduces the spline of Tinker et al. (2008), App. B.
+
+    They interpolate the parameters with a natural cubic spline in log10(Delta) and
+    tabulate its second derivatives (Table B3). A central finite difference in
+    log10(Delta) at each tabulated Delta (just inside the range at the end points)
+    recovers them to the table's 2 decimal places. The previous cubic spline in linear
+    Delta was off by up to ~10 in a'' and b''.
+    """
+    h = 1e-5
+    second = []
+    for i, delta in enumerate(_T08_DELTAS):
+        x = np.log10(delta) + (h if i == 0 else -h if i == len(_T08_DELTAS) - 1 else 0)
+        f = [_t08_param(name, 10 ** (x + s * h)) for s in (-1, 0, 1)]
+        second.append((f[0] - 2 * f[1] + f[2]) / h**2)
+    # Tolerance: the table's rounding (0.005), plus O(h) finite-difference error.
+    np.testing.assert_allclose(second, _T08_TABLE_B3[name], atol=0.01, rtol=0)
+
+
+@pytest.mark.parametrize("name", ["A", "a", "b", "c"])
+def test_tinker08_interpolation_exact_at_tabulated_delta(name):
+    for delta in _T08_DELTAS:
+        assert _t08_param(name, delta) == pytest.approx(
+            ff.Tinker08._defaults[f"{name}_{delta}"], rel=1e-12
+        )
+
+
+@pytest.mark.parametrize("name", ["beta", "gamma", "phi", "eta"])
+def test_tinker10_interpolation_exact_and_bounded(name):
+    """Tinker10 uses the same interpolation: exact at the tabulated Delta.
+
+    gamma increases strictly with Delta over the table (Tinker et al. 2010, Table 4),
+    so interpolated values must stay within each tabulated interval. (eta has a flat
+    segment, -0.261 at Delta=300 and 400, where any cubic spline overshoots slightly.)
+    """
+    vals = []
+    for delta in _T08_DELTAS:
+        fit = ff.Tinker10(nu2=np.array([1.0]), z=0.0, mass_definition=md.SOMean(overdensity=delta))
+        vals.append(float(getattr(fit, name)))
+    np.testing.assert_allclose(
+        vals, [ff.Tinker10._defaults[f"{name}_{d}"] for d in _T08_DELTAS], rtol=1e-12
+    )
+    if name == "gamma":
+        for lo, hi, vlo, vhi in zip(_T08_DELTAS, _T08_DELTAS[1:], vals, vals[1:], strict=False):
+            mid = float(np.sqrt(lo * hi))
+            fit = ff.Tinker10(
+                nu2=np.array([1.0]), z=0.0, mass_definition=md.SOMean(overdensity=mid)
+            )
+            assert min(vlo, vhi) <= getattr(fit, name) <= max(vlo, vhi)
