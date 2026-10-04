@@ -234,3 +234,8 @@ follow_imports = "normal"
 # astropy ships no type information.
 module = ["astropy", "astropy.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# scipy ships no type information (scipy-stubs is a separate package).
+module = ["scipy", "scipy.*"]
+ignore_missing_imports = true
