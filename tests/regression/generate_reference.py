@@ -429,6 +429,31 @@ def richardson_ngtm(coarse: dict[str, np.ndarray], fine: dict[str, np.ndarray]) 
     return out
 
 
+#: n(>M) is masked where v3's power-law tail above the top mass is more than this
+#: fraction of it (see mask_extrapolated_ngtm).
+NGTM_TAIL_FRACTION = 1e-5
+
+
+def mask_extrapolated_ngtm(arrays: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
+    """Mask (NaN) n(>M) of Behroozi where v3's extrapolated tail matters.
+
+    For every other fit v3 computes dn/dM up to 1e18 Msun/h before integrating. For
+    Behroozi it cannot (the fit's correction needs the cumulative function itself),
+    so ``hmf_integral_gtm`` adds the integral above the top mass of a power law
+    through the last two grid points. That tail is an extrapolation, whose slope
+    changes with the step at first order, so it is neither physical nor removed by
+    the Richardson extrapolation. It equals n(>M_top), so the fraction of n(>M) it
+    makes up is n(>M_top) / n(>M).
+    """
+    out = dict(arrays)
+    for k, v in arrays.items():
+        if k.startswith("ngtm/") and k.endswith("/Behroozi"):
+            with np.errstate(divide="ignore", invalid="ignore"):
+                tail = v[:, -1:] / v
+            out[k] = np.where(tail > NGTM_TAIL_FRACTION, np.nan, v)
+    return out
+
+
 def analytic_cases(dlog10m: float = DLOG10M, log=print) -> dict[str, np.ndarray]:
     """The cases with a closed-form answer, computed with v3.7.2."""
     arrays: dict[str, np.ndarray] = {}
@@ -568,7 +593,7 @@ def main() -> None:
     print("Mass step halved, for n(>M):")
     fine, _, _ = compute(DLNK, DLOG10M / 2)
     fine.update(analytic_cases(DLOG10M / 2))
-    arrays = richardson_ngtm(base, fine)
+    arrays = mask_extrapolated_ngtm(richardson_ngtm(base, fine))
 
     conv = None
     if not args.no_convergence:
@@ -649,6 +674,7 @@ def main() -> None:
             for name, c in COSMOLOGIES.items()
         },
         "fits": list(FITS),
+        "ngtm_behroozi_tail_fraction": NGTM_TAIL_FRACTION,
         # T(k) and P(k) of the CAMB cases are NaN below this ln k (see
         # camb_lnk_valid_min in generate_reference.py).
         "camb_lnk_valid_min": info["camb_lnk_valid_min"],

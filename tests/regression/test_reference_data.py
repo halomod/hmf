@@ -87,9 +87,10 @@ def test_coverage(reference):
 
 
 def test_every_case_is_stored_and_finite(reference):
-    """Every case is finite, except the masked CAMB T(k) and P(k) at low k.
+    """Every case is finite, except where masked as a v3 artefact.
 
-    Below CAMB's own k range they are v3 interpolation artefacts, so they are NaN.
+    That is CAMB's T(k) and P(k) below CAMB's own k range, and Behroozi's n(>M) where
+    v3's power-law tail above the top mass contributes (see generate_reference.py).
     """
     assert reference.metadata["failures"] == []
     valid_min = reference.metadata["camb_lnk_valid_min"]
@@ -101,6 +102,12 @@ def test_every_case_is_stored_and_finite(reference):
             assert np.all(np.isnan(v[masked])), case.key
             assert np.all(np.isfinite(v[~masked])), case.key
             assert np.exp(valid_min[case.cosmology]) < 2e-4, case.key  # ~CAMB's k_min
+        elif case.quantity == "ngtm" and case.fit == "Behroozi":
+            # Masked where v3's extrapolated tail above the top mass exceeds 1e-5;
+            # that region only grows towards high mass.
+            finite = np.isfinite(v)
+            assert np.all(np.diff(finite.astype(int), axis=1) <= 0), case.key
+            assert np.all(finite[:, 0]), case.key
         else:
             assert np.all(np.isfinite(v)), case.key
 

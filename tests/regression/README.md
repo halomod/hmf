@@ -61,6 +61,10 @@ Choices that differ from v3.7.2's defaults, and why:
   cumulative trapezoid, whose error (s Δln M)²/12, for a tail falling as e^(−s ln M),
   reaches ~1% at the top masses at dlog10m = 0.005 (s ≈ 30 for SharpK at z = 2). The
   reference stores (4 n(Δ/2) − n(Δ))/3, which cancels it.
+- **Behroozi's n(>M) is masked where v3 extrapolates.** For Behroozi alone v3 does
+  not compute dn/dM above the top mass, but adds a power law through the last two
+  grid points; where that tail is over 1e-5 of n(>M) (near the top mass), the value
+  is an extrapolation artefact, so it is NaN.
 - **CAMB's T(k) and P(k) are masked below CAMB's lowest k** (~1e-4 h/Mpc), where v3
   joins its table to `lnk_min` with a cubic spline, so T depends on `lnk_min` (by 3%)
   and dips below 1. That region changes σ by < 1e-9.

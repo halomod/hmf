@@ -32,7 +32,8 @@
    },
    "EH": {}
   },
-  "mdef": "each fit's own measured mass definition (disable_mass_conversion=True)"
+  "mdef": "each fit's own measured mass definition (disable_mass_conversion=True)",
+  "ngtm": "Richardson-extrapolated to dlog10m -> 0 from dlog10m and dlog10m/2: (4 n(dlog10m/2) - n(dlog10m)) / 3, removing the h^2 error of v3's trapezoid integration (see richardson_ngtm in generate_reference.py)"
  },
  "grids": {
   "z": [
@@ -345,7 +346,7 @@
  "analytic": {
   "powerlaw_ps": {
    "cosmology": "lcdm_massless_nu",
-   "n": -1.0,
+   "n": -2.0,
    "z": 0.0,
    "filter": "TopHat",
    "fit": "PS"
@@ -377,6 +378,7 @@
   "half_steps": {
    "dlnk": 0.0025,
    "dlog10m": 0.0025,
+   "note": "n(>M) is extrapolated from (dlnk/2, dlog10m/2) and (dlnk, dlog10m/4) here.",
    "quantities": {
     "transfer": {
      "max_ratio_to_tolerance": 4.1147640850169864e-06,
@@ -409,9 +411,9 @@
      "worst_case": "dndm/w0wacdm/CAMB/TopHat/Behroozi"
     },
     "ngtm": {
-     "max_ratio_to_tolerance": 10.503803310351673,
-     "max_rel_diff": 0.011790179904435538,
-     "worst_case": "ngtm/planck18/CAMB/SharpK/SMT"
+     "max_ratio_to_tolerance": 1.6590000548961474,
+     "max_rel_diff": 0.0007184296429244563,
+     "worst_case": "ngtm/lcdm_mnu0p3/CAMB/TopHat/Behroozi"
     },
     "fsigma": {
      "max_ratio_to_tolerance": 0.000773118444775429,
@@ -457,8 +459,8 @@
      "worst_case": "dndm/planck18/CAMB/SharpK/PS"
     },
     "ngtm": {
-     "max_ratio_to_tolerance": 7.952588587364631e-07,
-     "max_rel_diff": 9.111267296191272e-11,
+     "max_ratio_to_tolerance": 8.054172396169629e-07,
+     "max_rel_diff": 9.730438677024722e-11,
      "worst_case": "ngtm/planck18/CAMB/SharpK/PS"
     },
     "fsigma": {
