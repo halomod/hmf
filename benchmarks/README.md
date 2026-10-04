@@ -58,9 +58,9 @@ every push to `main`. It
 The `calls` fixture (`conftest.py`) counts, per timed round:
 
 - `camb`: calls to `camb.get_transfer_functions`, i.e. CAMB runs;
-- `sigma_grid`: evaluations of σ(R) on an array of radii (calls to
-  `BaseFilter.sigma` with more than one radius, including those inside
-  `dlnss_dlnr`).
+- `sigma_grid`: evaluations of σ(R) on an array of radii (calls of the σ
+  integral shared by `BaseFilter.sigma` and the fused
+  `BaseFilter.sigma_and_dlnss_dlnr`, with more than one radius).
 
 Setup runs before the counters are reset, so only the timed region is counted.
 The assertions are:
@@ -72,8 +72,8 @@ The assertions are:
 | `get_hmf("dndm", z=[20 values])` | exactly 1 CAMB run |
 | z, σ8, fitting-function and WDM z scans | 0 CAMB runs and 0 σ(R) evaluations |
 | `n` scan, `ngtm` z-loop, mass conversion, halofit | 0 CAMB runs |
-| `ngtm` z-loop | at most 4 σ(R) evaluations per z (today's count, a ratchet) |
-| Introspection classmethods | at most today's CAMB runs (1, or 2 for `get_all_parameter_defaults`; a ratchet) |
+| `ngtm` z-loop | 0 σ(R) evaluations per z (a ratchet) |
+| Introspection classmethods | 0 CAMB runs (a ratchet) |
 
 The ratchets are upper bounds on known waste in v3: a PR
 that removes it should lower them.
