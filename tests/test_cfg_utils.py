@@ -3,6 +3,7 @@
 import tomllib
 from datetime import UTC, datetime
 
+import astropy.units as u
 import numpy as np
 import pytest
 import tomli_w
@@ -88,3 +89,9 @@ def test_framework_to_dict_toml_roundtrip():
     params.pop("cosmo_params")
     mf2 = MassFunction(**params)
     np.testing.assert_allclose(mf2.dndm, mf.dndm, rtol=1e-10)
+
+
+def test_to_toml_compatible_str_fallback():
+    """Objects TOML can't represent are written as their str, as the toml package did."""
+    out = _roundtrip({"params": {"model": MassFunction, "unit": u.Mpc}})
+    assert out == {"params": {"model": str(MassFunction), "unit": "Mpc"}}
