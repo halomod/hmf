@@ -1,6 +1,15 @@
 name: Labeler
 
-on: push
+# Syncs the repository's labels with .github/labels.yml. Only from main, so that an
+# unmerged change to labels.yml can't rename or delete labels.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/labels.yml
+      - .github/workflows/labeler.yml
+  workflow_dispatch:
 
 jobs:
   labeler:
