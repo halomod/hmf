@@ -31,7 +31,7 @@ class SimDetails:
     the mass function in the given study, not all simulations run in the study
     against which the fit was compared.
 
-    Several parametes take either scalar or list values. These should be provided
+    Several parameters take either scalar or list values. These should be provided
     consistently, so that a single value refers to all simulations, and all lists
     are the same length.
 
