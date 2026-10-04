@@ -1,4 +1,4 @@
-"""The :class:`Stage` base class (issue #382).
+"""The :class:`Stage` base class.
 
 A *stage* is one step of a calculation (transfer function, growth, linear power,
 mass variance, mass function, ...). Stages are immutable, keyword-only ``attrs``

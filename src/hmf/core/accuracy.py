@@ -1,4 +1,4 @@
-"""Accuracy settings of the internal grids (issue #384).
+"""Accuracy settings of the internal grids.
 
 The v4 core evaluates expensive quantities on internal grids, and interpolates
 between their nodes. These classes hold the settings of those grids. They are typed,

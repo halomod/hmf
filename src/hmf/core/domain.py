@@ -1,4 +1,4 @@
-"""Model domains and the domain policy (issue #390).
+"""Model domains and the domain policy.
 
 Each model will carry two domains, as class variables:
 

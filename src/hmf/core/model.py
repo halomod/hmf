@@ -1,4 +1,4 @@
-"""The :class:`Model` base class and the per-kind model registry (issue #388).
+"""The :class:`Model` base class and the per-kind model registry.
 
 A *model* is one interchangeable implementation of a piece of physics: a fitting
 function, a transfer function, a filter, a mass definition, ... Models are frozen,
