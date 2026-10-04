@@ -6,6 +6,8 @@ repos:
   hooks:
   - id: trailing-whitespace
   - id: check-added-large-files
+    # The v3.7.2 regression reference (~5.5 MB; issue #394). A test keeps it <= 10 MB.
+    exclude: '^tests/regression/data/reference_v[0-9.]+\.npz$'
   - id: check-ast
   - id: check-json
   - id: check-merge-conflict

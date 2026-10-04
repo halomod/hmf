@@ -320,6 +320,12 @@ def test_decoration_errors():
     with pytest.raises(TypeError, match="must be an astropy unit"):
         unit_boundary(m="Msun/littleh")
 
+    # The output unit is attached without astropy's checks, so it is checked here.
+    with pytest.raises(TypeError, match="'returns' must be an astropy unit"):
+        unit_boundary(returns="Msun/littleh")
+    with pytest.raises(TypeError, match="'returns' must be an astropy unit"):
+        unit_boundary(returns=(Msun_h, "Msun/littleh"))
+
 
 def test_decorator_metadata(toy):
     assert Toy.mass.__name__ == "mass"

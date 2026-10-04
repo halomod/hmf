@@ -1,0 +1,50 @@
+{
+ "description": "Per-quantity tolerances for comparing hmf v4 with the v3.7.2 regression reference (issue #394). Written by hand; read by tests/regression/regression_harness.py and by generate_reference.py, which records the reference's own convergence in units of these tolerances. Every relative tolerance applies point by point. See tests/regression/README.md.",
+ "floor": 1e-290,
+ "floor_justification": "Points where the reference is non-finite, or smaller in magnitude than this floor (an underflowed exponential tail of dn/dm), are not compared: their relative error is meaningless.",
+ "quantities": {
+  "transfer": {
+   "rtol": 1e-5,
+   "note": "The CAMB cases are NaN (not compared) below the lowest k of CAMB's table, where v3.7.2's T(k) is an interpolation artefact (see camb_lnk_valid_min in the metadata).",
+   "justification": "sigma^2 is an integral of T(k)^2, so sigma to the v4 target of 1e-5 (#384) needs T to 1e-5 wherever it contributes. Compared only against the same CAMB version as the reference (the test skips otherwise): CAMB's own output is not what is being regressed."
+  },
+  "power": {
+   "rtol": 2e-5,
+   "justification": "P(k) = A k^n T(k)^2, so twice the tolerance of T. The amplitude A is fixed by sigma_8, which is computed from the same P(k)."
+  },
+  "growth": {
+   "rtol": 2e-6,
+   "justification": "sigma(M, z) = D(z) sigma(M, 0), so the error of D adds directly to that of sigma; 2e-6 keeps it to a fifth of the sigma budget (1e-5). The reference's ODE growth is solved with scipy's solve_ivp at rtol = atol = 1e-6, and matches the exact radiation-free flat LCDM growth to 9e-7 and Einstein-de Sitter's D = a to 5e-10 (test_reference_physics.py), so it is itself accurate to about 1e-6."
+  },
+  "sigma": {
+   "rtol": 1e-5,
+   "justification": "The v4 default accuracy target for sigma (#384)."
+  },
+  "dlnsdlnm": {
+   "rtol": 1e-5,
+   "justification": "dn/dm is proportional to |dln sigma/dln M|, so its error enters dn/dm one to one; 1e-5 is a tenth of the dn/dm budget, the same as sigma."
+  },
+  "dndm": {
+   "rtol": 1e-4,
+   "floor": 1e-46,
+   "floor_justification": "dn/dM below 1e-46 h^4 Msun^-1 Mpc^-3 is dn/dln M below 1e-30 h^3 Mpc^-3 at every stored mass (M <= 1e16 Msun/h): see ngtm.",
+   "amplify": "fsigma_slope",
+   "justification": "The v4 default accuracy target for dn/dm (#384), plus the propagated sigma tolerance: dn/dm = f(sigma) rho/M^2 |dln sigma/dln M|, so a relative error eps in sigma changes dn/dm by |dln f/dln sigma| eps. In the exponential tail |dln f/dln sigma| ~ nu^2 grows without bound, so a fixed 1e-4 would demand ever more accuracy in sigma there. The tolerance is therefore rtol + |dln f/dln sigma| * rtol(sigma), with the slope taken from the reference itself."
+  },
+  "fsigma": {
+   "rtol": 1e-4,
+   "floor": 1e-25,
+   "floor_justification": "f below 1e-25 is dn/dln M = rho f |dln sigma/dln M| / M below about 1e-30 h^3 Mpc^-3 at every stored mass (rho ~ 1e11 h^2 Msun Mpc^-3, |dln sigma/dln M| < 1, M <= 1e16 Msun/h): see ngtm.",
+   "amplify": "fsigma_slope",
+   "justification": "As dndm: f(sigma) carries the same propagated sigma error, without the |dln sigma/dln M| factor."
+  },
+  "ngtm": {
+   "rtol": 1e-4,
+   "floor": 1e-30,
+   "floor_justification": "Fewer than 1e-17 haloes in the observable universe (comoving volume ~ 4e12 (Mpc/h)^3): physically irrelevant, and where v3's integration of an underflowing dn/dM is not converged (Yung24 at z >= 8 changes by tens of percent at n ~ 1e-230 when the steps are halved).",
+   "amplify": "ngtm_weighted",
+   "justification": "n(>M) integrates dn/dm above M, so its relative error is the dn/dm tolerance averaged over M' > M with weight dn/dln M'. The average is taken over the stored grid, with the part above the top mass weighted by n(>M_top)."
+  }
+ },
+ "overrides": []
+}
