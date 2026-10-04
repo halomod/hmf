@@ -41,6 +41,8 @@ categories:
 name-template: 'v$RESOLVED_VERSION'
 tag-template: 'v$RESOLVED_VERSION'
 
+# Applied by .github/workflows/autolabel.yml. A rule matches if any of its matchers
+# does; titles are matched against conventional-commit prefixes.
 autolabeler:
   - label: 'type: maint: documentation'
     files:
@@ -48,28 +50,35 @@ autolabeler:
       - '*.rst'
       - 'docs/**/*'
     branch:
-      - '/.*docs{0,1}.*/'
+      - '/^docs?[/-]/'
+    title:
+      - '/^docs(\(.+\))?!?:/i'
   - label: 'type: bug'
     branch:
-      - '/fix.*/'
+      - '/^fix\//'
     title:
-      - '/fix/i'
+      - '/^fix(\(.+\))?!?:/i'
   - label: "type: maint: removal"
     title:
-      - "/remove .*/i"
+      - "/^remove /i"
   - label: "type: ci"
     files:
-      - '.github/*'
+      - '.github/**/*'
       - '.pre-commit-config.yaml'
-      - '.coveragrc'
+      - '.coveragerc'
     branch:
-      - '/pre-commit-ci-update-config/'
+      - '/^pre-commit-ci-update-config$/'
+    title:
+      - '/^ci(\(.+\))?!?:/i'
+  - label: "type: testing"
+    title:
+      - '/^test(\(.+\))?!?:/i'
   - label: "type: maint: style"
-    files:
-      - '/pre-commit-ci-update-config/'
+    title:
+      - '/^style(\(.+\))?!?:/i'
   - label: "type: maint: refactoring"
     title:
-      - "/.* refactor.*/i"
+      - '/^refactor(\(.+\))?!?:/i'
 
 template: |
   ## Changes
