@@ -14,7 +14,7 @@ from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 from scipy.optimize import minimize
 
 from .._internals._cache import (
-    _rollback_failed_quantity_index,
+    _clear_quantity_index,
     cached_quantity,
     hidden_loc,
     parameter,
@@ -743,7 +743,7 @@ class MassFunction(transfer.Transfer):
             # Forget any quantities that were mid-evaluation on self when copied
             # (e.g. ngtm): they will never finish on the copy.
             for name in list(getattr(ext, hidden_loc(ext, "active_q"))):
-                _rollback_failed_quantity_index(ext, name)
+                _clear_quantity_index(ext, name)
             self._gtm_extension_framework = ext
 
         params = {
