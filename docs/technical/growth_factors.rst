@@ -29,7 +29,8 @@ be denoted by :math:`D_+(a)`. Unless otherwise noted, primes will denote derivat
 with respect to *scale factor* (e.g. :math:`D'(a)`), while dots will denote derivatives
 with respect to time (e.g. :math:`\dot{D}`).
 
-.. label-definitions:
+.. _label-definitions:
+
 Definitions
 -----------
 
@@ -234,7 +235,8 @@ and noting that :math:`E(a) = \Omega_m a^{-3/2}` in this case, which gives:
 .. math:: 0 + \left(\frac{3}{a} - \frac{3}{2a} \right) - \frac{3}{2} \frac{1}{a^5 \Omega_m a^{-3}} a = 0
 .. math:: \frac{3}{2a} - \frac{3}{2a} = 0.
 
-.. label-radiation-dom:
+.. _label-radiation-dom:
+
 Matter-Radiation Domination
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 At early times, radiation cannot be neglected, and the growth factor is not given by the
@@ -315,7 +317,7 @@ The full ODE (without any assumptions/approximations on :math:`E(a)`) does not a
 closed-form solutions. However, it can be solved numerically. A convenient way to setup
 the problem is as an initial value problem for a coupled system of first-order ODEs,
 which can be solved with standard ODE solvers. In this case, the relevant system is
-(see :ref:label-definitions`):
+(see :ref:`label-definitions`):
 
 .. math:: \begin{cases} x_1' = x_2 \\ x_2' = = -\left(\frac{3}{a} + \frac{E'}{E}\right) x_1' + \frac{3}{2} \frac{\Omega_m}{a^5 E^2} x_1 \end{cases}
 

@@ -1,12 +1,13 @@
 """Module that contains the command line app."""
 
 import importlib
+import tomllib
 from pathlib import Path
 from time import time
 
 import click
 import numpy as np
-import toml
+import tomli_w
 from astropy.units import Quantity
 from rich import box
 from rich.console import Console
@@ -17,7 +18,7 @@ from rich.table import Table
 import hmf
 from hmf.helpers.functional import get_hmf
 
-from .helpers.cfg_utils import framework_to_dict
+from .helpers.cfg_utils import framework_to_dict, to_toml_compatible
 
 console = Console(width=100)
 
@@ -43,8 +44,8 @@ def _get_config(config=None):
     if config is None:
         return {}
 
-    with Path(config).open() as fl:
-        cfg = toml.load(fl)
+    with Path(config).open("rb") as fl:
+        cfg = tomllib.load(fl)
 
     # Import modules defining external models, so they are registered before the
     # params are resolved.
@@ -215,8 +216,8 @@ def run_cli(config, pkg_name, args, outdir, label, pkgs, default_framework):
         # Write out parameters
         dct = framework_to_dict(obj, plugins=cfg.get("plugins", ()))
         dct["quantities"] = quantities
-        with (outdir / f"{lab}_cfg.toml").open("w") as fl:
-            toml.dump(dct, fl, encoder=toml.TomlNumpyEncoder())
+        with (outdir / f"{lab}_cfg.toml").open("wb") as fl:
+            tomli_w.dump(to_toml_compatible(dct), fl)
 
         console.print(f"   Writing full config to [cyan]{outdir}/{lab}_cfg.toml[/cyan].")
         console.print()
