@@ -67,14 +67,13 @@ def test_get_hmf_z(bench):
     assert all(c["camb"] == 1 for c in per_round), per_round
 
 
-# The most CAMB runs each introspection classmethod makes today. Each builds a
-# default instance, which runs CAMB, so these are upper bounds to stop
-# them getting worse; they should drop to 0 once introspection stops instantiating.
+# CAMB runs each introspection classmethod makes. They read the class's
+# descriptors (and, for the defaults, an unvalidated instance), so none.
 INTROSPECTION_MAX_CAMB = {
-    "get_all_parameter_names": 1,
-    "quantities_available": 1,
-    "parameter_info": 1,
-    "get_all_parameter_defaults": 2,
+    "get_all_parameter_names": 0,
+    "quantities_available": 0,
+    "parameter_info": 0,
+    "get_all_parameter_defaults": 0,
 }
 
 

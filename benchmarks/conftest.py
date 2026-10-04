@@ -37,10 +37,10 @@ def calls(monkeypatch) -> collections.Counter:
     ``camb``
         Calls to :func:`camb.get_transfer_functions`, i.e. CAMB runs.
     ``sigma_grid``
-        Evaluations of sigma(R) on an array of radii (each call to
-        :meth:`~hmf.density_field.filters.BaseFilter.sigma` with more than one radius,
-        including the ones made inside ``dlnss_dlnr``). A single radius, as in
-        ``sigma_8``, is not counted.
+        Evaluations of sigma(R) on an array of radii, i.e. of the sigma integral that
+        :meth:`~hmf.density_field.filters.BaseFilter.sigma` and the fused
+        :meth:`~hmf.density_field.filters.BaseFilter.sigma_and_dlnss_dlnr` share,
+        for more than one radius. A single radius, as in ``sigma_8``, is not counted.
     """
     counter = collections.Counter()
 
@@ -52,14 +52,15 @@ def calls(monkeypatch) -> collections.Counter:
 
     monkeypatch.setattr(camb, "get_transfer_functions", get_transfer_functions)
 
-    real_sigma = filters.BaseFilter.sigma
+    real_sigma_integral = filters.BaseFilter._sigma_integral
 
-    def sigma(self, r, *args, **kwargs):
-        if np.size(r) > 1:
+    def sigma_integral(self, w, *args, **kwargs):
+        # w is the window on the (R, k) grid: one row per radius.
+        if np.ndim(w) > 1 and np.shape(w)[0] > 1:
             counter["sigma_grid"] += 1
-        return real_sigma(self, r, *args, **kwargs)
+        return real_sigma_integral(self, w, *args, **kwargs)
 
-    monkeypatch.setattr(filters.BaseFilter, "sigma", sigma)
+    monkeypatch.setattr(filters.BaseFilter, "_sigma_integral", sigma_integral)
 
     return counter
 

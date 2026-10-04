@@ -13,7 +13,12 @@ import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 from scipy.optimize import minimize
 
-from .._internals._cache import cached_quantity, parameter
+from .._internals._cache import (
+    _rollback_failed_quantity_index,
+    cached_quantity,
+    hidden_loc,
+    parameter,
+)
 from .._internals._framework import get_mdl
 from ..density_field import transfer
 from ..density_field import transfer_models as tm
@@ -390,9 +395,14 @@ class MassFunction(transfer.Transfer):
         return 10 ** np.arange(self.Mmin, self.Mmax, self.dlog10m)
 
     @cached_quantity
+    def _unn_sigma0_and_dlnss_dlnm(self):
+        """Un-normalised mass variance at z=0 and its log-slope, computed together."""
+        return self.filter.sigma_and_dlnss_dlnm(self.radii)
+
+    @cached_quantity
     def _unn_sigma0(self):
         """Un-normalised mass variance at z=0."""
-        return self.filter.sigma(self.radii)
+        return self._unn_sigma0_and_dlnss_dlnm[0]
 
     @cached_quantity
     def _sigma_k_truncation_error(self) -> float:
@@ -465,7 +475,7 @@ class MassFunction(transfer.Transfer):
         .. math:: frac{d\ln\sigma}{d\ln m} = \frac{3}{2\sigma^2\pi^2R^4}\int_0^\infty
                   \frac{dW^2(kR)}{dM}\frac{P(k)}{k^2}dk
         """
-        return 0.5 * self.filter.dlnss_dlnm(self.radii)
+        return 0.5 * self._unn_sigma0_and_dlnss_dlnm[1]
 
     @cached_quantity
     def sigma(self):
@@ -634,8 +644,9 @@ class MassFunction(transfer.Transfer):
         # filter (as for the main grid) rather than interpolated, so that masses outside
         # the user's grid are handled without extrapolation.
         radii = self.filter.mass_to_radius(m_meas, self.mean_density0)
-        sigma = self._normalisation * self.filter.sigma(radii) * self.growth_factor
-        dlnsdlnm = 0.5 * self.filter.dlnss_dlnm(radii)
+        unn_sigma, dlnss_dlnm = self.filter.sigma_and_dlnss_dlnm(radii)
+        sigma = self._normalisation * unn_sigma * self.growth_factor
+        dlnsdlnm = 0.5 * dlnss_dlnm
 
         fit = self.hmf_model(
             m=m_meas,
@@ -700,11 +711,9 @@ class MassFunction(transfer.Transfer):
         if (m[-1] < 10**16.5 and not np.isnan(dndm[-1]) and dndm[-1] != 0) and not isinstance(
             self.hmf, ff.Behroozi
         ):
-            new_mf = copy.deepcopy(self)
-            new_mf.update(Mmin=np.log10(self.m[-1]) + self.dlog10m, Mmax=18)
-            dndm = np.concatenate((dndm, new_mf.dndm))
-
-            m = np.concatenate((m, new_mf.m))
+            m_ext, dndm_ext = self._gtm_extension_dndm()
+            dndm = np.concatenate((dndm, dndm_ext))
+            m = np.concatenate((m, m_ext))
 
         ngtm = int_gtm(m[dndm > 0], dndm[dndm > 0], mass_density)
 
@@ -717,6 +726,33 @@ class MassFunction(transfer.Transfer):
 
         # Since ngtm may have been extended, we cut it back
         return ngtm[:size]
+
+    def _gtm_extension_dndm(self):
+        """Masses and ``dndm`` above the top of ``m``, up to 1e18, for :meth:`_gtm`.
+
+        These come from a copy of this framework with ``Mmin=log10(m[-1]) + dlog10m``
+        and ``Mmax=18``, so every quantity in the chain to ``dndm`` (including any
+        overridden by a subclass) is computed exactly as for ``m``. The copy is made
+        once and kept: on later calls its parameters are synced with this framework's,
+        so its cache only recomputes what changed (e.g. not the z-independent sigma
+        when only z changes).
+        """
+        ext = self.__dict__.get("_gtm_extension_framework")
+        if ext is None:
+            ext = copy.deepcopy(self)
+            # Forget any quantities that were mid-evaluation on self when copied
+            # (e.g. ngtm): they will never finish on the copy.
+            for name in list(getattr(ext, hidden_loc(ext, "active_q"))):
+                _rollback_failed_quantity_index(ext, name)
+            self._gtm_extension_framework = ext
+
+        params = {
+            name: getattr(self, name)
+            for name in self.get_all_parameter_names()
+            if name not in ("Mmin", "Mmax")
+        }
+        ext.update(Mmin=np.log10(self.m[-1]) + self.dlog10m, Mmax=18, **params)
+        return ext.m, ext.dndm
 
     @cached_quantity
     def ngtm(self):

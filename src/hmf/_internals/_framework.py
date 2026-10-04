@@ -3,6 +3,7 @@
 import copy
 import difflib
 import importlib
+import inspect
 import logging
 import re
 import sys
@@ -550,15 +551,38 @@ class Framework(metaclass=_Validator):
                 getattr(self, name)._collect_references(refs, prefix + name + ".", seen)
 
     @classmethod
-    def get_all_parameter_names(cls):
-        """Yield all parameter names in the class."""
-        K = cls()
-        return getattr(K, "_" + K.__class__.__name__ + "__recalc_par_prop")
+    def _descriptor_names(cls, marker: str) -> list[str]:
+        """Names of the class's properties whose getter carries ``marker``.
+
+        Names are ordered by the class that first defines them, base classes first,
+        then by definition order within each class.
+        """
+        names = {}
+        for kls in reversed(cls.__mro__):
+            for name in vars(kls):
+                prop = inspect.getattr_static(cls, name, None)
+                if isinstance(prop, property) and getattr(prop.fget, marker, False):
+                    names[name] = None
+        return list(names)
+
+    @classmethod
+    def get_all_parameter_names(cls) -> list[str]:
+        """Return all parameter names in the class.
+
+        These are read from the class's ``@parameter`` definitions, so the class is
+        not instantiated.
+        """
+        return cls._descriptor_names("_is_parameter")
 
     @classmethod
     def get_all_parameter_defaults(cls, recursive=True):
-        """Dictionary of all parameters and defaults."""
-        K = cls()
+        """Dictionary of all parameters and defaults.
+
+        Defaults may be set with some logic in ``__init__``, so they are read from an
+        instance. The instance is not validated, so no quantities are computed.
+        """
+        # type.__call__ skips the validation done by the _Validator metaclass.
+        K = type.__call__(cls)
         out = {name: getattr(K, name) for name in cls.get_all_parameter_names()}
 
         if recursive:
@@ -584,14 +608,15 @@ class Framework(metaclass=_Validator):
         }
 
     @classmethod
-    def quantities_available(cls):
-        """Obtain a list of all available output quantities."""
-        all_names = cls.get_all_parameter_names()
-        return [
-            name
-            for name in dir(cls)
-            if name not in all_names and not name.startswith("__") and name not in dir(Framework)
-        ]
+    def quantities_available(cls) -> list[str]:
+        """Obtain a list of all available (public) output quantities.
+
+        These are the class's ``@cached_quantity`` and ``@subframework`` definitions,
+        read without instantiating the class.
+        """
+        quantities = cls._descriptor_names("_is_cached_quantity")
+        quantities += cls._descriptor_names("_is_subframework")
+        return sorted(name for name in quantities if not name.startswith("_"))
 
     @classmethod
     def _get_all_parameters(cls):

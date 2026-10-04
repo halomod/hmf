@@ -56,10 +56,9 @@ def test_z_loop_dndm(bench, mf):
     assert all(c["camb"] == 0 and c["sigma_grid"] == 0 for c in per_round), per_round
 
 
-# sigma(R) evaluations per redshift that ngtm makes today: it re-derives sigma for
-# the masses it extends the grid with to integrate to high mass. An upper bound,
-# to stop this getting worse; it should drop to 0.
-NGTM_MAX_SIGMA_GRID_PER_Z = 4
+# sigma(R) evaluations per redshift that ngtm makes. sigma for the masses it
+# extends the grid with (to integrate to high mass) is z-independent and cached.
+NGTM_MAX_SIGMA_GRID_PER_Z = 0
 
 
 def test_z_loop_ngtm(bench, mf):
