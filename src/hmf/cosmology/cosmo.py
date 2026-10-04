@@ -29,6 +29,11 @@ from astropy.cosmology import (  # noqa
 from .. import __version__
 from .._internals import _cache, _framework
 
+#: The default cosmology in hmf: that of the :class:`Cosmology` framework (and so of
+#: every framework built on it), and that used by component models (fitting
+#: functions, mass definitions, WDM models) when they are not given a ``cosmo``.
+DEFAULT_COSMOLOGY = Planck18
+
 
 @deprecation.deprecated(
     deprecated_in="3.1.3",
@@ -72,7 +77,7 @@ class Cosmology(_framework.Framework):
     ``Cosmology.get_all_parameter_defaults()``.
     """
 
-    def __init__(self, cosmo_model=Planck18, cosmo_params=None):
+    def __init__(self, cosmo_model=DEFAULT_COSMOLOGY, cosmo_params=None):
         # Call Framework init
         super().__init__()
 

@@ -24,7 +24,7 @@ def test_neg_dc():
 
 
 def test_big_dc():
-    with pytest.raises(ValueError, match=r"delta_c must be < 10.0"):
+    with pytest.raises(ValueError, match=r"delta_c must be ≤ 10"):
         MassFunction(delta_c=20.0)
 
 
@@ -53,7 +53,7 @@ def test_mass_nonlinear_outside_range():
 
 def test_nu():
     h = MassFunction(Mmin=8, Mmax=18, transfer_model="EH")
-    assert np.allclose(h.nu_fn(h.m), h.nu)
+    assert np.allclose(h.nu_fn(h.m), h.nu2)
 
 
 def test_sigma8z():
@@ -78,7 +78,7 @@ def test_sigma8z_matches_input_when_k_range_exceeds_sigma8_fallback_grid():
 
 def test_neff_at_collapse():
     h = MassFunction(Mmin=8, Mmax=18, transfer_model="EH")
-    assert np.allclose(h.n_eff_at_collapse, h.n_eff[np.argmin(np.abs(h.nu - 1.0))], rtol=0.05)
+    assert np.allclose(h.n_eff_at_collapse, h.n_eff[np.argmin(np.abs(h.nu2 - 1.0))], rtol=0.05)
 
 
 def test_default_k_range_does_not_warn():

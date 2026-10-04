@@ -136,11 +136,11 @@ def test_growth_plugins():
 
 
 def test_validate_inputs():
-    with pytest.raises(AssertionError, match=r"Mmin > Mmax: 10, 9"):
+    with pytest.raises(ValueError, match=r"got Mmin=10, Mmax=9"):
         MassFunction(Mmin=10, Mmax=9, transfer_model="EH")
 
     m = MassFunction(Mmin=10, Mmax=11, transfer_model="EH")
-    with pytest.raises(AssertionError, match="Mmin > Mmax: 10, 9"):
+    with pytest.raises(ValueError, match="got Mmin=10, Mmax=9"):
         m.update(Mmax=9)
 
     # Without checking on, we can still manually set it, but it will warn us
@@ -150,7 +150,7 @@ def test_validate_inputs():
     # Ensure that validation still runs.
     with (
         pytest.warns(UserWarning, match="You are setting Mmax directly."),
-        pytest.raises(AssertionError, match="Mmin > Mmax: 8, 7"),
+        pytest.raises(ValueError, match="got Mmin=8, Mmax=7"),
     ):
         m.Mmax = 7
 
