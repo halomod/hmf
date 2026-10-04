@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 import pytest
 
@@ -197,6 +199,30 @@ def test_parameter_switch_reindexes():
     recalc = getattr(obj, hidden_loc(obj, "recalc"))
     assert "q" not in recalc
     assert obj.q == 2
+
+
+def test_parameter_switch_flipped_twice_before_recompute():
+    """Flipping a switch back before its dependents are recomputed is silent.
+
+    Regression: the switch used to delete its dependents' cache entries but leave them
+    in its own list of dependents, so the second flip tried to delete them again and
+    warned "q not found in recalc cache". Framework.update() does exactly this when it
+    rolls back a switch after failed validation.
+    """
+    obj = _CacheBase()
+    assert obj.qchild == 2
+    obj._validate = False
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        obj.flag = True
+        obj.flag = False
+
+    assert obj.q == 1
+    assert obj.qchild == 2
+    obj.flag = True
+    assert obj.q == 2
+    assert obj.qchild == 3
 
 
 def test_parameter_recalc_updates():

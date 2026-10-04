@@ -75,6 +75,12 @@ def no_transfer_calls(monkeypatch):
     assert calls == []
 
 
+# Deprecated aliases are not quantities in their own right, so quantities_available()
+# leaves them out (listing them would also make anything that evaluates every quantity
+# emit their DeprecationWarning).
+_DEPRECATED_ALIASES = {"nu"}
+
+
 def _old_quantities_available(cls):
     """The pre-optimisation result, minus its instantiation (see test docstrings)."""
     params = set(cls.get_all_parameter_names())
@@ -102,11 +108,14 @@ def test_parameter_names_match_instance_index(cls, no_transfer_calls):
 def test_quantities_available_are_the_public_quantities(cls, no_transfer_calls):
     quantities = cls.quantities_available()
 
-    # The same public names as before, minus constants and methods.
+    # The same public names as before, minus constants, methods and deprecated aliases
+    # (plain properties that only forward to a quantity, e.g. ``MassFunction.nu``).
     expected = {
         name
         for name in _old_quantities_available(cls)
-        if not name.startswith("_") and isinstance(getattr(cls, name), property)
+        if not name.startswith("_")
+        and isinstance(getattr(cls, name), property)
+        and name not in _DEPRECATED_ALIASES
     }
     assert set(quantities) == expected
     assert quantities == sorted(quantities)
