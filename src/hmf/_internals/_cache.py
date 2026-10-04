@@ -388,7 +388,7 @@ def subframework(f):
 
         def copy_index(fmwork):
             # Every time it's gotten, we update the overall papr and prpa dicts with the
-            # relavant sub-items
+            # relevant sub-items
             fmwork_activeq = getattr(fmwork, hidden_loc(fmwork, "active_q"))
             fmwork_prpa = getattr(fmwork, hidden_loc(fmwork, "recalc_prop_par"))
             fmwork_recalc = getattr(fmwork, hidden_loc(fmwork, "recalc"))

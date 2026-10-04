@@ -84,7 +84,7 @@ Most commonly in the literature, the growth factor is normalized such that
 When computing halo mass functions and related quantities, we generally first compute
 the power spectrum at z=0, and then use the growth factor to scale it back to higher
 redshifts. In this case, it is convenient to use the normalization :math:`D(a=1) = 1`,
-so that we simpy have :math:`P(k, z) = D(z)^2 P(k, z=0)`. Thus, in ``hmf``,
+so that we simply have :math:`P(k, z) = D(z)^2 P(k, z=0)`. Thus, in ``hmf``,
 when you call ``growth_factor(z)`` you will get the growth factor normalized such that
 :math:`D(a=1) = 1`. However, under the hood, most of the growth factor models are
 specified such that :math:`D(a) \to a` as :math:`a \to 0`, and then the growth factor is
@@ -309,7 +309,7 @@ notation in [VT20]_ as:
 where :math:`w` is the equation of state parameter for the dark energy component, and
 :math:`{}_2F_1` is the hypergeometric function.
 
-Unfortuantely, the case :math:`w=-1` is not a special case of this solution.
+Unfortunately, the case :math:`w=-1` is not a special case of this solution.
 
 Solving the ODE
 ---------------
