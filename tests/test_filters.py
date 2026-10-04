@@ -8,6 +8,7 @@ in the development/ directory.
 import warnings
 from typing import ClassVar
 
+import mpmath
 import numpy as np
 import pytest
 from numpy import cos, pi, sin
@@ -78,6 +79,44 @@ class TestTopHat:
 
         print(true, cls.dlnss_dlnr(R))
         assert np.isclose(cls.dlnss_dlnr(R), true)
+
+    @pytest.mark.parametrize("x", np.logspace(-6, 0, 25))
+    def test_small_x_window_matches_exact(self, cls, x):
+        """W and dW/dlnx are accurate at small x, where the closed forms cancel."""
+        with mpmath.workdps(50):
+            xm = mpmath.mpf(float(x))
+            sin_m, cos_m = mpmath.sin(xm), mpmath.cos(xm)
+            w_exact = float(3 * (sin_m - xm * cos_m) / xm**3)
+            dw_exact = float((9 * xm * cos_m + 3 * (xm**2 - 3) * sin_m) / xm**3)
+
+        assert cls.k_space(x) == pytest.approx(w_exact, rel=1e-9, abs=0)
+        assert cls.dw_dlnkr(x) == pytest.approx(dw_exact, rel=1e-9, abs=0)
+
+    def test_small_x_dwdlnkr_series(self, cls):
+        """dW/dlnx follows its analytic series -x^2/5 + x^4/70 - x^6/2520 at small x."""
+        x = np.logspace(-4, -2, 21)
+        series = -(x**2) / 5 + x**4 / 70 - x**6 / 2520
+        np.testing.assert_allclose(cls.dw_dlnkr(x), series, rtol=1e-12, atol=0)
+        # The fused evaluation of W and dW/dlnx must agree.
+        np.testing.assert_allclose(cls._window_and_derivative(x)[1], series, rtol=1e-12, atol=0)
+
+    @pytest.mark.parametrize("kc_r", [1e-4, 1e-3, 3e-3, 1e-2])
+    def test_dlnssdlnr_truncated_power_small_r(self, kc_r):
+        r"""For P(k) truncated at k_c, dlnss/dlnR -> -4 (k_c R)^2 / 15 when k_c R << 1.
+
+        With :math:`P = k` for :math:`k < k_c` and zero above, :math:`W dW/d\ln x
+        \approx -x^2/5`, so :math:`d\ln\sigma^2/d\ln R = -2R^2 \int k^5 P\, d\ln k
+        / (5 \int k^3 P\, d\ln k) = -4 (k_c R)^2/15`, with relative corrections of
+        order :math:`(k_c R)^2`. The whole integral comes from :math:`kR \ll 1`.
+        """
+        kc = 2.0
+        k = np.logspace(-8, np.log10(kc), 4001)
+        filt = filters.TopHat(k, k.copy())
+        r = kc_r / kc
+
+        expected = -4 * kc_r**2 / 15
+        assert filt.dlnss_dlnr(r)[0] == pytest.approx(expected, rel=1e-5, abs=0)
+        assert filt.sigma_and_dlnss_dlnr(r)[1][0] == pytest.approx(expected, rel=1e-5, abs=0)
 
     def test_real_space_edges(self, cls):
         R = 1.0

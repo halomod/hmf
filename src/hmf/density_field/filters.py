@@ -425,6 +425,17 @@ class TopHat(BaseFilter):
     and the derivative of the window function is
 
     .. math:: \frac{dW}{d\ln x}(x=kR) = \frac{1}{x^3}[9x\cos x + 3(x^2-3)\sin x].
+
+    Both closed forms suffer catastrophic cancellation at small :math:`x`, so below
+    :math:`x = 0.05` they are replaced by their Taylor series,
+
+    .. math:: W(x) = 1 - \frac{x^2}{10} + \frac{x^4}{280} - \frac{x^6}{15120},
+
+    .. math:: \frac{dW}{d\ln x} = -\frac{x^2}{5} + \frac{x^4}{70} - \frac{x^6}{2520}.
+
+    This matters for power spectra truncated at high :math:`k` (e.g. warm dark matter),
+    for which :math:`d\ln\sigma^2/d\ln R` at small :math:`R` comes entirely from
+    :math:`kR \ll 1`.
     """
 
     @override
@@ -432,9 +443,34 @@ class TopHat(BaseFilter):
         a = np.where(r < R, 1, 0)
         return np.where(r == R, 0.5, a)
 
+    #: Below this value of :math:`x=kR`, the window and its derivative are evaluated
+    #: from their Taylor series, since the closed forms lose precision to cancellation
+    #: (the closed-form :math:`dW/d\ln x` has a relative error of ~1e-3 at x=1e-3 and
+    #: is entirely wrong by x=1e-4). With terms up to :math:`x^6`, the relative error
+    #: of either branch is below ~1e-9 everywhere.
+    _series_threshold: ClassVar[float] = 0.05
+
+    @classmethod
+    def _window(cls, kr, sin, cos):
+        """Top-hat window given ``sin(kr)`` and ``cos(kr)``, accurate at small ``kr``."""
+        small = kr < cls._series_threshold
+        x = np.where(small, 1.0, kr)
+        x2 = kr**2
+        series = 1 - x2 / 10 + x2**2 / 280 - x2**3 / 15120
+        return np.where(small, series, (3 / x**3) * (sin - x * cos))
+
+    @classmethod
+    def _window_derivative(cls, kr, sin, cos):
+        """Top-hat ``dW/dln(kr)`` given ``sin(kr)`` and ``cos(kr)``, accurate at small ``kr``."""
+        small = kr < cls._series_threshold
+        x = np.where(small, 1.0, kr)
+        x2 = kr**2
+        series = -x2 / 5 + x2**2 / 70 - x2**3 / 2520
+        return np.where(small, series, (9 * x * cos + 3 * (x**2 - 3) * sin) / x**3)
+
     @override
     def k_space(self, kr):
-        return np.where(kr > 1.4e-6, (3 / kr**3) * (np.sin(kr) - kr * np.cos(kr)), 1)
+        return self._window(kr, np.sin(kr), np.cos(kr))
 
     @override
     def mass_to_radius(self, m, rho_mean):
@@ -446,11 +482,7 @@ class TopHat(BaseFilter):
 
     @override
     def dw_dlnkr(self, kr):
-        return np.where(
-            kr > 1e-3,
-            (9 * kr * np.cos(kr) + 3 * (kr**2 - 3) * np.sin(kr)) / kr**3,
-            0,
-        )
+        return self._window_derivative(kr, np.sin(kr), np.cos(kr))
 
     @override
     def _window_and_derivative(self, kr):
@@ -459,9 +491,7 @@ class TopHat(BaseFilter):
 
         # Same expressions as k_space and dw_dlnkr, sharing the trigonometric functions.
         sin, cos = np.sin(kr), np.cos(kr)
-        w = np.where(kr > 1.4e-6, (3 / kr**3) * (sin - kr * cos), 1)
-        dw = np.where(kr > 1e-3, (9 * kr * cos + 3 * (kr**2 - 3) * sin) / kr**3, 0)
-        return w, dw
+        return self._window(kr, sin, cos), self._window_derivative(kr, sin, cos)
 
 
 @_utils.inherit_docstrings
