@@ -1,0 +1,29 @@
+name: Typing
+
+# Type-check the v4 core (src/hmf/core) with mypy in strict mode. The settings are in
+# [tool.mypy] in pyproject.toml; the v3 code is not type-checked.
+on:
+  push:
+  pull_request:
+    branches:
+      - 'main'
+
+jobs:
+  mypy:
+    name: mypy (hmf.core, strict)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Install
+        run: uv sync --locked --dev
+      - name: Run mypy
+        run: uv run mypy

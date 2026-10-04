@@ -15,6 +15,7 @@ import os
 import shutil
 import sys
 import time
+import warnings
 from importlib.metadata import version as _version
 from pathlib import Path
 
@@ -34,6 +35,9 @@ if shutil.which("pandoc") is None:
         )
     except (ImportError, OSError):
         pass
+
+# The API reference imports hmf.core, the experimental v4 preview, which warns on import.
+warnings.filterwarnings("ignore", message="hmf.core is an experimental preview")
 
 # -- General configuration -----------------------------------------------------
 

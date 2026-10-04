@@ -53,3 +53,19 @@ Other Calculations and Utilities
    hmf.helpers.sample
    hmf.helpers.functional
    hmf.exceptions
+
+hmf.core (experimental)
+-----------------------
+The v4 core preview: see :doc:`core`. Its API may change before 4.0.
+
+.. autosummary::
+   :caption: hmf.core (experimental)
+   :toctree: _autosummary
+   :template: core-module.rst
+
+   hmf.core.units
+   hmf.core.model
+   hmf.core.stage
+   hmf.core.accuracy
+   hmf.core.domain
+   hmf.core._kernels

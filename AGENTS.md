@@ -85,6 +85,26 @@ Ask first:
   under test is **not** a physical test. Re-implementing the same formula in
   the test only checks that the code agrees with itself.
 
+## hmf.core (v4) conventions
+
+`src/hmf/core` is the experimental v4 preview (see `docs/core.rst`). Don't import it
+from v3 code: `import hmf` must not import `hmf.core`. In it:
+
+- **Units:** Quantities at every public boundary; plain arrays in canonical units
+  (`hmf.core.units.CANONICAL_UNITS`) inside. Decorate public methods with
+  `units.unit_boundary`; attach units only with the shared constants (`Msun_h`, …),
+  never a freshly built `u.Msun / cu.littleh`. Bare floats for dimensional inputs
+  raise `UnitBoundaryError`. Never enable `cu.with_H0` globally. Budget: ≤ 2 µs/call.
+- **Kernels** (`hmf.core._kernels`): pure, unit-free, vectorised, no input mutation,
+  batch-size-independent. Library code calls kernels, not decorated methods.
+- **Models:** `@attrs.frozen(kw_only=True)` subclasses of a kind
+  (`class X(Model, kind=True)`); register with `alias=...`; look up via `Kind.get()`.
+- **Stages:** `@attrs.frozen(kw_only=True)` `Stage`s; change via `evolve()`; cache
+  with `functools.cached_property`; document fields with `hmf.core.field(doc=...)`.
+- **Domains/accuracy:** use `domain.Domain`/`apply_domain_policy` and the
+  `accuracy` classes; don't invent new sentinels or grid settings.
+- Name logs `log10_…` or `ln_…`, never bare `log`. `uv run mypy` (strict) must pass.
+
 ## API docs
 
 - Docs are built with sphinx and numpydoc.

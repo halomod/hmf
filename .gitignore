@@ -20,3 +20,4 @@ htmlcov/
 .qodo
 
 docs/autoapi/*
+.mypy_cache/

@@ -27,3 +27,17 @@ class HMFExtrapolationWarning(UserWarning):
     The returned values are finite, but rely on extrapolation, so they should be
     treated with caution.
     """
+
+
+class HMFCoreExperimentalWarning(FutureWarning):
+    """Emitted on ``import hmf.core``: the v4 core is an experimental preview.
+
+    Its API may change before hmf 4.0. The warning is defined here, rather than in
+    :mod:`hmf.core`, so that it can be filtered *before* :mod:`hmf.core` is imported::
+
+        import warnings
+        from hmf.exceptions import HMFCoreExperimentalWarning
+
+        warnings.simplefilter("ignore", HMFCoreExperimentalWarning)
+        import hmf.core
+    """

@@ -14,6 +14,7 @@
    tutorials
    technical/index
    attribution
+   core
 
 .. toctree::
    :caption: API Reference
