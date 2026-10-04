@@ -63,11 +63,10 @@ class Accuracy:
     _fast: ClassVar[Mapping[str, Any]] = MappingProxyType({})
     _high: ClassVar[Mapping[str, Any]] = MappingProxyType({})
 
-    def __init_subclass__(cls, /, **kwargs: Any) -> None:
+    @classmethod
+    def __attrs_init_subclass__(cls) -> None:
         """Generate the subclass's docstring "Parameters" section from its fields."""
-        super().__init_subclass__(**kwargs)
-        if "__attrs_attrs__" in cls.__dict__:
-            add_parameters_section(cls)
+        add_parameters_section(cls)
 
     @classmethod
     def fast(cls, **overrides: Any) -> Self:

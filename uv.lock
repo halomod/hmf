@@ -684,7 +684,7 @@ tests = [
 [package.metadata]
 requires-dist = [
     { name = "astropy", specifier = ">=6.0" },
-    { name = "attrs", specifier = ">=23.2" },
+    { name = "attrs", specifier = ">=24.1" },
     { name = "cached-property" },
     { name = "camb", specifier = ">=1.0.0" },
     { name = "cattrs", specifier = ">=23.2" },

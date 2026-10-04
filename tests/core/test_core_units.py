@@ -200,6 +200,16 @@ def test_bare_value_message_names_the_unit_kind(toy):
         toy.both(1 * Mpc_h, k=0.1)
 
 
+def test_bare_value_message_for_non_canonical_unit():
+    class Timed:
+        @unit_boundary(t=u.s)
+        def f(self, t):
+            return t
+
+    with pytest.raises(UnitBoundaryError, match=r"`t \* u.Unit\('s'\)`"):
+        Timed().f(1.0)
+
+
 def test_wrong_dimension_raises(toy):
     with pytest.raises(u.UnitConversionError, match="argument 'm'"):
         toy.mass(1.0 * Mpc_h)

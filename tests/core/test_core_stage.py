@@ -58,10 +58,10 @@ def test_cached_property_on_frozen_slotted_stage():
         s.n = 4
 
 
-def test_attrs_version_supports_slotted_cached_property():
-    # Required for the pattern above.
+def test_attrs_version():
+    # 23.2: cached_property on slotted classes. 24.1: __attrs_init_subclass__.
     major, minor = (int(x) for x in attrs.__version__.split(".")[:2])
-    assert (major, minor) >= (23, 2)
+    assert (major, minor) >= (24, 1)
 
 
 def test_evolve_returns_new_stage():
@@ -143,3 +143,15 @@ def test_equality_ignores_cache():
     a.values
     assert a == b
     assert hash(a) == hash(b)
+
+
+def test_unresolvable_annotation_kept_as_string():
+    # A forward reference that can't be resolved stays a string, in fields_info() and
+    # in the generated docstring, rather than breaking class creation.
+    @attrs.frozen(kw_only=True)
+    class Forward(Stage):
+        thing: "NotDefinedAnywhere" = field(default=None, doc="Forward reference.")  # noqa: F821
+
+    (info,) = Forward.fields_info()
+    assert info.type == "NotDefinedAnywhere"
+    assert "thing : NotDefinedAnywhere, default None" in inspect.getdoc(Forward)

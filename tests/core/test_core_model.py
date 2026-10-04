@@ -375,6 +375,10 @@ def test_import_path_wrong_kind(modules, Fit):
 def test_import_path_not_found(Fit):
     with pytest.raises(ModelNotFoundError, match="import path"):
         Fit.get("no_such_module_xyz:Cls")
+    # Malformed paths: no module, or no attribute.
+    for path in (":Cls", "hmf.core.model:", ".Cls"):
+        with pytest.raises(ModelNotFoundError):
+            Fit.get(path)
     with pytest.raises(ModelNotFoundError):
         Fit.get("hmf.core.model:NoSuchClass")
 

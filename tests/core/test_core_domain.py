@@ -101,6 +101,13 @@ def test_interval_must_be_ordered():
         Interval(np.nan, 1)
 
 
+def test_interval_bound_used_as_is():
+    interval = Interval(0, 1)
+    d = Domain({"z": interval})
+    assert d["z"] is interval
+    assert d.contains(z=0.5) is True
+
+
 def test_quantity_pair_bounds():
     d = Domain({"m": (1e10 * Msun_h, None)})
     assert d["m"].unit == Msun_h

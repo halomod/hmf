@@ -48,13 +48,17 @@ The entry point may name a module (whose import registers its models) or a class
 
 Subclasses must be decorated with ``@attrs.frozen(kw_only=True)``
 -------------------------------------------------------------------
-Slotted ``attrs`` classes are built twice: once by the ``class`` statement, and again
-by the decorator, which calls ``__init_subclass__`` a second time *without* the class
-keywords. :class:`Model` handles this (it stores its own class keywords on the class,
-and re-registers the final class), and generates the "Parameters" section of the
-class docstring from the fields at that point. Mixins with their own
-``__init_subclass__`` should likewise tolerate being called a second time without
-their keywords.
+Registration happens in ``__attrs_init_subclass__``, which ``attrs`` calls once the
+decorator has built the final class. So a class is registered only when it is
+decorated, and the registry always holds the final (slotted) class. The
+"Parameters" section of the class docstring is generated from the fields at the
+same point.
+
+Slotted ``attrs`` classes are created twice: once by the ``class`` statement, and
+again by the decorator, which calls ``__init_subclass__`` a second time *without*
+the class keywords. :class:`Model` therefore only validates and stores its keywords in
+``__init_subclass__``. Mixins with their own ``__init_subclass__`` should likewise
+tolerate the second call.
 """
 
 from __future__ import annotations
@@ -158,46 +162,43 @@ class Model(abc.ABC):
         kind: bool = False,
         **kwargs: Any,
     ) -> None:
-        """Register a new model class in its kind(s)."""
+        """Validate and store the class keywords of a new model class."""
         super().__init_subclass__(**kwargs)
-
         if "_model_options" in cls.__dict__:
-            # attrs is rebuilding this class as a slotted class, and called us again
-            # without the class keywords: use the ones stored the first time.
-            options = cls._model_options
-        else:
-            options = _Options(alias, abstract, override, kind)
-            cls._model_options = options
-        if options.alias is not None and (
-            not options.alias or "." in options.alias or ":" in options.alias
-        ):
-            raise ValueError(
-                f"{cls.__qualname__}: alias {options.alias!r} must be a non-empty name "
-                "without '.' or ':' (those mark import paths)."
-            )
-        cls.alias = options.alias
+            # attrs is building the slotted class, and called us again without the
+            # class keywords: the ones stored the first time are already copied over.
+            return
 
+        if alias is not None and (not alias or "." in alias or ":" in alias):
+            raise ValueError(
+                f"{cls.__qualname__}: alias {alias!r} must be a non-empty name without '.' "
+                "or ':' (those mark import paths)."
+            )
+        if kind and alias is not None:
+            raise TypeError(f"{cls.__qualname__}: a model kind can not have an alias.")
+        if not (kind or abstract or cls._kinds()):
+            raise TypeError(
+                f"{cls.__qualname__} subclasses Model directly. A model must subclass a "
+                "model kind (a class defined with `kind=True`), or pass `abstract=True`."
+            )
+        cls._model_options = _Options(alias, abstract, override, kind)
+        cls.alias = alias
+
+    @classmethod
+    def __attrs_init_subclass__(cls) -> None:
+        """Register the class attrs has just built, and document its fields."""
+        options = cls._model_options
         if options.kind:
-            if options.alias is not None:
-                raise TypeError(f"{cls.__qualname__}: a model kind can not have an alias.")
-            if "_registry" not in cls.__dict__:
-                cls._registry = {}
-                cls._aliases = {}
+            cls._registry = {}
+            cls._aliases = {}
         elif not options.abstract:
             kinds = cls._kinds()
-            if not kinds:
-                raise TypeError(
-                    f"{cls.__qualname__} subclasses Model directly. A model must subclass a "
-                    "model kind (a class defined with `kind=True`), or pass `abstract=True`."
-                )
             # Check every kind before changing any, so a failure registers nothing.
             for k in kinds:
                 k._check_alias(cls, options)
             for k in kinds:
                 k._register(cls, options)
-
-        if "__attrs_attrs__" in cls.__dict__:
-            add_parameters_section(cls)
+        add_parameters_section(cls)
 
     @classmethod
     def _kinds(cls) -> list[type[Model]]:
@@ -224,8 +225,8 @@ class Model(abc.ABC):
         name = qualified_name(model)
         if options.alias is not None:
             cls._aliases[options.alias] = name
-        # The same qualified name again is a re-definition of the same class (attrs'
-        # slotted rebuild, a module reload, a re-run notebook cell): replace it.
+        # The same qualified name again is a re-definition of the same class (a module
+        # reload, a re-run notebook cell): replace it.
         cls._registry[name] = model
 
     @classmethod

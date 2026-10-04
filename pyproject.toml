@@ -40,7 +40,7 @@ dependencies = [
     "tomli-w>=1.0",
     # Not used by hmf itself, but halomod (as of 2.2.2) imports it without declaring it.
     "cached_property",
-    "attrs>=23.2",
+    "attrs>=24.1",
     "cattrs>=23.2",
 ]
 

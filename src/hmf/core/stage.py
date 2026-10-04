@@ -11,7 +11,7 @@ as a field. The conventions every stage follows:
   never modified in the first place).
 * **Validation in the constructor**, with ``attrs`` validators (or
   ``__attrs_post_init__``), so no invalid stage can exist.
-* **Expensive results are** :func:`functools.cached_property`. ``attrs`` (≥ 23.2)
+* **Expensive results are** :func:`functools.cached_property`. ``attrs`` (≥ 24.1)
   turns these into slots on slotted classes, so a stage keeps no ``__dict__``.
   Because stages are immutable, a cached result can never go stale; and because
   ``evolve()`` shares the unchanged sub-stages, their caches carry over.
@@ -65,13 +65,10 @@ class Stage:
     [0, 1, 4, 9]
     """
 
-    def __init_subclass__(cls, /, **kwargs: Any) -> None:
+    @classmethod
+    def __attrs_init_subclass__(cls) -> None:
         """Generate the subclass's docstring "Parameters" section from its fields."""
-        super().__init_subclass__(**kwargs)
-        # attrs calls this a second time, for the slotted class it builds, and only
-        # that class has its fields.
-        if "__attrs_attrs__" in cls.__dict__:
-            add_parameters_section(cls)
+        add_parameters_section(cls)
 
     def evolve(self, **changes: Any) -> Self:
         """Return a copy of this stage with some fields changed.
