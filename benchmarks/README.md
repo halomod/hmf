@@ -101,6 +101,15 @@ that removes it should lower them.
 | 12 | `test_introspection[...]` | `get_all_parameter_names`, `quantities_available`, `parameter_info`, `get_all_parameter_defaults` |
 | 13 | `test_import[import_hmf]` | `python -c "import hmf"` in a subprocess |
 | 13 | `test_import[python]` | `python -c "pass"`, the interpreter start-up to subtract |
+| 14 | `test_unit_boundary_overhead[undecorated]` | 10,000 calls of an identity method on 500 masses |
+| 14 | `test_unit_boundary_overhead[canonical]` | the same method behind `hmf.core.units.unit_boundary`, masses in `Msun_h` |
+| 14 | `test_unit_boundary_overhead[physical]` | the same, masses in `u.Msun` (cached H0 conversion, plus one array multiply) |
+
+Workload 14 measures the fixed cost of the `hmf.core` units boundary: the
+*per item* time of `[canonical]` minus that of `[undecorated]` is the overhead per
+call, whose budget is **2 µs** (issue #389). `baseline.json` predates it, so it has
+no baseline entry. `test_unit_boundary_overhead_sanity` asserts only a generous
+20 µs, so that it never fails on a noisy runner.
 
 Inputs are fixed, everything a benchmark uses is imported before timing starts
 (halomod included, for the mass conversion), and warnings are silenced so that

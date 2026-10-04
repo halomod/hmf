@@ -40,6 +40,8 @@ dependencies = [
     "tomli-w>=1.0",
     # Not used by hmf itself, but halomod (as of 2.2.2) imports it without declaring it.
     "cached_property",
+    "attrs>=24.1",
+    "cattrs>=23.2",
 ]
 
 [project.optional-dependencies]
@@ -78,6 +80,7 @@ tests = [
 dev = [
     {include-group = "docs"},
     {include-group = "tests"},
+    "mypy>=1.15",
     "prek>=0.3.8",
     "pytest-benchmark>=5.3.0",
     "ruff>=0.16.9",
@@ -100,6 +103,13 @@ norecursedirs = [
 ]
 testpaths = [
     "tests"
+]
+filterwarnings = [
+    # hmf.core (the v4 preview) warns on import that it is experimental. Match it by
+    # message: naming its class here would import hmf before coverage starts. A
+    # command-line `-W error` overrides this, so tests/core/conftest.py also imports
+    # hmf.core quietly.
+    "ignore:hmf.core is an experimental preview:FutureWarning",
 ]
 
 
@@ -173,6 +183,7 @@ ignore = [
     "PT011", # pytest.raises too broad - acceptable in tests
     "PT012", # pytest.raises with multiple statements - acceptable in tests
     "PT030", # pytest.warns too broad - acceptable in tests
+    "PLR0206", # pytest.fixture is a property-decorator above, but fixtures take arguments
 ]
 "benchmarks/*.py" = [
     "PLR0206", # pytest.fixture is a property-decorator above, but fixtures take arguments
@@ -196,5 +207,30 @@ property-decorators = [
     "parameter",
 ]
 
+[tool.ruff.lint.flake8-bugbear]
+# hmf.core's documented attrs field (RUF009).
+extend-immutable-calls = ["hmf.core._fields.field", "hmf.core.field"]
+
 [tool.ruff.lint.mccabe]
 max-complexity = 21
+
+# Static typing is checked, in strict mode, for the v4 core (src/hmf/core) only:
+#   uv run mypy
+# The v3 code is not type-checked; it is only followed (silently) for imports.
+[tool.mypy]
+files = ["src/hmf/core"]
+strict = true
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = ["hmf", "hmf.*"]
+follow_imports = "silent"
+
+[[tool.mypy.overrides]]
+module = ["hmf.core", "hmf.core.*"]
+follow_imports = "normal"
+
+[[tool.mypy.overrides]]
+# astropy ships no type information.
+module = ["astropy", "astropy.*"]
+ignore_missing_imports = true
