@@ -395,7 +395,7 @@ class BaseFilter(_framework.Component):
         return self.nu2(r, delta_c)
 
 
-# For backwards compatibility, alias Filter to BaseFilter.
+#: Alias of :class:`BaseFilter`, kept for backwards compatibility.
 Filter = BaseFilter
 
 

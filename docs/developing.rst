@@ -95,6 +95,9 @@ Getting started
     Tests can be run by running ``pytest`` in the top level ``hmf`` directory.
   - Ensure that you fully document any new features via docstrings, and potentially
     as a new tutorial in the ``docs/`` directory.
+  - Check that the docs build without warnings (as CI does), with
+    ``uv run sphinx-build -b html -D nbsphinx_execute=never -W --keep-going docs docs/_build/html``.
+    The ``docs`` dependency group provides everything needed, including pandoc.
 
 6. Make a Pull Request from your fork/branch.
 
