@@ -371,3 +371,21 @@ def test_fast_and_general_paths_agree(toy, by_keyword):
     # The input is viewed, not copied, on the fast path.
     q = m * Msun_h
     assert np.shares_memory(toy.raw(q)[0], q)
+
+
+def test_dimensional_argument_after_others():
+    """A dimensional argument after others is converted in place.
+
+    The arguments around it pass through unchanged.
+    """
+
+    class Later:
+        @unit_boundary(m=Msun_h, returns=None)
+        def f(self, z, m, scale=1.0):
+            return z, m, scale
+
+    m = np.logspace(10, 12, 3)
+    z, out, scale = Later().f(0.5, m * Msun_h, 2.0)
+    assert (z, scale) == (0.5, 2.0)
+    assert type(out) is np.ndarray
+    np.testing.assert_array_equal(out, m)
