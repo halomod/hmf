@@ -17,8 +17,8 @@ hmf.core (experimental)
 
 The v4 core is developed alongside the v3 API, as the subpackage :mod:`hmf.core`
 (see `#396 <https://github.com/halomod/hmf/issues/396>`_). At 4.0 it becomes
-:mod:`hmf`. So far it contains only the conventions the rest of the core will be
-built on; no physics has been ported to it yet.
+:mod:`hmf`. So far it contains the conventions the rest of the core will be built
+on, and the first ported physics (the fitting functions).
 
 Conventions
 -----------
@@ -65,6 +65,18 @@ Domains (:mod:`hmf.core.domain`)
     *calibration* domain (outside which a user-chosen
     :data:`~hmf.core.domain.DomainPolicy` applies: ``"ignore"``, ``"warn"``,
     ``"mask"`` or ``"raise"``).
+
+Fitting functions (:mod:`hmf.core.fits`)
+    Every hmf 3.x halo mass function fit is a
+    :class:`~hmf.core.fits.FittingFunction` model, registered under its 3.x name
+    (``FittingFunction.get("Tinker08")``), with the 3.x parameter names and
+    defaults. :meth:`~hmf.core.fits.FittingFunction.fsigma` takes plain arrays of
+    already-resolved inputs (sigma, z, Omega_m(z), the overdensity relative to the
+    mean, delta_c, n_eff, m), never a cosmology or a mass-definition object; each fit
+    lists the inputs it needs. Each declares a valid domain (where ``fsigma`` always
+    raises outside) and a calibration domain taken from its paper, with the source
+    cited; :func:`~hmf.core.fits.evaluate_fsigma` applies a domain policy to the
+    latter. Each also records the mass definition it was measured in, as metadata.
 
 Logarithms always name their base: ``log10_...`` or ``ln_...``, never ``log``.
 

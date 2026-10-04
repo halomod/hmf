@@ -68,4 +68,6 @@ The v4 core preview: see :doc:`core`. Its API may change before 4.0.
    hmf.core.stage
    hmf.core.accuracy
    hmf.core.domain
+   hmf.core.fits
    hmf.core._kernels
+   hmf.core._kernels.fits
