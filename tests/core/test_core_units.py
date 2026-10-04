@@ -353,8 +353,10 @@ class _SubQuantity(u.Quantity):
 
 @pytest.mark.parametrize("by_keyword", [False, True])
 def test_fast_and_general_paths_agree(toy, by_keyword):
-    """The inlined path (exact Quantity, canonical unit) and the general one give the
-    same plain-array input to the kernel, by position or by keyword.
+    """The boundary's inlined path and its general one give the kernel the same input.
+
+    The inlined path takes an exact Quantity in the canonical unit; a subclass, or a
+    physical unit, takes the general one. Both, by position or by keyword.
     """
     m = np.logspace(10, 15, 7)
     inputs = {
