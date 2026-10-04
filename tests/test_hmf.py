@@ -45,10 +45,41 @@ def test_str_filter():
     assert np.allclose(h.sigma, h_.sigma)
 
 
-def test_mass_nonlinear_outside_range():
-    h = MassFunction(Mmin=8, Mmax=9, transfer_model="EH")
-    with pytest.warns(UserWarning, match="Nonlinear mass outside mass range"):
-        assert h.mass_nonlinear > 0
+@pytest.mark.parametrize("z", [0.0, 1.0, 3.0, 8.0])
+@pytest.mark.parametrize(("mmin", "mmax"), [(8, 9), (14, 15), (3, 18)])
+def test_mass_nonlinear_sigma_equals_delta_c(z, mmin, mmax):
+    """sigma(M_nl) = delta_c, whether or not M_nl lies inside the mass grid (regression).
+
+    M_nl used to come from a minimiser whenever nu=1 was off the grid; it returned an
+    inaccurate mass (e.g. 1152 instead of 915 Msun/h at z=8), or 0 if it failed.
+    """
+    h = MassFunction(Mmin=mmin, Mmax=mmax, z=z, transfer_model="EH")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        mnl = h.mass_nonlinear
+    r = h.filter.mass_to_radius(mnl, h.mean_density0)
+    sigma = h.normalised_filter.sigma(r)[0]  # normalised filter uses P(k, z)
+    assert sigma == pytest.approx(h.delta_c, rel=1e-8)
+
+
+@pytest.mark.filterwarnings("ignore:The k-range")
+def test_mass_nonlinear_unbracketable_raises():
+    # With k < e^-1 h/Mpc, sigma(R >~ 1 Mpc/h) never reaches delta_c at z=20.
+    h = MassFunction(z=20, lnk_min=-10, lnk_max=-1, transfer_model="EH")
+    with pytest.raises(ValueError, match="nonlinear mass"):
+        h.mass_nonlinear
+
+
+def test_nu_fn_accurate_between_grid_points():
+    """nu_fn interpolates in log-log space, so it is accurate even on a coarse grid.
+
+    The old k=5 spline in linear m was off by a factor of ~6e6 between points 0.5 dex
+    apart.
+    """
+    h = MassFunction(Mmin=8, Mmax=15, dlog10m=0.5, transfer_model="EH")
+    mid = np.sqrt(h.m[1:] * h.m[:-1])
+    sigma = h.normalised_filter.sigma(h.filter.mass_to_radius(mid, h.mean_density0))
+    np.testing.assert_allclose(h.nu_fn(mid), (h.delta_c / sigma) ** 2, rtol=1e-4)
 
 
 def test_nu():
@@ -79,6 +110,25 @@ def test_sigma8z_matches_input_when_k_range_exceeds_sigma8_fallback_grid():
 def test_neff_at_collapse():
     h = MassFunction(Mmin=8, Mmax=18, transfer_model="EH")
     assert np.allclose(h.n_eff_at_collapse, h.n_eff[np.argmin(np.abs(h.nu2 - 1.0))], rtol=0.05)
+
+
+@pytest.mark.parametrize("filter_model", ["TopHat", "SharpKEllipsoid"])
+@pytest.mark.parametrize(("mmin", "mmax"), [(10, 13), (12, 13), (13.5, 15), (14.5, 16), (5, 10)])
+def test_neff_at_collapse_independent_of_mass_grid(mmin, mmax, filter_model):
+    """n_eff at nu=1 does not depend on the mass grid (regression).
+
+    The reference is n_eff interpolated at nu=1 on a wide, fine grid, which brackets
+    nu=1. It used to return the n_eff at the nearest grid edge (or extrapolate wildly)
+    when nu=1 was off the grid: e.g. +2.08 for Mmin=13.5 against about -2.01.
+    """
+    kw = {"transfer_model": "EH", "filter_model": filter_model}
+    wide = MassFunction(Mmin=5, Mmax=16, dlog10m=0.01, **kw)
+    ref = np.interp(0.0, np.log(wide.nu2), wide.n_eff)
+
+    h = MassFunction(Mmin=mmin, Mmax=mmax, **kw)
+    assert h.n_eff_at_collapse == pytest.approx(ref, abs=1e-4)
+    # Physically sensible: CDM n_eff at the nonlinear scale lies between -3 and -1.
+    assert -3 < h.n_eff_at_collapse < -1
 
 
 def test_default_k_range_does_not_warn():

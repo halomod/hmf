@@ -125,7 +125,7 @@ class TestSharpK:
         true = 1.0 / (2 * pi**2 * t * R**t)
 
         print(true, cls.sigma(R) ** 2)
-        assert np.isclose(cls.sigma(R)[0] ** 2, true)
+        assert np.isclose(cls.sigma(R)[0] ** 2, true, rtol=1e-8, atol=0)
 
     def test_sigma1(self, cls):
         R = 1.0
@@ -133,7 +133,7 @@ class TestSharpK:
         true = 1.0 / (2 * pi**2 * t * R**t)
 
         print(true, cls.sigma(R, 1) ** 2)
-        assert np.isclose(cls.sigma(R, 1)[0] ** 2, true)
+        assert np.isclose(cls.sigma(R, 1)[0] ** 2, true, rtol=1e-8, atol=0)
 
     def test_dlnssdlnr(self, cls):
         R = 1.0
@@ -142,7 +142,7 @@ class TestSharpK:
         true = -1.0 / (2 * pi**2 * sigma2 * R ** (3 + 2))
 
         print(true, cls.dlnss_dlnr(R))
-        assert np.isclose(cls.dlnss_dlnr(R), true)
+        assert np.isclose(cls.dlnss_dlnr(R), true, rtol=1e-8, atol=0)
 
     def test_sigma_R3(self, cls):
         R = 3.0
@@ -150,7 +150,7 @@ class TestSharpK:
         true = 1.0 / (2 * pi**2 * t * R**t)
 
         print(true, cls.sigma(R) ** 2)
-        assert np.isclose(cls.sigma(R)[0] ** 2, true)
+        assert np.isclose(cls.sigma(R)[0] ** 2, true, rtol=1e-8, atol=0)
 
     def test_sigma1_R3(self, cls):
         R = 3.0
@@ -158,7 +158,7 @@ class TestSharpK:
         true = 1.0 / (2 * pi**2 * t * R**t)
 
         print(true, cls.sigma(R, 1) ** 2)
-        assert np.isclose(cls.sigma(R, 1)[0] ** 2, true)
+        assert np.isclose(cls.sigma(R, 1)[0] ** 2, true, rtol=1e-8, atol=0)
 
     def test_dlnssdlnr_R3(self, cls):
         R = 3.0
@@ -167,7 +167,7 @@ class TestSharpK:
         true = -1.0 / (2 * pi**2 * sigma2 * R ** (3 + 2))
 
         print(true, cls.dlnss_dlnr(R))
-        assert np.isclose(cls.dlnss_dlnr(R), true)
+        assert np.isclose(cls.dlnss_dlnr(R), true, rtol=1e-8, atol=0)
 
     def test_sigma_Rhalf(self, cls):
         thisr = 1.0 / cls.k.max()
@@ -199,7 +199,7 @@ class TestSharpK:
         true = -1.0 / (2 * pi**2 * sigma2 * R ** (3 + 2))
 
         print(true, cls.dlnss_dlnr(R))
-        assert np.isclose(cls.dlnss_dlnr(R), true)
+        assert np.isclose(cls.dlnss_dlnr(R), true, rtol=1e-8, atol=0)
 
     def test_k_space_edges(self, cls):
         kr = np.array([0.5, 1.0, 1.5])
@@ -219,6 +219,52 @@ class TestSharpK:
         r = cls.mass_to_radius(m, rho)
 
         assert np.isclose(cls.radius_to_mass(r, rho), m)
+
+    def test_sigma_independent_of_position_in_array(self):
+        """sigma(R) must not depend on where R sits in the input array (regression).
+
+        The integration grid used to have ``max(100, len(k) - i)`` points for the i-th
+        radius, so the same R gave values differing at the ~1e-5 level.
+        """
+        k = np.logspace(-4, 2, 600)
+        filt = filters.SharpK(k, k / (1 + (k / 0.02) ** 2) ** 1.5)
+        radii = np.logspace(-1, 1.5, 300)
+        together = filt.sigma(radii)
+        alone = np.array([filt.sigma(np.array([r]))[0] for r in radii])
+        np.testing.assert_array_equal(together, alone)
+        assert filt.sigma(np.array([radii[0], radii[150]]))[1] == filt.sigma(radii[150])[0]
+
+    @pytest.mark.parametrize("R", [1.37, 3.1])
+    def test_sigma_coarse_k_grid(self, R):
+        """Log-space interpolation of P(k) makes sigma accurate on a coarse k grid.
+
+        For P = k^2, sigma^2 = 1/(10 pi^2 R^5). With linear-k interpolation on 200 points
+        the error was ~4e-4; P is a power law, so log-log interpolation is exact and only
+        the ln(k) quadrature error (~2e-5) remains.
+        """
+        k = np.logspace(-6, 0, 200)
+        filt = filters.SharpK(k, k**2)
+        true = 1.0 / (2 * pi**2 * 5 * R**5)
+        assert np.isclose(filt.sigma(R)[0] ** 2, true, rtol=5e-5, atol=0)
+        true_dlnss = -1.0 / (2 * pi**2 * true * R**5)
+        assert np.isclose(filt.dlnss_dlnr(R), true_dlnss, rtol=5e-5, atol=0)
+
+    def test_sigma_with_zero_power(self):
+        """P(k) with zeros (e.g. a truncated spectrum) can't be log-interpolated.
+
+        It falls back to interpolating linear P in ln k. Below the truncation P = k^2, so
+        the analytic sigma^2 = 1/(10 pi^2 R^5) still holds for 1/R below it.
+        """
+        k = np.logspace(-6, 0, 10000)
+        filt = filters.SharpK(k, np.where(k < 0.5, k**2, 0.0))
+        R = 4.0
+        true = 1.0 / (2 * pi**2 * 5 * R**5)
+        assert np.isclose(filt.sigma(R)[0] ** 2, true, rtol=1e-8, atol=0)
+        assert np.isclose(filt.dlnss_dlnr(R), -1.0 / (2 * pi**2 * true * R**5), rtol=1e-8, atol=0)
+
+    def test_sigma_r_beyond_kmin_raises(self, cls):
+        with pytest.raises(ValueError, match=r"k\.min"):
+            cls.sigma(1e7)
 
 
 class TestGaussian:

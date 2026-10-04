@@ -1,8 +1,15 @@
 """A supporting module with a routine to integrate the differential hmf in a robust manner."""
 
+import warnings
+
 import numpy as np
 import scipy.integrate as intg
 from scipy.interpolate import InterpolatedUnivariateSpline as Spline
+
+from ..exceptions import HMFExtrapolationWarning
+
+#: Fraction of the full integral above which the extrapolated tail triggers a warning.
+_EXTRAPOLATION_WARN_FRACTION = 1e-3
 
 
 class NaNError(Exception):
@@ -10,7 +17,7 @@ class NaNError(Exception):
 
 
 def hmf_integral_gtm(m, dndm, mass_density=False):
-    """
+    r"""
     Cumulatively integrate dn/dm.
 
     Parameters
@@ -38,8 +45,8 @@ def hmf_integral_gtm(m, dndm, mass_density=False):
     >>> np.allclose(ngtm,1/m) #1/m is the analytic integral to infinity.
     True
 
-    The function always integrates to m=1e18, and extrapolates with a spline
-    if data not provided:
+    The function always integrates to m=1e18, and extrapolates if data are not
+    provided (here emitting a :class:`~hmf.HMFExtrapolationWarning`):
 
     >>> m = np.logspace(10,12,500)
     >>> dndm = m**-2
@@ -47,6 +54,20 @@ def hmf_integral_gtm(m, dndm, mass_density=False):
     >>> np.allclose(ngtm,1/m) #1/m is the analytic integral to infinity.
     True
 
+    Notes
+    -----
+    ``m`` is assumed to be log-uniformly spaced. The integral above the largest
+    mass, ``m[-1]``, up to :math:`10^{18}`, is only included if ``m[-1]`` is more than
+    three grid steps below :math:`10^{18}` (i.e. ``m[-1] < 1e18 * m[0] / m[3]``);
+    otherwise it is taken to be zero. When it is included, ``dndm`` is extrapolated
+    from ``m[-1]`` to :math:`10^{18}` as a power law, by linearly extending the last
+    segment of :math:`\ln(m\,dn/dm)` against :math:`\ln m`. Since a real mass function
+    is exponentially suppressed at high mass, this power-law tail *overestimates* the
+    true contribution. A :class:`~hmf.HMFExtrapolationWarning` is emitted when the
+    extrapolated tail is more than 0.1% of the full integral above ``m[0]``; supply
+    ``m`` extending to :math:`\sim 10^{18}` to avoid it. Note that the cumulative values
+    within the last few grid points below ``m[-1]`` are always dominated by the tail,
+    even when it is negligible for the total.
     """
     n = len(m)
 
@@ -71,6 +92,15 @@ def hmf_integral_gtm(m, dndm, mass_density=False):
             int_upper = intg.simpson(np.exp(mf), dx=m_upper[2] - m_upper[1])
         else:
             int_upper = intg.simpson(np.exp(m_upper + mf), dx=m_upper[2] - m_upper[1])
+        total = int_upper + intg.trapezoid(dndlnm * m if mass_density else dndlnm, np.log(m))
+        if int_upper > _EXTRAPOLATION_WARN_FRACTION * total:
+            warnings.warn(
+                f"hmf_integral_gtm: extrapolated dn/dm as a power law from m={m[-1]:.3g} to "
+                f"m=1e18; this tail is {int_upper / total:.2g} of the integral above "
+                f"m={m[0]:.3g}. Supply masses up to ~1e18 to avoid extrapolating.",
+                HMFExtrapolationWarning,
+                stacklevel=2,
+            )
     else:
         int_upper = 0
 

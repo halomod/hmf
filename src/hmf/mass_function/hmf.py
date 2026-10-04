@@ -11,7 +11,7 @@ from typing import Any, override
 
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline as Spline
-from scipy.optimize import minimize
+from scipy.optimize import brentq
 
 from .._internals._cache import (
     _clear_quantity_index,
@@ -33,6 +33,16 @@ from .integrate_hmf import hmf_integral_gtm as int_gtm
 _LNK_COVERAGE_FLOOR = -20.0  # power at k < e^-20 h/Mpc is negligible for any sigma(R)
 _KR_COVERAGE_CEIL = 1e3  # TopHat high-k tail beyond kR = 1e3 is < 1e-4 of sigma
 _K_COVERAGE_RTOL = 0.01  # warn when the estimated error in sigma exceeds this
+
+
+class _LogLogSpline:
+    """A picklable cubic spline of ``ln y`` vs ``ln x``, taking and returning linear values."""
+
+    def __init__(self, x: np.ndarray, y: np.ndarray):
+        self._spl = Spline(np.log(x), np.log(y), k=3)
+
+    def __call__(self, x):
+        return np.exp(self._spl(np.log(x)))
 
 
 class MassFunction(transfer.Transfer):
@@ -522,37 +532,51 @@ class MassFunction(transfer.Transfer):
         A spline of :attr:`nu2`, :math:`\nu^2 = \left(\frac{\delta_c}{\sigma}\right)^2`,
         against ``m``.
 
+        The spline is a cubic in :math:`\ln m`-:math:`\ln \nu^2` space, in which
+        :math:`\nu^2(m)` is close to a power law, so interpolation is accurate between
+        the grid points. It extrapolates (as a cubic in log-log space) outside ``m``.
         """
-        return Spline(self.m, self.nu2, k=5)
+        return _LogLogSpline(self.m, self.nu2)
 
     @cached_quantity
     def mass_nonlinear(self):
-        """The nonlinear mass, nu(Mstar) = 1."""
-        if self.nu2.min() > 1 or self.nu2.max() < 1:
-            warnings.warn("Nonlinear mass outside mass range", stacklevel=2)
+        r"""The nonlinear mass, :math:`\nu(M_\star) = 1`.
 
-            startr = np.log(self.radii.min()) if self.nu2.min() > 1 else np.log(self.radii.max())
+        This is found by root-finding :math:`\sigma(M_\star) = \delta_c` directly on the
+        filter, so it does not need to lie within the mass grid ``m``.
 
-            def model(lnr):
-                return (
-                    self.filter.sigma(np.exp(lnr)) * self._normalisation * self.growth_factor
-                    - self.delta_c
-                ) ** 2
+        Raises
+        ------
+        ValueError
+            If :math:`\nu = 1` is not reached for any radius supported by the k grid.
+        """
+        return self.filter.radius_to_mass(self._radius_nonlinear, self.mean_density0)
 
-            res = minimize(
-                model,
-                [
-                    startr,
-                ],
+    @cached_quantity
+    def _radius_nonlinear(self) -> float:
+        r"""Lagrangian radius at which :math:`\sigma(R) = \delta_c`."""
+        scale = self._normalisation * self.growth_factor
+
+        def lnsig_over_dc(lnr):
+            return np.log(scale * self.filter.sigma(np.exp(lnr))[0] / self.delta_c)
+
+        # sigma(R) decreases monotonically with R. Try to bracket the root with the mass
+        # grid first, and fall back to the widest range of radii the k grid supports.
+        lnr_grid = np.log(self.radii)
+        lo, hi = lnr_grid.min(), lnr_grid.max()
+        if lnsig_over_dc(lo) < 0:
+            lo = -np.log(self.k.max()) + 1e-8
+        if lnsig_over_dc(hi) > 0:
+            hi = -np.log(self.k.min()) - 1e-8
+
+        f_lo, f_hi = lnsig_over_dc(lo), lnsig_over_dc(hi)
+        if not (f_lo >= 0 >= f_hi):
+            raise ValueError(
+                "Cannot find the nonlinear mass (sigma = delta_c): sigma ranges from "
+                f"{np.exp(f_lo) * self.delta_c:.4g} to {np.exp(f_hi) * self.delta_c:.4g} over "
+                "the radii supported by the k grid. Extend lnk_min/lnk_max."
             )
-
-            if res.success:
-                r = np.exp(res.x[0])
-                return self.filter.radius_to_mass(r, self.mean_density0)
-            warnings.warn("Minimization failed :(", stacklevel=2)
-            return 0
-        nu = Spline(self.nu2, self.m, k=5)
-        return nu(1)
+        return float(np.exp(brentq(lnsig_over_dc, lo, hi, xtol=1e-12, rtol=1e-12)))
 
     @cached_quantity
     def lnsigma(self):
@@ -577,9 +601,21 @@ class MassFunction(transfer.Transfer):
 
     @cached_quantity
     def n_eff_at_collapse(self):
-        """Effective spectral index at scale of halo radius at halo collapse."""
-        fnc = Spline(self.nu2, self.n_eff)
-        return fnc(1)
+        r"""Effective spectral index at the scale of the nonlinear mass, :math:`\nu = 1`.
+
+        Evaluated directly from the filter at the radius of :attr:`mass_nonlinear`
+        (which need not lie within ``m``), using eq. 42 of Lukic et al. (2007), as for
+        :attr:`n_eff`.
+
+        Raises
+        ------
+        ValueError
+            If :math:`\nu = 1` is not reached for any radius supported by the k grid.
+        """
+        # Some filters (e.g. SharpKEllipsoid) need several radii to evaluate the slope,
+        # so use a small grid centred on R_nl and take its central value.
+        r = self._radius_nonlinear * np.exp(np.linspace(-0.1, 0.1, 11))
+        return float(-3.0 * (self.filter.dlnss_dlnm(r)[5] + 1.0))
 
     @cached_quantity
     def fsigma(self):
