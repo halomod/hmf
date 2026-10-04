@@ -29,6 +29,7 @@ def test_agrees_with_camb(cosmo):
     CLASS and CAMB agree on the linear P(k) to ~0.1% (Lesgourgues 2011, arXiv:1104.2934),
     so to ~1e-3 on ratios of it; measured < 2e-5 here.
     """
+    assert ClassGrowth.k_ref == growth_factor.CambGrowth.k_ref
     d_class = ClassGrowth(cosmo).growth_factor(Z)
     d_camb = growth_factor.CambGrowth(cosmo).growth_factor(Z)
     np.testing.assert_allclose(d_class, d_camb, rtol=1e-3)

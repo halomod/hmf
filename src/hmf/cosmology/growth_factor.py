@@ -64,6 +64,10 @@ except ImportError:  # pragma: nocover
 # calibration in development/find_radiation_threshold.py.
 LOW_RADIATION_THRESHOLD = 5.0e-4
 
+#: Wavenumber [1/Mpc] at which the Boltzmann-code growth models (:class:`CambGrowth`,
+#: :class:`ClassGrowth`) evaluate the growth of the density contrast.
+BOLTZMANN_GROWTH_K_REF = 0.01
+
 
 @pluggable
 class BaseGrowthFactor(Cmpt):
@@ -871,8 +875,9 @@ if HAVE_CAMB:
         r"""
         Growth factor computed using CAMB at :math:`k = 0.01\,{\rm Mpc}^{-1}`.
 
-        CAMB takes wavenumbers in :math:`{\rm Mpc}^{-1}`, not :math:`h/{\rm Mpc}`, so
-        this is :math:`k/h = 0.01/h` (about 0.015 for :math:`h \approx 0.68`).
+        The growth is that of CAMB's density contrast at the reference wavenumber
+        :attr:`k_ref` (:data:`BOLTZMANN_GROWTH_K_REF`), the same as for
+        :class:`ClassGrowth`.
 
         Recommended for non-LambdaCDM cosmologies (e.g., wCDM) as it correctly
         deals with their growth evolution. For standard LCDM, other classes are
@@ -908,6 +913,9 @@ if HAVE_CAMB:
         """
 
         references: ClassVar[tuple[str, ...]] = (refs.CAMB,)
+
+        #: The reference wavenumber [1/Mpc] at which the growth is evaluated.
+        k_ref: ClassVar[float] = BOLTZMANN_GROWTH_K_REF
 
         _defaults: ClassVar[dict[str, Any]] = {
             **BaseGrowthFactor._defaults,
@@ -957,7 +965,7 @@ if HAVE_CAMB:
         def _t0(self):
             """The Transfer function at z=0."""
             evolution = self._camb_transfers.get_redshift_evolution(
-                0.01, 0.0, [self._camb_variable]
+                self.k_ref, 0.0, [self._camb_variable]
             )
             return evolution[0][0]
 
@@ -982,7 +990,7 @@ if HAVE_CAMB:
             """
             growth = (
                 self._camb_transfers.get_redshift_evolution(
-                    0.01, z, [self._camb_variable]
+                    self.k_ref, z, [self._camb_variable]
                 ).flatten()
                 / self._t0
             )
@@ -1016,12 +1024,10 @@ class ClassGrowth(BaseGrowthFactor):
     This needs the optional ``classy`` package (the Python wrapper of CLASS), which
     you can install with ``pip install hmf[class]``. It is the CLASS counterpart of
     :class:`CambGrowth`, and like it is evaluated at the reference wavenumber
-    :attr:`k_ref` :math:`= 0.01\,{\rm Mpc}^{-1}` (not :math:`h/{\rm Mpc}`), i.e.
-    :math:`k/h = 0.01/h`, about 0.015 for :math:`h \approx 0.68`. This is on large
-    enough scales that baryon and dark-energy perturbations have a negligible effect,
-    and small enough that the growth of the (synchronous-gauge) density contrast is
-    that of the sub-horizon growth equation to better than :math:`10^{-3}` for
-    :math:`z \lesssim 20`.
+    :attr:`k_ref` (:data:`BOLTZMANN_GROWTH_K_REF`). This is on large enough scales
+    that baryon and dark-energy perturbations have a negligible effect, and small
+    enough that the growth of the (synchronous-gauge) density contrast is that of the
+    sub-horizon growth equation to better than :math:`10^{-3}` for :math:`z \lesssim 20`.
 
     The growth factor is :math:`D(z) = \sqrt{P(k_{\rm ref}, z) / P(k_{\rm ref}, 0)}`,
     with :math:`P` CLASS's linear power spectrum, which is how CLASS defines its own
@@ -1069,7 +1075,7 @@ class ClassGrowth(BaseGrowthFactor):
     references: ClassVar[tuple[str, ...]] = (refs.CLASS_I, refs.CLASS_II)
 
     #: The reference wavenumber [1/Mpc] at which the growth is evaluated.
-    k_ref: ClassVar[float] = 0.01
+    k_ref: ClassVar[float] = BOLTZMANN_GROWTH_K_REF
 
     _defaults: ClassVar[dict[str, Any]] = {"matter_species": None, "z_max": 20.0}
 
