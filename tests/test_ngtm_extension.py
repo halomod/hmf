@@ -60,6 +60,9 @@ def _assert_gtm_unchanged(mf):
     )
 
 
+# Behroozi can't extend the mass range, so on short grids hmf_integral_gtm extrapolates
+# (and correctly warns); this test only checks that the result is unchanged.
+@pytest.mark.filterwarnings("ignore::hmf.HMFExtrapolationWarning")
 @pytest.mark.parametrize(
     "hmf_model", ["Tinker08", "ST", "PS", "Watson", "Reed07", "Bhattacharya", "Behroozi"]
 )

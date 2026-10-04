@@ -6,6 +6,7 @@ from importlib.metadata import PackageNotFoundError, version
 with contextlib.suppress(PackageNotFoundError):
     __version__ = version(__name__)
 
+from . import exceptions
 from ._internals import (
     Component,
     Framework,
@@ -18,6 +19,7 @@ from ._internals import (
 from .alternatives import wdm
 from .cosmology import Cosmology, GrowthFactor, cosmo, growth_factor
 from .density_field import CAMB, Transfer, filters, halofit, transfer, transfer_models
+from .exceptions import HMFExtrapolationWarning
 from .halos import mass_definitions
 from .helpers import functional, get_best_param_order, get_hmf, sample
 from .mass_function import MassFunction, fitting_functions, hmf, integrate_hmf
@@ -28,10 +30,12 @@ __all__ = [
     "Cosmology",
     "Framework",
     "GrowthFactor",
+    "HMFExtrapolationWarning",
     "MassFunction",
     "Transfer",
     "cached_quantity",
     "cosmo",
+    "exceptions",
     "filters",
     "fitting_functions",
     "functional",

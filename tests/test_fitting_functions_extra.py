@@ -1,8 +1,10 @@
+import warnings
+
 import numpy as np
 import pytest
 from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 
-from hmf import MassFunction
+from hmf import HMFExtrapolationWarning, MassFunction
 from hmf.halos import mass_definitions as md
 from hmf.mass_function import fitting_functions as ff
 
@@ -406,6 +408,9 @@ def test_behroozi_correction_vanishes_at_z_zero():
     assert theta == pytest.approx(1.0, abs=1e-4)
 
 
+# Delta_vir < 200 at z=2 and 9, outside Tinker08's calibrated range; Behroozi is defined
+# relative to Tinker08 evaluated there regardless.
+@pytest.mark.filterwarnings("ignore::hmf.HMFExtrapolationWarning")
 def test_behroozi_ngtm():
     """Ensure that ngtm for Behroozi / Tinker matches Behroozi Fig. 23.
 
@@ -447,6 +452,9 @@ def test_behroozi_ngtm():
     assert np.isclose(ngtm_behroozi(13) - ngtm_tinker(13), 0.02, atol=0.005)
 
 
+# Delta_vir < 200 at z >~ 1, outside Tinker08's calibrated range; Behroozi is defined
+# relative to Tinker08 evaluated there regardless.
+@pytest.mark.filterwarnings("ignore::hmf.HMFExtrapolationWarning")
 @pytest.mark.parametrize("z", [1.0, 4.0, 8.0])
 def test_behroozi_cumulative_is_theta_times_tinker(z):
     """Behroozi+13 App. G defines the correction as n_B(>M) = theta(M) * n_T08(>M).
@@ -505,3 +513,89 @@ def test_jenkins_sim_transfer_matches_each_box():
     by_box = dict(zip(sim.L, sim.transfer, strict=True))
     assert by_box[84.5] == by_box[141.3] == "BondEfs"
     assert by_box[479] == by_box[3000] == "CMBFAST"
+
+
+# ---------------------------------------------------------------------------------------
+# Tinker08/Tinker10 outside the calibrated overdensity range 200 <= Delta_mean <= 3200
+# ---------------------------------------------------------------------------------------
+_NU2 = np.logspace(-1, 1.5, 50)
+
+
+@pytest.mark.parametrize("fit_cls", [ff.Tinker08, ff.Tinker10])
+@pytest.mark.parametrize("delta", [200, 250, 1000, 3200])
+def test_tinker_in_range_does_not_warn(fit_cls, delta):
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        fit = fit_cls(nu2=_NU2, z=1.0, mass_definition=md.SOMean(overdensity=delta))
+        assert np.all(np.isfinite(fit.fsigma))
+
+
+@pytest.mark.parametrize("fit_cls", [ff.Tinker08, ff.Tinker10])
+@pytest.mark.parametrize("delta", [150, 4000])
+def test_tinker_extrapolated_delta_warns(fit_cls, delta):
+    """Mildly outside the calibrated range: warn, but the result is still sensible."""
+    with pytest.warns(HMFExtrapolationWarning, match="calibrated for 200 <= Delta_mean <= 3200"):
+        fit = fit_cls(nu2=_NU2, z=0.0, mass_definition=md.SOMean(overdensity=delta))
+    fsigma = fit.fsigma
+    assert np.all(np.isfinite(fsigma))
+    assert np.all(fsigma > 0)
+
+
+def test_tinker08_extrapolation_is_monotonic_in_delta():
+    """Physical bound: at fixed sigma, f(sigma) falls as Delta increases (Tinker08 fig. 5).
+
+    Higher Delta assigns less mass to each halo, so the extrapolated fits must continue
+    the trend of the calibrated range rather than, e.g., turning over.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", HMFExtrapolationWarning)
+        fs = [
+            ff.Tinker08(nu2=_NU2, z=0.0, mass_definition=md.SOMean(overdensity=d)).fsigma
+            for d in (150, 200, 3200, 4000)
+        ]
+    # Compare at high masses (sigma < 1, nu2 > delta_c^2), beyond the low-mass crossing.
+    high = _NU2 > 1.686**2
+    assert np.all(np.diff(np.array(fs)[:, high], axis=0) < 0)
+
+
+@pytest.mark.parametrize("z", [0.0, 1.0])
+def test_tinker08_unphysical_extrapolation_raises(z):
+    """At Delta=5000 the spline extrapolates to b<0, which used to give NaN dn/dm."""
+    with (
+        pytest.warns(HMFExtrapolationWarning),
+        pytest.raises(ValueError, match=r"parameter b=.* is unphysical"),
+    ):
+        ff.Tinker08(nu2=_NU2, z=z, mass_definition=md.SOMean(overdensity=5000))
+
+
+def test_tinker08_redshift_evolution_undefined_below_delta_75():
+    with (
+        pytest.warns(HMFExtrapolationWarning),
+        pytest.raises(ValueError, match="undefined for Delta_mean <= 75"),
+    ):
+        ff.Tinker08(nu2=_NU2, z=1.0, mass_definition=md.SOMean(overdensity=50))
+
+
+def test_tinker10_unphysical_extrapolation_raises():
+    with pytest.warns(HMFExtrapolationWarning), pytest.raises(ValueError, match="beta must be > 0"):
+        ff.Tinker10(nu2=_NU2, z=0.0, mass_definition=md.SOMean(overdensity=10000))
+
+
+def test_behroozi_does_not_warn_at_virial_overdensity():
+    """Behroozi is defined via Tinker08 at Delta_vir (< 200 at high z): no warning."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        ff.Behroozi(nu2=_NU2, z=8.0, mass_definition=md.SOVirial())
+
+
+def test_tinker08_mass_function_unphysical_delta_raises():
+    """MassFunction surfaces the error instead of returning NaN in dn/dm."""
+    kw = {
+        "hmf_model": "Tinker08",
+        "mdef_model": "SOMean",
+        "mdef_params": {"overdensity": 5000},
+        "transfer_model": "EH",
+        "disable_mass_conversion": True,
+    }
+    with pytest.warns(HMFExtrapolationWarning), pytest.raises(ValueError, match="unphysical"):
+        MassFunction(**kw).dndm

@@ -19,6 +19,7 @@ from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 from .._internals import _framework
 from .._internals import _references as refs
 from ..cosmology import cosmo as csm
+from ..exceptions import HMFExtrapolationWarning
 from ..halos import mass_definitions as md
 
 
@@ -1329,6 +1330,24 @@ class Bhattacharya(SMT):
         )
 
 
+def _warn_if_delta_extrapolated(fit: BaseFittingFunction, delta_halo: float) -> None:
+    r"""Warn if ``delta_halo`` is outside the calibrated overdensity range of a Tinker fit.
+
+    The Tinker08/Tinker10 parameters are tabulated for :math:`200 \le \Delta_m \le 3200`
+    (Table 2 of Tinker et al. 2008; Table 4 of Tinker et al. 2010) and spline-interpolated
+    in between. Outside that range the spline extrapolates.
+    """
+    lo, hi = fit.delta_virs[0], fit.delta_virs[-1]
+    if not lo * (1 - 1e-8) <= delta_halo <= hi * (1 + 1e-8):
+        warnings.warn(
+            f"{fit.__class__.__name__} is calibrated for {lo} <= Delta_mean <= {hi}, but "
+            f"Delta_mean={delta_halo:.4g} at z={fit.z}. The fit parameters are being "
+            "extrapolated.",
+            HMFExtrapolationWarning,
+            stacklevel=3,
+        )
+
+
 class Tinker08(BaseFittingFunction):
     """Tinker 2008 mass function fit."""
 
@@ -1605,6 +1624,9 @@ class Tinker08(BaseFittingFunction):
 
     delta_virs = np.array([200, 300, 400, 600, 800, 1200, 1600, 2400, 3200])
 
+    #: Whether to warn when the halo overdensity is outside the calibrated range.
+    warn_delta_extrapolation: ClassVar[bool] = True
+
     def __init__(self, **model_parameters):
         super().__init__(**model_parameters)
 
@@ -1617,6 +1639,8 @@ class Tinker08(BaseFittingFunction):
                 "The Tinker fitting function is a spherical-overdensity function."
             )
         delta_halo = self.mass_definition.halo_overdensity_mean(self.z, self.cosmo)
+        if self.warn_delta_extrapolation:
+            _warn_if_delta_extrapolated(self, delta_halo)
 
         if delta_halo not in self.delta_virs:
             A_array = np.array([self.params[f"A_{d}"] for d in self.delta_virs])
@@ -1641,9 +1665,31 @@ class Tinker08(BaseFittingFunction):
 
         self.A = A_0 * (1 + self.z) ** (-self.params["A_exp"])
         self.a = a_0 * (1 + self.z) ** (-self.params["a_exp"])
-        alpha = 10 ** (-((0.75 / np.log10(delta_halo / 75.0)) ** 1.2))
-        self.b = b_0 * (1 + self.z) ** (-alpha)
+        if self.z == 0:
+            self.b = b_0
+        elif delta_halo > 75.0:
+            # Tinker08 eq. 8, which is only defined for Delta > 75.
+            alpha = 10 ** (-((0.75 / np.log10(delta_halo / 75.0)) ** 1.2))
+            self.b = b_0 * (1 + self.z) ** (-alpha)
+        else:
+            raise ValueError(
+                f"The {self.__class__.__name__} redshift evolution of b is undefined for "
+                f"Delta_mean <= 75, got Delta_mean={delta_halo:.4g} at z={self.z}."
+            )
         self.c = c_0
+
+        # The spline in Delta extrapolates beyond the calibrated range, and far enough
+        # out the parameters become unphysical (e.g. b < 0 for Delta >~ 4500, which
+        # makes f(sigma) NaN).
+        for name in ("A", "a", "b", "c"):
+            val = getattr(self, name)
+            if not np.isfinite(val) or val <= 0:
+                raise ValueError(
+                    f"{self.__class__.__name__} parameter {name}={val} is unphysical (must be "
+                    f"> 0) for Delta_mean={delta_halo:.4g} at z={self.z}. The fit is "
+                    f"calibrated for {self.delta_virs[0]} <= Delta_mean <= "
+                    f"{self.delta_virs[-1]}."
+                )
 
     @override
     @property
@@ -1748,6 +1794,7 @@ class Tinker10(BaseFittingFunction):
         else:
             delta_halo = self.mass_definition.halo_overdensity_mean(self.z, self.cosmo)
         self.delta_halo = delta_halo
+        _warn_if_delta_extrapolated(self, delta_halo)
 
         if int(delta_halo) not in self.delta_virs:
             beta_array = np.array([self.params[f"beta_{d}"] for d in self.delta_virs])
@@ -1872,6 +1919,9 @@ class Behroozi(Tinker08):
     """
 
     normalized = False
+    # Behroozi+13 deliberately applies Tinker08 at the virial overdensity at all z (which
+    # drops below Delta_mean=200 at z >~ 1), and calibrates its correction on top of that.
+    warn_delta_extrapolation = False
     sim_definition = SimDetails(
         L=[250, 1000, 420],
         N=[2048**3, 2048**3, 1400**3],
