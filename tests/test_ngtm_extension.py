@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 
 from hmf import MassFunction
+from hmf._internals._cache import cached_quantity
 from hmf.alternatives.wdm import MassFunctionWDM
 from hmf.mass_function import fitting_functions as ff
 from hmf.mass_function.integrate_hmf import hmf_integral_gtm
@@ -108,25 +109,46 @@ def test_gtm_unchanged_for_subclass_overriding_dndm():
     _assert_gtm_unchanged(mf)
 
 
-def test_gtm_does_not_copy_framework(monkeypatch):
+def test_gtm_copies_framework_once(monkeypatch):
+    """The extension framework is copied once, not on every z."""
     mf = MassFunction(transfer_model="EH", dlog10m=0.05)
-    mf.dndm
+    mf.ngtm
 
     def no_copy(self, memo):
-        raise AssertionError("_gtm should not deep-copy the framework")
+        raise AssertionError("_gtm should re-use its extension framework")
 
     monkeypatch.setattr(MassFunction, "__deepcopy__", no_copy, raising=False)
-    assert mf.ngtm[0] > 0
+    for z in [0.5, 1.0, 2.0]:
+        mf.update(z=z)
+        assert mf.ngtm[0] > 0
 
 
 def test_extension_sigma_is_z_independent():
     """Changing z re-uses the cached sigma at the extension masses."""
     mf = MassFunction(transfer_model="EH", dlog10m=0.05)
     mf.ngtm
-    ext = mf._gtm_extension_unn_sigma0_and_dlnss_dlnm
+    ext = mf._gtm_extension_framework
+    sigma0 = ext._unn_sigma0
     mf.update(z=1.0)
     mf.ngtm
-    assert mf._gtm_extension_unn_sigma0_and_dlnss_dlnm is ext
+    assert mf._gtm_extension_framework is ext
+    assert ext._unn_sigma0 is sigma0
+    assert ext.z == 1.0
+
+
+def test_gtm_uses_subclass_override_in_dndm_chain():
+    """A subclass overriding any quantity leading to dndm is used for the extension too."""
+
+    class DoubledFsigma(MassFunction):
+        @cached_quantity
+        def fsigma(self):
+            return 2 * self.hmf.fsigma
+
+    base = MassFunction(transfer_model="EH", dlog10m=0.05)
+    doubled = DoubledFsigma(transfer_model="EH", dlog10m=0.05)
+    _assert_gtm_unchanged(doubled)
+    # Doubling f(sigma) everywhere (including above Mmax) doubles the cumulative function.
+    np.testing.assert_allclose(doubled.ngtm, 2 * base.ngtm, rtol=1e-12, atol=0)
 
 
 def test_ngtm_physical_limits():
