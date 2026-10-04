@@ -105,6 +105,7 @@ New tests are in `test_physical_growth.py`.
 | GenMFGrowth | Within 5% of ODE (an approximation). Open Λ = 0 growth rate matches Peebles and the ODE (#364, above). | EdS, Linder, f = dlnD/dlna in ΛCDM. | added (rate fixed: B8, #364) |
 | Carroll1992 | Within 5% of ODE. | EdS exact. The Lahav growth rate agrees with ODE to 1%. | added |
 | CambGrowth | Linder (ΛCDM). Neutrino-species bounds. 3 x 0.1 eV growth matches CAMB with three massive species (#370). `test_dark_energy_growth_matches_camb` (#364): for wCDM and w0wa (w_a now reaches CAMB), its growth rate, which goes through the fixed ODE, equals dlnD/dlna of CAMB's own D to 2e-3. | — | existing |
+| ClassGrowth | — | `test_growth_class.py`: D agrees with CAMB (ΛCDM, w = −0.8, and 0.3 eV neutrinos for both species) and with an independent ODE solve to 1e-3; f agrees with the ODE to 1e-3, with Linder's Ω_m(z)^0.55 to 1% and with finite differences of D. D_cb = D_tot for massless neutrinos; with massive ones 1 < D_cb/D_tot ≤ 1/(1 − f_ν), rising with z. | added |
 | FromFile / FromArray | — | **None possible:** user-supplied tables. | none possible |
 | D(z=0) = 1 | — | **None needed:** this holds by construction (D⁺/D⁺(0)) for every model, so a test would only repeat the code. | none possible |
 

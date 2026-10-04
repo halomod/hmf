@@ -93,7 +93,8 @@ The transfer function: ``transfer_params={"matter_species": ...}``
     ``(k, T)`` file is used as-is, so make sure it holds the field you want.
 
 The growth function: ``growth_params={"matter_species": ...}``
-    Only used by :class:`~hmf.cosmology.growth_factor.CambGrowth`; set it to the same
+    Only used by :class:`~hmf.cosmology.growth_factor.CambGrowth` and
+    :class:`~hmf.cosmology.growth_factor.ClassGrowth`; set it to the same
     value as the transfer function. The other growth models are scale-independent and
     use ``astropy``'s :math:`\Omega_m(z)`, which excludes massive neutrinos. That is the
     growth of :math:`\delta_{\rm cb}` below the free-streaming scale, i.e. on the
@@ -135,7 +136,7 @@ simulation that quotes it::
     )
 
 The same, if you use :class:`~hmf.cosmology.growth_factor.CambGrowth` (e.g. for a
-wCDM cosmology)::
+wCDM cosmology; :class:`~hmf.cosmology.growth_factor.ClassGrowth` works the same way)::
 
     mf = MassFunction(
         sigma_8=0.81,
@@ -144,9 +145,9 @@ wCDM cosmology)::
         growth_params={"matter_species": "cb"},
     )
 
-Reproducing results from earlier versions of ``hmf`` (if you use ``CambGrowth``, also
-pass ``growth_params={"matter_species": "tot"}``; the other growth models don't take
-this parameter)::
+Reproducing results from earlier versions of ``hmf`` (if you use ``CambGrowth`` or
+``ClassGrowth``, also pass ``growth_params={"matter_species": "tot"}``; the other
+growth models don't take this parameter)::
 
     mf = MassFunction(transfer_params={"matter_species": "tot"})
 

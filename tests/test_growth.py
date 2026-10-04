@@ -517,14 +517,14 @@ def test_dark_energy_growth_rate_matches_linder(cosmo):
 def test_dark_energy_growth_matches_camb(name):
     """The ODE growth factor agrees with CAMB's, and CambGrowth's rate with dlnD/dlna.
 
-    CAMB is an independent Boltzmann code. Its D is evaluated at k/h = 0.01, where
+    CAMB is an independent Boltzmann code. Its D is evaluated at k = 0.01/Mpc, where
     scale-dependent effects (baryons, dark-energy perturbations) are tiny.
     """
     cosmo = DE_COSMOS[name]
     z = np.array([0.0, 0.5, 1.0, 2.0, 5.0])
     camb_gf = growth_factor.CambGrowth(cosmo, matter_species="tot")
     d_camb = camb_gf.growth_factor(z)
-    # Tolerance: measured < 2e-4 (scale dependence at k/h = 0.01); the bug was 2.4%.
+    # Tolerance: measured < 2e-4 (scale dependence at k = 0.01/Mpc); the bug was 2.4%.
     np.testing.assert_allclose(
         growth_factor.ODEGrowthFactor(cosmo).growth_factor(z), d_camb, rtol=1e-3
     )

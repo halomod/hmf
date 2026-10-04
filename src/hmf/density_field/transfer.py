@@ -13,6 +13,7 @@ import numpy as np
 from .._internals._cache import cached_quantity, parameter
 from .._internals._framework import get_mdl
 from ..cosmology import cosmo
+from ..cosmology import growth_factor as gf
 from ..density_field import filters
 from ..density_field import transfer_models as tm
 from .halofit import halofit as _hfit
@@ -109,8 +110,16 @@ class Transfer(cosmo.Cosmology):
         """
         The model to use to calculate the growth function/growth rate.
 
+        ``"ClassGrowth"`` needs the optional ``classy`` package
+        (``pip install hmf[class]``).
+
         :type: `hmf.growth_factor.BaseGrowthFactor` subclass
         """
+        if not gf.HAVE_CLASS and val in ["ClassGrowth", gf.ClassGrowth]:
+            raise ValueError(
+                "You cannot use the ClassGrowth growth model since classy isn't installed. "
+                "Install it with `pip install hmf[class]`."
+            )
         return get_mdl(val, "BaseGrowthFactor")
 
     @parameter("param")
