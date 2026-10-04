@@ -49,7 +49,7 @@ You can also run ``hmf`` from the command-line. For basic usage, do::
 Configuration for the run can be specified on the CLI or via a TOML file (recommended).
 An example TOML file can be found in
 `examples/example_run_config.toml <https://github.com/halomod/hmf/tree/master/examples/example_run_config.toml>`_.
-Any parameter specifiable in the TOML file can alternatively be specified on the commmand
+Any parameter specifiable in the TOML file can alternatively be specified on the command
 line after an isolated double-dash, eg.::
 
     hmf run -- z=1.0 hmf_model='SMT01'

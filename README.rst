@@ -26,7 +26,7 @@ To get started, see the
 `quickstart guide <https://hmf.readthedocs.io/en/latest/quickstart.html>`_ and the
 `API docs <https://hmf.readthedocs.io/en/latest/autoapi/hmf/index.html>`_.
 
-.. important:: Pleae remember to cite ``hmf`` if you use it in your work. The citation information can be found
+.. important:: Please remember to cite ``hmf`` if you use it in your work. The citation information can be found
    in the `attribution page <https://hmf.readthedocs.io/en/latest/attribution.html>`_.
 
 Features
