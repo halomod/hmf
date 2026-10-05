@@ -10,6 +10,8 @@ import itertools
 import math
 import warnings
 
+import astropy.cosmology.units as cu
+import astropy.units as u
 import attrs
 import numpy as np
 import pytest
@@ -19,7 +21,7 @@ from hmf.core import fits
 from hmf.core._kernels import fits as kern
 from hmf.core.domain import DOMAIN_POLICIES, Domain, DomainError, HMFExtrapolationWarning
 from hmf.core.fits import FitInputs, FittingFunction, MeasuredMassDefinition, evaluate_fsigma
-from hmf.core.units import Msun_h
+from hmf.core.units import Msun_h, UnitBoundaryError, dndm_unit, number_density_unit
 
 DELTA_C = 1.68647
 
@@ -71,11 +73,14 @@ def _set(values, name, value):
 
 
 def _call(model, values, **kw):
-    return evaluate_fsigma(model, values["sigma"], **{**_inputs(values), **kw})
+    """evaluate_fsigma (the library path) on plain inputs in canonical units."""
+    plain = {k: v for k, v in values.items() if k != "sigma"}
+    return evaluate_fsigma(model, FitInputs(sigma=values["sigma"], **plain), **kw)
 
 
 def _inputs(values):
-    return {k: v for k, v in values.items() if k != "sigma"}
+    """The inputs other than sigma, for the public (units boundary) methods."""
+    return {k: v * Msun_h if k == "m" else v for k, v in values.items() if k != "sigma"}
 
 
 # ---------------------------------------------------------------------------------
@@ -158,7 +163,7 @@ def test_evaluate_needs_calibration_inputs():
     # Jenkins needs only sigma to evaluate, but z to check its calibration domain.
     assert np.isfinite(fits.Jenkins().fsigma(1.0))
     with pytest.raises(ValueError, match="calibration domain"):
-        evaluate_fsigma(fits.Jenkins(), 1.0)
+        evaluate_fsigma(fits.Jenkins(), FitInputs(sigma=1.0))
     assert fits.Jenkins.domain_inputs() == {"z"}
 
 
@@ -223,7 +228,13 @@ def test_fsigma_positive_and_finite_in_valid_domain(cls):
     n_effs = [-2.9, -2.0, 0.0] if "n_eff" in cls.requires else [-2.0]
     for z, delta, n_eff in itertools.product(zs, deltas, n_effs):
         f = model.fsigma(
-            SIGMAS, z=z, omega_m_z=0.3, delta_halo=delta, delta_c=DELTA_C, n_eff=n_eff, m=1e12
+            SIGMAS,
+            z=z,
+            omega_m_z=0.3,
+            delta_halo=delta,
+            delta_c=DELTA_C,
+            n_eff=n_eff,
+            m=1e12 * Msun_h,
         )
         assert np.all(np.isfinite(f)), (z, delta, n_eff)
         assert np.all(f > 0), (z, delta, n_eff)
@@ -476,8 +487,11 @@ def test_behroozi_correction_at_pivot_mass():
         # Any steeply falling dn/dM will do: the identity is exact.
         dndm = m**-1.9 * np.exp(-m / 1e13)
         ngtm = _cumulative(m, dndm)
-        corrected = fits.Behroozi().modify_dndm(m, dndm, z=z, ngtm=ngtm, h=h)
-        n_corrected = _cumulative(m, corrected)
+        corrected = fits.Behroozi().modify_dndm(
+            m * Msun_h, dndm * dndm_unit, z=z, ngtm=ngtm * number_density_unit, h=h
+        )
+        assert corrected.unit is dndm_unit
+        n_corrected = _cumulative(m, corrected.to_value(dndm_unit))
         mstar = 10**11.5 * h  # in Msun/h
         a = 1 / (1 + z)
         alpha = 0.144 / (1 + math.exp(14.79 * (a - 0.213)))
@@ -496,10 +510,11 @@ def _cumulative(m, dndm):
 
 
 def test_modify_dndm_is_identity_by_default():
-    dndm = np.array([1.0, 2.0])
-    np.testing.assert_array_equal(
-        fits.Tinker08().modify_dndm([1e12, 1e13], dndm, z=0.0, ngtm=dndm, h=0.7), dndm
-    )
+    dndm = np.array([1.0, 2.0]) * dndm_unit
+    ngtm = np.array([3.0, 1.0]) * number_density_unit
+    out = fits.Tinker08().modify_dndm([1e12, 1e13] * Msun_h, dndm, z=0.0, ngtm=ngtm, h=0.7)
+    assert out.unit is dndm_unit
+    np.testing.assert_array_equal(out.value, dndm.value)
 
 
 @pytest.mark.parametrize("z", [0.0, 1.0, 2.0])
@@ -511,7 +526,7 @@ def test_bocquet_mass_ratios_are_ordered(z, om):
     thresholds nearly coincide, and the ratio must approach 1 from below; eq. A2 is
     accurate only "at the few percent level" (App. A), so allow 3% there.
     """
-    m = np.geomspace(1e13, 1e15, 9)
+    m = np.geomspace(1e13, 1e15, 9) * Msun_h
     r200 = fits.Bocquet200cDMOnly().mass_ratio_to_200m(m, z=z, omega_m0=om, h=0.7)
     r500 = fits.Bocquet500cHydro().mass_ratio_to_200m(m, z=z, omega_m0=om, h=0.7)
     assert np.all((r500 > 0) & (r500 < r200) & (r200 < 1.03))
@@ -524,7 +539,7 @@ def test_bocquet_mass_ratios_are_ordered(z, om):
 
 def test_bocquet_mass_ratio_depends_on_mass_in_msun():
     """The same physical halo gets the same ratio whatever h (eqs. 6, A2 take ln M/Msun)."""
-    m_msun = np.geomspace(1e13, 1e15, 5)
+    m_msun = np.geomspace(1e13, 1e15, 5) * Msun_h  # times h below: Msun/h
     for model in (fits.Bocquet200cDMOnly(), fits.Bocquet500cDMOnly()):
         r1 = model.mass_ratio_to_200m(m_msun * 0.5, z=0.5, omega_m0=0.3, h=0.5)
         r2 = model.mass_ratio_to_200m(m_msun * 0.9, z=0.5, omega_m0=0.3, h=0.9)
@@ -709,14 +724,67 @@ def test_valid_domain_raises_even_for_one_bad_value():
 
 def test_unknown_policy():
     with pytest.raises(ValueError, match="Unknown domain policy"):
-        evaluate_fsigma(fits.PS(), 1.0, delta_c=DELTA_C, policy="silent")
+        evaluate_fsigma(fits.PS(), FitInputs(sigma=1.0, delta_c=DELTA_C), policy="silent")
 
 
 def test_calibration_domain_in_mass_uses_canonical_units():
     """Masses are plain Msun/h inside, compared with Quantity bounds."""
     assert fits.Warren.calibration_domain["m"].unit == Msun_h
-    r = evaluate_fsigma(fits.Warren(), [1.0, 1.0], z=0.0, m=[1e12, 1e16])
+    r = evaluate_fsigma(fits.Warren(), FitInputs(sigma=[1.0, 1.0], z=0.0, m=[1e12, 1e16]))
     np.testing.assert_array_equal(r.in_calibration_domain, [True, False])
+
+
+# ---------------------------------------------------------------------------------
+# Units boundary
+# ---------------------------------------------------------------------------------
+def test_public_methods_are_unit_boundaries():
+    """M (and dn/dm, n(>m)) are Quantities at the public methods; bare numbers raise."""
+    warren = fits.Warren()
+    with pytest.raises(UnitBoundaryError, match="m"):
+        warren.fsigma(1.0, m=1e12)
+    with pytest.raises(UnitBoundaryError, match="m"):
+        warren.inputs(1.0, m=1e12)
+    with pytest.raises(UnitBoundaryError):
+        fits.Bocquet500cDMOnly().mass_ratio_to_200m(1e14, z=0.0, omega_m0=0.3, h=0.7)
+    with pytest.raises(UnitBoundaryError, match="dndm"):
+        fits.Behroozi().modify_dndm(
+            [1e12] * Msun_h, [1.0], z=1.0, ngtm=[1.0] * number_density_unit, h=0.7
+        )
+
+
+def test_fsigma_is_dimensionless_and_accepts_equivalent_mass_units():
+    model = fits.Warren()
+    f = model.fsigma([1.0, 2.0], m=[1e12, 1e13] * Msun_h)
+    assert type(f) is np.ndarray
+    # The same masses in an equivalent h-unit (not the shared constant) agree, and so
+    # does the calibration mask built from them.
+    other = [1e12, 1e13] * (u.Msun / cu.littleh)
+    np.testing.assert_array_equal(model.fsigma([1.0, 2.0], m=other), f)
+    x = model.inputs([1.0, 2.0], z=0.0, m=[1e15, 1e16] * Msun_h)
+    np.testing.assert_array_equal(model.in_calibration_domain(x), [True, False])
+
+
+def test_masses_without_h_need_a_hubble_constant():
+    """A model has no H0, so masses in physical Msun can not be converted (no guessing)."""
+    with pytest.raises(u.UnitConversionError):
+        fits.Warren().fsigma(1.0, m=1e12 * u.Msun)
+
+
+def test_library_path_takes_plain_canonical_arrays():
+    """FitInputs + fsigma_from_inputs / evaluate_fsigma: the same numbers, no units."""
+    model = fits.Bocquet200cHydro()
+    m = np.geomspace(1e12, 1e15, 4)
+    sigma = np.linspace(0.6, 2.0, 4)
+    public = model.fsigma(sigma, z=0.5, m=m * Msun_h)
+    x = FitInputs(sigma=sigma, z=0.5, m=m)
+    np.testing.assert_array_equal(model.fsigma_from_inputs(x), public)
+    np.testing.assert_array_equal(evaluate_fsigma(model, x).fsigma, public)
+    np.testing.assert_array_equal(
+        model._mass_ratio_to_200m(m, z=0.5, omega_m0=0.3, h=0.7),
+        model.mass_ratio_to_200m(m * Msun_h, z=0.5, omega_m0=0.3, h=0.7),
+    )
+    with pytest.raises(ValueError, match="needs the input"):
+        evaluate_fsigma(model, FitInputs(sigma=sigma))
 
 
 def test_does_not_import_v3_modules():

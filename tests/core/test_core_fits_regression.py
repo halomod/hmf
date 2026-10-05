@@ -29,6 +29,7 @@ from astropy.cosmology import FlatLambdaCDM
 
 from hmf.core import fits
 from hmf.core.fits import FittingFunction
+from hmf.core.units import Msun_h, dndm_unit, number_density_unit
 from hmf.exceptions import HMFExtrapolationWarning
 from hmf.halos import mass_definitions as md
 from hmf.mass_function import fitting_functions as ff
@@ -73,7 +74,13 @@ def _v3(name, z, delta, **params):
 
 def _v4(model, z, delta):
     return model.fsigma(
-        SIGMA, z=z, omega_m_z=COSMO.Om(z), delta_halo=delta, delta_c=DELTA_C, n_eff=N_EFF, m=M
+        SIGMA,
+        z=z,
+        omega_m_z=COSMO.Om(z),
+        delta_halo=delta,
+        delta_c=DELTA_C,
+        n_eff=N_EFF,
+        m=M * Msun_h,
     )
 
 
@@ -104,7 +111,7 @@ def test_manera_default_differs_from_v3():
 def test_bocquet_mass_conversion_matches_v3(name, z):
     """v3's f(sigma) is v4's f(sigma) times mass_ratio_to_200m."""
     model = FittingFunction.get(name)()
-    ratio = model.mass_ratio_to_200m(M, z=z, omega_m0=COSMO.Om0, h=COSMO.h)
+    ratio = model.mass_ratio_to_200m(M * Msun_h, z=z, omega_m0=COSMO.Om0, h=COSMO.h)
     fit = getattr(ff, name)(nu2=(DELTA_C / SIGMA) ** 2, m=M, z=z, cosmo=COSMO, delta_c=DELTA_C)
     np.testing.assert_allclose(_v4(model, z, 200.0) * ratio, fit.fsigma, rtol=1e-12)
 
@@ -117,8 +124,10 @@ def test_behroozi_modify_dndm_matches_v3():
         v3 = ff.Behroozi(nu2=np.ones(20), z=z, mass_definition=md.SOVirial())._modify_dndm(
             m / 0.7, dndm, z, ngtm, h=0.7
         )
-        v4 = fits.Behroozi().modify_dndm(m, dndm, z=z, ngtm=ngtm, h=0.7)
-        np.testing.assert_allclose(v4, v3, rtol=1e-12)
+        v4 = fits.Behroozi().modify_dndm(
+            m * Msun_h, dndm * dndm_unit, z=z, ngtm=ngtm * number_density_unit, h=0.7
+        )
+        np.testing.assert_allclose(v4.to_value(dndm_unit), v3, rtol=1e-12)
 
 
 @pytest.mark.parametrize("name", NAMES)

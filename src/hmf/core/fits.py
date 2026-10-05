@@ -11,9 +11,10 @@ name as an alias, so ``FittingFunction.get("Tinker08")`` finds it.
 
 Inputs
 ------
-:meth:`FittingFunction.fsigma` works on plain arrays. It takes no cosmology and no
-mass-definition object, only already-resolved physical inputs (the
-:class:`~hmf.core.stage.Stage` that computes the mass function resolves them):
+:meth:`FittingFunction.fsigma` takes no cosmology and no mass-definition object, only
+already-resolved physical inputs (the :class:`~hmf.core.stage.Stage` that computes the
+mass function resolves them). It is a units boundary (:mod:`hmf.core.units`): the
+mass is a Quantity, and every other input is dimensionless.
 
 ================  ===================================================================
 ``sigma``         :math:`\sigma(m, z)`; always required.
@@ -22,11 +23,15 @@ mass-definition object, only already-resolved physical inputs (the
 ``delta_halo``    the halo overdensity relative to the **mean** density, :math:`\Delta_m`.
 ``delta_c``       the critical overdensity for collapse, :math:`\delta_c`.
 ``n_eff``         the effective spectral index at ``m``.
-``m``             the halo mass, in canonical Msun/h.
+``m``             the halo mass (a Quantity at the public methods).
 ================  ===================================================================
 
 Each fit lists the ones it needs in :attr:`FittingFunction.requires`. All of them
 broadcast against each other.
+
+Library code (the stages) works on plain arrays in canonical units instead: it puts
+them in a :class:`FitInputs` and calls :func:`evaluate_fsigma` (or
+:meth:`FittingFunction.fsigma_from_inputs`), so it pays no boundary cost.
 
 Domains
 -------
@@ -66,7 +71,7 @@ from ._fields import field
 from ._kernels import fits as _k
 from .domain import Domain, DomainError, DomainPolicy, apply_domain_policy
 from .model import Model
-from .units import Msun_h
+from .units import Msun_h, dndm_unit, number_density_unit, unit_boundary
 
 __all__ = [
     "INPUTS",
@@ -375,6 +380,7 @@ class FittingFunction(Model, kind=True):
             cls.requires | _domain_inputs(cls.valid_domain) | _domain_inputs(cls.calibration_domain)
         )
 
+    @unit_boundary(m=Msun_h)
     def inputs(
         self,
         sigma: npt.ArrayLike,
@@ -388,11 +394,13 @@ class FittingFunction(Model, kind=True):
     ) -> FitInputs:
         """Collect the inputs, checking that the required ones are given.
 
-        Parameters are as for :meth:`fsigma`.
+        Parameters are as for :meth:`fsigma` (``m`` is a Quantity). Library code that
+        already has plain arrays in canonical units builds :class:`FitInputs` directly.
 
         Returns
         -------
         FitInputs
+            The inputs as plain arrays, in canonical units.
 
         Raises
         ------
@@ -409,6 +417,18 @@ class FittingFunction(Model, kind=True):
             n_eff=n_eff,
             m=m,
         )
+        self.check_required(x)
+        return x
+
+    def check_required(self, x: FitInputs) -> None:
+        """Raise if an input needed to evaluate the fit is missing from ``x``.
+
+        Raises
+        ------
+        ValueError
+            If an input in :attr:`requires` (or needed to check :attr:`valid_domain`)
+            is missing.
+        """
         needed = self.requires | _domain_inputs(self.valid_domain)
         missing = sorted(name for name in needed if not x.given(name))
         if missing:
@@ -416,7 +436,6 @@ class FittingFunction(Model, kind=True):
                 f"{type(self).__name__}.fsigma() needs the input(s) {missing} "
                 f"(it requires {sorted(needed)})."
             )
-        return x
 
     def check_valid(self, x: FitInputs) -> None:
         """Raise if any input is outside :attr:`valid_domain`.
@@ -454,6 +473,7 @@ class FittingFunction(Model, kind=True):
         """
         return _contains(self.calibration_domain, x)
 
+    @unit_boundary(m=Msun_h)
     def fsigma(
         self,
         sigma: npt.ArrayLike,
@@ -467,9 +487,11 @@ class FittingFunction(Model, kind=True):
     ) -> FloatArray:
         r"""The multiplicity function, :math:`f(\sigma) = \nu f(\nu)`.
 
-        This works on plain arrays in canonical units. It applies no calibration
-        policy (see :func:`evaluate_fsigma` for that), but always checks
-        :attr:`valid_domain`.
+        This is a units boundary (see :mod:`hmf.core.units`): ``m`` must be a
+        Quantity; every other input is dimensionless. Library code with plain arrays
+        in canonical units calls :meth:`fsigma_from_inputs` or :func:`evaluate_fsigma`
+        instead. It applies no calibration policy (see :func:`evaluate_fsigma` for
+        that), but always checks :attr:`valid_domain`.
 
         Parameters
         ----------
@@ -486,23 +508,25 @@ class FittingFunction(Model, kind=True):
         n_eff
             The effective spectral index.
         m
-            The halo mass, in Msun/h.
+            The halo mass, a Quantity (e.g. in :data:`~hmf.core.units.Msun_h`).
 
         Returns
         -------
         numpy.ndarray
-            :math:`f(\sigma)`, broadcast over the inputs.
+            :math:`f(\sigma)` (dimensionless), broadcast over the inputs.
 
         Raises
         ------
         ValueError
             If an input the fit requires is not given.
+        UnitBoundaryError
+            If ``m`` is not a Quantity.
         DomainError
             If any input is outside :attr:`valid_domain`, or makes the fit's
             parameters unphysical.
         """
-        x = self.inputs(
-            sigma,
+        x = FitInputs(
+            sigma=sigma,
             z=z,
             omega_m_z=omega_m_z,
             delta_halo=delta_halo,
@@ -513,7 +537,7 @@ class FittingFunction(Model, kind=True):
         return self.fsigma_from_inputs(x)
 
     def fsigma_from_inputs(self, x: FitInputs) -> FloatArray:
-        """:meth:`fsigma`, from inputs already collected by :meth:`inputs`.
+        """:meth:`fsigma`, from plain inputs in canonical units (the library path).
 
         Parameters
         ----------
@@ -523,7 +547,15 @@ class FittingFunction(Model, kind=True):
         Returns
         -------
         numpy.ndarray
+
+        Raises
+        ------
+        ValueError
+            If an input the fit requires is not in ``x``.
+        DomainError
+            As for :meth:`fsigma`.
         """
+        self.check_required(x)
         self.check_valid(x)
         return np.asarray(self._fsigma(x), dtype=np.float64)
 
@@ -531,7 +563,37 @@ class FittingFunction(Model, kind=True):
     def _fsigma(self, x: FitInputs) -> FloatArray:
         """Compute f(sigma) from inputs inside the valid domain."""
 
+    @unit_boundary(m=Msun_h, dndm=dndm_unit, ngtm=number_density_unit, returns=dndm_unit)
     def modify_dndm(
+        self, m: Any, dndm: Any, *, z: npt.ArrayLike, ngtm: Any, h: npt.ArrayLike
+    ) -> Any:
+        """Modify the mass function computed from :meth:`fsigma` (a no-op by default).
+
+        A fit that is not a pure function of sigma (e.g. :class:`Behroozi`) overrides
+        :meth:`_modify_dndm` (the unit-free implementation, which library code calls),
+        and sets :attr:`modifies_dndm`.
+
+        Parameters
+        ----------
+        m
+            Halo masses, a Quantity.
+        dndm
+            The mass function from :meth:`fsigma`, a Quantity (number density per mass).
+        z
+            Redshift.
+        ngtm
+            The cumulative mass function n(>m) from :meth:`fsigma`, a Quantity.
+        h
+            The dimensionless Hubble parameter.
+
+        Returns
+        -------
+        Quantity
+            The modified mass function, in :data:`~hmf.core.units.dndm_unit`.
+        """
+        return self._modify_dndm(m, dndm, z=z, ngtm=ngtm, h=h)
+
+    def _modify_dndm(
         self,
         m: npt.ArrayLike,
         dndm: npt.ArrayLike,
@@ -540,28 +602,9 @@ class FittingFunction(Model, kind=True):
         ngtm: npt.ArrayLike,
         h: npt.ArrayLike,
     ) -> FloatArray:
-        """Modify the mass function computed from :meth:`fsigma` (a no-op by default).
+        """:meth:`modify_dndm` on plain arrays in canonical units (identity here).
 
-        A fit that is not a pure function of sigma (e.g. :class:`Behroozi`) overrides
-        this, and sets :attr:`modifies_dndm`.
-
-        Parameters
-        ----------
-        m
-            Halo masses, in Msun/h.
-        dndm
-            The mass function from :meth:`fsigma`, in h^4 / (Msun Mpc^3).
-        z
-            Redshift.
-        ngtm
-            The cumulative mass function n(>m) from :meth:`fsigma`, in h^3 / Mpc^3.
-        h
-            The dimensionless Hubble parameter.
-
-        Returns
-        -------
-        numpy.ndarray
-            The modified mass function, in h^4 / (Msun Mpc^3).
+        ``m`` in Msun/h, ``dndm`` in h^4 / (Msun Mpc^3) and ``ngtm`` in h^3 / Mpc^3.
         """
         return np.asarray(dndm, dtype=np.float64)
 
@@ -606,18 +649,13 @@ class FSigmaResult:
 
 
 def evaluate_fsigma(
-    model: FittingFunction,
-    sigma: npt.ArrayLike,
-    *,
-    policy: DomainPolicy = "ignore",
-    z: npt.ArrayLike | None = None,
-    omega_m_z: npt.ArrayLike | None = None,
-    delta_halo: npt.ArrayLike | None = None,
-    delta_c: npt.ArrayLike | None = None,
-    n_eff: npt.ArrayLike | None = None,
-    m: npt.ArrayLike | None = None,
+    model: FittingFunction, inputs: FitInputs, *, policy: DomainPolicy = "ignore"
 ) -> FSigmaResult:
     r"""Evaluate a fit, applying a domain policy to its calibration domain.
+
+    This is the library path, for the stages: the inputs are plain arrays in
+    canonical units (a :class:`FitInputs`, built directly or by
+    :meth:`FittingFunction.inputs` from Quantities).
 
     The valid domain always raises (see :meth:`FittingFunction.fsigma`); the policy
     applies to the calibration domain only:
@@ -637,9 +675,9 @@ def evaluate_fsigma(
     ----------
     model
         The fit.
-    sigma, z, omega_m_z, delta_halo, delta_c, n_eff, m
-        The inputs, as for :meth:`FittingFunction.fsigma`. Those needed to check the
-        calibration domain (see :meth:`FittingFunction.domain_inputs`) must be given.
+    inputs
+        The inputs. Those needed to check the calibration domain (see
+        :meth:`FittingFunction.domain_inputs`) must be given.
     policy
         What to do outside the calibration domain.
 
@@ -656,15 +694,8 @@ def evaluate_fsigma(
         If any input is outside the valid domain (whatever the policy), or outside
         the calibration domain with ``policy="raise"``.
     """
-    x = model.inputs(
-        sigma,
-        z=z,
-        omega_m_z=omega_m_z,
-        delta_halo=delta_halo,
-        delta_c=delta_c,
-        n_eff=n_eff,
-        m=m,
-    )
+    x = inputs
+    model.check_required(x)
     missing = sorted(name for name in _domain_inputs(model.calibration_domain) if not x.given(name))
     if missing:
         raise ValueError(
@@ -1607,7 +1638,7 @@ class Behroozi(Tinker08, alias="Behroozi"):
     )
     modifies_dndm: ClassVar[bool] = True
 
-    def modify_dndm(
+    def _modify_dndm(
         self,
         m: npt.ArrayLike,
         dndm: npt.ArrayLike,
@@ -1616,7 +1647,7 @@ class Behroozi(Tinker08, alias="Behroozi"):
         ngtm: npt.ArrayLike,
         h: npt.ArrayLike,
     ) -> FloatArray:
-        """Apply the App. G correction to the Tinker (2008) mass function.
+        """Apply the App. G correction to the Tinker (2008) mass function (unit-free).
 
         Parameters
         ----------
@@ -1919,20 +1950,23 @@ class Bocquet200mDMOnly(FittingFunction, alias="Bocquet200mDMOnly"):
             self.e * zp1**self.e_z,
         )
 
+    @unit_boundary(m=Msun_h)
     def mass_ratio_to_200m(
-        self, m: npt.ArrayLike, *, z: npt.ArrayLike, omega_m0: npt.ArrayLike, h: npt.ArrayLike
+        self, m: Any, *, z: npt.ArrayLike, omega_m0: npt.ArrayLike, h: npt.ArrayLike
     ) -> FloatArray:
-        r"""The ratio :math:`M_\Delta/M_{200m}` of the fit's mass to M200m (1 here).
+        r"""The ratio :math:`M_\Delta/M_{200m}` of the fit's mass to M200m.
 
         Bocquet et al. build their 200c and 500c mass functions from
         :math:`dn/dM_\Delta = f(\sigma)(\bar\rho_m/M_\Delta)(d\ln\sigma^{-1}/dM_\Delta)
-        (M_\Delta/M_{200m})` (eq. 5), with this ratio. Applying it (and evaluating
-        sigma at M200m) is left to the mass-function stage (issue #392).
+        (M_\Delta/M_{200m})` (eq. 5), with this ratio: 1 for the 200m fits, eq. A2
+        for 200c and eq. 6 for 500c. Applying it (and evaluating sigma at M200m) is
+        left to the mass-function stage (issue #392), which calls the unit-free
+        :meth:`_mass_ratio_to_200m`.
 
         Parameters
         ----------
         m
-            Halo mass in the fit's definition, in Msun/h.
+            Halo mass in the fit's definition, a Quantity.
         z
             Redshift.
         omega_m0
@@ -1943,7 +1977,14 @@ class Bocquet200mDMOnly(FittingFunction, alias="Bocquet200mDMOnly"):
         Returns
         -------
         numpy.ndarray
+            The (dimensionless) ratio.
         """
+        return self._mass_ratio_to_200m(m, z=z, omega_m0=omega_m0, h=h)
+
+    def _mass_ratio_to_200m(
+        self, m: npt.ArrayLike, *, z: npt.ArrayLike, omega_m0: npt.ArrayLike, h: npt.ArrayLike
+    ) -> FloatArray:
+        """:meth:`mass_ratio_to_200m`, with ``m`` a plain array in Msun/h (1 here)."""
         return np.ones(np.broadcast(np.asarray(m), np.asarray(z)).shape)
 
     def _fsigma(self, x: FitInputs) -> FloatArray:
@@ -2000,14 +2041,13 @@ class Bocquet200cDMOnly(Bocquet200mDMOnly, alias="Bocquet200cDMOnly"):
     d_z: float = _p(-0.153, "The redshift exponent of d.")
     e_z: float = _p(-0.621, "The redshift exponent of e.")
 
-    def mass_ratio_to_200m(
+    def _mass_ratio_to_200m(
         self, m: npt.ArrayLike, *, z: npt.ArrayLike, omega_m0: npt.ArrayLike, h: npt.ArrayLike
     ) -> FloatArray:
         r""":math:`M_{200c}/M_{200m}`, Bocquet et al. (2016) eq. A2.
 
         Calibrated for 0 < z < 2, 1e13 < M200c / Msun < 2e16 and
-        0.15 < Omega_m < 0.5 (App. A). Parameters are as for
-        :meth:`Bocquet200mDMOnly.mass_ratio_to_200m`.
+        0.15 < Omega_m < 0.5 (App. A). ``m`` is a plain array in Msun/h.
         """
         m_msun = np.asarray(m, dtype=np.float64) / np.asarray(h, dtype=np.float64)
         return _k.bocquet16_mass_ratio_200c(m_msun, z, omega_m0)
@@ -2058,13 +2098,13 @@ class Bocquet500cDMOnly(Bocquet200mDMOnly, alias="Bocquet500cDMOnly"):
     d_z: float = _p(-0.31, "The redshift exponent of d.")
     e_z: float = _p(-0.698, "The redshift exponent of e.")
 
-    def mass_ratio_to_200m(
+    def _mass_ratio_to_200m(
         self, m: npt.ArrayLike, *, z: npt.ArrayLike, omega_m0: npt.ArrayLike, h: npt.ArrayLike
     ) -> FloatArray:
         r""":math:`M_{500c}/M_{200m}`, Bocquet et al. (2016) eq. 6.
 
         Calibrated for 0 < z < 2, 1e13 < M500c / Msun < 1e16 and 0.1 < Omega_m < 0.5
-        (Sec. 3.2.2). Parameters are as for :meth:`Bocquet200mDMOnly.mass_ratio_to_200m`.
+        (Sec. 3.2.2). ``m`` is a plain array in Msun/h.
         """
         m_msun = np.asarray(m, dtype=np.float64) / np.asarray(h, dtype=np.float64)
         return _k.bocquet16_mass_ratio_500c(m_msun, z, omega_m0)
