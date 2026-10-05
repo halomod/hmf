@@ -76,6 +76,12 @@ The v4 core preview: see :doc:`core`. Its API may change before 4.0.
    hmf.core.cache
    hmf.core._kernels.transfer
    hmf.core._kernels.growth
+   hmf.core.filters
+   hmf.core.power_source
+   hmf.core.mass_variance
+   hmf.core._kernels.filters
+   hmf.core._kernels.mass_variance
+   hmf.core._kernels.interpolation
    hmf.core._kernels.fits
 
 Models (their parameters are listed in each class's "Parameters" section):

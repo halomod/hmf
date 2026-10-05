@@ -15,8 +15,8 @@ Importing it emits a :class:`~hmf.exceptions.HMFCoreExperimentalWarning` (a
     warnings.simplefilter("ignore", HMFCoreExperimentalWarning)
     import hmf.core
 
-This package currently holds the conventions the rest of the v4 core builds on, and
-the first ported models:
+This package holds the conventions the rest of the v4 core builds on, and the first
+stages and models:
 
 * :mod:`hmf.core.units`: the units boundary between public methods and kernels;
 * :mod:`hmf.core.model`: the :class:`~hmf.core.model.Model` base class and the
@@ -26,6 +26,10 @@ the first ported models:
 * :mod:`hmf.core.domain`: model domains and the domain policy;
 * :mod:`hmf.core.fits`: the halo mass function fitting functions, as models;
 * :mod:`hmf.core._kernels`: the conventions for unit-free numerical kernels;
+* :mod:`hmf.core.filters`: the smoothing filters (the :class:`~hmf.core.filters.Filter` kind);
+* :mod:`hmf.core.power_source`: sources of the linear power spectrum at z = 0;
+* :mod:`hmf.core.mass_variance`: the :class:`~hmf.core.mass_variance.MassVariance`
+  stage: sigma(m) on a deterministic mass lattice;
 * :func:`field`: an ``attrs`` field with documentation, for models and stages.
 
 See the "hmf.core (experimental)" page of the documentation for an overview.
@@ -43,7 +47,17 @@ warnings.warn(
     stacklevel=2,
 )
 
-from . import accuracy, domain, fits, model, stage, units  # noqa: E402
+from . import (  # noqa: E402  # noqa: E402
+    accuracy,
+    domain,
+    filters,
+    fits,
+    mass_variance,
+    model,
+    power_source,
+    stage,
+    units,
+)
 from ._fields import FieldInfo, field  # noqa: E402
 
 __all__ = [
@@ -52,8 +66,11 @@ __all__ = [
     "accuracy",
     "domain",
     "field",
+    "filters",
     "fits",
+    "mass_variance",
     "model",
+    "power_source",
     "stage",
     "units",
 ]
