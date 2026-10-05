@@ -97,8 +97,8 @@ forms, GenMF, Carroll et al., CAMB, CLASS)::
   logarithmic slope, so d ln T / d ln k is continuous at the join.
 * **Disk cache.** With ``disk_cache=True`` (or a
   :class:`~hmf.core.cache.DiskCache`), runs are also kept on disk (by default in
-  ``~/.cache/hmf``, or ``$HMF_CACHE_DIR``), keyed by the run's input and the versions
-  of hmf and of the code.
+  ``$HMF_CACHE_DIR``, or the platform's user cache directory, e.g. ``~/.cache/hmf``),
+  keyed by the run's input and the versions of hmf and of the code.
 
 API
 ---

@@ -374,3 +374,9 @@ def test_evolve_and_pickle():
     assert t2 == t
     assert t2.transfer_function(1 * h_Mpc) == value
     assert t.evolve(n_s=1.0).unnormalised_power(1 * h_Mpc) == pytest.approx(value**2)
+
+
+def test_evolve_revalidates_the_model_against_the_cosmology():
+    t = Transfer(model="EH")
+    with pytest.raises(ValueError, match="baryons"):
+        t.evolve(cosmology=FlatLambdaCDM(H0=70, Om0=0.3))

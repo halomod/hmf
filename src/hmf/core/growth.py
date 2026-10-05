@@ -94,16 +94,21 @@ class Growth(Stage):
         ),
     )
 
-    def __attrs_post_init__(self) -> None:
-        """Check the cosmology against the model and the transfer stage."""
-        if self.transfer is not None and cosmology_key(self.transfer.cosmology) != cosmology_key(
-            self.cosmology
-        ):
+    @model.validator
+    def _check_model(self, attribute: attrs.Attribute[GrowthModel], value: GrowthModel) -> None:
+        """Check that the model applies to the cosmology."""
+        value.check_cosmology(self.cosmology)
+
+    @transfer.validator
+    def _check_transfer(
+        self, attribute: attrs.Attribute[Transfer | None], value: Transfer | None
+    ) -> None:
+        """Check that the transfer stage has the same cosmology."""
+        if value is not None and cosmology_key(value.cosmology) != cosmology_key(self.cosmology):
             raise ValueError(
                 "Growth: the cosmology differs from the transfer stage's. Use "
                 "Growth.from_transfer(transfer, ...) to take the transfer's cosmology."
             )
-        self.model.check_cosmology(self.cosmology)
 
     @classmethod
     def from_transfer(cls, transfer: hmf.core.transfer.Transfer, **kwargs: Any) -> Growth:

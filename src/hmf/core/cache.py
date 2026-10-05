@@ -38,6 +38,7 @@ from typing import Any
 import attrs
 import numpy as np
 import numpy.typing as npt
+import platformdirs
 
 from ._fields import add_parameters_section, field
 
@@ -50,8 +51,9 @@ CACHE_DIR_ENV = "HMF_CACHE_DIR"
 def default_cache_dir() -> Path:
     """The default cache directory.
 
-    It is ``$HMF_CACHE_DIR`` if that is set, else ``$XDG_CACHE_HOME/hmf`` if that is
-    set, else ``~/.cache/hmf``.
+    It is ``$HMF_CACHE_DIR`` if that is set, else the platform's user cache directory
+    for hmf, from :func:`platformdirs.user_cache_path` (e.g. ``~/.cache/hmf``, or
+    ``$XDG_CACHE_HOME/hmf``, on Linux; ``~/Library/Caches/hmf`` on macOS).
 
     Returns
     -------
@@ -59,9 +61,7 @@ def default_cache_dir() -> Path:
     """
     if os.environ.get(CACHE_DIR_ENV):
         return Path(os.environ[CACHE_DIR_ENV]).expanduser()
-    if os.environ.get("XDG_CACHE_HOME"):
-        return Path(os.environ["XDG_CACHE_HOME"]).expanduser() / "hmf"
-    return Path.home() / ".cache" / "hmf"
+    return platformdirs.user_cache_path("hmf", appauthor=False)
 
 
 @attrs.frozen(kw_only=True)
@@ -77,8 +77,9 @@ class DiskCache:
         factory=default_cache_dir,
         converter=lambda p: Path(p).expanduser(),
         doc=(
-            "The cache directory. Defaults to $HMF_CACHE_DIR, $XDG_CACHE_HOME/hmf or "
-            "~/.cache/hmf. It is created when the first entry is written."
+            "The cache directory. Defaults to $HMF_CACHE_DIR, or the platform's user "
+            "cache directory for hmf (see default_cache_dir). It is created when the "
+            "first entry is written."
         ),
     )
 

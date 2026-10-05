@@ -278,3 +278,16 @@ def test_species():
     assert g.growth_factor(1.0, "tot") == g.growth_factor(1.0, "cb")
     with pytest.raises(ValueError, match="species"):
         g.growth_factor(1.0, "nu")
+
+
+def test_evolve_revalidates_model_and_transfer():
+    """The checks are field validators, so evolve() runs them too."""
+    from hmf.core.transfer import Transfer
+
+    g = Growth(cosmology=LCDM, model="Eisenstein97")
+    with pytest.raises(ValueError, match="flat"):
+        g.evolve(cosmology=OPEN_LAMBDA)
+    with pytest.raises(ValueError, match="cosmology differs"):
+        g.evolve(transfer=Transfer(cosmology=OPEN, model="BBKS"))
+    t = Transfer(cosmology=LCDM, model="BBKS")
+    assert g.evolve(transfer=t).transfer is t

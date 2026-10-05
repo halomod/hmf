@@ -42,6 +42,7 @@ dependencies = [
     "cached_property",
     "attrs>=24.1",
     "cattrs>=23.2",
+    "platformdirs>=3.0",
 ]
 
 [project.optional-dependencies]

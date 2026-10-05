@@ -8,6 +8,8 @@
 * The opt-in disk cache: hits and misses, keys, atomic writes.
 """
 
+import sys
+
 import astropy.units as u
 import numpy as np
 import pytest
@@ -201,13 +203,20 @@ def test_disk_cache_is_off_by_default_and_not_part_of_the_value(tmp_path):
 
 
 def test_default_cache_dir(monkeypatch, tmp_path):
+    import platformdirs
+
     monkeypatch.setenv("HMF_CACHE_DIR", str(tmp_path / "a"))
     assert default_cache_dir() == tmp_path / "a"
     monkeypatch.delenv("HMF_CACHE_DIR")
+    assert default_cache_dir() == platformdirs.user_cache_path("hmf", appauthor=False)
+    assert default_cache_dir().name == "hmf"
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="XDG_CACHE_HOME is Linux's")
+def test_default_cache_dir_follows_xdg_on_linux(monkeypatch, tmp_path):
+    monkeypatch.delenv("HMF_CACHE_DIR", raising=False)
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "b"))
     assert default_cache_dir() == tmp_path / "b" / "hmf"
-    monkeypatch.delenv("XDG_CACHE_HOME")
-    assert default_cache_dir().parts[-2:] == (".cache", "hmf")
 
 
 def test_corrupt_cache_entry_is_a_miss(fresh, tmp_path):

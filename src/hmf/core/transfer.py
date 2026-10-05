@@ -152,9 +152,10 @@ class Transfer(Stage):
         ),
     )
 
-    def __attrs_post_init__(self) -> None:
+    @model.validator
+    def _check_model(self, attribute: attrs.Attribute[TransferModel], value: TransferModel) -> None:
         """Check that the model applies to the cosmology."""
-        self.model.check_cosmology(self.cosmology)
+        value.check_cosmology(self.cosmology)
 
     @cached_property
     def _unit_context(self) -> UnitContext:
