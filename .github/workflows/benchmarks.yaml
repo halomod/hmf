@@ -70,13 +70,16 @@ jobs:
           name: benchmark-results
           path: benchmark-results.json
       - name: Install Bencher
+        # Timings are informational: a Bencher problem must not fail the job.
+        continue-on-error: true
         if: ${{ !cancelled() && hashFiles('benchmark-results.json') != '' && env.HAVE_BENCHER == 'true' }}
         uses: bencherdev/bencher@main
       - name: Track timings on main with Bencher
+        # Timings are informational: a Bencher problem must not fail the job.
+        continue-on-error: true
         if: ${{ !cancelled() && hashFiles('benchmark-results.json') != '' && env.HAVE_BENCHER == 'true' && github.event_name != 'pull_request' }}
         env:
           BENCHER_API_KEY: ${{ secrets.BENCHER_API_KEY }}
-          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_KEY }}
           BENCHER_PROJECT: ${{ vars.BENCHER_PROJECT || 'hmf' }}
         # The thresholds flag a regression when a timing is above the 99% upper
         # bound of a t-test against the last 64 runs on main.
@@ -94,10 +97,11 @@ jobs:
             --thresholds-reset \
             true
       - name: Compare PR timings with main in Bencher (comments, never fails)
+        # Timings are informational: a Bencher problem must not fail the job.
+        continue-on-error: true
         if: ${{ !cancelled() && hashFiles('benchmark-results.json') != '' && env.HAVE_BENCHER == 'true' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
         env:
           BENCHER_API_KEY: ${{ secrets.BENCHER_API_KEY }}
-          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_KEY }}
           BENCHER_PROJECT: ${{ vars.BENCHER_PROJECT || 'hmf' }}
         run: |
           bencher run \
