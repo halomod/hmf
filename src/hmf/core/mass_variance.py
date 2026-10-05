@@ -73,6 +73,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ._fields import field
+from ._kernels import interpolation as interp
 from ._kernels import mass_variance as kern
 from .accuracy import KAccuracy, MassAccuracy
 from .filters import Filter, TopHat
@@ -476,21 +477,21 @@ class MassVariance(Stage):
         d0, d1 = nodes[_D1, a], nodes[_D1, b]
         if second:
             c0, c1 = nodes[_D2, a], nodes[_D2, b]
-            ln_sigma = kern.hermite_quintic(u, h, y0, y1, d0, d1, c0, c1)
+            ln_sigma = interp.hermite_quintic(u, h, y0, y1, d0, d1, c0, c1)
             same_sign = (d0 * d1) > 0
             with np.errstate(divide="ignore", invalid="ignore"):
-                ln_abs = kern.hermite_cubic(
+                ln_abs = interp.hermite_cubic(
                     u, h, np.log(np.abs(d0)), np.log(np.abs(d1)), c0 / d0, c1 / d1
                 )
-            linear = kern.hermite_cubic(u, h, d0, d1, c0, c1)
+            linear = interp.hermite_cubic(u, h, d0, d1, c0, c1)
             slope = np.where(same_sign, np.sign(d0) * np.exp(ln_abs), linear)
         else:
-            ln_sigma = kern.hermite_cubic(u, h, y0, y1, d0, d1)
+            ln_sigma = interp.hermite_cubic(u, h, y0, y1, d0, d1)
             d = nodes[_D1]
             same_sign = np.all(d * d[1] > 0, axis=0)
             with np.errstate(divide="ignore", invalid="ignore"):
-                ln_abs = kern.lagrange4(u, *np.log(np.abs(d)))
-            linear = kern.lagrange4(u, *d)
+                ln_abs = interp.lagrange4(u, *np.log(np.abs(d)))
+            linear = interp.lagrange4(u, *d)
             slope = np.where(same_sign, np.sign(d0) * np.exp(ln_abs), linear)
         return ln_sigma, slope
 
@@ -617,7 +618,7 @@ class MassVariance(Stage):
         )
         a, b = interval, interval + 1
         cs = (nodes[_D2, a], nodes[_D2, b]) if acc.second_derivative else (None, None)
-        u = kern.invert_hermite(ln_t, self._step, ln_s[a], ln_s[b], d[a], d[b], *cs)
+        u = interp.invert_hermite(ln_t, self._step, ln_s[a], ln_s[b], d[a], d[b], *cs)
         m: FloatArray = 10.0 ** ((j[a] + u) * acc.dlog10_m)
         return m.reshape(target.shape)[()]
 
