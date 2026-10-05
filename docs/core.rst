@@ -100,6 +100,30 @@ forms, GenMF, Carroll et al., CAMB, CLASS)::
   ``$HMF_CACHE_DIR``, or the platform's user cache directory, e.g. ``~/.cache/hmf``),
   keyed by the run's input and the versions of hmf and of the code.
 
+Mass variance
+-------------
+
+:class:`~hmf.core.mass_variance.MassVariance` gives the mass
+variance σ(M) of the *unnormalised* linear power at z = 0, and its slope
+dlnσ/dlnM, for a smoothing filter (:mod:`hmf.core.filters`: ``TopHat``, ``SharpK``,
+``SmoothK``). The power comes from any :class:`~hmf.core.power_source.PowerSource`,
+e.g. a :class:`~hmf.core.power_source.TabulatedPower`::
+
+    from hmf.core.mass_variance import MassVariance
+    from hmf.core.power_source import TabulatedPower
+    from hmf.core.units import Msun_h, h_Mpc, power_unit, rho_unit
+
+    source = TabulatedPower(k=k * h_Mpc, pk=pk * power_unit, mean_density=rho * rho_unit)
+    mv = MassVariance(power=source, filter="SharpK")
+    mv.sigma(m * Msun_h), mv.dlnsigma_dlnm(m * Msun_h), mv.m_from_sigma(0.5)
+
+Both are interpolated on a lattice of nodes at :math:`\log_{10} m = j\Delta`, built
+lazily: results do not depend, bit for bit, on the order or batching of requests.
+σ uses a quintic Hermite interpolant in ln–ln; dlnσ/dlnM is interpolated
+separately, never by differentiating σ. The k grid is a lattice in ln k, fixed by
+the accuracy settings. Masses whose integrals the grid can't resolve (truncated at
+either end, or aliased) raise rather than return a wrong value.
+
 API
 ---
 The modules are listed in the :doc:`API reference <api>`, under "hmf.core

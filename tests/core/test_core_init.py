@@ -61,3 +61,10 @@ def test_submodules_available(name):
     import hmf.core
 
     assert getattr(hmf.core, name).__name__ == f"hmf.core.{name}"
+
+
+@pytest.mark.parametrize("name", ["filters", "mass_variance", "power_source"])
+def test_mass_variance_submodules_available(name):
+    import hmf.core
+
+    assert getattr(hmf.core, name).__name__ == f"hmf.core.{name}"
