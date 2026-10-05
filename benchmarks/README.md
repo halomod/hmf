@@ -64,9 +64,9 @@ CI (issue #394):
 | `test_unit_boundary_overhead_gate` | the fixed cost of `hmf.core.units.unit_boundary` is ≤ 2 µs per call (#389) |
 | `test_one_camb_run_per_input[...]` | one CAMB input runs CAMB once, through z, fit, σ8, n, species, filter, mass-range and δc changes, for ΛCDM with and without massive ν; a new input runs it once more |
 | `test_no_sigma_recompute_without_power_change` | changing z, the fit or δc recomputes no σ(R) |
-| `test_v4_boltzmann_runs_per_input` | *slot* for the v4 Transfer stage (step 2a), skipped until then |
-| `test_v4_sigma_recomputations` | *slot* for the v4 MassVariance stage (step 2b), skipped until then |
-| `test_v4_lattice_determinism` | *slot*: step 2b adds lattice determinism (bit-identical values under lazy extension, in either order) as a unit test |
+| `test_v4_boltzmann_runs_per_input[...]` | the v4 `Transfer` and `Growth` (CAMB) stages run CAMB once per input, for both species, the transfer function, the power, the growth factor and rate, and an `n_s` change, for each of the five cosmologies (w ≠ −1 included); a new input runs it once more |
+| `test_v4_sigma_recomputations[...]` | a v4 `MassVariance` computes each node of its mass lattice at most once, through repeated, contained, wider and inverse (`m_from_sigma`) calls, for TopHat, SharpK and SmoothK |
+| `test_v4_lattice_determinism[...]` | lattice values are bit-identical under lazy extension in either order, and alone or in a batch (#384) |
 
 The units-boundary gate times an identity method, decorated and not, alternately,
 101 times 1,000 calls each, and compares the medians, so that a slow patch of the
@@ -180,18 +180,6 @@ The workflow sends every run's timings to [Bencher](https://bencher.dev) (adapte
   commit on `main`, with the same thresholds, and Bencher comments on the PR with
   the results and any alerts. It never fails the job.
 
-PRs from forks get no secrets, so they are not sent. Without the secret, the steps
-are skipped and the job summary says so.
-
-### Setting it up (maintainers, once)
-
-1. Create an account at <https://bencher.dev> (Bencher Cloud; free for public
-   projects) and, in it, a project. The workflow assumes its slug is `hmf`; for
-   another slug, set the repository variable `BENCHER_PROJECT` (Settings → Secrets
-   and variables → Actions → Variables).
-2. Create an API key in Bencher (user menu → API Keys).
-3. Add it as the repository secret `BENCHER_API_KEY` (Settings → Secrets and
-   variables → Actions → Secrets).
-
-The branch `main` and the testbed `ubuntu-latest` are created by the first run on
-`main`.
+It uses the repository secret `BENCHER_API_KEY` (and the variable `BENCHER_PROJECT`,
+if the project's slug is not `hmf`). PRs from forks get no secrets, so they are not
+sent; without the secret, the steps are skipped and the job summary says so.

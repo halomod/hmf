@@ -390,11 +390,6 @@ def _quantity_from_array(out: Any, unit: u.UnitBase, where: str) -> u.Quantity:
     ``Quantity(arr, unit, copy=False)`` raises for scalars under numpy 2, and ``<<``
     costs about 2 µs, so view the (possibly 0-d) array as a Quantity and set its unit.
     A scalar output gives a scalar (0-d) Quantity.
-
-    ``unit`` must be a plain :class:`~astropy.units.UnitBase` (``unit_boundary``
-    checks this when it decorates), so it is assigned directly: astropy's own
-    ``Quantity._set_unit`` does only that for such a unit, after checks that cost
-    about 0.15 µs, under the 2 µs budget of the whole boundary.
     """
     if type(out) is np.ndarray:
         arr = out

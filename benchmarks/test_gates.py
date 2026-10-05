@@ -12,9 +12,9 @@ shared CI runner. Timings in general cannot (they are tracked, not gated: see
 * **Call counters** (the other tests): how many CAMB runs, or sigma(R) evaluations, a
   workload makes. These count calls and time nothing, so they are exact.
 
-The v4 counters (Boltzmann runs per input of the v4 Transfer stage, sigma
-recomputations of the v4 MassVariance stage) and the lattice-determinism gate need v4
-stages that do not exist yet; their slots are at the end of this file.
+The v4 gates are at the end of this file: Boltzmann runs per input of the v4
+Transfer and Growth stages, no recomputation of a MassVariance lattice node, and the
+lattice's determinism under lazy extension (#384).
 """
 
 import os
@@ -22,11 +22,18 @@ import statistics
 import timeit
 
 import astropy.units as u
+import numpy as np
 import pytest
 from astropy.cosmology import FlatLambdaCDM, Flatw0waCDM, FlatwCDM, Planck18
 from test_core_units import M, Msun_h, Toy
 
 from hmf import MassFunction
+from hmf.core import _boltzmann
+from hmf.core.growth import Growth
+from hmf.core.mass_variance import MassVariance
+from hmf.core.power_source import TabulatedPower
+from hmf.core.transfer import Transfer
+from hmf.core.units import h_Mpc, power_unit
 
 # ---------------------------------------------------------------------------------
 # The units boundary
@@ -145,34 +152,120 @@ def test_no_sigma_recompute_without_power_change(calls):
 
 
 # ---------------------------------------------------------------------------------
-# Slots for the v4 gates
+# v4 call counters and lattice determinism
 # ---------------------------------------------------------------------------------
 
+#: Masses for the MassVariance gates: a narrow range, and a wider one containing it.
+_M_NARROW = np.logspace(8, 15, 211) * Msun_h
+_M_WIDE = np.logspace(5, 16, 397) * Msun_h
+_FILTERS = ("TopHat", "SharpK", "SmoothK")
 
-@pytest.mark.skip(reason="slot: needs the v4 Transfer stage (step 2a of #394)")
-def test_v4_boltzmann_runs_per_input():
-    """One Boltzmann-code run per distinct input of the v4 Transfer stage.
 
-    To fill in (step 2a): count the CAMB runs of the v4 Transfer stage while
-    evolving it through parameters that do not change CAMB's input (z, sigma_8, the
-    filter, ...) and through every matter species; assert exactly one per input.
+@pytest.fixture
+def boltzmann_runs():
+    """CAMB runs made from here on, with the in-process memo of runs cleared."""
+    _boltzmann.clear_memo()
+    before = dict(_boltzmann.run_counts())
+    yield lambda: _boltzmann.run_counts().get("camb", 0) - before.get("camb", 0)
+    _boltzmann.clear_memo()
+
+
+@pytest.fixture(scope="module")
+def power_source():
+    """Unnormalised EH power (Planck18) as a table: no Boltzmann run needed."""
+    k = np.logspace(-6, 4, 3001) * h_Mpc
+    return TabulatedPower(
+        k=k,
+        # In arbitrary units: sigma's amplitude does not matter here.
+        pk=Transfer(model="EH").unnormalised_power(k) * power_unit,
+        mean_density=(Planck18.Om0 * Planck18.critical_density0).to(u.Msun / u.Mpc**3),
+        H0=Planck18.H0,
+    )
+
+
+@pytest.mark.parametrize("name", list(CAMB_RUNS_PER_INPUT))
+def test_v4_boltzmann_runs_per_input(boltzmann_runs, name):
+    """The v4 Transfer and Growth stages run CAMB once per distinct input.
+
+    One run gives every matter species, the transfer function, the power and the
+    (scale-independent) CAMB growth at every z up to its z_max; n_s does not enter the
+    run. Unlike v3's ratchet above, this holds for w != -1 too.
     """
+    cosmo, _ = CAMB_RUNS_PER_INPUT[name]
+    k = np.logspace(-4, 2, 50) * h_Mpc
+    z = np.array([0.0, 0.5, 2.0, 6.0])
+    transfer = Transfer(cosmology=cosmo, model="CAMB")
+    for stage in (transfer, transfer.evolve(n_s=0.95)):
+        growth = Growth.from_transfer(stage, model="CAMB")
+        for species in ("cb", "tot"):
+            stage.transfer_function(k, species)
+            stage.unnormalised_power(k, species)
+            growth.growth_factor(z, species)
+            growth.growth_rate(z, species)
+    assert boltzmann_runs() == 1
+
+    # A new input (H0) runs it once more.
+    transfer.evolve(cosmology=cosmo.clone(H0=70.0)).transfer_function(k)
+    assert boltzmann_runs() == 2
 
 
-@pytest.mark.skip(reason="slot: needs the v4 MassVariance stage (step 2b of #394)")
-def test_v4_sigma_recomputations():
-    """No sigma(R) recomputation when only z, the fit or delta_c changes in v4.
+@pytest.mark.parametrize("flt", _FILTERS)
+def test_v4_sigma_recomputations(monkeypatch, power_source, flt):
+    """A MassVariance stage computes each node of its mass lattice at most once.
 
-    To fill in (step 2b): count the sigma-integral kernel calls of the v4
-    MassVariance stage across such ``evolve()`` calls; assert none after the first.
+    Whatever is asked of it (sigma, its slope, the inverse, repeated or overlapping
+    mass ranges, a wider range after a narrower one), a node computed for one call is
+    reused by every later call, and calls that need no new node compute none.
     """
+    computed: list[np.ndarray] = []
+    real = MassVariance._compute_nodes
+
+    def counting(self, j):
+        computed.append(np.array(j))
+        return real(self, j)
+
+    monkeypatch.setattr(MassVariance, "_compute_nodes", counting)
+    mv = MassVariance(power=power_source, filter=flt)
+
+    s = mv.sigma(_M_NARROW)
+    assert computed, "the first call must compute nodes"
+    n_first = len(computed)
+    mv.sigma(_M_NARROW)
+    mv.dlnsigma_dlnm(_M_NARROW)
+    mv.sigma(_M_NARROW[::7])
+    mv.dlnsigma_dlnm(_M_NARROW[100])
+    assert len(computed) == n_first, "repeated or contained calls computed nodes"
+
+    mv.sigma(_M_WIDE)
+    mv.m_from_sigma(s[20:40])
+    mv.sigma(_M_WIDE)
+    mv.sigma(_M_NARROW)
+    nodes = np.concatenate(computed)
+    assert np.unique(nodes).size == nodes.size, "a lattice node was computed twice"
 
 
-@pytest.mark.skip(reason="slot: the lattice-determinism test is added by step 2b of #394")
-def test_v4_lattice_determinism():
+@pytest.mark.parametrize("flt", _FILTERS)
+def test_v4_lattice_determinism(power_source, flt):
     """Lattice values are bit-identical under lazy extension, in either order (#384).
 
-    Step 2b adds this as a unit test of the mass lattice (in ``tests/core``), where it
-    runs with the test suite; this slot marks it as one of the hard gates of #394.
-    Replace it with a call of that test, or delete it once that test exists.
+    sigma and its slope at the narrow masses are the same, to the bit, whether the
+    narrow range is asked for first, after the wide one, or after it was itself
+    extended; and the same mass gives the same value alone or in a batch. (Step 2b's
+    unit tests check this in more cases; this is the gate.)
     """
+    narrow_first = MassVariance(power=power_source, filter=flt)
+    s1 = narrow_first.sigma(_M_NARROW)
+    d1 = narrow_first.dlnsigma_dlnm(_M_NARROW)
+    narrow_first.sigma(_M_WIDE)
+
+    wide_first = MassVariance(power=power_source, filter=flt)
+    wide_first.sigma(_M_WIDE)
+
+    for stage in (narrow_first, wide_first):
+        assert np.array_equal(stage.sigma(_M_NARROW), s1)
+        assert np.array_equal(stage.dlnsigma_dlnm(_M_NARROW), d1)
+    assert np.array_equal(narrow_first.sigma(_M_WIDE), wide_first.sigma(_M_WIDE))
+
+    one_by_one = MassVariance(power=power_source, filter=flt)
+    alone = np.array([one_by_one.sigma(m) for m in _M_NARROW[::-10]])
+    assert np.array_equal(alone, s1[::-10])
