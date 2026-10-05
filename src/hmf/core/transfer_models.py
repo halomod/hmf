@@ -48,6 +48,7 @@ from ._boltzmann import (
 )
 from ._fields import field
 from ._kernels import transfer as kt
+from ._validators import positive
 from .accuracy import KAccuracy
 from .cache import DiskCache
 from .domain import Domain
@@ -174,11 +175,6 @@ def _pairs(
                 f"Setting {k!r} must be a bool, int, float or str, not {type(v).__name__}."
             )
     return out
-
-
-def _positive(instance: Any, attribute: attrs.Attribute[float], value: float) -> None:
-    if not (math.isfinite(value) and value > 0):
-        raise ValueError(f"{type(instance).__name__}.{attribute.name} must be > 0, got {value}.")
 
 
 @attrs.frozen(kw_only=True)
@@ -408,7 +404,7 @@ class _Tabulated(TransferModel, abstract=True):
     tail_decay_ln_k: float = field(
         default=1.0,
         converter=float,
-        validator=_positive,
+        validator=positive,
         doc=(
             "Above the table's largest wavenumber, T(k) follows the EH98 no-wiggle shape, "
             "rescaled to match the table's value and logarithmic slope at the join. The "
@@ -527,7 +523,7 @@ class _Boltzmann(_Tabulated, abstract=True):
     k_max: float = field(
         default=20.0 * h_Mpc,
         converter=_wavenumber,
-        validator=_positive,
+        validator=positive,
         doc=(
             "The largest wavenumber the code computes, a Quantity in h-units (stored in "
             "h/Mpc). Above it (strictly: above the code's last output node) T(k) is "
@@ -537,7 +533,7 @@ class _Boltzmann(_Tabulated, abstract=True):
     z_max_growth: float = field(
         default=20.0,
         converter=float,
-        validator=_positive,
+        validator=positive,
         doc=(
             "The largest redshift at which the run also computes the growth factor, for "
             "a growth stage that shares the run."

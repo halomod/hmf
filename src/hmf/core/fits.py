@@ -12,9 +12,9 @@ name as an alias, so ``FittingFunction.get("Tinker08")`` finds it.
 Inputs
 ------
 :meth:`FittingFunction.fsigma` takes no cosmology and no mass-definition object, only
-already-resolved physical inputs (the :class:`~hmf.core.stage.Stage` that computes the
-mass function resolves them). It is a units boundary (:mod:`hmf.core.units`): the
-mass is a Quantity, and every other input is dimensionless.
+already-resolved physical inputs. Computing them (sigma from the power spectrum,
+the overdensity from the mass definition, ...) is the job of the code that calls the
+fit, normally a mass-function :class:`~hmf.core.stage.Stage`.
 
 ================  ===================================================================
 ``sigma``         :math:`\sigma(m, z)`; always required.
@@ -23,15 +23,30 @@ mass is a Quantity, and every other input is dimensionless.
 ``delta_halo``    the halo overdensity relative to the **mean** density, :math:`\Delta_m`.
 ``delta_c``       the critical overdensity for collapse, :math:`\delta_c`.
 ``n_eff``         the effective spectral index at ``m``.
-``m``             the halo mass (a Quantity at the public methods).
+``m``             the halo mass.
 ================  ===================================================================
 
 Each fit lists the ones it needs in :attr:`FittingFunction.requires`. All of them
 broadcast against each other.
 
-Library code (the stages) works on plain arrays in canonical units instead: it puts
-them in a :class:`FitInputs` and calls :func:`evaluate_fsigma` (or
-:meth:`FittingFunction.fsigma_from_inputs`), so it pays no boundary cost.
+Evaluating a fit
+----------------
+There are two ways to call a fit, which differ only in how the mass is given:
+
+With Quantities
+    :meth:`FittingFunction.fsigma` (and the fit's other public methods) take the
+    mass as an :class:`~astropy.units.Quantity`, e.g. ``m=1e12 * Msun_h``, as every
+    public method of :mod:`hmf.core` does (see :mod:`hmf.core.units`). The other
+    inputs are dimensionless numbers or arrays. This is the way to use a fit directly.
+With plain arrays in canonical units
+    Code that already holds every input as a plain array in the canonical units of
+    :data:`hmf.core.units.CANONICAL_UNITS` (mass in Msun/h), such as a
+    :class:`~hmf.core.stage.Stage`, puts them in a :class:`FitInputs` and calls
+    :func:`evaluate_fsigma` (or :meth:`FittingFunction.fsigma_from_inputs`). This
+    skips the unit checks and conversions, which matters inside loops, and is also
+    where the domain policy (below) is applied.
+
+Both give the same numbers.
 
 Domains
 -------
@@ -63,15 +78,17 @@ from collections.abc import Callable, Mapping
 from types import MappingProxyType
 from typing import Any, ClassVar, Literal
 
+import astropy.units as u
 import attrs
 import numpy as np
 import numpy.typing as npt
 
 from ._fields import field
 from ._kernels import fits as _k
+from ._validators import less_than, positive
 from .domain import Domain, DomainError, DomainPolicy, apply_domain_policy
 from .model import Model
-from .units import Msun_h, dndm_unit, number_density_unit, unit_boundary
+from .units import Mpc_h, Msun_h, dndm_unit, littleh, number_density_unit, unit_boundary
 
 __all__ = [
     "INPUTS",
@@ -101,6 +118,7 @@ __all__ = [
     "Pillepich",
     "Reed03",
     "Reed07",
+    "SimulationDetails",
     "Tinker08",
     "Tinker10",
     "Warren",
@@ -203,6 +221,141 @@ def _so_virial(note: str = "") -> MeasuredMassDefinition:
 
 def _so_any(preferred: MeasuredMassDefinition, note: str = "") -> MeasuredMassDefinition:
     return MeasuredMassDefinition(kind="so_any", preferred=preferred, note=note)
+
+
+# ---------------------------------------------------------------------------------
+# Metadata: the simulations a fit was calibrated on
+# ---------------------------------------------------------------------------------
+#: The critical density today, in h^2 Msun / Mpc^3, for :attr:`SimulationDetails.particle_mass`.
+_RHO_CRIT0 = 2.775366e11
+
+#: kpc/h, for softening lengths.
+_KPC_H = u.kpc / littleh
+
+PerSimulation = tuple[Any, ...]
+
+
+def _quantity_or_none(x: Any) -> Any:
+    """Convert a length to a 1-d Quantity in Mpc/h (``None`` stays ``None``)."""
+    if x is None:
+        return None
+    return np.atleast_1d(u.Quantity(x).to(Mpc_h))
+
+
+def _tuple_or_none(x: Any) -> PerSimulation | None:
+    """Convert a scalar or sequence to a tuple (``None`` stays ``None``)."""
+    if x is None:
+        return None
+    if isinstance(x, str) or np.ndim(x) == 0:
+        return (x,)
+    return tuple(x)
+
+
+@attrs.frozen(kw_only=True, eq=False)
+class SimulationDetails:
+    """The suite of simulations a fit was calibrated on (metadata only).
+
+    This ports hmf 3.x's ``SimDetails``, corrected against the papers where it was
+    wrong. It describes the simulations used to *define* the fit, not every one the
+    paper compared it with. Per-simulation values are tuples (or Quantities) with
+    one entry per simulation; a single value applies to all of them, and ``None``
+    means the paper does not state it.
+
+    Parameters
+    ----------
+    box_size
+        The comoving box sizes, a Quantity (converted to Mpc/h).
+    n_particles
+        The number of dark-matter particles in each simulation (hydrodynamical runs
+        have as many gas particles again; see ``notes``).
+    omega_m, omega_b, sigma_8, h, n_s
+        The cosmological parameters of each simulation.
+    softening
+        The gravitational softening length (or, for AMR codes, the finest cell
+        size), a Quantity converted to Mpc/h.
+    transfer
+        The transfer function used for the initial conditions.
+    z_start
+        The starting redshift.
+    initial_conditions
+        How the initial conditions were made: ``"ZA"`` (the Zel'dovich
+        approximation) or ``"2LPT"``.
+    halo_finder
+        The halo-finding code.
+    n_min
+        The minimum number of particles per halo used in the fit.
+    z_range
+        The redshift range over which the fit was measured, ``(min, max)``.
+    names
+        The simulations' names in the paper.
+    notes
+        Anything else worth knowing (corrections applied, other simulations, ...).
+    source
+        Where the details come from (paper, section, table).
+    """
+
+    box_size: Any = attrs.field(converter=_quantity_or_none)
+    n_particles: PerSimulation = attrs.field(converter=_tuple_or_none)
+    omega_m: PerSimulation | None = attrs.field(default=None, converter=_tuple_or_none)
+    omega_b: PerSimulation | None = attrs.field(default=None, converter=_tuple_or_none)
+    sigma_8: PerSimulation | None = attrs.field(default=None, converter=_tuple_or_none)
+    h: PerSimulation | None = attrs.field(default=None, converter=_tuple_or_none)
+    n_s: PerSimulation | None = attrs.field(default=None, converter=_tuple_or_none)
+    softening: Any = attrs.field(default=None, converter=_quantity_or_none)
+    transfer: PerSimulation | None = attrs.field(default=None, converter=_tuple_or_none)
+    z_start: PerSimulation | None = attrs.field(default=None, converter=_tuple_or_none)
+    initial_conditions: PerSimulation | None = attrs.field(default=None, converter=_tuple_or_none)
+    halo_finder: str | None = None
+    n_min: int | None = None
+    z_range: tuple[float, float] | None = None
+    names: PerSimulation | None = attrs.field(default=None, converter=_tuple_or_none)
+    notes: str = ""
+    source: str = ""
+
+    def __attrs_post_init__(self) -> None:
+        """Broadcast single values to every simulation, and check the lengths."""
+        n = len(self.box_size)
+        for a in attrs.fields(type(self)):
+            value = getattr(self, a.name)
+            if value is None or a.name == "z_range" or not isinstance(value, (tuple, u.Quantity)):
+                continue
+            if len(value) == 1 and n > 1:
+                value = value * n if isinstance(value, tuple) else np.repeat(value, n)
+                object.__setattr__(self, a.name, value)
+            if len(value) != n:
+                raise ValueError(
+                    f"SimulationDetails.{a.name} has {len(value)} entries for {n} simulations."
+                )
+
+    @property
+    def n_simulations(self) -> int:
+        """The number of simulations."""
+        return len(self.box_size)
+
+    @property
+    def particle_mass(self) -> Any:
+        """The dark-matter particle mass of each simulation, a Quantity in Msun/h.
+
+        Computed as Omega_m rho_crit0 L^3 / N, so for hydrodynamical runs (where the
+        dark matter has only Omega_m - Omega_b) it is the mass of a particle pair.
+        ``None`` if Omega_m is not known for every simulation.
+        """
+        if self.omega_m is None or any(om is None for om in self.omega_m):
+            return None
+        volume = self.box_size.to_value(Mpc_h) ** 3
+        mass = np.array(self.omega_m, dtype=float) * _RHO_CRIT0 * volume
+        return (mass / np.array(self.n_particles, dtype=float)) << Msun_h
+
+
+def _derived(
+    base: SimulationDetails | None, *, prepend_note: str = "", **changes: Any
+) -> SimulationDetails:
+    """Another fit's simulation details, with some fields changed."""
+    if base is None:
+        raise TypeError("Can't derive simulation details from None.")
+    if prepend_note:
+        changes["notes"] = prepend_note + " " + base.notes
+    return attrs.evolve(base, **changes)
 
 
 # ---------------------------------------------------------------------------------
@@ -362,6 +515,9 @@ class FittingFunction(Model, kind=True):
     #: The halo mass definition the fit was measured in.
     measured_mass_definition: ClassVar[MeasuredMassDefinition]
 
+    #: The simulations the fit was calibrated on (None for a fit to no simulations).
+    simulations: ClassVar[SimulationDetails | None]
+
     #: Whether :meth:`modify_dndm` changes the mass function (see :class:`Behroozi`).
     modifies_dndm: ClassVar[bool] = False
 
@@ -394,8 +550,9 @@ class FittingFunction(Model, kind=True):
     ) -> FitInputs:
         """Collect the inputs, checking that the required ones are given.
 
-        Parameters are as for :meth:`fsigma` (``m`` is a Quantity). Library code that
-        already has plain arrays in canonical units builds :class:`FitInputs` directly.
+        Parameters are as for :meth:`fsigma` (``m`` is a Quantity). Code that already
+        has plain arrays in canonical units builds :class:`FitInputs` directly (see
+        "Evaluating a fit" in the :mod:`module documentation <hmf.core.fits>`).
 
         Returns
         -------
@@ -487,11 +644,12 @@ class FittingFunction(Model, kind=True):
     ) -> FloatArray:
         r"""The multiplicity function, :math:`f(\sigma) = \nu f(\nu)`.
 
-        This is a units boundary (see :mod:`hmf.core.units`): ``m`` must be a
-        Quantity; every other input is dimensionless. Library code with plain arrays
-        in canonical units calls :meth:`fsigma_from_inputs` or :func:`evaluate_fsigma`
-        instead. It applies no calibration policy (see :func:`evaluate_fsigma` for
-        that), but always checks :attr:`valid_domain`.
+        ``m`` must be a Quantity (see :mod:`hmf.core.units`); every other input is
+        dimensionless. Code that already has plain arrays in canonical units calls
+        :meth:`fsigma_from_inputs` or :func:`evaluate_fsigma` instead (see
+        "Evaluating a fit" in the :mod:`module documentation <hmf.core.fits>`). It
+        applies no calibration policy (see :func:`evaluate_fsigma` for that), but
+        always checks :attr:`valid_domain`.
 
         Parameters
         ----------
@@ -537,7 +695,7 @@ class FittingFunction(Model, kind=True):
         return self.fsigma_from_inputs(x)
 
     def fsigma_from_inputs(self, x: FitInputs) -> FloatArray:
-        """:meth:`fsigma`, from plain inputs in canonical units (the library path).
+        """:meth:`fsigma`, from inputs that are plain arrays in canonical units.
 
         Parameters
         ----------
@@ -569,9 +727,11 @@ class FittingFunction(Model, kind=True):
     ) -> Any:
         """Modify the mass function computed from :meth:`fsigma` (a no-op by default).
 
-        A fit that is not a pure function of sigma (e.g. :class:`Behroozi`) overrides
-        :meth:`_modify_dndm` (the unit-free implementation, which library code calls),
-        and sets :attr:`modifies_dndm`.
+        A fit that is not a pure function of sigma (e.g. :class:`Behroozi`) sets
+        :attr:`modifies_dndm`, and overrides :meth:`_modify_dndm`: the same
+        calculation on plain arrays in canonical units, which this method calls
+        after converting its arguments (and which a mass-function
+        :class:`~hmf.core.stage.Stage` calls directly).
 
         Parameters
         ----------
@@ -653,9 +813,10 @@ def evaluate_fsigma(
 ) -> FSigmaResult:
     r"""Evaluate a fit, applying a domain policy to its calibration domain.
 
-    This is the library path, for the stages: the inputs are plain arrays in
-    canonical units (a :class:`FitInputs`, built directly or by
-    :meth:`FittingFunction.inputs` from Quantities).
+    The inputs are a :class:`FitInputs`: plain arrays in canonical units, built
+    directly (by code such as a mass-function :class:`~hmf.core.stage.Stage`, which
+    already has them) or by :meth:`FittingFunction.inputs` from Quantities. See
+    "Evaluating a fit" in the :mod:`module documentation <hmf.core.fits>`.
 
     The valid domain always raises (see :meth:`FittingFunction.fsigma`); the policy
     applies to the calibration domain only:
@@ -664,8 +825,8 @@ def evaluate_fsigma(
         return :math:`f(\sigma)` everywhere;
     ``"warn"``
         also emit an :class:`~hmf.exceptions.HMFExtrapolationWarning` if any value is
-        outside. It is emitted on each call: a stage that wants it once per instance
-        calls this once and caches the result;
+        outside. It is emitted on each call: a :class:`~hmf.core.stage.Stage` that
+        wants it once per instance calls this once and caches the result;
     ``"mask"``
         return NaN outside;
     ``"raise"``
@@ -760,6 +921,7 @@ class PS(FittingFunction, alias="PS"):
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = _so_virial(
         note="Analytic: spherical collapse, i.e. virialised haloes."
     )
+    simulations: ClassVar[SimulationDetails | None] = None
     _normalized: ClassVar[bool] = True
 
     def _fsigma(self, x: FitInputs) -> FloatArray:
@@ -775,25 +937,12 @@ _ST99_REF = (
     "https://doi.org/10.1046/j.1365-8711.1999.02692.x"
 )
 
+#: p < 1/2, so that the Sheth-Tormen form can be normalised.
+_P_BELOW_HALF = less_than(0.5)
+
 _NU_VALID = Domain(
     {"sigma": _SIGMA_POSITIVE, "delta_c": (_TINY, None)}, source="sigma > 0 and delta_c > 0."
 )
-
-
-def _positive(name: str) -> Callable[[Any, attrs.Attribute[Any], Any], None]:
-    """An attrs validator: the value must be finite and > 0."""
-
-    def check(instance: Any, attribute: attrs.Attribute[Any], value: Any) -> None:
-        if not (np.isfinite(value) and value > 0):
-            raise ValueError(f"{type(instance).__name__}.{name} must be > 0, got {value}.")
-
-    return check
-
-
-def _below_half(instance: Any, attribute: attrs.Attribute[Any], value: float) -> None:
-    """An attrs validator: p < 1/2, so that the Sheth-Tormen form can be normalised."""
-    if not value < 0.5:
-        raise ValueError(f"{type(instance).__name__}.p must be < 0.5, got {value}.")
 
 
 @attrs.frozen(kw_only=True)
@@ -833,9 +982,24 @@ class SMT(FittingFunction, alias="SMT"):
             "FoF(b=0.2)."
         )
     )
+    simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
+        box_size=[84.5, 141.3, 141.3] * Mpc_h,
+        n_particles=256**3,
+        omega_m=(1.0, 0.3, 0.3),
+        h=(0.5, 0.7, 0.7),
+        z_range=(0.0, 4.0),
+        halo_finder="SO (Tormen 1998)",
+        names=("SCDM", "OCDM", "LCDM"),
+        notes=(
+            "The GIF simulations; OCDM has Omega_Lambda = 0, LCDM 0.7. sigma_8, "
+            "softening, transfer function and starting redshift: not stated (hmf 3.x "
+            "took them from Jenkins et al. 2001, Table 1)."
+        ),
+        source="Sheth & Tormen 1999, Sec. 3 and Fig. 2.",
+    )
 
-    a: float = _p(0.707, "The parameter a (rescales nu^2).", validator=_positive("a"))
-    p: float = _p(0.3, "The low-mass slope parameter p (< 0.5).", validator=_below_half)
+    a: float = _p(0.707, "The parameter a (rescales nu^2).", validator=positive)
+    p: float = _p(0.3, "The low-mass slope parameter p (< 0.5).", validator=_P_BELOW_HALF)
     A: float | None = _p(
         None, "The amplitude; None for the value that normalises the fit to unit mass."
     )
@@ -861,6 +1025,7 @@ class ST(SMT, alias="ST"):
     calibration_domain: ClassVar[Domain] = SMT.calibration_domain
     valid_domain: ClassVar[Domain] = SMT.valid_domain
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = SMT.measured_mass_definition
+    simulations: ClassVar[SimulationDetails | None] = SMT.simulations
 
 
 @attrs.frozen(kw_only=True)
@@ -888,6 +1053,24 @@ class Reed03(SMT, alias="Reed03"):
     )
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = _fof(
         note="Reed et al. 2003, Sec. 2.1."
+    )
+    simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
+        box_size=[50.0, 50.0] * Mpc_h,
+        n_particles=432**3,
+        omega_m=0.3,
+        sigma_8=1.0,
+        softening=5.0 * _KPC_H,
+        transfer="BBKS",
+        z_start=(69, 139),
+        initial_conditions="ZA",
+        n_min=64,
+        z_range=(0.0, 14.5),
+        notes=(
+            "One box run from two starting redshifts: z_start = 69 for the outputs at "
+            "z < 7, 139 for z >= 7 (Sec. 4.2). Omega_Lambda = 0.7; h, n_s and Omega_b: "
+            "not stated."
+        ),
+        source="Reed et al. 2003, Secs. 2 and 4.2, Fig. 4.",
     )
     A: float | None = _p(0.3222, "The Sheth-Tormen amplitude; None to normalise it.")
     c: float = _p(0.7, "The strength c of the high-z suppression.")
@@ -927,9 +1110,29 @@ class Courtin(SMT, alias="Courtin"):
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = _fof(
         note="Courtin et al. 2011, Sec. 3.2."
     )
+    simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
+        box_size=[162, 648, 1296] * Mpc_h,
+        n_particles=512**3,
+        omega_m=0.26,
+        omega_b=0.044,
+        sigma_8=0.79,
+        h=0.72,
+        n_s=0.963,
+        softening=[2.47, 19.78, 39.55] * _KPC_H,
+        z_start=(93, 56, 41),
+        initial_conditions="ZA",
+        n_min=350,
+        z_range=(0.0, 0.0),
+        names=("LCDM-W5 162", "LCDM-W5 648", "LCDM-W5 1296"),
+        notes=(
+            "RAMSES (AMR): the softening is the finest cell size. Haloes with at least "
+            "350 particles and Poisson noise below 10%."
+        ),
+        source="Courtin et al. 2011 (arXiv v2), Secs. 3.1-3.2, Tables 1 and 4.",
+    )
     A: float | None = _p(0.348, "The amplitude; None to normalise the fit.")
-    a: float = _p(0.695, "The parameter a (rescales nu^2).", validator=_positive("a"))
-    p: float = _p(0.1, "The low-mass slope parameter p (< 0.5).", validator=_below_half)
+    a: float = _p(0.695, "The parameter a (rescales nu^2).", validator=positive)
+    p: float = _p(0.1, "The low-mass slope parameter p (< 0.5).", validator=_P_BELOW_HALF)
 
 
 @attrs.frozen(kw_only=True)
@@ -959,8 +1162,28 @@ class Manera(SMT, alias="Manera"):
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = _fof(
         note="Manera et al. 2010, Sec. 3.2, with the Warren et al. mass correction."
     )
-    a: float = _p(0.709, "The parameter a (rescales nu^2).", validator=_positive("a"))
-    p: float = _p(0.248, "The low-mass slope parameter p (< 0.5).", validator=_below_half)
+    simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
+        box_size=[1280.0] * Mpc_h,
+        n_particles=640**3,
+        omega_m=0.27,
+        omega_b=0.046,
+        sigma_8=0.9,
+        h=0.72,
+        n_s=1.0,
+        softening=20.0 * _KPC_H,
+        transfer="CMBFAST",
+        z_start=50,
+        initial_conditions="2LPT",
+        n_min=105,
+        z_range=(0.0, 0.5),
+        notes=(
+            "49 realisations of this box. The Warren et al. FoF mass correction is "
+            "applied; the default parameters are the z = 0 fit."
+        ),
+        source="Manera et al. 2010 (arXiv v2), Secs. 3.1-3.3.",
+    )
+    a: float = _p(0.709, "The parameter a (rescales nu^2).", validator=positive)
+    p: float = _p(0.248, "The low-mass slope parameter p (< 0.5).", validator=_P_BELOW_HALF)
 
 
 # ---------------------------------------------------------------------------------
@@ -991,6 +1214,25 @@ class Jenkins(FittingFunction, alias="Jenkins"):
     )
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = _fof(
         note="Jenkins et al. 2001, Sec. 5.2."
+    )
+    simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
+        box_size=[84.5, 141.3, 479.0, 3000.0] * Mpc_h,
+        n_particles=(256**3, 256**3, 512**3, 1000**3),
+        omega_m=(1.0, 0.3, 0.3, 0.3),
+        sigma_8=(0.6, 0.9, 0.9, 0.9),
+        h=(None, 0.7, 0.7, 0.7),
+        n_s=1.0,
+        softening=[30.0, 25.0, 30.0, 100.0] * _KPC_H,
+        transfer=("BondEfs", "BondEfs", "CMBFAST", "CMBFAST"),
+        n_min=20,
+        z_range=(0.0, 5.0),
+        names=("tauCDM-gif", "LCDM-gif", "LCDM-512", "LCDM-Hubble volume"),
+        notes=(
+            "Representative runs: eq. 9 is fitted to about ten simulations in five "
+            "cosmologies (0.3 <= Omega_m <= 1, sigma_8 = 0.51-1.0; Table 2). The data "
+            "were smoothed and deconvolved before fitting (Sec. 5.2)."
+        ),
+        source="Jenkins et al. 2001, Sec. 2.1 and Tables 1-2.",
     )
     A: float = _p(0.315, "The amplitude A.")
     b: float = _p(0.61, "The offset b of ln(1/sigma).")
@@ -1029,6 +1271,25 @@ class Warren(FittingFunction, alias="Warren"):
     )
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = _fof(
         note="Warren et al. 2006, Sec. 2, with the N(1 - N^-0.6) correction (eq. 3)."
+    )
+    simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
+        box_size=[96, 135, 192, 272, 384, 543, 768, 1086, 1536, 2172, 2583, 3072] * Mpc_h,
+        n_particles=1024**3,
+        omega_m=0.3,
+        omega_b=0.04,
+        sigma_8=0.9,
+        h=0.7,
+        n_s=1.0,
+        transfer="CMBFAST",
+        n_min=400,
+        notes=(
+            "16 runs in all (three 384, two 272 and two 3072 Mpc/h boxes). Softening: "
+            "2.1 kpc/h (physical) in the highest-resolution run to 98 kpc/h (comoving) "
+            "in the largest; not stated for the others. Redshift: not stated (a single "
+            "epoch, presumably z = 0). FoF masses corrected by N(1 - N^-0.6) (eq. 3); "
+            "fit by maximum likelihood on Poisson counts."
+        ),
+        source="Warren et al. 2006 (arXiv v1), Sec. 2 and eq. 1.",
     )
     A: float = _p(0.7234, "The amplitude A.")
     b: float = _p(1.625, "The exponent b of e/sigma.")
@@ -1077,6 +1338,41 @@ class Reed07(FittingFunction, alias="Reed07"):
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = _fof(
         note="Reed et al. 2007, Sec. 2."
     )
+    simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
+        box_size=[1.0, 2.5, 2.5, 2.5, 2.5, 4.64, 11.6, 20, 50, 100, 500, 1340, 3000] * Mpc_h,
+        n_particles=(
+            400**3,
+            1000**3,
+            1000**3,
+            500**3,
+            200**3,
+            400**3,
+            1000**3,
+            400**3,
+            1000**3,
+            900**3,
+            2160**3,
+            1448**3,
+            1000**3,
+        ),
+        omega_m=(0.25,) * 12 + (0.3,),
+        omega_b=(0.045,) * 12 + (None,),
+        sigma_8=0.9,
+        h=(0.73,) * 12 + (0.7,),
+        n_s=1.0,
+        softening=[0.125, 0.125, 0.125, 0.25, 0.625, 0.58, 0.58, 2.5, 2.4, 2.4, 5, 20, 100]
+        * _KPC_H,
+        transfer=("CMBFAST",) * 9 + ("Millennium", "CMBFAST", "Millennium", "BondEfs"),
+        z_start=(299, 299, 299, 299, 299, 249, 249, 249, 299, 149, 127, 63, 35),
+        initial_conditions="ZA",
+        n_min=100,
+        z_range=(0.0, 30.0),
+        notes=(
+            "The 3000 Mpc/h box is the Hubble Volume (Omega_m = 0.3). Data at z = 0, 1, "
+            "4, 10, 20 and 30 (Figs. 4, 6); finite-volume corrections applied."
+        ),
+        source="Reed et al. 2007 (arXiv v4), Sec. 1, Sec. 3, Table 1 and App. A2.",
+    )
     A: float = _p(0.3222, "The amplitude A.")
     p: float = _p(0.3, "The low-mass slope p.")
     c: float = _p(1.08, "The exponential cut-off factor c.")
@@ -1111,6 +1407,7 @@ class Peacock(FittingFunction, alias="Peacock"):
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = _fof(
         note="Inherited from Warren et al. 2006."
     )
+    simulations: ClassVar[SimulationDetails | None] = None
     _normalized: ClassVar[bool] = True
     a: float = _p(1.529, "The parameter a.")
     b: float = _p(0.704, "The exponent b.")
@@ -1155,6 +1452,26 @@ class Angulo(FittingFunction, alias="Angulo"):
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = _fof(
         note="Angulo et al. 2012, Sec. 2.2."
     )
+    simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
+        box_size=[3000.0] * Mpc_h,
+        n_particles=6720**3,
+        omega_m=0.25,
+        omega_b=0.045,
+        sigma_8=0.9,
+        h=0.73,
+        softening=10.0 * _KPC_H,
+        z_start=63,
+        initial_conditions="2LPT",
+        n_min=20,
+        z_range=(0.0, 0.0),
+        names="MXXL",
+        notes=(
+            "The fit combines MXXL with the Millennium and Millennium-II simulations "
+            "(same cosmology), whose details are not given in this paper. n_s: not "
+            "stated. Softening 13.7 kpc."
+        ),
+        source="Angulo et al. 2012, Secs. 2.1-2.2.",
+    )
     A: float = _p(0.201, "The amplitude A.")
     b: float = _p(1.7, "The exponent b.")
     c: float = _p(1.172, "The exponential cut-off c.")
@@ -1181,6 +1498,7 @@ class AnguloBound(Angulo, alias="AnguloBound"):
         kind="self_bound",
         note="Angulo et al. 2012, Sec. 2.2: all SUBFIND self-bound subhaloes.",
     )
+    simulations: ClassVar[SimulationDetails | None] = Angulo.simulations
     A: float = _p(0.265, "The amplitude A.")
     b: float = _p(1.9, "The exponent b.")
     c: float = _p(1.4, "The exponential cut-off c.")
@@ -1212,6 +1530,27 @@ class Watson_FoF(Warren, alias="Watson_FoF"):
     )
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = _fof(
         note="Watson et al. 2013, Sec. 3 (Gadget-3 FoF)."
+    )
+    simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
+        box_size=[11.4, 20, 114, 425, 1000, 3200, 6000] * Mpc_h,
+        n_particles=(3072**3, 5488**3, 3072**3, 5488**3, 3456**3, 4000**3, 6000**3),
+        omega_m=(0.27, 0.27, 0.27, 0.27, 0.279, 0.279, 0.27),
+        omega_b=(0.044, 0.044, 0.044, 0.044, 0.046, 0.046, 0.044),
+        sigma_8=(0.8, 0.8, 0.8, 0.8, 0.817, 0.817, 0.8),
+        h=(0.7, 0.7, 0.7, 0.7, 0.701, 0.701, 0.7),
+        n_s=0.96,
+        softening=[0.18, 0.18, 1.86, 3.87, 14.47, 40.0, 50.0] * _KPC_H,
+        transfer="CAMB",
+        z_start=(300, 300, 300, 300, 150, 120, 100),
+        initial_conditions="ZA",
+        halo_finder="GADGET-3 FoF",
+        n_min=1000,
+        z_range=(0.0, 30.0),
+        notes=(
+            "The 1 and 3.2 Gpc/h boxes use the 'alternative' WMAP5 parameters. The "
+            "Warren et al. FoF correction and a finite-box correction are applied."
+        ),
+        source="Watson et al. 2013 (arXiv v4), Secs. 2.1-2.2, 4.3 and Table 1.",
     )
     A: float = _p(0.282, "The amplitude A.")
     b: float = _p(2.163, "The exponent b of e/sigma.")
@@ -1271,6 +1610,14 @@ class Watson(FittingFunction, alias="Watson"):
         note=(
             "Watson et al. 2013, Sec. 3.3: SO with Delta = 178 times the mean density "
             "(where Gamma = 1); AHF host haloes. hmf 3.x preferred the virial definition."
+        ),
+    )
+    simulations: ClassVar[SimulationDetails | None] = _derived(
+        Watson_FoF.simulations,
+        halo_finder="AHF",
+        notes=(
+            "As for Watson_FoF; haloes found with AHF (host haloes only). The redshift "
+            "evolution was calibrated on the CPMSO haloes."
         ),
     )
 
@@ -1373,6 +1720,27 @@ class Crocce(FittingFunction, alias="Crocce"):
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = _fof(
         note="Crocce et al. 2010, Sec. 3, with the Warren et al. mass correction."
     )
+    simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
+        box_size=[7680, 3072, 4500, 768, 384, 179] * Mpc_h,
+        n_particles=(2048**3, 2048**3, 1200**3, 1024**3, 1024**3, 1024**3),
+        omega_m=0.25,
+        omega_b=0.044,
+        sigma_8=0.8,
+        h=0.7,
+        n_s=0.95,
+        softening=[50, 50, 100, 50, 50, 50] * _KPC_H,
+        transfer="CAMB",
+        z_start=(150, 50, 50, 50, 50, 50),
+        initial_conditions=("ZA", "ZA", "2LPT", "2LPT", "2LPT", "2LPT"),
+        n_min=200,
+        z_range=(0.0, 1.0),
+        names=("MICE7680", "MICE3072", "MICE4500", "MICE768", "MICE384", "MICE179"),
+        notes=(
+            "Haloes with at least 200 particles (50 in MICE179). Fitted at z = 0 and "
+            "0.5, checked at z = 1. The Warren et al. FoF correction is applied."
+        ),
+        source="Crocce et al. 2010 (arXiv v2), Secs. 2, 3 and 7, Table 1.",
+    )
     A_a: float = _p(0.58, "A(z) = A_a (1+z)^-A_b.")
     A_b: float = _p(0.13, "A(z) = A_a (1+z)^-A_b.")
     b_a: float = _p(1.37, "The exponent b(z) = b_a (1+z)^-b_b of e/sigma.")
@@ -1427,12 +1795,33 @@ class Bhattacharya(FittingFunction, alias="Bhattacharya"):
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = _fof(
         note="Bhattacharya et al. 2011, Sec. 3, with FoF and finite-volume corrections."
     )
+    simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
+        box_size=[1000 * 0.72, 1736 * 0.72, 2778 * 0.72, 178 * 0.72, 1300 * 0.72] * Mpc_h,
+        n_particles=(1500**3, 1200**3, 1024**3, 512**3, 1024**3),
+        omega_m=0.25,
+        omega_b=0.0432,
+        sigma_8=0.8,
+        h=0.72,
+        n_s=0.97,
+        softening=[24 * 0.72, 51 * 0.72, 97 * 0.72, 14 * 0.72, 50 * 0.72] * _KPC_H,
+        transfer="CAMB",
+        z_start=(75, 100, 100, 211, 211),
+        initial_conditions=("2LPT", "2LPT", "2LPT", "ZA", "ZA"),
+        n_min=400,
+        z_range=(0.0, 2.0),
+        notes=(
+            "Model 0 (omega_m = 0.1296, omega_b = 0.0224, h = 0.72; Table 1). Box sizes "
+            "and softenings are given in Mpc and kpc (converted here). Force-resolution, "
+            "FoF and finite-volume corrections are applied."
+        ),
+        source="Bhattacharya et al. 2011 (arXiv v6), Secs. 2-3, Tables 1-2.",
+    )
     A_a: float = _p(0.333, "A(z) = A_a (1+z)^-A_b (unless normed).")
     A_b: float = _p(0.11, "A(z) = A_a (1+z)^-A_b (unless normed).")
     a_a: float = _p(0.788, "a(z) = a_a (1+z)^-a_b.")
     a_b: float = _p(0.01, "a(z) = a_a (1+z)^-a_b.")
     p: float = _p(0.807, "The low-mass slope parameter p.")
-    q: float = _p(1.795, "The exponent q (q = 1 gives Sheth-Tormen).", validator=_positive("q"))
+    q: float = _p(1.795, "The exponent q (q = 1 gives Sheth-Tormen).", validator=positive)
     normed: bool = _p(False, "Whether to normalise A so that all mass is in haloes.")
 
     def __attrs_post_init__(self) -> None:
@@ -1509,6 +1898,75 @@ class Tinker08(FittingFunction, alias="Tinker08"):
     )
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = _so_any(
         _so_mean(200), note="Tinker et al. 2008, Sec. 2.2: SO about density peaks."
+    )
+    simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
+        box_size=[
+            768,
+            384,
+            271,
+            192,
+            96,
+            1280,
+            500,
+            250,
+            120,
+            80,
+            1000,
+            500,
+            500,
+            500,
+            384,
+            384,
+            120,
+            80,
+        ]
+        * Mpc_h,
+        n_particles=(1024**3,) * 5
+        + (640**3, 1024**3, 512**3, 512**3, 512**3, 1024**3)
+        + (512**3,) * 3
+        + (1024**3, 1024**3, 1024**3, 512**3),
+        omega_m=(0.3,) * 5
+        + (0.27, 0.3, 0.3, 0.3, 0.3, 0.27, 0.24, 0.24, 0.24, 0.26, 0.2, 0.27, 0.23),
+        omega_b=(0.04,) * 6
+        + (0.045, 0.04, 0.04, 0.04, 0.044, 0.042, 0.042, 0.042, 0.044, 0.04, 0.044, 0.04),
+        sigma_8=(0.9,) * 10 + (0.79, 0.75, 0.75, 0.8, 0.75, 0.9, 0.79, 0.75),
+        h=(0.7,) * 11 + (0.73, 0.73, 0.73, 0.71, 0.7, 0.7, 0.73),
+        n_s=(1.0,) * 10 + (0.95, 0.95, 0.95, 0.95, 0.94, 1.0, 0.95, 0.95),
+        softening=[25, 14, 10, 4.9, 1.4, 120, 15, 7.6, 1.8, 1.2, 30, 15, 15, 15, 14, 14, 0.9, 1.2]
+        * _KPC_H,
+        z_start=(40, 48, 51, 54, 65, 49, 40, 49, 49, 49, 60, 40, 40, 40, 35, 42, 100, 49),
+        initial_conditions=("ZA",) * 5 + ("2LPT",) + ("ZA",) * 12,
+        halo_finder="SO (own, about density peaks)",
+        z_range=(0.0, 2.5),
+        names=(
+            "H768",
+            "H384",
+            "H271",
+            "H192",
+            "H96",
+            "L1280",
+            "L500",
+            "L250",
+            "L120",
+            "L80",
+            "L1000W",
+            "L500Wa",
+            "L500Wb",
+            "L500Wc",
+            "H384W",
+            "H384Om",
+            "L120W",
+            "L80W",
+        ),
+        notes=(
+            "Outputs at z = 0, 0.5, 1.25 and 2.5 (not all for every run). The L500 runs "
+            "have as many SPH gas particles as dark matter (no cooling). The minimum "
+            "particle number depends on Delta: 400-1600 (Table 2). Table 1's particle "
+            "mass for H192 (5.89e8) does not follow from its box size (5.49e8). hmf "
+            "3.x's Omega_b list was shifted by one from H384W on, and had all runs "
+            "starting from ZA."
+        ),
+        source="Tinker et al. 2008, Sec. 2.1 and Table 1.",
     )
     delta_tab: ClassVar[tuple[int, ...]] = _TINKER_DELTAS
 
@@ -1636,6 +2094,26 @@ class Behroozi(Tinker08, alias="Behroozi"):
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = _so_virial(
         note="Behroozi et al. 2013, Sec. 4: Bryan & Norman (1998) virial SO, ROCKSTAR."
     )
+    simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
+        box_size=[420.0] * Mpc_h,
+        n_particles=1400**3,
+        omega_m=0.25,
+        sigma_8=0.8,
+        h=0.7,
+        n_s=1.0,
+        softening=8.0 * _KPC_H,
+        initial_conditions="2LPT",
+        halo_finder="ROCKSTAR",
+        z_range=(0.0, 9.0),
+        names="Consuelo",
+        notes=(
+            "The correction is fitted to Consuelo only, after an incompleteness "
+            "correction (App. G1). Bolshoi (250 Mpc/h, 2048^3, Omega_m = 0.27, "
+            "sigma_8 = 0.82) is shown for comparison. Softening: 'eight times worse' "
+            "than Bolshoi's 1 kpc/h."
+        ),
+        source="Behroozi et al. 2013 (arXiv v2), Sec. 4 and App. G.",
+    )
     modifies_dndm: ClassVar[bool] = True
 
     def _modify_dndm(
@@ -1722,6 +2200,14 @@ class Tinker10(FittingFunction, alias="Tinker10"):
     )
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = _so_any(
         _so_mean(200), note="Tinker et al. 2010, Sec. 1: SO relative to the background."
+    )
+    simulations: ClassVar[SimulationDetails | None] = _derived(
+        Tinker08.simulations,
+        prepend_note=(
+            "Tinker et al. 2010 fit the z = 0 mass functions of Tinker et al. 2008, so "
+            "these are Tinker08's simulations (T10's own Table 1 lists 15 of them, for "
+            "the bias)."
+        ),
     )
     _normalized: ClassVar[bool] = True
     delta_tab: ClassVar[tuple[int, ...]] = _TINKER_DELTAS
@@ -1859,6 +2345,24 @@ class Pillepich(Warren, alias="Pillepich"):
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = _fof(
         note="Pillepich et al. 2010, Sec. 2.1."
     )
+    simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
+        box_size=[1200, 1200, 150] * Mpc_h,
+        n_particles=1024**3,
+        omega_m=(0.279, 0.24, 0.279),
+        omega_b=(0.0462, 0.042, 0.0462),
+        sigma_8=(0.817, 0.76, 0.817),
+        h=(0.701, 0.73, 0.701),
+        n_s=(0.96, 0.95, 0.96),
+        softening=[20, 20, 3] * _KPC_H,
+        transfer="LINGER",
+        z_start=(50, 50, 70),
+        initial_conditions="ZA",
+        n_min=100,
+        z_range=(0.0, 1.6),
+        names=("Run 1.0", "Run 2.0", "Run 3.0"),
+        notes="The Gaussian (f_NL = 0) runs: WMAP5 (1.0, 3.0) and WMAP3 (2.0).",
+        source="Pillepich et al. 2010 (arXiv v3), Secs. 2.1 and 3.1, Tables 1-2.",
+    )
     A: float = _p(0.6853, "The amplitude A.")
     b: float = _p(1.868, "The exponent b of e/sigma.")
     c: float = _p(0.3324, "The constant c added to (e/sigma)^b.")
@@ -1890,6 +2394,24 @@ class Ishiyama(Warren, alias="Ishiyama"):
     )
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = _fof(
         note="Ishiyama et al. 2015, Sec. 2."
+    )
+    simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
+        box_size=[1120, 560, 280, 140, 70] * Mpc_h,
+        n_particles=(8192**3, 4096**3, 2048**3, 2048**3, 2048**3),
+        omega_m=0.31,
+        omega_b=0.048,
+        sigma_8=0.83,
+        h=0.68,
+        n_s=0.96,
+        softening=[4.27, 4.27, 4.27, 2.14, 1.07] * _KPC_H,
+        transfer="CAMB",
+        z_start=127,
+        initial_conditions="2LPT",
+        n_min=40,
+        z_range=(0.0, 0.0),
+        names=("L", "M", "S", "H1", "H2"),
+        notes="Fitted at z = 0; checked at z = 3, 7 and 10 (Figs. 7-8).",
+        source="Ishiyama et al. 2015 (arXiv v3), Sec. 2 and Table 1.",
     )
     A: float = _p(0.193, "The amplitude A.")
     b: float = _p(1.550, "The exponent b of e/sigma (the paper's C).")
@@ -1931,6 +2453,28 @@ class Bocquet200mDMOnly(FittingFunction, alias="Bocquet200mDMOnly"):
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = _so_mean(
         200, note="Bocquet et al. 2016, Sec. 2.2: SO masses about SUBFIND potential minima."
     )
+    simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
+        box_size=[68.1 * 0.704, 182 * 0.704, 1274 * 0.704] * Mpc_h,
+        n_particles=(576**3, 576**3, 1526**3),
+        omega_m=0.272,
+        omega_b=0.0456,
+        sigma_8=0.809,
+        h=0.704,
+        n_s=0.963,
+        softening=[1.4 * 0.704, 3.75 * 0.704, 10 * 0.704] * _KPC_H,
+        z_start=60,
+        initial_conditions="ZA",
+        halo_finder="SUBFIND",
+        n_min=10_000,
+        z_range=(0.0, 2.0),
+        names=("Box4/uhr", "Box3/hr", "Box1/mr"),
+        notes=(
+            "Magneticum, dark-matter-only runs. Box sizes and softenings are given in Mpc "
+            "and kpc (converted here). Haloes have more than 1e4 particles within "
+            "r_Delta; Poisson likelihood with a finite-volume correction."
+        ),
+        source="Bocquet et al. 2016 (arXiv v3), Secs. 2.1-2.2 and Tables 1-2.",
+    )
     A: float = _p(0.175, "The amplitude A at z = 0.")
     b: float = _p(1.53, "The exponent b of e/sigma at z = 0 (the paper's a).")
     d: float = _p(1.19, "The exponential cut-off d at z = 0 (the paper's c).")
@@ -1960,8 +2504,9 @@ class Bocquet200mDMOnly(FittingFunction, alias="Bocquet200mDMOnly"):
         :math:`dn/dM_\Delta = f(\sigma)(\bar\rho_m/M_\Delta)(d\ln\sigma^{-1}/dM_\Delta)
         (M_\Delta/M_{200m})` (eq. 5), with this ratio: 1 for the 200m fits, eq. A2
         for 200c and eq. 6 for 500c. Applying it (and evaluating sigma at M200m) is
-        left to the mass-function stage (issue #392), which calls the unit-free
-        :meth:`_mass_ratio_to_200m`.
+        left to the mass-function :class:`~hmf.core.stage.Stage` (issue #392), which
+        calls :meth:`_mass_ratio_to_200m`, the same calculation on plain arrays in
+        canonical units.
 
         Parameters
         ----------
@@ -2001,6 +2546,28 @@ class Bocquet200mHydro(Bocquet200mDMOnly, alias="Bocquet200mHydro"):
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = (
         Bocquet200mDMOnly.measured_mass_definition
     )
+    simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
+        box_size=[68.1 * 0.704, 182 * 0.704, 1274 * 0.704, 3818 * 0.704] * Mpc_h,
+        n_particles=(576**3, 576**3, 1526**3, 4563**3),
+        omega_m=0.272,
+        omega_b=0.0456,
+        sigma_8=0.809,
+        h=0.704,
+        n_s=0.963,
+        softening=[1.4 * 0.704, 3.75 * 0.704, 10 * 0.704, 10 * 0.704] * _KPC_H,
+        z_start=60,
+        initial_conditions="ZA",
+        halo_finder="SUBFIND",
+        n_min=10_000,
+        z_range=(0.0, 2.0),
+        names=("Box4/uhr", "Box3/hr", "Box1/mr", "Box0/mr"),
+        notes=(
+            "Magneticum, hydrodynamical runs (as many gas particles as dark matter; "
+            "Box4/uhr runs only to z = 0.13). Box sizes and softenings are given in Mpc "
+            "and kpc (converted here)."
+        ),
+        source="Bocquet et al. 2016 (arXiv v3), Secs. 2.1-2.2 and Tables 1-2.",
+    )
     A: float = _p(0.228, "The amplitude A at z = 0.")
     b: float = _p(2.15, "The exponent b of e/sigma at z = 0 (the paper's a).")
     d: float = _p(1.3, "The exponential cut-off d at z = 0 (the paper's c).")
@@ -2032,6 +2599,7 @@ class Bocquet200cDMOnly(Bocquet200mDMOnly, alias="Bocquet200cDMOnly"):
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = _so_crit(
         200, note=_BOCQUET_200C_NOTE
     )
+    simulations: ClassVar[SimulationDetails | None] = Bocquet200mDMOnly.simulations
     A: float = _p(0.222, "The amplitude A at z = 0.")
     b: float = _p(1.71, "The exponent b of e/sigma at z = 0 (the paper's a).")
     d: float = _p(1.46, "The exponential cut-off d at z = 0 (the paper's c).")
@@ -2065,6 +2633,7 @@ class Bocquet200cHydro(Bocquet200cDMOnly, alias="Bocquet200cHydro"):
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = (
         Bocquet200cDMOnly.measured_mass_definition
     )
+    simulations: ClassVar[SimulationDetails | None] = Bocquet200mHydro.simulations
     A: float = _p(0.202, "The amplitude A at z = 0.")
     b: float = _p(2.21, "The exponent b of e/sigma at z = 0 (the paper's a).")
     d: float = _p(1.57, "The exponential cut-off d at z = 0 (the paper's c).")
@@ -2089,6 +2658,7 @@ class Bocquet500cDMOnly(Bocquet200mDMOnly, alias="Bocquet500cDMOnly"):
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = _so_crit(
         500, note=_BOCQUET_200C_NOTE.replace("App. A", "eq. 6")
     )
+    simulations: ClassVar[SimulationDetails | None] = Bocquet200mDMOnly.simulations
     A: float = _p(0.241, "The amplitude A at z = 0.")
     b: float = _p(2.18, "The exponent b of e/sigma at z = 0 (the paper's a).")
     d: float = _p(2.02, "The exponential cut-off d at z = 0 (the paper's c).")
@@ -2122,6 +2692,7 @@ class Bocquet500cHydro(Bocquet500cDMOnly, alias="Bocquet500cHydro"):
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = (
         Bocquet500cDMOnly.measured_mass_definition
     )
+    simulations: ClassVar[SimulationDetails | None] = Bocquet200mHydro.simulations
     A: float = _p(0.18, "The amplitude A at z = 0.")
     b: float = _p(2.29, "The exponent b of e/sigma at z = 0 (the paper's a).")
     d: float = _p(1.97, "The exponential cut-off d at z = 0 (the paper's c).")
@@ -2227,6 +2798,25 @@ class Yung24(FittingFunction, alias="Yung24"):
     )
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = _so_virial(
         note="Yung et al. 2024, Sec. 2: ROCKSTAR, Bryan & Norman virial; includes subhaloes."
+    )
+    simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
+        box_size=[5, 15, 35, 90, 250, 160] * Mpc_h,
+        n_particles=(1024**3, 1024**3, 1024**3, 1024**3, 2048**3, 3840**3),
+        omega_m=0.307,
+        sigma_8=0.829,
+        h=0.678,
+        n_s=0.96,
+        z_start=(200, 200, 200, 200, None, None),
+        initial_conditions=("2LPT", "2LPT", "2LPT", "2LPT", None, None),
+        halo_finder="ROCKSTAR",
+        n_min=100,
+        z_range=(6.0, 19.0),
+        names=("gureft-05", "gureft-15", "gureft-35", "gureft-90", "Bolshoi-Planck", "VSMDPL"),
+        notes=(
+            "Haloes and subhaloes. Bolshoi-Planck is used for z <~ 10 and VSMDPL for "
+            "z > 10 (Fig. 3)."
+        ),
+        source="Yung et al. 2024 (arXiv v3), Secs. 2-3, Table 1 and Fig. 3.",
     )
 
     units: Literal["h", "physical"] = field(

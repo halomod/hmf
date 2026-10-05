@@ -9,7 +9,8 @@
        fields. They get no pages of their own: names that differ only in case (A_200,
        a_200) would clash. Only the model's metadata is listed here. #}
    {% set metadata = ["requires", "valid_domain", "calibration_domain",
-                      "measured_mass_definition", "references", "parameter_source",
+                      "measured_mass_definition", "simulations", "references",
+                      "parameter_source",
                       "normalized", "modifies_dndm", "alias"] %}
    {% block attributes %}
    {% if attributes %}

@@ -73,11 +73,14 @@ Fitting functions (:mod:`hmf.core.fits`)
     defaults. :meth:`~hmf.core.fits.FittingFunction.fsigma` takes already-resolved
     inputs (sigma, z, Omega_m(z), the overdensity relative to the mean, delta_c,
     n_eff, and the mass m as a Quantity), never a cosmology or a mass-definition
-    object; each fit lists the inputs it needs. Stages pass plain canonical arrays
-    through :class:`~hmf.core.fits.FitInputs` instead. Each declares a valid domain (where ``fsigma`` always
+    object; each fit lists the inputs it needs. Code that already holds plain
+    arrays in canonical units, such as a :class:`~hmf.core.stage.Stage`, passes them
+    in a :class:`~hmf.core.fits.FitInputs` instead. Each declares a valid domain (where ``fsigma`` always
     raises outside) and a calibration domain taken from its paper, with the source
     cited; :func:`~hmf.core.fits.evaluate_fsigma` applies a domain policy to the
-    latter. Each also records the mass definition it was measured in, as metadata.
+    latter. Each also records, as metadata, the mass definition it was measured in and
+    the simulations it was calibrated on
+    (:class:`~hmf.core.fits.SimulationDetails`).
 
 Logarithms always name their base: ``log10_...`` or ``ln_...``, never ``log``.
 

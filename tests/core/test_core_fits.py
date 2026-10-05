@@ -20,8 +20,14 @@ from scipy.integrate import simpson
 from hmf.core import fits
 from hmf.core._kernels import fits as kern
 from hmf.core.domain import DOMAIN_POLICIES, Domain, DomainError, HMFExtrapolationWarning
-from hmf.core.fits import FitInputs, FittingFunction, MeasuredMassDefinition, evaluate_fsigma
-from hmf.core.units import Msun_h, UnitBoundaryError, dndm_unit, number_density_unit
+from hmf.core.fits import (
+    FitInputs,
+    FittingFunction,
+    MeasuredMassDefinition,
+    SimulationDetails,
+    evaluate_fsigma,
+)
+from hmf.core.units import Mpc_h, Msun_h, UnitBoundaryError, dndm_unit, number_density_unit
 
 DELTA_C = 1.68647
 
@@ -100,11 +106,18 @@ def test_registry_has_no_unexpected_fits():
 @pytest.mark.parametrize("cls", ALL, ids=_ids)
 def test_fit_declares_its_metadata(cls):
     """Every fit declares both domains, its sources and its mass definition itself."""
-    for attr in ("valid_domain", "calibration_domain", "measured_mass_definition"):
+    for attr in ("valid_domain", "calibration_domain", "measured_mass_definition", "simulations"):
         assert attr in cls.__dict__, f"{cls.__name__} inherits {attr} instead of declaring it"
     assert isinstance(cls.valid_domain, Domain)
     assert isinstance(cls.calibration_domain, Domain)
     assert isinstance(cls.measured_mass_definition, MeasuredMassDefinition)
+    # Only the fits made without simulations (analytic, or a fit to another fit) have none.
+    if cls in (fits.PS, fits.Peacock):
+        assert cls.simulations is None
+    else:
+        assert isinstance(cls.simulations, SimulationDetails)
+        assert cls.simulations.source
+        assert cls.simulations.n_simulations >= 1
     assert cls.valid_domain.source
     assert cls.calibration_domain.source
     assert cls.references
@@ -810,3 +823,63 @@ def test_registered_on_import_of_core():
     import hmf.core
 
     assert hmf.core.fits.FittingFunction.get("Tinker08") is fits.Tinker08
+
+
+# ---------------------------------------------------------------------------------
+# Simulation details
+# ---------------------------------------------------------------------------------
+def test_simulation_details_broadcast_and_check_lengths():
+    sims = SimulationDetails(box_size=[100, 200] * Mpc_h, n_particles=512**3, omega_m=0.3)
+    assert sims.n_particles == (512**3, 512**3)
+    assert sims.omega_m == (0.3, 0.3)
+    assert sims.sigma_8 is None
+    with pytest.raises(ValueError, match="omega_m has 3 entries for 2"):
+        SimulationDetails(box_size=[100, 200] * Mpc_h, n_particles=512**3, omega_m=(0.3,) * 3)
+    # Lengths in physical units can not be converted without H0.
+    with pytest.raises(u.UnitConversionError):
+        SimulationDetails(box_size=[100] * u.Mpc, n_particles=512**3)
+    assert SimulationDetails(box_size=[100] * Mpc_h, n_particles=1).particle_mass is None
+
+
+# Tinker et al. 2008, Table 1, typed in from the paper: name and particle mass in
+# Msun/h, for the dark-matter-only runs (the L500 runs also have SPH particles).
+# H192 is left out: Table 1's 5.89e8 does not follow from its own box size, particle
+# number and Omega_m (192 Mpc/h, 1024^3, 0.3 give 5.49e8).
+TINKER08_PARTICLE_MASSES = {
+    "H768": 3.51e10, "H384": 4.39e9, "H271": 1.54e9, "H96": 6.86e7,
+    "L1280": 5.99e11, "L250": 9.69e9, "L120": 1.07e9, "L80": 3.18e8, "L1000W": 6.98e10,
+    "H384W": 3.80e9, "H384Om": 2.92e9, "L120W": 1.21e8, "L80W": 2.44e8,
+}  # fmt: skip
+
+
+def test_tinker08_simulations_reproduce_table1_particle_masses():
+    """Box size, particle number and Omega_m give Table 1's particle masses."""
+    sims = fits.Tinker08.simulations
+    masses = dict(zip(sims.names, sims.particle_mass.to_value(Msun_h), strict=True))
+    for name, expected in TINKER08_PARTICLE_MASSES.items():
+        # Tolerance: Table 1 quotes 3 significant figures.
+        assert masses[name] == pytest.approx(expected, rel=6e-3), name
+
+
+def test_bocquet_simulations_reproduce_table1_particle_masses():
+    """The box sizes converted from Mpc give Table 1's dark-matter particle masses.
+
+    Bocquet et al. 2016, Table 1: m_DM = 5.3e7, 9.8e8 and 1.9e10 Msun for Box4, Box3
+    and Box1 (hydro runs, so the dark matter has Omega_m - Omega_b).
+    """
+    sims = fits.Bocquet200mHydro.simulations
+    om, ob, h = sims.omega_m[0], sims.omega_b[0], sims.h[0]
+    m_dm_msun = sims.particle_mass.to_value(Msun_h) * (om - ob) / om / h
+    # Tolerance: Table 1 agrees with its own box sizes and particle numbers only to
+    # ~5% (Box1: 1274 Mpc and 1526^3 give 1.81e10, not 1.9e10). Mixing up Mpc and
+    # Mpc/h would be off by a factor h^-3 ~ 2.9.
+    np.testing.assert_allclose(m_dm_msun[:3], [5.3e7, 9.8e8, 1.9e10], rtol=0.06)
+
+
+def test_simulation_details_are_shared_where_the_fit_is():
+    assert fits.ST.simulations is fits.SMT.simulations
+    assert fits.Bocquet500cHydro.simulations is fits.Bocquet200mHydro.simulations
+    assert fits.Tinker10.simulations.n_simulations == fits.Tinker08.simulations.n_simulations
+    assert fits.Tinker10.simulations.notes.endswith(fits.Tinker08.simulations.notes)
+    assert fits.Watson.simulations.halo_finder == "AHF"
+    assert fits.Watson_FoF.simulations.halo_finder == "GADGET-3 FoF"
