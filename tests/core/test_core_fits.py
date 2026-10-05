@@ -883,3 +883,13 @@ def test_simulation_details_are_shared_where_the_fit_is():
     assert fits.Tinker10.simulations.notes.endswith(fits.Tinker08.simulations.notes)
     assert fits.Watson.simulations.halo_finder == "AHF"
     assert fits.Watson_FoF.simulations.halo_finder == "GADGET-3 FoF"
+
+
+def test_derived_simulation_details():
+    base = fits.Warren.simulations
+    derived = fits._derived(base, prepend_note="First.", halo_finder="AHF")
+    assert derived.notes == "First. " + base.notes
+    assert derived.halo_finder == "AHF"
+    assert derived.n_simulations == base.n_simulations
+    with pytest.raises(TypeError, match="from None"):
+        fits._derived(None)
