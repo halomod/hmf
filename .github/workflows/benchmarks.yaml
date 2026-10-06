@@ -5,8 +5,14 @@ name: Benchmarks
 # Timings are informational only: shared runners are too noisy to gate on, so a
 # slowdown never fails this workflow. The comparison against the committed
 # baseline goes to the job summary, and the raw results are uploaded as an
-# artifact. The workflow *does* fail on the suite's hard assertions (CAMB call
-# counts and "no recompute" checks), which count calls rather than time them.
+# artifact. The workflow *does* fail on the suite's hard gates (benchmarks/test_gates.py
+# and the call-count assertions): the units-boundary budget, measured robustly, and
+# CAMB / sigma(R) call counts, which count calls rather than time them.
+#
+# Timings are also tracked with Bencher (https://bencher.dev), which keeps a history
+# per commit of main and comments on PRs when a timing regresses significantly
+# (without failing the job). That step needs the BENCHER_API_KEY secret, and is
+# skipped when it is absent (e.g. on PRs from forks). See benchmarks/README.md.
 on:
   push:
     branches:
@@ -18,6 +24,8 @@ on:
 
 permissions:
   contents: read
+  # For Bencher's comment on a PR.
+  pull-requests: write
 
 concurrency:
   group: benchmarks-${{ github.ref }}
@@ -27,6 +35,9 @@ jobs:
   benchmarks:
     name: Benchmarks
     runs-on: ubuntu-latest
+    env:
+      # Whether Bencher is set up; the key itself is only given to the Bencher steps.
+      HAVE_BENCHER: ${{ secrets.BENCHER_API_KEY != '' }}
     steps:
       - uses: actions/checkout@master
         with:
@@ -44,7 +55,7 @@ jobs:
           version: 13
       - name: Install
         run: uv sync --locked --all-extras --dev
-      - name: Run benchmarks (fails only on call-count assertions)
+      - name: Run benchmarks (fails only on the hard gates)
         run: |
           uv run pytest benchmarks --no-cov -p no:cacheprovider \
             --benchmark-json=benchmark-results.json
@@ -58,3 +69,55 @@ jobs:
         with:
           name: benchmark-results
           path: benchmark-results.json
+      - name: Install Bencher
+        # Timings are informational: a Bencher problem must not fail the job.
+        continue-on-error: true
+        if: ${{ !cancelled() && hashFiles('benchmark-results.json') != '' && env.HAVE_BENCHER == 'true' }}
+        uses: bencherdev/bencher@main
+      - name: Track timings on main with Bencher
+        # Timings are informational: a Bencher problem must not fail the job.
+        continue-on-error: true
+        if: ${{ !cancelled() && hashFiles('benchmark-results.json') != '' && env.HAVE_BENCHER == 'true' && github.event_name != 'pull_request' }}
+        env:
+          BENCHER_API_KEY: ${{ secrets.BENCHER_API_KEY }}
+          BENCHER_PROJECT: ${{ vars.BENCHER_PROJECT || 'hmf' }}
+        # The thresholds flag a regression when a timing is above the 99% upper
+        # bound of a t-test against the last 64 runs on main.
+        run: |
+          bencher run \
+            --project "$BENCHER_PROJECT" \
+            --branch "${{ github.ref_name }}" \
+            --testbed ubuntu-latest \
+            --adapter python_pytest \
+            --file benchmark-results.json \
+            --threshold-measure latency \
+            --threshold-test t_test \
+            --threshold-max-sample-size 64 \
+            --threshold-upper-boundary 0.99 \
+            --thresholds-reset \
+            true
+      - name: Compare PR timings with main in Bencher (comments, never fails)
+        # Timings are informational: a Bencher problem must not fail the job.
+        continue-on-error: true
+        if: ${{ !cancelled() && hashFiles('benchmark-results.json') != '' && env.HAVE_BENCHER == 'true' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          BENCHER_API_KEY: ${{ secrets.BENCHER_API_KEY }}
+          BENCHER_PROJECT: ${{ vars.BENCHER_PROJECT || 'hmf' }}
+        run: |
+          bencher run \
+            --project "$BENCHER_PROJECT" \
+            --branch "${{ github.head_ref }}" \
+            --start-point "${{ github.base_ref }}" \
+            --start-point-hash "${{ github.event.pull_request.base.sha }}" \
+            --start-point-clone-thresholds \
+            --start-point-reset \
+            --testbed ubuntu-latest \
+            --adapter python_pytest \
+            --file benchmark-results.json \
+            --github-actions "${{ secrets.GITHUB_TOKEN }}" \
+            true
+      - name: Note that Bencher was skipped
+        if: ${{ !cancelled() && env.HAVE_BENCHER != 'true' }}
+        run: |
+          echo "BENCHER_API_KEY is not set (or this is a PR from a fork): timings were not sent to Bencher." \
+            | tee -a "$GITHUB_STEP_SUMMARY"

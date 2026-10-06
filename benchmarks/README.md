@@ -49,9 +49,33 @@ every push to `main`. It
 
 - **never fails on timings**: shared runners are too noisy to gate on. The
   comparison with `baseline.json` goes to the job summary and the results file is
-  uploaded as the `benchmark-results` artifact;
-- **fails on the hard assertions**, which count calls and do not time anything:
-  see below.
+  uploaded as the `benchmark-results` artifact. The timings are also sent to
+  [Bencher](#tracking-timings-with-bencher), which keeps their history;
+- **fails on the hard gates** (`test_gates.py`) and the call-count assertions of the
+  benchmarks: see below.
+
+## Hard gates
+
+`test_gates.py` holds the checks that are reliable enough on a shared runner to fail
+CI (issue #394):
+
+| Gate | Assertion |
+|---|---|
+| `test_unit_boundary_overhead_gate` | the fixed cost of `hmf.core.units.unit_boundary` is ≤ 2 µs per call (#389) |
+| `test_one_camb_run_per_input[...]` | one CAMB input runs CAMB once, through z, fit, σ8, n, species, filter, mass-range and δc changes, for ΛCDM with and without massive ν; a new input runs it once more |
+| `test_no_sigma_recompute_without_power_change` | changing z, the fit or δc recomputes no σ(R) |
+| `test_v4_boltzmann_runs_per_input[...]` | the v4 `Transfer` and `Growth` (CAMB) stages run CAMB once per input, for both species, the transfer function, the power, the growth factor and rate, and an `n_s` change, for each of the five cosmologies (w ≠ −1 included); a new input runs it once more |
+| `test_v4_sigma_recomputations[...]` | a v4 `MassVariance` computes each node of its mass lattice at most once, through repeated, contained, wider and inverse (`m_from_sigma`) calls, for TopHat, SharpK and SmoothK |
+| `test_v4_lattice_determinism[...]` | lattice values are bit-identical under lazy extension in either order, and alone or in a batch (#384) |
+
+The units-boundary gate times an identity method, decorated and not, alternately,
+101 times 1,000 calls each, and compares the medians, so that a slow patch of the
+runner affects both and outliers are discarded. If the difference is over budget it
+measures once more before failing; the result goes to the job summary.
+
+For w ≠ −1 the CAMB counter is 3, not 1: v3's default growth model, `CambGrowth`,
+runs CAMB itself (twice) instead of reusing the transfer's run. That is a ratchet: a
+fix should lower it.
 
 ## What is asserted
 
@@ -107,9 +131,8 @@ that removes it should lower them.
 
 Workload 14 measures the fixed cost of the `hmf.core` units boundary: the
 *per item* time of `[canonical]` minus that of `[undecorated]` is the overhead per
-call, whose budget is **2 µs** (issue #389). `baseline.json` predates it, so it has
-no baseline entry. `test_unit_boundary_overhead_sanity` asserts only a generous
-20 µs, so that it never fails on a noisy runner.
+call, whose budget is **2 µs** (issue #389), enforced by the hard gate above.
+`baseline.json` predates it, so it has no baseline entry.
 
 Inputs are fixed, everything a benchmark uses is imported before timing starts
 (halomod included, for the mass conversion), and warnings are silenced so that
@@ -145,3 +168,18 @@ Refresh the baseline when a PR deliberately changes performance (and say so in
 the PR), or when the workloads change. Run the command above on a quiet machine,
 check the call-count assertions pass, and update the machine description here.
 Don't refresh it to hide a slowdown.
+
+## Tracking timings with Bencher
+
+The workflow sends every run's timings to [Bencher](https://bencher.dev) (adapter
+`python_pytest`, testbed `ubuntu-latest`):
+
+- on `main`, each commit is recorded, with a threshold per benchmark: a t-test
+  against the last 64 runs on `main`, flagging a timing above its 99% upper bound;
+- on a PR (from a branch of this repository), the run is compared with the PR's base
+  commit on `main`, with the same thresholds, and Bencher comments on the PR with
+  the results and any alerts. It never fails the job.
+
+It uses the repository secret `BENCHER_API_KEY` (and the variable `BENCHER_PROJECT`,
+if the project's slug is not `hmf`). PRs from forks get no secrets, so they are not
+sent; without the secret, the steps are skipped and the job summary says so.

@@ -8,11 +8,11 @@
    {% block attributes %}
    {% if attributes %}
    .. rubric:: Attributes
-
-   .. autosummary::
-      :toctree: {{ objname }}
+   {#- Inline, not a page per attribute: ~1000 such pages made the build quadratic
+       in the number of pages (each page renders the full navigation tree). #}
    {% for item in attributes %}
-      ~{{ name }}.{{ item }}
+
+   .. autoattribute:: {{ name }}.{{ item }}
    {%- endfor %}
    {% endif %}
    {% endblock %}

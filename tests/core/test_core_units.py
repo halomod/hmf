@@ -320,6 +320,12 @@ def test_decoration_errors():
     with pytest.raises(TypeError, match="must be an astropy unit"):
         unit_boundary(m="Msun/littleh")
 
+    # The output unit is attached without astropy's checks, so it is checked here.
+    with pytest.raises(TypeError, match="'returns' must be an astropy unit"):
+        unit_boundary(returns="Msun/littleh")
+    with pytest.raises(TypeError, match="'returns' must be an astropy unit"):
+        unit_boundary(returns=(Msun_h, "Msun/littleh"))
+
 
 def test_decorator_metadata(toy):
     assert Toy.mass.__name__ == "mass"
@@ -339,3 +345,47 @@ def test_overhead_sanity(toy):
     n = 2000
     per_call = min(timeit.repeat(lambda: toy.mass(m, z=0.0), number=n, repeat=5)) / n
     assert per_call < 50e-6
+
+
+class _SubQuantity(u.Quantity):
+    """A Quantity subclass: not the exact type the boundary's fast path checks for."""
+
+
+@pytest.mark.parametrize("by_keyword", [False, True])
+def test_fast_and_general_paths_agree(toy, by_keyword):
+    """The boundary's inlined path and its general one give the kernel the same input.
+
+    The inlined path takes an exact Quantity in the canonical unit; a subclass, or a
+    physical unit, takes the general one. Both, by position or by keyword.
+    """
+    m = np.logspace(10, 15, 7)
+    inputs = {
+        "canonical": m * Msun_h,  # fast path
+        "subclass": _SubQuantity(m, Msun_h),  # general path, no conversion
+        "physical": (m / toy.H0.to_value(H0_unit) * 100) * u.Msun,  # general, converted
+    }
+    for name, q in inputs.items():
+        out, _ = toy.raw(m=q) if by_keyword else toy.raw(q)
+        assert type(out) is np.ndarray, name
+        np.testing.assert_allclose(out, m, rtol=1e-14, err_msg=name)
+    # The input is viewed, not copied, on the fast path.
+    q = m * Msun_h
+    assert np.shares_memory(toy.raw(q)[0], q)
+
+
+def test_dimensional_argument_after_others():
+    """A dimensional argument after others is converted in place.
+
+    The arguments around it pass through unchanged.
+    """
+
+    class Later:
+        @unit_boundary(m=Msun_h, returns=None)
+        def f(self, z, m, scale=1.0):
+            return z, m, scale
+
+    m = np.logspace(10, 12, 3)
+    z, out, scale = Later().f(0.5, m * Msun_h, 2.0)
+    assert (z, scale) == (0.5, 2.0)
+    assert type(out) is np.ndarray
+    np.testing.assert_array_equal(out, m)
