@@ -75,6 +75,8 @@ from numpy.typing import NDArray
 from ._fields import field
 from ._kernels import interpolation as interp
 from ._kernels import mass_variance as kern
+from ._kernels.lattice import lattice, lattice_index
+from ._validators import check_finite_positive, positive
 from .accuracy import KAccuracy, MassAccuracy
 from .filters import Filter, TopHat
 from .power_source import PowerSource
@@ -176,14 +178,6 @@ def _is_power_source(instance: Any, attribute: attrs.Attribute[Any], value: Any)
         )
 
 
-def _lattice_index(x: float, *, up: bool) -> int:
-    """The lattice index at or beyond ``x`` (in units of the spacing), robust to rounding."""
-    nearest = round(x)
-    if abs(x - nearest) < 1e-9:
-        return int(nearest)
-    return math.ceil(x) if up else math.floor(x)
-
-
 @attrs.frozen(kw_only=True)
 class MassVariance(Stage):
     """The mass variance sigma(m) of the unnormalised linear power at z = 0, and its slope.
@@ -233,7 +227,7 @@ class MassVariance(Stage):
     truncation_rtol: float = field(
         default=1e-3,
         converter=float,
-        validator=attrs.validators.gt(0.0),
+        validator=positive,
         doc=(
             "The largest bound on the relative error in sigma or dln(sigma)/dln(m), from "
             "truncating the k integrals at the ends of the grid, accepted for a mass. "
@@ -269,11 +263,11 @@ class MassVariance(Stage):
                 10.0**self.accuracy.log10_m_min, self._rho_mean, self.filter.mass_assignment
             )
         )
-        i_min = math.floor(ka.ln_k_min / dln_k)
-        i_max = math.ceil(math.log(ka.k_max_r_min / r_min) / dln_k)
+        i_min = lattice_index(ka.ln_k_min, dln_k, up=False)
+        i_max = lattice_index(math.log(ka.k_max_r_min / r_min), dln_k, up=True)
         if (i_max - i_min) % 2:
             i_max += 1  # an odd number of points, for Simpson's rule
-        ln_k = np.arange(i_min, i_max + 1, dtype=np.int64) * np.float64(dln_k)
+        ln_k = lattice(i_min, i_max, dln_k)
         k = np.exp(ln_k)
         p = self._power_at(k)
         ln_p = np.log(p)
@@ -291,10 +285,9 @@ class MassVariance(Stage):
 
     def _power_at(self, k: FloatArray) -> FloatArray:
         """The source's power at k, checked to be finite and positive."""
-        p = np.asarray(self.power._power(k), dtype=float)
-        if not np.all(np.isfinite(p) & (p > 0)):
-            raise ValueError("MassVariance: the power spectrum must be finite and > 0.")
-        return p
+        return check_finite_positive(
+            "the power spectrum", self.power._power(k), where="MassVariance"
+        )
 
     @cached_property
     def _sharpk_cumulative(self) -> FloatArray:
@@ -320,9 +313,10 @@ class MassVariance(Stage):
         Returns
         -------
         ndarray
-            Shape ``(5, n)``: ln(sigma), dln(sigma)/dln(m), its derivative in ln(m) (NaN
-            if not computed), and the bounds on the relative truncation errors of sigma
-            and of dln(sigma)/dln(m).
+            Shape ``(6, n)``: ln(sigma), dln(sigma)/dln(m), its derivative in ln(m) (NaN
+            if not computed), the bounds on the relative truncation errors of sigma
+            and of dln(sigma)/dln(m), and the estimate of the relative error from the k
+            grid's resolution.
         """
         ln_m = np.asarray(ln_m, dtype=float).ravel()
         ln_r = np.log(
@@ -348,7 +342,7 @@ class MassVariance(Stage):
         second = self.accuracy.second_derivative
         r = np.exp(ln_r)
         derivs = self.filter.window_derivatives(r[:, None] * grid.k, order=2 if second else 1)
-        ln_sigma, d_r, d2_r, err_grid = kern.window_log_variance(
+        ln_sigma, d_r, d2_r, err_grid = kern.window_ln_variance(
             derivs[0], derivs[1], derivs[2] if second else None, grid.k3p, grid.dln_k
         )
         # Truncation: the tails beyond both ends of the grid.
@@ -392,7 +386,7 @@ class MassVariance(Stage):
             n_eff = (np.log(p_up) - np.log(p_dn)) / (2 * h)
         else:
             n_eff = np.zeros_like(p_cut)
-        ln_sigma, d_r, d2_r = kern.sharpk_log_variance(s, k_cut**3 * p_cut, n_eff, second)
+        ln_sigma, d_r, d2_r = kern.sharpk_ln_variance(s, k_cut**3 * p_cut, n_eff, second)
         # Beyond the cut-off the window is 0; below the grid, W = 1 and W' = 0.
         x_lo = np.exp(ln_r) * grid.k[0]
         t0 = kern.tail_integral(grid.k3p[0], grid.slope_lo, x_lo, ((1.0, 0.0),), high=False)
@@ -464,6 +458,10 @@ class MassVariance(Stage):
                     f"1e{acc.log10_m_max:g}] Msun/h, with accuracy.extension='raise'."
                 )
         t = log10_m / acc.dlog10_m
+        # The interval [j, j + 1] that contains each mass, so 0 <= u < 1. A plain floor,
+        # not lattice_index: snapping a mass near a node onto it would move it to the
+        # next interval (u slightly < 0) and, with the 4-point stencil, change the nodes
+        # used, which changes the result.
         j = np.floor(t).astype(np.int64)
         u = t - j
         second = acc.second_derivative
@@ -497,10 +495,7 @@ class MassVariance(Stage):
 
     def _log10_mass(self, m: FloatArray) -> FloatArray:
         """log10 of masses in Msun/h, checked to be finite and positive."""
-        m = np.asarray(m, dtype=float)
-        if not np.all(np.isfinite(m) & (m > 0)):
-            raise ValueError("MassVariance: masses must be finite and > 0.")
-        return np.log10(m)
+        return np.log10(check_finite_positive("masses", m, where="MassVariance"))
 
     def _ln_sigma_and_slope(self, m: FloatArray) -> tuple[FloatArray, FloatArray]:
         """Kernel-level ln(sigma) and dln(sigma)/dln(m) at masses m in Msun/h (any shape)."""
@@ -580,13 +575,11 @@ class MassVariance(Stage):
             If a value is outside the range of sigma on the default lattice range, or
             sigma(m) is not monotonically decreasing where the value is crossed.
         """
-        target = np.asarray(sigma, dtype=float)
-        if not np.all(np.isfinite(target) & (target > 0)):
-            raise ValueError("MassVariance.m_from_sigma: sigma must be finite and > 0.")
+        target = check_finite_positive("sigma", sigma, where="MassVariance.m_from_sigma")
         ln_t = np.log(target).ravel()
         acc = self.accuracy
-        j_lo = _lattice_index(acc.log10_m_min / acc.dlog10_m, up=True)
-        j_hi = _lattice_index(acc.log10_m_max / acc.dlog10_m, up=False)
+        j_lo = lattice_index(acc.log10_m_min, acc.dlog10_m, up=True)
+        j_hi = lattice_index(acc.log10_m_max, acc.dlog10_m, up=False)
         j = np.arange(j_lo, j_hi + 1, dtype=np.int64)
         nodes = self._nodes.get(j, self._compute_nodes)
         ln_s, d = nodes[_LN_SIGMA], nodes[_D1]

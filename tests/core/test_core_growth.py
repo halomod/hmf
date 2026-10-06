@@ -259,6 +259,17 @@ def test_fromarray_and_fromfile(tmp_path):
         gm.FromArray(z=z + 1, d=d)
 
 
+def test_fromarray_rejects_arrays_with_a_dimension():
+    """Regression: a unit on z or d was silently dropped, so z in km was accepted."""
+    d = [1.0, 0.5, 1 / 3, 0.25]
+    with pytest.raises(u.UnitConversionError):
+        gm.FromArray(z=[0, 1, 2, 3] * u.km, d=d)
+    with pytest.raises(u.UnitConversionError):
+        gm.FromArray(z=[0, 1, 2, 3], d=d * u.km)
+    # A dimensionless Quantity is converted (100% is 1), not just stripped of its unit.
+    assert gm.FromArray(z=[0, 100, 200, 300] * u.percent, d=d).z == (0.0, 1.0, 2.0, 3.0)
+
+
 def test_models_are_registered():
     for name in [
         "ODE",

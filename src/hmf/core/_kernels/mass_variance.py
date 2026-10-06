@@ -17,7 +17,7 @@ Writing :math:`L = \ln R` and :math:`W' = dW/d\ln x`, :math:`W'' = d^2W/d(\ln x)
 
 so that :math:`d\ln\sigma/dL = s'/(2s)` and
 :math:`d^2\ln\sigma/dL^2 = (s''/s - (s'/s)^2)/2`. All three integrals are computed
-from one evaluation of the window per node (:func:`window_log_variance`).
+from one evaluation of the window per node (:func:`window_ln_variance`).
 """
 
 from __future__ import annotations
@@ -34,10 +34,10 @@ __all__ = [
     "lagrangian_radius",
     "panel_integrals",
     "panel_points",
-    "sharpk_log_variance",
+    "sharpk_ln_variance",
     "tail_integral",
     "truncation_errors",
-    "window_log_variance",
+    "window_ln_variance",
 ]
 
 FloatArray = NDArray[np.float64]
@@ -101,7 +101,7 @@ def lagrangian_mass(r: ArrayLike, rho_mean: float, c: float = 1.0) -> FloatArray
 # ---------------------------------------------------------------------------------
 
 
-def window_log_variance(
+def window_ln_variance(
     w: FloatArray,
     dw: FloatArray,
     d2w: FloatArray | None,
@@ -206,7 +206,7 @@ def panel_integrals(ln_a: ArrayLike, ln_b: ArrayLike, f: FloatArray) -> FloatArr
     return out
 
 
-def sharpk_log_variance(
+def sharpk_ln_variance(
     s_below: FloatArray, k3p_cut: FloatArray, n_eff_cut: FloatArray, second: bool
 ) -> tuple[FloatArray, FloatArray, FloatArray | None]:
     r"""The ln(sigma) and its derivatives in ln R, for the sharp-k filter.

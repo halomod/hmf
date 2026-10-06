@@ -33,7 +33,7 @@ import math
 from collections.abc import Mapping
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, ClassVar
+from typing import ClassVar
 
 import attrs
 import numpy as np
@@ -42,15 +42,17 @@ from astropy import cosmology as ac
 from astropy.cosmology import FLRW
 
 from . import _references as refs
-from ._boltzmann import MATTER_SPECIES, BoltzmannRun, check_boltzmann_cosmology
+from ._arrays import dimensionless_floats
+from ._boltzmann import BoltzmannRun, check_boltzmann_cosmology
 from ._fields import field
 from ._kernels import growth as kg
-from ._validators import positive
+from ._species import MATTER_SPECIES, check_species
+from ._validators import check_finite_positive, check_in_range, check_table, less_than, positive
 from .accuracy import KAccuracy
 from .cache import DiskCache
 from .domain import Domain
 from .model import Model
-from .transfer_models import CAMB, CLASS, check_species
+from .transfer_models import CAMB, CLASS
 
 __all__ = [
     "CambGrowth",
@@ -97,11 +99,6 @@ class GrowthSolution:
 
 def _same_for_all(table: kg.GrowthTable, z_max: float) -> GrowthSolution:
     return GrowthSolution(MappingProxyType(dict.fromkeys(MATTER_SPECIES, table)), z_max=z_max)
-
-
-def _floats(value: Any) -> tuple[float, ...]:
-    """Convert an array of numbers to a tuple of floats."""
-    return tuple(float(x) for x in np.atleast_1d(np.asarray(value, dtype=float)))
 
 
 def background(cosmology: FLRW, ln_a: Array) -> tuple[Array, Array, Array]:
@@ -207,7 +204,7 @@ class _Gridded(GrowthModel, abstract=True):
     a_min: float = field(
         default=1e-8,
         converter=float,
-        validator=positive,
+        validator=[positive, less_than(1.0)],
         doc="The smallest scale factor of the grid; z_max = 1/a_min - 1.",
     )
     dln_a: float = field(
@@ -216,11 +213,6 @@ class _Gridded(GrowthModel, abstract=True):
         validator=positive,
         doc="The spacing of the grid in ln a.",
     )
-
-    @a_min.validator
-    def _check_a_min(self, attribute: attrs.Attribute[float], value: float) -> None:
-        if not value < 1:
-            raise ValueError(f"a_min must be < 1, got {value}.")
 
     @abc.abstractmethod
     def _growth(self, cosmology: FLRW, ln_a: Array) -> tuple[Array, Array | None]:
@@ -398,11 +390,11 @@ class FromArray(GrowthModel, alias="FromArray"):
     """
 
     z: tuple[float, ...] = field(
-        converter=_floats,
+        converter=dimensionless_floats,
         doc="Redshifts (at least 4), including 0.",
     )
     d: tuple[float, ...] = field(
-        converter=_floats,
+        converter=dimensionless_floats,
         doc="The growth factor at z, in any normalisation.",
     )
 
@@ -410,12 +402,11 @@ class FromArray(GrowthModel, alias="FromArray"):
     def _check(
         self, attribute: attrs.Attribute[tuple[float, ...]], value: tuple[float, ...]
     ) -> None:
-        if len(value) != len(self.z) or len(value) < 4:
-            raise ValueError("FromArray: z and d must have the same length, at least 4.")
-        if min(self.z) != 0:
-            raise ValueError("FromArray: the redshifts must be >= 0 and include 0.")
-        if min(value) <= 0:
-            raise ValueError("FromArray: the growth factor must be positive.")
+        z, d = check_table({"z": self.z, "d": value}, where="FromArray", min_size=4)
+        check_in_range("z", z, where="FromArray", low=0.0)
+        if 0.0 not in z:
+            raise ValueError("FromArray: the redshifts must include 0.")
+        check_finite_positive("d", d, where="FromArray")
 
     def _arrays(self) -> tuple[Array, Array]:
         return np.array(self.z), np.array(self.d)
@@ -453,7 +444,8 @@ class FromFile(GrowthModel, alias="FromFile"):
     ) -> GrowthSolution:
         """Compute the growth (see :meth:`GrowthModel.solve`)."""
         data = np.atleast_2d(np.genfromtxt(self.fname))
-        return FromArray(z=_floats(data[:, 0]), d=_floats(data[:, 1])).solve(cosmology)
+        z, d = dimensionless_floats(data[:, 0]), dimensionless_floats(data[:, 1])
+        return FromArray(z=z, d=d).solve(cosmology)
 
 
 @attrs.frozen(kw_only=True)

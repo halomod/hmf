@@ -17,8 +17,10 @@ as a field. The conventions every stage follows:
   ``evolve()`` shares the unchanged sub-stages, their caches carry over.
 * **Introspection without instantiation**: :meth:`Stage.fields_info` lists the fields
   from the class alone.
-* **Units**: public methods are :func:`~hmf.core.units.unit_boundary` methods. A
-  stage that has a cosmology overrides ``_unit_context`` to provide its H0.
+* **Units**: public methods are :func:`~hmf.core.units.unit_boundary` methods. The
+  base stage's ``_unit_context`` has no H0, so it accepts only h-units; a stage that
+  can convert physical units (because it has a cosmology, or an H0) should override
+  ``_unit_context`` to provide its H0.
 
 Routing flat parameter names through a tree of stages (issue #383) is not part of
 this base class yet.
@@ -32,14 +34,14 @@ from typing import Any, Self
 
 import attrs
 
-from ._fields import FieldInfo, add_parameters_section, fields_info
+from ._fields import Documented
 from .units import UnitContext
 
 __all__ = ["Stage"]
 
 
 @attrs.frozen(kw_only=True)
-class Stage:
+class Stage(Documented):
     """Base class of every v4 calculation stage.
 
     Subclasses must be decorated with ``@attrs.frozen(kw_only=True)``, and get the
@@ -64,11 +66,6 @@ class Stage:
     >>> s.evolve(n=4).values
     [0, 1, 4, 9]
     """
-
-    @classmethod
-    def __attrs_init_subclass__(cls) -> None:
-        """Generate the subclass's docstring "Parameters" section from its fields."""
-        add_parameters_section(cls)
 
     def evolve(self, **changes: Any) -> Self:
         """Return a copy of this stage with some fields changed.
@@ -103,22 +100,11 @@ class Stage:
             raise TypeError(msg)
         return attrs.evolve(self, **changes)
 
-    @classmethod
-    def fields_info(cls) -> tuple[FieldInfo, ...]:
-        """Describe this stage's fields, without creating an instance.
-
-        Returns
-        -------
-        tuple of FieldInfo
-            The name, type, default and documentation of each field.
-        """
-        return fields_info(cls)
-
     @cached_property
     def _unit_context(self) -> UnitContext:
         """The units context of this stage's boundary methods (see :mod:`hmf.core.units`).
 
-        The base stage has no H0, so it only accepts inputs in h-units. Stages with a
-        cosmology override this to return ``UnitContext(H0)``.
+        The base stage has no H0, so it only accepts inputs in h-units. A stage that
+        can convert physical units should override this to return ``UnitContext(H0)``.
         """
         return UnitContext(None)

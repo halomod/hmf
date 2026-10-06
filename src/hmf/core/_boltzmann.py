@@ -36,7 +36,9 @@ import numpy.typing as npt
 from astropy import cosmology as ac
 from scipy.interpolate import CubicSpline
 
+from ._arrays import read_only
 from ._serialise import content_hash
+from ._species import CAMB_COLUMNS, MATTER_SPECIES
 from .cache import DiskCache
 
 __all__ = [
@@ -52,14 +54,6 @@ __all__ = [
 ]
 
 Array = npt.NDArray[np.float64]
-
-#: The matter species every run provides: CDM + baryons, and total matter.
-MATTER_SPECIES: tuple[str, ...] = ("cb", "tot")
-
-#: Zero-based rows of CAMB's ``MatterTransferData.transfer_data`` for each species.
-#: CAMB's ``Transfer_*`` constants are 1-based (Fortran): these are
-#: ``Transfer_tot - 1`` and ``Transfer_nonu - 1``.
-CAMB_TRANSFER_ROWS: Mapping[str, int] = MappingProxyType({"tot": 6, "cb": 7})
 
 #: CAMB's evolution variables for each species.
 CAMB_GROWTH_VARIABLES: Mapping[str, str] = MappingProxyType(
@@ -109,12 +103,6 @@ class BoltzmannRun:
         )
 
 
-def _read_only(a: npt.ArrayLike) -> Array:
-    out = np.array(a, dtype=float)
-    out.flags.writeable = False
-    return out
-
-
 def make_run(
     backend: str,
     *,
@@ -126,10 +114,10 @@ def make_run(
     """Build a :class:`BoltzmannRun` with read-only copies of the arrays."""
     return BoltzmannRun(
         backend=backend,
-        k=_read_only(k),
-        transfer=MappingProxyType({s: _read_only(t) for s, t in transfer.items()}),
-        growth_z=_read_only(growth_z),
-        growth=MappingProxyType({s: _read_only(d) for s, d in growth.items()}),
+        k=read_only(k),
+        transfer=MappingProxyType({s: read_only(t) for s, t in transfer.items()}),
+        growth_z=read_only(growth_z),
+        growth=MappingProxyType({s: read_only(d) for s, d in growth.items()}),
     )
 
 
@@ -344,7 +332,7 @@ def run_camb(inputs: Mapping[str, Any]) -> BoltzmannRun:
     results = camb.get_transfer_functions(p)
     data = results.get_matter_transfer_data().transfer_data
     k = data[camb.model.Transfer_kh - 1, :, 0]
-    transfer = {s: data[row, :, 0] for s, row in CAMB_TRANSFER_ROWS.items()}
+    transfer = {s: data[row, :, 0] for s, row in CAMB_COLUMNS.items()}
 
     growth = inputs["growth"]
     z = _growth_redshifts(growth["z_max"], growth["n_z"])

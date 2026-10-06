@@ -22,6 +22,9 @@ import numpy as np
 import numpy.typing as npt
 from scipy.interpolate import CubicSpline, PPoly
 
+from .._validators import check_finite_positive, check_increasing, check_table
+from .arrays import read_only
+
 __all__ = [
     "EH98Scales",
     "TabulatedTransfer",
@@ -394,23 +397,13 @@ def tabulate_transfer(
         If ``k`` is not strictly increasing and positive, ``t`` is not positive, or
         there are fewer than ``max(n_slope, 4)`` nodes.
     """
-    k = np.asarray(k, dtype=float)
-    t = np.asarray(t, dtype=float)
-    if k.ndim != 1 or k.shape != t.shape:
-        raise ValueError(
-            f"k and T must be 1-D arrays of the same length, got {k.shape}, {t.shape}."
-        )
     if n_slope < 2 or decay_ln_k <= 0:
         raise ValueError("n_slope must be >= 2 and decay_ln_k > 0.")
-    if k.size < max(n_slope, 4):
-        raise ValueError(f"A tabulated transfer function needs at least {max(n_slope, 4)} nodes.")
-    if not (np.all(k > 0) and np.all(np.diff(k) > 0)):
-        raise ValueError(
-            "The wavenumbers of a tabulated transfer function must be positive and "
-            "strictly increasing."
-        )
-    if not np.all(t > 0):
-        raise ValueError("A tabulated transfer function must be positive.")
+    where = "tabulate_transfer"
+    k, t = check_table({"k": k, "T": t}, where=where, min_size=max(n_slope, 4))
+    check_finite_positive("k", k, where=where)
+    check_increasing("k", k, where=where)
+    check_finite_positive("T", t, where=where)
 
     ln_k = np.log(k)
     residual = np.log(t) - ln_t_eh98_no_wiggle(k, scales)
@@ -419,15 +412,11 @@ def tabulate_transfer(
     slope_high = float(np.polyfit(ln_k[-n_slope:], residual[-n_slope:], 1)[0])
     spline = CubicSpline(ln_k, residual, bc_type=((1, 0.0), (1, slope_high)))
 
-    for arr in (ln_k, residual):
-        arr.flags.writeable = False
-    coefficients = np.asarray(spline.c)
-    coefficients.flags.writeable = False
     return TabulatedTransfer(
-        ln_k=ln_k,
-        residual=residual,
+        ln_k=read_only(ln_k),
+        residual=read_only(residual),
         scales=scales,
         slope_high=slope_high,
         decay_ln_k=float(decay_ln_k),
-        coefficients=coefficients,
+        coefficients=read_only(spline.c),
     )

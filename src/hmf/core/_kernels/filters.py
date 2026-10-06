@@ -131,7 +131,7 @@ def sharpk_window(x: ArrayLike) -> NDArray[np.float64]:
 
     Its derivative is a Dirac delta, so it has no derivative kernel: the mass variance
     of the sharp-k filter is computed by
-    :func:`hmf.core._kernels.mass_variance.sharpk_log_variance`.
+    :func:`hmf.core._kernels.mass_variance.sharpk_ln_variance`.
 
     Parameters
     ----------

@@ -1,10 +1,10 @@
 """Helpers for the ``attrs`` fields of models and stages.
 
 Fields carry their documentation in their metadata (see :func:`field`), so that
-:class:`~hmf.core.stage.Stage` and :class:`~hmf.core.model.Model` can list their
-fields (:func:`fields_info`) and generate the "Parameters" section of their
-docstrings (:func:`parameters_section`) from the class alone, without creating an
-instance.
+:class:`~hmf.core.stage.Stage`, :class:`~hmf.core.model.Model` and the other
+:class:`Documented` classes can list their fields (:func:`fields_info`) and generate
+the "Parameters" section of their docstrings (:func:`parameters_section`) from the
+class alone, without creating an instance.
 """
 
 from __future__ import annotations
@@ -164,3 +164,31 @@ def add_parameters_section(cls: type) -> None:
     indent = " " * min(indents, default=0)
     body = "\n".join(indent + line if line else "" for line in section.splitlines())
     cls.__doc__ = f"{doc.rstrip()}\n\n{body}\n"
+
+
+class Documented:
+    """A mixin for ``attrs`` classes whose fields are defined with :func:`field`.
+
+    Each ``attrs`` subclass gets the "Parameters" section of its docstring generated
+    from its fields (:func:`add_parameters_section`), and the :meth:`fields_info`
+    class method. A subclass that defines its own ``__attrs_init_subclass__`` must
+    call ``super().__attrs_init_subclass__()``.
+    """
+
+    __slots__ = ()
+
+    @classmethod
+    def __attrs_init_subclass__(cls) -> None:
+        """Generate the subclass's docstring "Parameters" section from its fields."""
+        add_parameters_section(cls)
+
+    @classmethod
+    def fields_info(cls) -> tuple[FieldInfo, ...]:
+        """Describe this class's fields, without creating an instance.
+
+        Returns
+        -------
+        tuple of FieldInfo
+            The name, type, default and documentation of each field.
+        """
+        return fields_info(cls)
