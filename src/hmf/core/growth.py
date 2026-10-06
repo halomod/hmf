@@ -21,6 +21,7 @@ from functools import cached_property
 from typing import Any
 
 import attrs
+import numpy as np
 from astropy.cosmology import FLRW, Planck18
 
 # For the fully qualified annotations below.
@@ -28,9 +29,8 @@ import hmf.core.transfer
 
 from ._fields import field
 from ._serialise import cosmology_key
-from ._validators import check_in_range
 from .cache import DiskCache, to_disk_cache
-from .domain import DomainError
+from .domain import Domain
 from .growth_models import GrowthModel, GrowthSolution, ODEGrowth
 from .stage import Stage
 from .transfer import Transfer
@@ -142,15 +142,24 @@ class Growth(Stage):
             run = self.transfer.boltzmann_run
         return self.model.solve(self.cosmology, run=run, disk_cache=self.disk_cache)
 
-    def _redshifts(self, z: Any) -> Any:
-        return check_in_range(
-            "z",
-            z,
-            where=type(self.model).__name__,
-            low=0.0,
-            high=self.solution.z_max * (1 + 1e-12),
-            error=DomainError,
+    @cached_property
+    def _table_domain(self) -> Domain:
+        """The redshifts the solution covers: 0 <= z <= z_max (to round-off)."""
+        return Domain(
+            {"z": (0.0, self.solution.z_max * (1 + 1e-12))},
+            source=f"The redshifts {type(self.model).__name__} is solved at.",
         )
+
+    def _redshifts(self, z: Any) -> Any:
+        """Check z against the model's valid domain and the solution's table.
+
+        The domain is that of the model's class, so a model can narrow it. Neither is
+        extrapolated: z outside either raises.
+        """
+        name = type(self.model).__name__
+        type(self.model).valid_domain.check({"z": z}, where=f"Growth ({name})")
+        self._table_domain.check({"z": z}, where=f"Growth ({name}), the solution's table")
+        return np.asarray(z, dtype=float)
 
     @unit_boundary()
     def growth_factor(self, z: Any, species: str = "cb") -> Any:
@@ -167,6 +176,12 @@ class Growth(Stage):
         -------
         numpy.float64 or numpy.ndarray
             With the shape of ``z`` (a scalar for a scalar ``z``).
+
+        Raises
+        ------
+        DomainError
+            If a z is outside the model's valid domain (z >= 0), or above the largest
+            redshift its solution covers (e.g. a table's).
         """
         z_arr = self._redshifts(z)
         return self.solution.growth_factor(z_arr, species)
@@ -186,6 +201,11 @@ class Growth(Stage):
         -------
         numpy.float64 or numpy.ndarray
             With the shape of ``z`` (a scalar for a scalar ``z``).
+
+        Raises
+        ------
+        DomainError
+            As for :meth:`growth_factor`.
         """
         z_arr = self._redshifts(z)
         return self.solution.growth_rate(z_arr, species)

@@ -27,6 +27,7 @@ from . import _references as refs
 from ._fields import field
 from ._kernels import filters as kernels
 from ._validators import positive
+from .domain import Domain
 from .model import Model
 from .units import unit_boundary
 
@@ -86,6 +87,13 @@ class Filter(Model, kind=True):
     #: Whether the window is the sharp cut-off :math:`\Theta(1 - x)`.
     sharp_cutoff: ClassVar[bool] = False
 
+    #: Where the window can be evaluated: :math:`x = kR \ge 0`. :meth:`window` and
+    #: :meth:`dwindow_dlnx` raise a :class:`~hmf.core.domain.DomainError` outside it.
+    valid_domain: ClassVar[Domain] = Domain({"x": (0, None)}, source="x = kR >= 0.")
+
+    #: Filters are not calibrated against simulations.
+    calibration_domain: ClassVar[Domain | None] = None
+
     @property
     def mass_assignment(self) -> float:
         r"""The constant :math:`c` of the mass assignment :math:`m \propto (cR)^3`."""
@@ -126,7 +134,13 @@ class Filter(Model, kind=True):
         -------
         numpy.float64 or ndarray
             The window, of the shape of ``x`` (a scalar for a scalar ``x``).
+
+        Raises
+        ------
+        DomainError
+            If an ``x`` is outside :attr:`valid_domain` (negative or NaN).
         """
+        type(self).valid_domain.check({"x": x}, where=f"{type(self).__name__}.window()")
         return self.window_derivatives(x, order=0)[0]
 
     @unit_boundary()
@@ -142,7 +156,15 @@ class Filter(Model, kind=True):
         -------
         numpy.float64 or ndarray
             The derivative, of the shape of ``x`` (a scalar for a scalar ``x``).
+
+        Raises
+        ------
+        DomainError
+            If an ``x`` is outside :attr:`valid_domain` (negative or NaN).
+        ValueError
+            For a filter whose derivative can't be evaluated pointwise (``SharpK``).
         """
+        type(self).valid_domain.check({"x": x}, where=f"{type(self).__name__}.dwindow_dlnx()")
         return self.window_derivatives(x, order=1)[1]
 
     @abc.abstractmethod

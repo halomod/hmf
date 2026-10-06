@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import math
 from functools import cached_property
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol, get_args, runtime_checkable
 
 import astropy.units as u
 import attrs
@@ -34,7 +34,9 @@ from scipy.interpolate import CubicSpline
 from ._fields import field
 from ._kernels.arrays import read_only
 from ._serialise import quantity_key
-from ._validators import check_finite_positive, check_increasing, check_table
+from ._validators import check_finite_positive, check_in_range, check_increasing, check_table
+from .accuracy import Extension
+from .domain import DomainError, warn_once
 from .stage import Stage
 from .units import (
     HasUnitContext,
@@ -102,7 +104,10 @@ class TabulatedPower(Stage):
     The power is interpolated with a cubic spline in :math:`\ln P` against
     :math:`\ln k`. Beyond the ends of the table it is extrapolated as a power law,
     with the slope :math:`d\ln P/d\ln k` of the spline at each end, if
-    ``extrapolate`` is True, and is an error otherwise. The internal k grid of
+    ``extension`` is ``"auto"`` (the default), with an
+    :class:`~hmf.exceptions.HMFExtrapolationWarning` (once per instance and end of
+    the table); with ``extension="raise"``, k outside the table raises a
+    :class:`~hmf.core.domain.DomainError`. The internal k grid of
     :class:`~hmf.core.mass_variance.MassVariance` spans
     :math:`10^{-8}` to :math:`\sim 10^5` h/Mpc by default, so a typical table *will*
     be extrapolated: give a wide table (or a model whose asymptotic slopes are
@@ -144,10 +149,14 @@ class TabulatedPower(Stage):
             "If None, every dimensional input must be in h-units."
         ),
     )
-    extrapolate: bool = field(
-        default=True,
-        validator=attrs.validators.instance_of(bool),
-        doc="Whether to extrapolate the power beyond the table as a power law.",
+    extension: Extension = field(
+        default="auto",
+        validator=attrs.validators.in_(get_args(Extension)),
+        doc=(
+            "What to do with k outside the table: 'auto' extrapolates the power as a "
+            "power law (with an HMFExtrapolationWarning, once per instance), 'raise' "
+            "raises a DomainError."
+        ),
     )
 
     def __attrs_post_init__(self) -> None:
@@ -197,17 +206,33 @@ class TabulatedPower(Stage):
 
         Raises
         ------
-        ValueError
-            If ``k`` is outside the table and ``extrapolate`` is False.
+        DomainError
+            If ``k`` is outside the table and ``extension`` is ``"raise"``.
+
+        Warns
+        -----
+        HMFExtrapolationWarning
+            If ``k`` is outside the table and ``extension`` is ``"auto"``: once per
+            instance for each end of the table.
         """
         ln_k = np.log(np.asarray(k, dtype=float))
         table_k = self._table[0]
         lo, hi = table_k[0], table_k[-1]
         below, above = ln_k < lo, ln_k > hi
-        if not self.extrapolate and (np.any(below) or np.any(above)):
-            raise ValueError(
-                f"TabulatedPower: k outside the table [{math.exp(lo):.4g}, {math.exp(hi):.4g}] "
-                "h/Mpc, and extrapolate=False."
+        for side, outside in (("below", below), ("above", above)):
+            if not np.any(outside):
+                continue
+            message = (
+                f"TabulatedPower: {np.count_nonzero(outside)} value(s) of k {side} the table "
+                f"[{math.exp(lo):.4g}, {math.exp(hi):.4g}] h/Mpc"
+            )
+            if self.extension == "raise":
+                raise DomainError(message + ", with extension='raise'.")
+            warn_once(
+                self,
+                f"k {side} the table",
+                message + " are extrapolated as a power law. Give a wider table to avoid "
+                "this, or extension='raise' to make it an error.",
             )
         spline = self._spline
         inside = np.clip(ln_k, lo, hi)
@@ -230,5 +255,11 @@ class TabulatedPower(Stage):
         -------
         Quantity
             The power, in (Mpc/h)³.
+
+        Raises
+        ------
+        DomainError
+            If a k is not > 0, or is outside the table with ``extension="raise"``.
         """
+        check_in_range("k", k, where="TabulatedPower", low=0.0, low_open=True, error=DomainError)
         return self._power(k)

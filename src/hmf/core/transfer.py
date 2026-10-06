@@ -42,10 +42,9 @@ from ._boltzmann import BoltzmannRun
 from ._fields import field
 from ._serialise import cosmology_key
 from ._species import check_species
-from ._validators import check_in_range
 from .accuracy import KAccuracy
 from .cache import DiskCache, to_disk_cache
-from .domain import DomainError
+from .domain import warn_once
 from .stage import Stage
 from .transfer_models import CAMB, TransferModel, TransferSolution
 from .units import UnitContext, h_Mpc, unit_boundary
@@ -64,12 +63,6 @@ def _to_transfer_model(value: Any) -> TransferModel:
     raise TypeError(
         f"model must be a TransferModel, a class or a name, not {type(value).__name__}."
     )
-
-
-def _check_k(k: Array) -> None:
-    # Note: this accepts k = inf, unlike the other checks of array inputs in hmf.core,
-    # which require them to be finite too. Whether it should is still to be decided.
-    check_in_range("k", k, where="Transfer", low=0.0, low_open=True, error=DomainError)
 
 
 @attrs.frozen(eq=False)
@@ -182,6 +175,32 @@ class Transfer(Stage):
         k_max = self.solution.k_max_table
         return None if k_max is None else u.Quantity(k_max, h_Mpc)
 
+    def _check_k(self, k: Array) -> None:
+        """Check k (in h/Mpc) against the model's valid domain, and warn if extrapolated.
+
+        The domain is that of the model's class, so a model can narrow it. A table the
+        user supplied (``FromArray``, ``FromFile``) warns, once per stage, if k is
+        outside it; the Boltzmann codes' tables are extrapolated by design, silently.
+        """
+        model = type(self.model)
+        model.valid_domain.check({"k": k << h_Mpc}, where=f"Transfer ({model.__name__})")
+        if not model._user_table:
+            return
+        k_min, k_max = self.solution.k_min_table, self.solution.k_max_table
+        # A table has both.
+        assert k_min is not None
+        assert k_max is not None
+        for side, outside, bound in (("below", k < k_min, k_min), ("above", k > k_max, k_max)):
+            if np.any(outside):
+                warn_once(
+                    self,
+                    f"k {side} the table",
+                    f"Transfer ({model.__name__}): k {side} the table's "
+                    f"{'smallest' if side == 'below' else 'largest'} wavenumber, "
+                    f"{bound:.4g} h/Mpc, is extrapolated (with the shape of EH98).",
+                    stacklevel=4,  # the caller of the public method
+                )
+
     @unit_boundary(k=h_Mpc)
     def transfer_function(self, k: Any, species: str = "cb") -> Any:
         """The transfer function T(k) at z = 0, normalised to 1 as k -> 0.
@@ -198,8 +217,18 @@ class Transfer(Stage):
         -------
         numpy.float64 or numpy.ndarray
             Dimensionless, with the shape of ``k`` (a scalar for a scalar ``k``).
+
+        Raises
+        ------
+        DomainError
+            If a k is outside the model's valid domain (k > 0).
+
+        Warns
+        -----
+        HMFExtrapolationWarning
+            If a k is outside a table the user supplied (once per stage).
         """
-        _check_k(k)
+        self._check_k(k)
         return self.solution.transfer(k, species)
 
     @unit_boundary(k=h_Mpc)
@@ -220,8 +249,18 @@ class Transfer(Stage):
             scalar for a scalar ``k``): :math:`k^{n_s} T(k)^2` with k in h/Mpc, so its
             amplitude is arbitrary. A later stage normalises it (e.g. to sigma_8) and
             gives it the units of a power spectrum, (Mpc/h)³.
+
+        Raises
+        ------
+        DomainError
+            As for :meth:`transfer_function`.
+
+        Warns
+        -----
+        HMFExtrapolationWarning
+            As for :meth:`transfer_function`.
         """
-        _check_k(k)
+        self._check_k(k)
         return self.power_kernel(species).power(k)
 
     def power_kernel(self, species: str = "cb") -> UnnormalisedPower:

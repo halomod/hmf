@@ -65,7 +65,8 @@ def _baseline(cls):
         "n_eff": -2.0,
         "m": 1e12,
     }
-    for name, iv in cls.calibration_domain.bounds:
+    calibration = cls.calibration_domain
+    for name, iv in () if calibration is None else calibration.bounds:
         lo, hi = iv.lower, iv.upper
         if name == "m":
             mid = 10 ** ((math.log10(lo) + math.log10(hi)) / 2) if np.isfinite(hi) else 10 * lo
@@ -116,7 +117,14 @@ def test_fit_declares_its_metadata(cls):
     for attr in ("valid_domain", "calibration_domain", "measured_mass_definition", "simulations"):
         assert attr in cls.__dict__, f"{cls.__name__} inherits {attr} instead of declaring it"
     assert isinstance(cls.valid_domain, Domain)
-    assert isinstance(cls.calibration_domain, Domain)
+    # No calibration domain is None, never an empty Domain; only PS has none.
+    if cls is fits.PS:
+        assert cls.calibration_domain is None
+    else:
+        assert isinstance(cls.calibration_domain, Domain)
+        assert cls.calibration_domain.variables
+        assert cls.calibration_domain.source
+        assert "TODO" not in cls.calibration_domain.source
     assert isinstance(cls.measured_mass_definition, MeasuredMassDefinition)
     # Only the fits made without simulations (analytic, or a fit to another fit) have none.
     if cls in (fits.PS, fits.Peacock):
@@ -126,13 +134,14 @@ def test_fit_declares_its_metadata(cls):
         assert cls.simulations.source
         assert cls.simulations.n_simulations >= 1
     assert cls.valid_domain.source
-    assert cls.calibration_domain.source
     assert cls.references
     assert all(isinstance(r, str) and r for r in cls.references)
     assert cls.parameter_source
-    assert "TODO" not in cls.parameter_source + cls.calibration_domain.source
-    # Every fit is defined only for sigma > 0.
-    assert cls.valid_domain["sigma"].lower > 0
+    assert "TODO" not in cls.parameter_source
+    # Every fit is defined only for sigma > 0: an open bound, not a sentinel.
+    sigma = cls.valid_domain["sigma"]
+    assert sigma.lower == 0
+    assert sigma.lower_open
     assert cls.requires <= set(fits.INPUTS)
 
 
@@ -233,7 +242,8 @@ def _valid_samples(cls, name, default):
     if name not in cls.valid_domain.variables:
         return [default]
     iv = cls.valid_domain[name]
-    lo = iv.lower
+    # The smallest value inside: the bound itself, or the next float above an open one.
+    lo = float(np.nextafter(iv.lower, np.inf)) if iv.lower_open else iv.lower
     hi = iv.upper if np.isfinite(iv.upper) else max(lo, 0) + {"z": 10.0}.get(name, 1e4)
     return [lo, (lo + hi) / 2, hi] if np.isfinite(lo) and lo > 0 else [max(lo, 0.0), hi / 2, hi]
 
@@ -691,7 +701,8 @@ def _outside_values(cls):
 
 def _edge_values(cls):
     """Inputs on the edge of the calibration domain (bounds are inclusive)."""
-    for name, iv in cls.calibration_domain.bounds:
+    calibration = cls.calibration_domain
+    for name, iv in () if calibration is None else calibration.bounds:
         if np.isfinite(iv.upper):
             values = _baseline(cls)
             # Derived sigma variables can not round-trip exactly through sigma.
@@ -701,7 +712,7 @@ def _edge_values(cls):
     return None
 
 
-CALIBRATED = [cls for cls in ALL if cls.calibration_domain.variables]
+CALIBRATED = [cls for cls in ALL if cls.calibration_domain is not None]
 
 
 def test_only_press_schechter_is_uncalibrated():

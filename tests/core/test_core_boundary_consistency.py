@@ -221,7 +221,8 @@ def _shaped(values, shape):
 
 
 def _power_source():
-    k = np.geomspace(1e-5, 1e3, 400)
+    # Wider than MassVariance's default k grid, so that it is never extrapolated.
+    k = np.geomspace(1e-9, 1e7, 640)
     return TabulatedPower(
         k=k * h_Mpc,
         pk=1e4 * k / (1 + (k / 0.02) ** 2.5) ** 1.6 * power_unit,

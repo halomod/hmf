@@ -79,10 +79,56 @@ Accuracy (:mod:`hmf.core.accuracy`)
     presets.
 
 Domains (:mod:`hmf.core.domain`)
-    Models will declare a *valid* domain (outside which they always raise) and a
-    *calibration* domain (outside which a user-chosen
-    :data:`~hmf.core.domain.DomainPolicy` applies: ``"ignore"``, ``"warn"``,
-    ``"mask"`` or ``"raise"``).
+    Every model declares a *valid* domain (outside which it always raises a
+    :class:`~hmf.core.domain.DomainError`) and a *calibration* domain (outside which
+    a user-chosen :data:`~hmf.core.domain.DomainPolicy` applies: ``"ignore"``,
+    ``"warn"``, ``"mask"`` or ``"raise"``), or ``None`` for no calibration domain. A
+    :class:`~hmf.core.domain.Domain` bounds each variable by an interval whose ends
+    are closed (``>=``, ``<=``) or open (``>``, ``<``): ``(0, None, "(]")`` is
+    ``> 0``. :meth:`~hmf.core.domain.Domain.describe` writes it as inequalities, and
+    :meth:`~hmf.core.domain.Domain.check` raises a
+    :class:`~hmf.core.domain.DomainError` that quotes them. Stages check their inputs
+    against their model's valid domain (that of the model's class, so a model can
+    narrow it).
+
+Out-of-range switches
+    Two settings say what to do with values out of range, and they are distinct:
+
+    * :data:`~hmf.core.accuracy.Extension` (``"auto"`` or ``"raise"``) is about the
+      *numerics*: what to do with a request outside an internal grid or a table.
+      ``MassAccuracy.extension="auto"`` extends the mass lattice lazily;
+      ``TabulatedPower.extension="auto"`` extrapolates the table as a power law. With
+      ``"raise"`` both raise a :class:`~hmf.core.domain.DomainError`.
+    * :data:`~hmf.core.domain.DomainPolicy` is about the *physics*: what to do with
+      a result outside a model's calibration domain, where it is an extrapolation of
+      the fit.
+
+Errors
+    Every error about an input is one of three types:
+
+    * :class:`~hmf.core.domain.DomainError` (a :class:`ValueError`): an input
+      *value* is outside what can be evaluated. Non-positive or NaN k, m or sigma; a
+      mass outside the lattice with ``extension="raise"``; k outside a table that is
+      not extrapolated; z beyond a growth table; anything outside a model's valid
+      domain.
+    * :class:`ValueError`: a bad option, configuration or combination, or a missing
+      input. A model that does not apply to the cosmology it is given (e.g.
+      ``Eisenstein97Growth`` with a non-flat cosmology) is a configuration error, so
+      a :class:`ValueError`, not a :class:`TypeError`.
+    * :class:`TypeError`: an object of the wrong kind.
+
+    So ``except ValueError`` catches every bad input, and ``except DomainError`` only
+    values out of range.
+
+Extrapolation warnings
+    Extrapolating beyond a table *you* supplied (a
+    :class:`~hmf.core.power_source.TabulatedPower`, or a ``FromArray`` or
+    ``FromFile`` transfer model) emits an
+    :class:`~hmf.exceptions.HMFExtrapolationWarning`, once per stage instance
+    (:func:`~hmf.core.domain.warn_once`). Extrapolation by design is silent: the
+    tail of T(k) beyond a Boltzmann code's ``k_max``, or the lazy extension of the
+    mass lattice. So the default configurations emit no warnings. Growth tables are
+    never extrapolated: z beyond them raises.
 
 Fitting functions (:mod:`hmf.core.fits`)
     Every hmf 3.x halo mass function fit is a

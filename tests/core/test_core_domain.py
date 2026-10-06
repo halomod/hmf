@@ -1,5 +1,7 @@
 """Tests of hmf.core.domain: Domain.contains and every domain policy."""
 
+import functools
+import gc
 import warnings
 
 import astropy.units as u
@@ -13,6 +15,7 @@ from hmf.core.domain import (
     HMFExtrapolationWarning,
     Interval,
     apply_domain_policy,
+    warn_once,
 )
 from hmf.core.units import Msun_h, UnitBoundaryError
 from hmf.exceptions import HMFExtrapolationWarning as V3Warning
@@ -108,6 +111,127 @@ def test_interval_bound_used_as_is():
     assert d.contains(z=0.5) is True
 
 
+# ---------------------------------------------------------------------------------
+# Open and closed bounds
+# ---------------------------------------------------------------------------------
+def test_interval_bounds_are_closed_by_default():
+    interval = Interval(0, 1)
+    assert not interval.lower_open
+    assert not interval.upper_open
+    assert interval.contains(0.0) is True
+    assert interval.contains(1.0) is True
+
+
+@pytest.mark.parametrize(
+    ("lower_open", "upper_open", "expected"),
+    [
+        (False, False, [False, True, True, True, False]),
+        (True, False, [False, False, True, True, False]),
+        (False, True, [False, True, True, False, False]),
+        (True, True, [False, False, True, False, False]),
+    ],
+)
+def test_open_bounds_exclude_the_bound(lower_open, upper_open, expected):
+    interval = Interval(0, 1, lower_open=lower_open, upper_open=upper_open)
+    x = np.array([-1e-300, 0.0, 0.5, 1.0, np.nan])
+    assert interval.contains(x).tolist() == expected
+    # The smallest float above an open bound is inside: no sentinel is needed.
+    assert interval.contains(np.nextafter(0.0, 1.0)) is True
+
+
+def test_open_bound_with_units():
+    interval = Interval(0, None, Msun_h, lower_open=True)
+    assert interval.contains(0.0 * Msun_h) is False
+    assert interval.contains(1e-300 * Msun_h) is True
+
+
+def test_open_flags_are_keyword_only_bools():
+    with pytest.raises(TypeError):
+        Interval(0, 1, None, True)
+    with pytest.raises(TypeError):
+        Interval(0, 1, lower_open=1)
+
+
+def test_open_interval_can_not_be_empty():
+    Interval(1, 1)  # a single point
+    with pytest.raises(ValueError, match="empty"):
+        Interval(1, 1, lower_open=True)
+    with pytest.raises(ValueError, match="empty"):
+        Interval(1, 1, upper_open=True)
+
+
+@pytest.mark.parametrize(
+    ("brackets", "lower_open", "upper_open"),
+    [("[]", False, False), ("(]", True, False), ("[)", False, True), ("()", True, True)],
+)
+def test_tuple_shorthand_brackets(brackets, lower_open, upper_open):
+    d = Domain({"z": (0, 2, brackets)})
+    assert d["z"] == Interval(0, 2, lower_open=lower_open, upper_open=upper_open)
+    # A pair is closed.
+    assert Domain({"z": (0, 2)})["z"] == Interval(0, 2)
+
+
+def test_tuple_shorthand_with_quantities():
+    d = Domain({"k": (0 * Msun_h, None, "(]")})
+    assert d["k"] == Interval(0, None, Msun_h, lower_open=True)
+
+
+@pytest.mark.parametrize("brackets", ["[", "(}", "open", None])
+def test_tuple_shorthand_rejects_other_brackets(brackets):
+    with pytest.raises(ValueError, match="third item"):
+        Domain({"z": (0, 2, brackets)})
+
+
+# ---------------------------------------------------------------------------------
+# Descriptions and checks
+# ---------------------------------------------------------------------------------
+@pytest.mark.parametrize(
+    ("interval", "text"),
+    [
+        (Interval(0, None, lower_open=True), "x > 0"),
+        (Interval(0, None), "x >= 0"),
+        (Interval(None, 3, upper_open=True), "x < 3"),
+        (Interval(None, 3), "x <= 3"),
+        (Interval(75, 3e4, lower_open=True), "75 < x <= 30000"),
+        (Interval(0, 2.5, upper_open=True), "0 <= x < 2.5"),
+        (Interval(None, None), "any x"),
+        (Interval(1e10, 1e15, Msun_h), "1e+10 solMass / littleh <= x <= 1e+15 solMass / littleh"),
+    ],
+)
+def test_interval_describe(interval, text):
+    assert interval.describe("x") == text
+
+
+def test_domain_describe(domain):
+    assert domain.describe() == (
+        "1e+10 solMass / littleh <= m <= 1e+15 solMass / littleh, sigma >= 0.25, 0 <= z <= 2"
+    )
+    assert Domain({}).describe() == "unbounded"
+
+
+def test_check_inside_returns_none(domain):
+    assert domain.check({"z": [0.0, 2.0], "m": 1e12 * Msun_h}, where="Toy") is None
+    assert domain.check({}, where="Toy") is None
+
+
+def test_check_raises_a_domain_error_with_the_description():
+    d = Domain({"sigma": (0, None, "(]"), "z": (0, 2)})
+    with pytest.raises(DomainError) as info:
+        d.check({"sigma": [1.0, 0.0, 2.0], "z": 1.0}, where="Toy's valid domain")
+    message = str(info.value)
+    assert message.startswith("Toy's valid domain: 1 of 3 value(s)")
+    assert "(sigma > 0, 0 <= z <= 2)" in message
+    assert message.endswith("out of range: sigma.")
+    with pytest.raises(DomainError, match=r"2 of 2 value.*out of range: sigma, z"):
+        d.check({"sigma": [0.0, 1.0], "z": [1.0, np.nan]}, where="Toy")
+
+
+def test_check_unknown_variable_is_a_value_error(domain):
+    with pytest.raises(ValueError, match="no variable") as info:
+        domain.check({"zz": 1.0}, where="Toy")
+    assert not isinstance(info.value, DomainError)
+
+
 def test_quantity_pair_bounds():
     d = Domain({"m": (1e10 * Msun_h, None)})
     assert d["m"].unit == Msun_h
@@ -176,3 +300,99 @@ def test_policy_with_contains(domain):
     z = np.array([0.0, 1.0, 5.0])
     out = apply_domain_policy(z**2, domain.contains(z=z), "mask")
     np.testing.assert_array_equal(out, [0.0, 1.0, np.nan])
+
+
+def test_warn_policy_warns_once_per_owner():
+    """With an owner, "warn" warns once per owner and description (#390)."""
+
+    class Stage:
+        pass
+
+    first, second = Stage(), Stage()
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        for owner in (first, first, second):
+            apply_domain_policy(RESULT, INSIDE, "warn", description="Toy's domain", owner=owner)
+        apply_domain_policy(RESULT, INSIDE, "warn", description="Other domain", owner=first)
+        # Without an owner it warns on every call.
+        apply_domain_policy(RESULT, INSIDE, "warn")
+        apply_domain_policy(RESULT, INSIDE, "warn")
+    assert [str(w.message).split(" are outside ")[1] for w in caught] == [
+        "Toy's domain. They are extrapolations.",
+        "Toy's domain. They are extrapolations.",
+        "Other domain. They are extrapolations.",
+        "the model. They are extrapolations.",
+        "the model. They are extrapolations.",
+    ]
+
+
+# ---------------------------------------------------------------------------------
+# warn_once
+# ---------------------------------------------------------------------------------
+class _Owner:
+    """An object that compares equal to every other: warn_once goes by identity."""
+
+    def __eq__(self, other):
+        return isinstance(other, _Owner)
+
+    def __hash__(self):
+        return 0
+
+
+def _record(fn):
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        fn()
+    return caught
+
+
+def test_warn_once_per_owner_and_key():
+    a, b = _Owner(), _Owner()
+
+    def calls():
+        assert warn_once(a, "k", "a k") is True
+        assert warn_once(a, "k", "a k again") is False
+        assert warn_once(a, "z", "a z") is True
+        assert warn_once(b, "k", "b k") is True  # equal to a, but another object
+
+    caught = _record(calls)
+    assert [str(w.message) for w in caught] == ["a k", "a z", "b k"]
+    assert all(w.category is HMFExtrapolationWarning for w in caught)
+
+
+def test_warn_once_category_and_stacklevel():
+    owner = _Owner()
+    caught = _record(lambda: warn_once(owner, "k", "message", UserWarning, stacklevel=1))
+    assert caught[0].category is UserWarning
+    assert caught[0].filename == __file__
+
+
+def test_warn_once_works_with_frozen_slotted_attrs():
+    import attrs
+
+    @attrs.frozen
+    class Frozen:
+        x: int = 0
+
+    one, two = Frozen(), Frozen()
+    assert one == two
+    caught = _record(lambda: [warn_once(o, "k", "m") for o in (one, one, two)])
+    assert len(caught) == 2
+
+
+def test_warn_once_forgets_collected_owners():
+    """The record goes with the object, so a new object at the same id warns again."""
+    from hmf.core import domain as domain_module
+
+    owner = _Owner()
+    _record(functools.partial(warn_once, owner, "k", "m"))
+    ident = id(owner)
+    assert ident in domain_module._WARNED
+    del owner
+    gc.collect()
+    assert ident not in domain_module._WARNED
+
+
+def test_warn_once_without_weak_references_warns_every_time():
+    caught = _record(lambda: [warn_once(1.5, "k", "m") for _ in range(2)])
+    assert len(caught) == 2
