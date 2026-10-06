@@ -30,7 +30,7 @@ from hmf.core import (
     transfer,
     transfer_models,
 )
-from hmf.core._serialise import content_hash
+from hmf.core._serialise import content_hash, quantity_key
 from hmf.core.growth import Growth
 from hmf.core.mass_variance import MassVariance
 from hmf.core.model import Model
@@ -41,12 +41,14 @@ from hmf.core.units import (
     Mpc_h,
     Msun_h,
     UnitBoundaryError,
+    UnitContext,
     dndm_unit,
     h_Mpc,
     littleh,
     number_density_unit,
     power_unit,
     rho_unit,
+    unit_boundary,
 )
 
 _K = np.geomspace(1e-4, 1e2, 50)
@@ -366,3 +368,35 @@ def test_errors_name_the_class_called():
         _TRANSFER.transfer_function(0.1)
     with pytest.raises(u.UnitConversionError, match=r"^MassVariance\.sigma\(\)"):
         _MV.sigma(1e12 * u.s)
+
+
+# ---------------------------------------------------------------------------------
+# Edge cases of the helpers
+# ---------------------------------------------------------------------------------
+
+
+def test_unit_context_rejects_a_non_scalar_h0():
+    with pytest.raises(ValueError, match="H0 must be a scalar"):
+        UnitContext([70, 71] * H0_unit)
+
+
+def test_quantity_field_requires_a_value():
+    with pytest.raises(UnitBoundaryError, match="FromArray: argument 'k'"):
+        transfer_models.FromArray(k=None, t=np.ones(3))
+
+
+def test_quantity_key_needs_a_quantity():
+    assert quantity_key(None) is None
+    with pytest.raises(TypeError, match="expected a Quantity"):
+        quantity_key(1.0)
+
+
+def test_python_float_output_becomes_a_numpy_scalar():
+    class Toy:
+        @unit_boundary()
+        def half(self, x):
+            return float(x) / 2
+
+    out = Toy().half(3)
+    assert type(out) is np.float64
+    assert out == 1.5
