@@ -1,6 +1,8 @@
 
-hmf
-===
+hmf API (v3)
+============
+The stable v3 API. The experimental v4 core, :mod:`hmf.core`, is documented
+separately in :doc:`api_core`.
 
 Frameworks
 ----------
@@ -53,41 +55,3 @@ Other Calculations and Utilities
    hmf.helpers.sample
    hmf.helpers.functional
    hmf.exceptions
-
-hmf.core (experimental)
------------------------
-The v4 core preview: see :doc:`core`. Its API may change before 4.0.
-
-.. autosummary::
-   :caption: hmf.core (experimental)
-   :toctree: _autosummary
-   :template: core-module.rst
-
-   hmf.core.units
-   hmf.core.model
-   hmf.core.stage
-   hmf.core.accuracy
-   hmf.core.domain
-   hmf.core._kernels
-   hmf.core.transfer_models
-   hmf.core.transfer
-   hmf.core.growth_models
-   hmf.core.growth
-   hmf.core.cache
-   hmf.core._kernels.transfer
-   hmf.core._kernels.growth
-   hmf.core.filters
-   hmf.core.power_source
-   hmf.core.mass_variance
-   hmf.core._kernels.filters
-   hmf.core._kernels.mass_variance
-   hmf.core._kernels.interpolation
-   hmf.core._kernels.fits
-
-Models (their parameters are listed in each class's "Parameters" section):
-
-.. autosummary::
-   :toctree: _autosummary
-   :template: core-model-module.rst
-
-   hmf.core.fits
