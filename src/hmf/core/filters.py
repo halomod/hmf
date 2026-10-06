@@ -25,6 +25,7 @@ from numpy.typing import ArrayLike, NDArray
 
 from ._fields import field
 from ._kernels import filters as kernels
+from ._validators import positive
 from .model import Model
 
 __all__ = ["Envelope", "Filter", "SharpK", "SmoothK", "TailBounds", "TopHat"]
@@ -58,11 +59,6 @@ class TailBounds(NamedTuple):
     high_ddw: Envelope = ()
     high_ddw_oscillating: Envelope = ()
     low_ddw: Envelope = ()
-
-
-def _positive(instance: object, attribute: attrs.Attribute[float], value: float) -> None:
-    if not (np.isfinite(value) and value > 0):
-        raise ValueError(f"{type(instance).__name__}.{attribute.name} must be > 0, got {value}.")
 
 
 @attrs.frozen(kw_only=True)
@@ -238,7 +234,7 @@ class SharpK(Filter, alias="SharpK"):
     c: float = field(
         default=2.5,
         converter=float,
-        validator=_positive,
+        validator=positive,
         doc="The mass-assignment constant c, in m = (4 pi / 3) rho_mean (c R)^3.",
     )
 
@@ -287,13 +283,13 @@ class SmoothK(Filter, alias="SmoothK"):
     beta: float = field(
         default=4.8,
         converter=float,
-        validator=_positive,
+        validator=positive,
         doc="The steepness of the cut-off, beta > 0.",
     )
     c: float = field(
         default=3.3,
         converter=float,
-        validator=_positive,
+        validator=positive,
         doc="The mass-assignment constant c, in m = (4 pi / 3) rho_mean (c R)^3.",
     )
 

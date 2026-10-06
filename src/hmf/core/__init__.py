@@ -16,7 +16,7 @@ Importing it emits a :class:`~hmf.exceptions.HMFCoreExperimentalWarning` (a
     import hmf.core
 
 This package holds the conventions the rest of the v4 core builds on, and the first
-stages:
+stages and models:
 
 * :mod:`hmf.core.units`: the units boundary between public methods and kernels;
 * :mod:`hmf.core.model`: the :class:`~hmf.core.model.Model` base class and the
@@ -24,6 +24,7 @@ stages:
 * :mod:`hmf.core.stage`: the :class:`~hmf.core.stage.Stage` base class;
 * :mod:`hmf.core.accuracy`: typed accuracy settings for the internal grids;
 * :mod:`hmf.core.domain`: model domains and the domain policy;
+* :mod:`hmf.core.fits`: the halo mass function fitting functions, as models;
 * :mod:`hmf.core._kernels`: the conventions for unit-free numerical kernels;
 * :mod:`hmf.core.filters`: the smoothing filters (the :class:`~hmf.core.filters.Filter` kind);
 * :mod:`hmf.core.power_source`: sources of the linear power spectrum at z = 0;
@@ -50,6 +51,7 @@ from . import (  # noqa: E402  # noqa: E402
     accuracy,
     domain,
     filters,
+    fits,
     mass_variance,
     model,
     power_source,
@@ -65,6 +67,7 @@ __all__ = [
     "domain",
     "field",
     "filters",
+    "fits",
     "mass_variance",
     "model",
     "power_source",
