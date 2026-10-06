@@ -6,8 +6,9 @@ matter species (``"cb"``, CDM + baryons; ``"tot"``, total matter):
 
 * :meth:`Transfer.transfer_function`: T(k), normalised to 1 as k -> 0;
 * :meth:`Transfer.unnormalised_power`: :math:`k^{n_s} T(k)^2`, the shape of the
-  linear power spectrum at z = 0 (normalising it, e.g. to sigma_8, is the job of a
-  later stage);
+  linear power spectrum at z = 0. It is a plain (dimensionless) array, with k in
+  h/Mpc and an arbitrary amplitude: normalising it, e.g. to sigma_8, and giving it
+  the units of a power spectrum, is the job of a later stage;
 * :meth:`Transfer.power_kernel`: the same at kernel level, as a pure function of k
   in h/Mpc on plain arrays, for later stages.
 
@@ -31,6 +32,7 @@ from __future__ import annotations
 from functools import cached_property
 from typing import Any
 
+import astropy.units as u
 import attrs
 import numpy as np
 import numpy.typing as npt
@@ -62,11 +64,6 @@ def _to_transfer_model(value: Any) -> TransferModel:
     raise TypeError(
         f"model must be a TransferModel, a class or a name, not {type(value).__name__}."
     )
-
-
-def _scalar_like(out: Array, like: Any) -> Any:
-    """A float if ``like`` is 0-d, else ``out``."""
-    return float(out) if np.ndim(like) == 0 else out
 
 
 def _check_k(k: Array) -> None:
@@ -116,7 +113,7 @@ class Transfer(Stage):
     >>> from hmf.core.transfer import Transfer
     >>> from hmf.core.units import h_Mpc
     >>> t = Transfer(model="EH_NoBAO")
-    >>> round(t.transfer_function(1e-7 * h_Mpc), 6)
+    >>> float(round(t.transfer_function(1e-7 * h_Mpc), 6))
     1.0
     """
 
@@ -176,9 +173,14 @@ class Transfer(Stage):
         return self.solution.run
 
     @property
-    def k_max_table(self) -> float | None:
-        """The largest tabulated wavenumber (h/Mpc), above which T is extrapolated."""
-        return self.solution.k_max_table
+    def k_max_table(self) -> u.Quantity | None:
+        """The largest tabulated wavenumber, above which T is extrapolated.
+
+        A Quantity in h/Mpc; ``None`` for a model that is not a table (a fitting
+        formula).
+        """
+        k_max = self.solution.k_max_table
+        return None if k_max is None else u.Quantity(k_max, h_Mpc)
 
     @unit_boundary(k=h_Mpc)
     def transfer_function(self, k: Any, species: str = "cb") -> Any:
@@ -194,11 +196,11 @@ class Transfer(Stage):
 
         Returns
         -------
-        float or numpy.ndarray
-            Dimensionless, with the shape of ``k``.
+        numpy.float64 or numpy.ndarray
+            Dimensionless, with the shape of ``k`` (a scalar for a scalar ``k``).
         """
         _check_k(k)
-        return _scalar_like(self.solution.transfer(k, species), k)
+        return self.solution.transfer(k, species)
 
     @unit_boundary(k=h_Mpc)
     def unnormalised_power(self, k: Any, species: str = "cb") -> Any:
@@ -213,12 +215,14 @@ class Transfer(Stage):
 
         Returns
         -------
-        float or numpy.ndarray
-            In arbitrary units (k in h/Mpc), with the shape of ``k``. It is normalised
-            by a later stage.
+        numpy.float64 or numpy.ndarray
+            A plain, dimensionless array (not a Quantity), with the shape of ``k`` (a
+            scalar for a scalar ``k``): :math:`k^{n_s} T(k)^2` with k in h/Mpc, so its
+            amplitude is arbitrary. A later stage normalises it (e.g. to sigma_8) and
+            gives it the units of a power spectrum, (Mpc/h)³.
         """
         _check_k(k)
-        return _scalar_like(self.power_kernel(species).power(k), k)
+        return self.power_kernel(species).power(k)
 
     def power_kernel(self, species: str = "cb") -> UnnormalisedPower:
         """The kernel-level shape of the power spectrum of ``species``.

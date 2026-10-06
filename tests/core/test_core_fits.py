@@ -27,7 +27,14 @@ from hmf.core.fits import (
     SimulationDetails,
     evaluate_fsigma,
 )
-from hmf.core.units import Mpc_h, Msun_h, UnitBoundaryError, dndm_unit, number_density_unit
+from hmf.core.units import (
+    H0_unit,
+    Mpc_h,
+    Msun_h,
+    UnitBoundaryError,
+    dndm_unit,
+    number_density_unit,
+)
 
 DELTA_C = 1.68647
 
@@ -501,7 +508,7 @@ def test_behroozi_correction_at_pivot_mass():
         dndm = m**-1.9 * np.exp(-m / 1e13)
         ngtm = _cumulative(m, dndm)
         corrected = fits.Behroozi().modify_dndm(
-            m * Msun_h, dndm * dndm_unit, z=z, ngtm=ngtm * number_density_unit, h=h
+            m * Msun_h, dndm * dndm_unit, z=z, ngtm=ngtm * number_density_unit, H0=100 * h * H0_unit
         )
         assert corrected.unit is dndm_unit
         n_corrected = _cumulative(m, corrected.to_value(dndm_unit))
@@ -525,7 +532,9 @@ def _cumulative(m, dndm):
 def test_modify_dndm_is_identity_by_default():
     dndm = np.array([1.0, 2.0]) * dndm_unit
     ngtm = np.array([3.0, 1.0]) * number_density_unit
-    out = fits.Tinker08().modify_dndm([1e12, 1e13] * Msun_h, dndm, z=0.0, ngtm=ngtm, h=0.7)
+    out = fits.Tinker08().modify_dndm(
+        [1e12, 1e13] * Msun_h, dndm, z=0.0, ngtm=ngtm, H0=70 * H0_unit
+    )
     assert out.unit is dndm_unit
     np.testing.assert_array_equal(out.value, dndm.value)
 
@@ -540,13 +549,13 @@ def test_bocquet_mass_ratios_are_ordered(z, om):
     accurate only "at the few percent level" (App. A), so allow 3% there.
     """
     m = np.geomspace(1e13, 1e15, 9) * Msun_h
-    r200 = fits.Bocquet200cDMOnly().mass_ratio_to_200m(m, z=z, omega_m0=om, h=0.7)
-    r500 = fits.Bocquet500cHydro().mass_ratio_to_200m(m, z=z, omega_m0=om, h=0.7)
+    r200 = fits.Bocquet200cDMOnly().mass_ratio_to_200m(m, z=z, omega_m0=om, H0=70 * H0_unit)
+    r500 = fits.Bocquet500cHydro().mass_ratio_to_200m(m, z=z, omega_m0=om, H0=70 * H0_unit)
     assert np.all((r500 > 0) & (r500 < r200) & (r200 < 1.03))
     if om * (1 + z) ** 3 / (om * (1 + z) ** 3 + 1 - om) < 0.9:
         assert np.all(r200 < 1)
     np.testing.assert_array_equal(
-        fits.Bocquet200mHydro().mass_ratio_to_200m(m, z=z, omega_m0=om, h=0.7), 1.0
+        fits.Bocquet200mHydro().mass_ratio_to_200m(m, z=z, omega_m0=om, H0=70 * H0_unit), 1.0
     )
 
 
@@ -554,19 +563,65 @@ def test_bocquet_mass_ratio_depends_on_mass_in_msun():
     """The same physical halo gets the same ratio whatever h (eqs. 6, A2 take ln M/Msun)."""
     m_msun = np.geomspace(1e13, 1e15, 5) * Msun_h  # times h below: Msun/h
     for model in (fits.Bocquet200cDMOnly(), fits.Bocquet500cDMOnly()):
-        r1 = model.mass_ratio_to_200m(m_msun * 0.5, z=0.5, omega_m0=0.3, h=0.5)
-        r2 = model.mass_ratio_to_200m(m_msun * 0.9, z=0.5, omega_m0=0.3, h=0.9)
+        r1 = model.mass_ratio_to_200m(m_msun * 0.5, z=0.5, omega_m0=0.3, H0=50 * H0_unit)
+        r2 = model.mass_ratio_to_200m(m_msun * 0.9, z=0.5, omega_m0=0.3, H0=90 * H0_unit)
         np.testing.assert_allclose(r1, r2, rtol=1e-12)
+        # The same halo given in physical Msun, converted with the H0 passed.
+        r3 = model.mass_ratio_to_200m(m_msun.value * u.Msun, z=0.5, omega_m0=0.3, H0=50 * H0_unit)
+        np.testing.assert_allclose(r3, r1, rtol=1e-12)
 
 
-def test_yung24_units_select_the_table():
+def test_fit_methods_with_h0_convert_physical_units():
+    """modify_dndm and mass_ratio_to_200m take an H0, so physical units convert."""
+    h = 0.7
+    m = np.geomspace(1e11, 1e14, 5)  # Msun/h
+    dndm = m**-1.9
+    ngtm = m**-0.9 / 0.9
+    model = fits.Behroozi()
+    in_h_units = model.modify_dndm(
+        m * Msun_h, dndm * dndm_unit, z=4.0, ngtm=ngtm * number_density_unit, H0=70 * H0_unit
+    )
+    # The same values in physical units: m / h Msun, dndm h^4 / Msun / Mpc^3, ...
+    physical = model.modify_dndm(
+        m / h * u.Msun,
+        dndm * h**4 / (u.Msun * u.Mpc**3),
+        z=4.0,
+        ngtm=ngtm * h**3 / u.Mpc**3,
+        H0=70 * H0_unit,
+    )
+    assert physical.unit is dndm_unit
+    np.testing.assert_allclose(physical.value, in_h_units.value, rtol=1e-12)
+    # H0 in other units is fine; a bare number or None is not.
+    np.testing.assert_allclose(
+        fits.Bocquet200cDMOnly().mass_ratio_to_200m(
+            m * Msun_h, z=0.0, omega_m0=0.3, H0=70e3 * u.m / u.s / u.Mpc
+        ),
+        fits.Bocquet200cDMOnly().mass_ratio_to_200m(
+            m * Msun_h, z=0.0, omega_m0=0.3, H0=70 * H0_unit
+        ),
+        rtol=1e-15,
+    )
+    for bad in (0.7, None):
+        with pytest.raises(UnitBoundaryError, match=r"Behroozi.modify_dndm\(\): H0"):
+            model.modify_dndm(
+                m * Msun_h, dndm * dndm_unit, z=4.0, ngtm=ngtm * number_density_unit, H0=bad
+            )
+    with pytest.raises(u.UnitConversionError, match="H0"):
+        fits.Bocquet200cDMOnly().mass_ratio_to_200m(m * Msun_h, z=0.0, omega_m0=0.3, H0=70 * u.km)
+
+
+def test_yung24_mass_units_select_the_table():
     h = fits.Yung24()
-    phys = fits.Yung24(units="physical")
+    phys = fits.Yung24(mass_units="physical")
+    assert h.mass_units == "h"
     assert h.b_0 == pytest.approx(8.62813020)
     assert phys.b_0 == pytest.approx(4.86693806)
-    assert fits.Yung24(units="physical", b_0=1.0).b_0 == 1.0
-    with pytest.raises(ValueError, match="units"):
-        fits.Yung24(units="cgs")
+    assert fits.Yung24(mass_units="physical", b_0=1.0).b_0 == 1.0
+    assert fits.FittingFunction.get("Yung24") is fits.Yung24
+    with pytest.raises(ValueError, match="mass_units"):
+        fits.Yung24(mass_units="cgs")
+    with pytest.raises(TypeError, match="units"):
+        fits.Yung24(units="physical")
 
 
 @pytest.mark.parametrize("cls", [fits.Crocce, fits.Bocquet500cDMOnly, fits.Yung24])
@@ -758,10 +813,10 @@ def test_public_methods_are_unit_boundaries():
     with pytest.raises(UnitBoundaryError, match="m"):
         warren.inputs(1.0, m=1e12)
     with pytest.raises(UnitBoundaryError):
-        fits.Bocquet500cDMOnly().mass_ratio_to_200m(1e14, z=0.0, omega_m0=0.3, h=0.7)
+        fits.Bocquet500cDMOnly().mass_ratio_to_200m(1e14, z=0.0, omega_m0=0.3, H0=70 * H0_unit)
     with pytest.raises(UnitBoundaryError, match="dndm"):
         fits.Behroozi().modify_dndm(
-            [1e12] * Msun_h, [1.0], z=1.0, ngtm=[1.0] * number_density_unit, h=0.7
+            [1e12] * Msun_h, [1.0], z=1.0, ngtm=[1.0] * number_density_unit, H0=70 * H0_unit
         )
 
 
@@ -794,7 +849,7 @@ def test_library_path_takes_plain_canonical_arrays():
     np.testing.assert_array_equal(evaluate_fsigma(model, x).fsigma, public)
     np.testing.assert_array_equal(
         model._mass_ratio_to_200m(m, z=0.5, omega_m0=0.3, h=0.7),
-        model.mass_ratio_to_200m(m * Msun_h, z=0.5, omega_m0=0.3, h=0.7),
+        model.mass_ratio_to_200m(m * Msun_h, z=0.5, omega_m0=0.3, H0=70 * H0_unit),
     )
     with pytest.raises(ValueError, match="needs the input"):
         evaluate_fsigma(model, FitInputs(sigma=sigma))

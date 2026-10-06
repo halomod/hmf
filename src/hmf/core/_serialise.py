@@ -5,9 +5,10 @@ hash of the code's input. This module defines the canonical serialisation that h
 is computed from: a JSON document with sorted keys and shortest round-trip floats, so
 that equal inputs always give the same text, in any process and on any platform.
 
-It also defines :func:`cosmology_key`, the value that a stage's ``cosmology`` field
-is compared and hashed by: astropy cosmologies compare by value, but are not
-hashable.
+It also defines the values that fields holding astropy objects are compared and
+hashed by, as ``field(eq=key)``: :func:`cosmology_key` for a cosmology, and
+:func:`quantity_key` for a Quantity. Astropy cosmologies compare by value but are
+not hashable, and Quantities compare elementwise.
 
 This is deliberately small. The config schema (issue #391) will serialise models and
 stages through cattrs; when it does, :func:`canonical` should be routed through it.
@@ -29,7 +30,7 @@ from astropy.cosmology import FLRW
 
 from .model import qualified_name
 
-__all__ = ["canonical", "canonical_json", "content_hash", "cosmology_key"]
+__all__ = ["canonical", "canonical_json", "content_hash", "cosmology_key", "quantity_key"]
 
 
 def _plain(value: Any) -> Any:
@@ -70,6 +71,32 @@ def cosmology_key(cosmo: FLRW) -> tuple[Any, ...]:
         qualified_name(type(cosmo)),
         tuple(sorted((str(name), _plain(value)) for name, value in params.items())),
     )
+
+
+def quantity_key(value: Any) -> Any:
+    """The value of a Quantity, as a hashable tuple: what a Quantity field compares by.
+
+    This is the one comparison of Quantity fields in :mod:`hmf.core`, used as
+    ``field(eq=quantity_key)`` (as :func:`hmf.core.units.quantity_field` does). Two
+    Quantities are equal if they have the same unit, shape and values. A field of
+    :func:`~hmf.core.units.quantity_field` is stored in its canonical unit, so it
+    compares by its value in that unit, whatever unit it was given in.
+
+    Parameters
+    ----------
+    value
+        A Quantity, or ``None`` (which is its own key).
+
+    Returns
+    -------
+    tuple or None
+        ``(unit string, shape, values as a tuple of Python numbers)``.
+    """
+    if value is None:
+        return None
+    if not isinstance(value, u.Quantity):
+        raise TypeError(f"quantity_key: expected a Quantity, not {type(value).__name__}.")
+    return (value.unit.to_string(), value.shape, tuple(np.ravel(value.value).tolist()))
 
 
 def canonical(obj: Any) -> Any:

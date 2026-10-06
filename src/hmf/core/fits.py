@@ -92,12 +92,17 @@ from .domain import Domain, DomainError, DomainPolicy, apply_domain_policy
 from .model import Model
 from .units import (
     RHO_CRIT0_H2,
+    H0_unit,
     Mpc_h,
     Msun_h,
+    UnitBoundaryError,
+    UnitContext,
     dndm_unit,
-    littleh,
+    kpc_h,
     number_density_unit,
+    quantity_field,
     rho_unit,
+    to_canonical,
     unit_boundary,
 )
 
@@ -237,17 +242,8 @@ def _so_any(preferred: MeasuredMassDefinition, note: str = "") -> MeasuredMassDe
 # ---------------------------------------------------------------------------------
 # Metadata: the simulations a fit was calibrated on
 # ---------------------------------------------------------------------------------
-#: kpc/h, for softening lengths.
-_KPC_H = u.kpc / littleh
 
 PerSimulation = tuple[Any, ...]
-
-
-def _quantity_or_none(x: Any) -> Any:
-    """Convert a length to a 1-d Quantity in Mpc/h (``None`` stays ``None``)."""
-    if x is None:
-        return None
-    return np.atleast_1d(u.Quantity(x).to(Mpc_h))
 
 
 def _tuple_or_none(x: Any) -> PerSimulation | None:
@@ -259,6 +255,8 @@ def _tuple_or_none(x: Any) -> PerSimulation | None:
     return tuple(x)
 
 
+# eq=False: these are metadata about a fit (a class variable), never part of a model's
+# value, so they are not compared or hashed by value, nor serialised.
 @attrs.frozen(kw_only=True, eq=False)
 class SimulationDetails:
     """The suite of simulations a fit was calibrated on (metadata only).
@@ -267,12 +265,13 @@ class SimulationDetails:
     wrong. It describes the simulations used to *define* the fit, not every one the
     paper compared it with. Per-simulation values are tuples (or Quantities) with
     one entry per simulation; a single value applies to all of them, and ``None``
-    means the paper does not state it.
+    means the paper does not state it. Being metadata, it compares by identity, not
+    by value.
 
     Parameters
     ----------
     box_size
-        The comoving box sizes, a Quantity (converted to Mpc/h).
+        The comoving box sizes, a Quantity in h-units (stored in Mpc/h).
     n_particles
         The number of dark-matter particles in each simulation (hydrodynamical runs
         have as many gas particles again; see ``notes``).
@@ -280,7 +279,7 @@ class SimulationDetails:
         The cosmological parameters of each simulation.
     softening
         The gravitational softening length (or, for AMR codes, the finest cell
-        size), a Quantity converted to Mpc/h.
+        size), a Quantity in h-units (stored in Mpc/h).
     transfer
         The transfer function used for the initial conditions.
     z_start
@@ -302,14 +301,16 @@ class SimulationDetails:
         Where the details come from (paper, section, table).
     """
 
-    box_size: Any = attrs.field(converter=_quantity_or_none)
+    box_size: u.Quantity = quantity_field(Mpc_h, ndim=1, doc="The comoving box sizes.")
     n_particles: PerSimulation = attrs.field(converter=_tuple_or_none)
     omega_m: PerSimulation | None = attrs.field(default=None, converter=_tuple_or_none)
     omega_b: PerSimulation | None = attrs.field(default=None, converter=_tuple_or_none)
     sigma_8: PerSimulation | None = attrs.field(default=None, converter=_tuple_or_none)
     h: PerSimulation | None = attrs.field(default=None, converter=_tuple_or_none)
     n_s: PerSimulation | None = attrs.field(default=None, converter=_tuple_or_none)
-    softening: Any = attrs.field(default=None, converter=_quantity_or_none)
+    softening: u.Quantity | None = quantity_field(
+        Mpc_h, ndim=1, optional=True, default=None, doc="The gravitational softening lengths."
+    )
     transfer: PerSimulation | None = attrs.field(default=None, converter=_tuple_or_none)
     z_start: PerSimulation | None = attrs.field(default=None, converter=_tuple_or_none)
     initial_conditions: PerSimulation | None = attrs.field(default=None, converter=_tuple_or_none)
@@ -725,10 +726,8 @@ class FittingFunction(Model, kind=True):
     def _fsigma(self, x: FitInputs) -> FloatArray:
         """Compute f(sigma) from inputs inside the valid domain."""
 
-    @unit_boundary(m=Msun_h, dndm=dndm_unit, ngtm=number_density_unit, returns=dndm_unit)
-    def modify_dndm(
-        self, m: Any, dndm: Any, *, z: npt.ArrayLike, ngtm: Any, h: npt.ArrayLike
-    ) -> Any:
+    @unit_boundary(returns=dndm_unit)
+    def modify_dndm(self, m: Any, dndm: Any, *, z: npt.ArrayLike, ngtm: Any, H0: Any) -> Any:
         """Modify the mass function computed from :meth:`fsigma` (a no-op by default).
 
         A fit that is not a pure function of sigma (e.g. :class:`Behroozi`) sets
@@ -740,22 +739,32 @@ class FittingFunction(Model, kind=True):
         Parameters
         ----------
         m
-            Halo masses, a Quantity.
+            Halo masses, a Quantity: in h-units, or physical units (converted with
+            ``H0``).
         dndm
             The mass function from :meth:`fsigma`, a Quantity (number density per mass).
         z
             Redshift.
         ngtm
             The cumulative mass function n(>m) from :meth:`fsigma`, a Quantity.
-        h
-            The dimensionless Hubble parameter.
+        H0
+            The Hubble constant, a scalar Quantity (e.g. ``70 * H0_unit``). It converts
+            physical units, and gives h to fits whose formula is in physical units.
 
         Returns
         -------
         Quantity
             The modified mass function, in :data:`~hmf.core.units.dndm_unit`.
         """
-        return self._modify_dndm(m, dndm, z=z, ngtm=ngtm, h=h)
+        where = f"{type(self).__name__}.modify_dndm()"
+        context, h = _hubble(H0, where)
+        return self._modify_dndm(
+            to_canonical(m, Msun_h, context=context, where=where, name="m"),
+            to_canonical(dndm, dndm_unit, context=context, where=where, name="dndm"),
+            z=z,
+            ngtm=to_canonical(ngtm, number_density_unit, context=context, where=where, name="ngtm"),
+            h=h,
+        )
 
     def _modify_dndm(
         self,
@@ -771,6 +780,21 @@ class FittingFunction(Model, kind=True):
         ``m`` in Msun/h, ``dndm`` in h^4 / (Msun Mpc^3) and ``ngtm`` in h^3 / Mpc^3.
         """
         return np.asarray(dndm, dtype=np.float64)
+
+
+def _hubble(H0: Any, where: str) -> tuple[UnitContext, float]:
+    """The units context of a fit method's ``H0`` argument, and h = H0 / (100 km/s/Mpc).
+
+    Fits have no cosmology, so a method that needs h, or physical units converted,
+    takes the H0 as an argument and builds its context per call.
+    """
+    if H0 is None:
+        raise UnitBoundaryError(
+            f"{where}: H0 must be a Quantity in km/s/Mpc, e.g. 70 * hmf.core.units.H0_unit, "
+            "not None."
+        )
+    context = UnitContext(H0, where=where)
+    return context, float(H0.to_value(H0_unit)) / 100
 
 
 def _describe(domain: Domain) -> str:
@@ -878,9 +902,15 @@ def evaluate_fsigma(
     return FSigmaResult(np.asarray(out, dtype=np.float64), np.array(inside, dtype=bool))
 
 
-def _p(default: Any, doc: str, **kwargs: Any) -> Any:
-    """A fit parameter: a float field with documentation."""
-    return field(default=default, doc=doc, **kwargs)
+def _p(default: float | None, doc: str, **kwargs: Any) -> Any:
+    """A fit parameter: a float field with documentation.
+
+    The value is converted to a float (so ``SMT(a=1)`` and ``SMT(a=1.0)`` are the same
+    model, with the same content hash). A parameter whose default is ``None`` may also
+    be ``None``.
+    """
+    converter = attrs.converters.optional(float) if default is None else float
+    return field(default=default, doc=doc, converter=converter, **kwargs)
 
 
 def _check_physical(name: str, **params: FloatArray) -> None:
@@ -1042,7 +1072,7 @@ class Reed03(SMT, alias="Reed03"):
         n_particles=432**3,
         omega_m=0.3,
         sigma_8=1.0,
-        softening=5.0 * _KPC_H,
+        softening=5.0 * kpc_h,
         transfer="BBKS",
         z_start=(69, 139),
         initial_conditions="ZA",
@@ -1096,7 +1126,7 @@ class Courtin(SMT, alias="Courtin"):
         sigma_8=0.79,
         h=0.72,
         n_s=0.963,
-        softening=[2.47, 19.78, 39.55] * _KPC_H,
+        softening=[2.47, 19.78, 39.55] * kpc_h,
         z_start=(93, 56, 41),
         initial_conditions="ZA",
         n_min=350,
@@ -1143,7 +1173,7 @@ class Manera(SMT, alias="Manera"):
         sigma_8=0.9,
         h=0.72,
         n_s=1.0,
-        softening=20.0 * _KPC_H,
+        softening=20.0 * kpc_h,
         transfer="CMBFAST",
         z_start=50,
         initial_conditions="2LPT",
@@ -1190,7 +1220,7 @@ class Jenkins(FittingFunction, alias="Jenkins"):
         sigma_8=(0.6, 0.9, 0.9, 0.9),
         h=(None, 0.7, 0.7, 0.7),
         n_s=1.0,
-        softening=[30.0, 25.0, 30.0, 100.0] * _KPC_H,
+        softening=[30.0, 25.0, 30.0, 100.0] * kpc_h,
         transfer=("BondEfs", "BondEfs", "CMBFAST", "CMBFAST"),
         n_min=20,
         z_range=(0.0, 5.0),
@@ -1324,8 +1354,7 @@ class Reed07(FittingFunction, alias="Reed07"):
         sigma_8=0.9,
         h=(0.73,) * 12 + (0.7,),
         n_s=1.0,
-        softening=[0.125, 0.125, 0.125, 0.25, 0.625, 0.58, 0.58, 2.5, 2.4, 2.4, 5, 20, 100]
-        * _KPC_H,
+        softening=[0.125, 0.125, 0.125, 0.25, 0.625, 0.58, 0.58, 2.5, 2.4, 2.4, 5, 20, 100] * kpc_h,
         transfer=("CMBFAST",) * 9 + ("Millennium", "CMBFAST", "Millennium", "BondEfs"),
         z_start=(299, 299, 299, 299, 299, 249, 249, 249, 299, 149, 127, 63, 35),
         initial_conditions="ZA",
@@ -1418,7 +1447,7 @@ class Angulo(FittingFunction, alias="Angulo"):
         omega_b=0.045,
         sigma_8=0.9,
         h=0.73,
-        softening=10.0 * _KPC_H,
+        softening=10.0 * kpc_h,
         z_start=63,
         initial_conditions="2LPT",
         n_min=20,
@@ -1495,7 +1524,7 @@ class Watson_FoF(Warren, alias="Watson_FoF"):
         sigma_8=(0.8, 0.8, 0.8, 0.8, 0.817, 0.817, 0.8),
         h=(0.7, 0.7, 0.7, 0.7, 0.701, 0.701, 0.7),
         n_s=0.96,
-        softening=[0.18, 0.18, 1.86, 3.87, 14.47, 40.0, 50.0] * _KPC_H,
+        softening=[0.18, 0.18, 1.86, 3.87, 14.47, 40.0, 50.0] * kpc_h,
         transfer="CAMB",
         z_start=(300, 300, 300, 300, 150, 120, 100),
         initial_conditions="ZA",
@@ -1602,6 +1631,7 @@ class Watson(FittingFunction, alias="Watson"):
     beta_c: float = _p(2.349, "beta(z), as for A(z).")
     gamma_z: float = _p(1.318, "gamma of the redshift-dependent fit.")
 
+    @unit_boundary(returns=(None, None, None, None))
     def parameters(
         self, z: npt.ArrayLike, omega_m_z: npt.ArrayLike
     ) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray]:
@@ -1619,6 +1649,12 @@ class Watson(FittingFunction, alias="Watson"):
         tuple of numpy.ndarray
             :math:`A, \alpha, \beta, \gamma`, broadcast over the inputs.
         """
+        return self._parameters(z, omega_m_z)
+
+    def _parameters(
+        self, z: npt.ArrayLike, omega_m_z: npt.ArrayLike
+    ) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray]:
+        """:meth:`parameters`, for library code (no units boundary)."""
         z = np.asarray(z, dtype=np.float64)
         om = np.asarray(omega_m_z, dtype=np.float64)
         zp1 = 1.0 + z
@@ -1637,7 +1673,7 @@ class Watson(FittingFunction, alias="Watson"):
         return out[0], out[1], out[2], out[3]
 
     def _fsigma(self, x: FitInputs) -> FloatArray:
-        A, alpha, beta, gamma = self.parameters(x.z, x.omega_m_z)
+        A, alpha, beta, gamma = self._parameters(x.z, x.omega_m_z)
         gamma_correction = _k.watson_gamma(
             x.sigma, x.delta_halo, x.omega_m_z, self.C_a, self.d_a, self.d_b, self.p, self.q
         )
@@ -1679,7 +1715,7 @@ class Crocce(FittingFunction, alias="Crocce"):
         sigma_8=0.8,
         h=0.7,
         n_s=0.95,
-        softening=[50, 50, 100, 50, 50, 50] * _KPC_H,
+        softening=[50, 50, 100, 50, 50, 50] * kpc_h,
         transfer="CAMB",
         z_start=(150, 50, 50, 50, 50, 50),
         initial_conditions=("ZA", "ZA", "2LPT", "2LPT", "2LPT", "2LPT"),
@@ -1752,7 +1788,7 @@ class Bhattacharya(FittingFunction, alias="Bhattacharya"):
         sigma_8=0.8,
         h=0.72,
         n_s=0.97,
-        softening=[24 * 0.72, 51 * 0.72, 97 * 0.72, 14 * 0.72, 50 * 0.72] * _KPC_H,
+        softening=[24 * 0.72, 51 * 0.72, 97 * 0.72, 14 * 0.72, 50 * 0.72] * kpc_h,
         transfer="CAMB",
         z_start=(75, 100, 100, 211, 211),
         initial_conditions=("2LPT", "2LPT", "2LPT", "ZA", "ZA"),
@@ -1771,7 +1807,11 @@ class Bhattacharya(FittingFunction, alias="Bhattacharya"):
     a_b: float = _p(0.01, "a(z) = a_a (1+z)^-a_b.")
     p: float = _p(0.807, "The low-mass slope parameter p.")
     q: float = _p(1.795, "The exponent q (q = 1 gives Sheth-Tormen).", validator=positive)
-    normed: bool = _p(False, "Whether to normalise A so that all mass is in haloes.")
+    normed: bool = field(
+        default=False,
+        validator=attrs.validators.instance_of(bool),
+        doc="Whether to normalise A so that all mass is in haloes.",
+    )
 
     def __attrs_post_init__(self) -> None:
         """Check that the fit can be normalised: 2p < q."""
@@ -1880,7 +1920,7 @@ class Tinker08(FittingFunction, alias="Tinker08"):
         h=(0.7,) * 11 + (0.73, 0.73, 0.73, 0.71, 0.7, 0.7, 0.73),
         n_s=(1.0,) * 10 + (0.95, 0.95, 0.95, 0.95, 0.94, 1.0, 0.95, 0.95),
         softening=[25, 14, 10, 4.9, 1.4, 120, 15, 7.6, 1.8, 1.2, 30, 15, 15, 15, 14, 14, 0.9, 1.2]
-        * _KPC_H,
+        * kpc_h,
         z_start=(40, 48, 51, 54, 65, 49, 40, 49, 49, 49, 60, 40, 40, 40, 35, 42, 100, 49),
         initial_conditions=("ZA",) * 5 + ("2LPT",) + ("ZA",) * 12,
         halo_finder="SO (own, about density peaks)",
@@ -1959,6 +1999,7 @@ class Tinker08(FittingFunction, alias="Tinker08"):
     def _table(self, name: str) -> FloatArray:
         return np.array([getattr(self, f"{name}_{d}") for d in self.delta_tab], dtype=np.float64)
 
+    @unit_boundary(returns=(None, None, None, None))
     def parameters(
         self, delta_halo: npt.ArrayLike, z: npt.ArrayLike
     ) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray]:
@@ -1982,6 +2023,12 @@ class Tinker08(FittingFunction, alias="Tinker08"):
             If any parameter is not finite and > 0 (the spline extrapolates them far
             outside the tabulated overdensities).
         """
+        return self._parameters(delta_halo, z)
+
+    def _parameters(
+        self, delta_halo: npt.ArrayLike, z: npt.ArrayLike
+    ) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray]:
+        """:meth:`parameters`, for library code (no units boundary)."""
         delta = np.asarray(delta_halo, dtype=np.float64)
         zp1 = 1.0 + np.asarray(z, dtype=np.float64)
         A0, a0, b0, c0 = (
@@ -1995,7 +2042,7 @@ class Tinker08(FittingFunction, alias="Tinker08"):
         return A, a, b, c
 
     def _fsigma(self, x: FitInputs) -> FloatArray:
-        A, a, b, c = self.parameters(x.delta_halo, x.z)
+        A, a, b, c = self._parameters(x.delta_halo, x.z)
         return _k.tinker08(x.sigma, A, a, b, c)
 
 
@@ -2042,7 +2089,7 @@ class Behroozi(Tinker08, alias="Behroozi"):
         sigma_8=0.8,
         h=0.7,
         n_s=1.0,
-        softening=8.0 * _KPC_H,
+        softening=8.0 * kpc_h,
         initial_conditions="2LPT",
         halo_finder="ROCKSTAR",
         z_range=(0.0, 9.0),
@@ -2205,6 +2252,7 @@ class Tinker10(FittingFunction, alias="Tinker10"):
     def _table(self, name: str) -> FloatArray:
         return np.array([getattr(self, f"{name}_{d}") for d in self.delta_tab], dtype=np.float64)
 
+    @unit_boundary(returns=(None, None, None, None, None))
     def parameters(
         self, delta_halo: npt.ArrayLike, z: npt.ArrayLike
     ) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray, FloatArray]:
@@ -2227,6 +2275,12 @@ class Tinker10(FittingFunction, alias="Tinker10"):
         DomainError
             If the parameters can not be normalised.
         """
+        return self._parameters(delta_halo, z)
+
+    def _parameters(
+        self, delta_halo: npt.ArrayLike, z: npt.ArrayLike
+    ) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray, FloatArray]:
+        """:meth:`parameters`, for library code (no units boundary)."""
         delta = np.asarray(delta_halo, dtype=np.float64)
         z = np.asarray(z, dtype=np.float64)
         zp1 = 1.0 + np.minimum(z, self.max_z)
@@ -2252,7 +2306,7 @@ class Tinker10(FittingFunction, alias="Tinker10"):
         return alpha, beta, gamma, phi, eta
 
     def _fsigma(self, x: FitInputs) -> FloatArray:
-        return _k.tinker10(x.nu, *self.parameters(x.delta_halo, x.z))
+        return _k.tinker10(x.nu, *self._parameters(x.delta_halo, x.z))
 
 
 # ---------------------------------------------------------------------------------
@@ -2287,7 +2341,7 @@ class Pillepich(Warren, alias="Pillepich"):
         sigma_8=(0.817, 0.76, 0.817),
         h=(0.701, 0.73, 0.701),
         n_s=(0.96, 0.95, 0.96),
-        softening=[20, 20, 3] * _KPC_H,
+        softening=[20, 20, 3] * kpc_h,
         transfer="LINGER",
         z_start=(50, 50, 70),
         initial_conditions="ZA",
@@ -2335,7 +2389,7 @@ class Ishiyama(Warren, alias="Ishiyama"):
         sigma_8=0.83,
         h=0.68,
         n_s=0.96,
-        softening=[4.27, 4.27, 4.27, 2.14, 1.07] * _KPC_H,
+        softening=[4.27, 4.27, 4.27, 2.14, 1.07] * kpc_h,
         transfer="CAMB",
         z_start=127,
         initial_conditions="2LPT",
@@ -2392,7 +2446,7 @@ class Bocquet200mDMOnly(FittingFunction, alias="Bocquet200mDMOnly"):
         sigma_8=0.809,
         h=0.704,
         n_s=0.963,
-        softening=[1.4 * 0.704, 3.75 * 0.704, 10 * 0.704] * _KPC_H,
+        softening=[1.4 * 0.704, 3.75 * 0.704, 10 * 0.704] * kpc_h,
         z_start=60,
         initial_conditions="ZA",
         halo_finder="SUBFIND",
@@ -2415,8 +2469,15 @@ class Bocquet200mDMOnly(FittingFunction, alias="Bocquet200mDMOnly"):
     d_z: float = _p(-0.021, "The redshift exponent of d.")
     e_z: float = _p(-0.194, "The redshift exponent of e.")
 
+    @unit_boundary(returns=(None, None, None, None))
     def parameters(self, z: npt.ArrayLike) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray]:
         """The parameters (A, b, d, e) at redshift ``z``."""
+        return self._parameters(z)
+
+    def _parameters(
+        self, z: npt.ArrayLike
+    ) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray]:
+        """:meth:`parameters`, for library code (no units boundary)."""
         zp1 = 1.0 + np.asarray(z, dtype=np.float64)
         return (
             self.A * zp1**self.A_z,
@@ -2425,9 +2486,9 @@ class Bocquet200mDMOnly(FittingFunction, alias="Bocquet200mDMOnly"):
             self.e * zp1**self.e_z,
         )
 
-    @unit_boundary(m=Msun_h)
+    @unit_boundary()
     def mass_ratio_to_200m(
-        self, m: Any, *, z: npt.ArrayLike, omega_m0: npt.ArrayLike, h: npt.ArrayLike
+        self, m: Any, *, z: npt.ArrayLike, omega_m0: npt.ArrayLike, H0: Any
     ) -> FloatArray:
         r"""The ratio :math:`M_\Delta/M_{200m}` of the fit's mass to M200m.
 
@@ -2442,19 +2503,24 @@ class Bocquet200mDMOnly(FittingFunction, alias="Bocquet200mDMOnly"):
         Parameters
         ----------
         m
-            Halo mass in the fit's definition, a Quantity.
+            Halo mass in the fit's definition, a Quantity: in h-units, or physical
+            units (converted with ``H0``).
         z
             Redshift.
         omega_m0
             The matter density parameter today.
-        h
-            The dimensionless Hubble parameter (the fits take ln(M / Msun)).
+        H0
+            The Hubble constant, a scalar Quantity (e.g. ``70 * H0_unit``). It converts
+            physical masses, and gives h to the fits, which take ln(M / Msun).
 
         Returns
         -------
-        numpy.ndarray
-            The (dimensionless) ratio.
+        numpy.float64 or numpy.ndarray
+            The (dimensionless) ratio, broadcast over ``m`` and ``z``.
         """
+        where = f"{type(self).__name__}.mass_ratio_to_200m()"
+        context, h = _hubble(H0, where)
+        m = to_canonical(m, Msun_h, context=context, where=where, name="m")
         return self._mass_ratio_to_200m(m, z=z, omega_m0=omega_m0, h=h)
 
     def _mass_ratio_to_200m(
@@ -2464,7 +2530,7 @@ class Bocquet200mDMOnly(FittingFunction, alias="Bocquet200mDMOnly"):
         return np.ones(np.broadcast(np.asarray(m), np.asarray(z)).shape)
 
     def _fsigma(self, x: FitInputs) -> FloatArray:
-        A, b, d, e = self.parameters(x.z)
+        A, b, d, e = self._parameters(x.z)
         return _k.warren(x.sigma, A=A, b=b, c=1.0, d=d, e=e)
 
 
@@ -2485,7 +2551,7 @@ class Bocquet200mHydro(Bocquet200mDMOnly, alias="Bocquet200mHydro"):
         sigma_8=0.809,
         h=0.704,
         n_s=0.963,
-        softening=[1.4 * 0.704, 3.75 * 0.704, 10 * 0.704, 10 * 0.704] * _KPC_H,
+        softening=[1.4 * 0.704, 3.75 * 0.704, 10 * 0.704, 10 * 0.704] * kpc_h,
         z_start=60,
         initial_conditions="ZA",
         halo_finder="SUBFIND",
@@ -2674,10 +2740,12 @@ _YUNG24_TABLES: Mapping[str, Mapping[str, float]] = MappingProxyType(
 
 
 def _yung24_default(name: str) -> Any:
-    """The default of a Yung24 coefficient: from the table chosen by ``units``."""
-    # An invalid `units` falls back to "h" here, and is then rejected by its validator.
+    """The default of a Yung24 coefficient: from the table chosen by ``mass_units``."""
+    # An invalid `mass_units` falls back to "h" here, and is then rejected by its
+    # validator.
     return attrs.Factory(
-        lambda self: _YUNG24_TABLES.get(self.units, _YUNG24_TABLES["h"])[name], takes_self=True
+        lambda self: _YUNG24_TABLES.get(self.mass_units, _YUNG24_TABLES["h"])[name],
+        takes_self=True,
     )
 
 
@@ -2685,7 +2753,8 @@ def _yung24_coefficient(name: str) -> Any:
     chi, power = name.split("_")
     return field(
         default=_yung24_default(name),
-        doc=f"The z^{power} coefficient of {chi}(z) (default: from the table for `units`).",
+        converter=float,
+        doc=f"The z^{power} coefficient of {chi}(z) (default: from the table for `mass_units`).",
     )
 
 
@@ -2697,15 +2766,16 @@ class Yung24(FittingFunction, alias="Yung24"):
         \exp\left(-\frac{c(z)}{\sigma^2}\right),
 
     with :math:`\chi(z) = \chi_0 + \chi_1 z + \chi_2 z^2` for
-    :math:`\chi \in \{A, a, b, c\}` (eq. A2). ``units="h"`` takes the coefficients of
-    Table A1 (masses in Msun/h, hmf's convention), ``units="physical"`` those of
-    Table A2 (masses in Msun); coefficients given explicitly override the table.
+    :math:`\chi \in \{A, a, b, c\}` (eq. A2). ``mass_units="h"`` takes the coefficients
+    of Table A1 (masses in Msun/h, hmf's convention), ``mass_units="physical"`` those
+    of Table A2 (masses in Msun); coefficients given explicitly override the table.
     The paper's quadratics are fitted for z = 6-19 only, and are not used outside it.
     """
 
     references: ClassVar[tuple[str, ...]] = (refs.YUNG24,)
     parameter_source: ClassVar[str] = (
-        "Yung et al. 2024 (arXiv v3), App. A: Table A1 (units='h') and Table A2 (units='physical')."
+        "Yung et al. 2024 (arXiv v3), App. A: Table A1 (mass_units='h') and Table A2 "
+        "(mass_units='physical')."
     )
     requires: ClassVar[frozenset[str]] = frozenset({"z"})
     valid_domain: ClassVar[Domain] = Domain(
@@ -2719,8 +2789,8 @@ class Yung24(FittingFunction, alias="Yung24"):
         {"m": [1e6, 1e13] * Msun_h, "z": (6, 19)},
         source=(
             "Yung et al. 2024, App. A: 'fitted to gureft+MultiDark HMFs between z = 6 "
-            "to 19', over 6 < log10(M_vir / (Msun/h)) < 13 (for units='h'; for "
-            "units='physical' Fig. A1 shows 10^6-10^13 Msun, i.e. ~10^5.83-10^12.83 "
+            "to 19', over 6 < log10(M_vir / (Msun/h)) < 13 (for mass_units='h'; for "
+            "mass_units='physical' Fig. A1 shows 10^6-10^13 Msun, i.e. ~10^5.83-10^12.83 "
             "Msun/h for their h = 0.678, which this domain does not adjust for). "
             "Planck cosmology (Omega_m = 0.307, sigma_8 = 0.829; Sec. 2)."
         ),
@@ -2748,10 +2818,13 @@ class Yung24(FittingFunction, alias="Yung24"):
         source="Yung et al. 2024 (arXiv v3), Secs. 2-3, Table 1 and Fig. 3.",
     )
 
-    units: Literal["h", "physical"] = field(
+    mass_units: Literal["h", "physical"] = field(
         default="h",
         validator=attrs.validators.in_(("h", "physical")),
-        doc="Which table of coefficients to use: 'h' (Table A1) or 'physical' (Table A2).",
+        doc=(
+            "The mass units the table of coefficients was fitted in: 'h' (Msun/h, "
+            "Table A1) or 'physical' (Msun, Table A2)."
+        ),
     )
     A_0: float = _yung24_coefficient("A_0")
     A_1: float = _yung24_coefficient("A_1")
@@ -2766,8 +2839,15 @@ class Yung24(FittingFunction, alias="Yung24"):
     c_1: float = _yung24_coefficient("c_1")
     c_2: float = _yung24_coefficient("c_2")
 
+    @unit_boundary(returns=(None, None, None, None))
     def parameters(self, z: npt.ArrayLike) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray]:
         """The parameters (A, a, b, c) at redshift ``z``."""
+        return self._parameters(z)
+
+    def _parameters(
+        self, z: npt.ArrayLike
+    ) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray]:
+        """:meth:`parameters`, for library code (no units boundary)."""
         z = np.asarray(z, dtype=np.float64)
         return (
             self.A_0 + self.A_1 * z + self.A_2 * z**2,
@@ -2777,5 +2857,5 @@ class Yung24(FittingFunction, alias="Yung24"):
         )
 
     def _fsigma(self, x: FitInputs) -> FloatArray:
-        A, a, b, c = self.parameters(x.z)
+        A, a, b, c = self._parameters(x.z)
         return _k.tinker08(x.sigma, A, a, b, c)

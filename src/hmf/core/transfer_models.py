@@ -49,12 +49,12 @@ from ._boltzmann import (
 from ._fields import field
 from ._kernels import transfer as kt
 from ._species import CAMB_COLUMNS, MATTER_SPECIES, Species, check_species
-from ._validators import positive
+from ._validators import check_finite_positive, positive
 from .accuracy import KAccuracy
 from .cache import DiskCache
 from .domain import Domain
 from .model import Model
-from .units import UnitBoundaryError, h_Mpc, littleh_power
+from .units import h_Mpc, quantity_field
 
 __all__ = [
     "BBKS",
@@ -115,34 +115,9 @@ def _all_species(fn: Callable[[Array], Array]) -> Mapping[str, Callable[[Array],
     return MappingProxyType(dict.fromkeys(MATTER_SPECIES, fn))
 
 
-def _wavenumber(value: Any) -> float:
-    """Convert a wavenumber field (a Quantity) to a float in h/Mpc."""
-    if not isinstance(value, u.Quantity):
-        raise UnitBoundaryError(
-            f"A wavenumber must be a Quantity in h-units, e.g. 20 * hmf.core.units.h_Mpc, "
-            f"not a bare {type(value).__name__}."
-        )
-    if littleh_power(value.unit) != 1:
-        raise u.UnitConversionError(
-            f"A model has no cosmology to convert {value.unit} to h/Mpc with: give the "
-            "wavenumber in h-units, e.g. 20 * hmf.core.units.h_Mpc."
-        )
-    return float(value.to_value(h_Mpc))
-
-
-def _wavenumbers(value: Any) -> tuple[float, ...]:
-    """Convert an array of wavenumbers (a Quantity) to a tuple of floats in h/Mpc."""
-    if not isinstance(value, u.Quantity):
-        raise UnitBoundaryError(
-            "Wavenumbers must be a Quantity in h-units, e.g. k * hmf.core.units.h_Mpc, "
-            f"not a bare {type(value).__name__}."
-        )
-    if littleh_power(value.unit) != 1:
-        raise u.UnitConversionError(
-            f"A model has no cosmology to convert {value.unit} to h/Mpc with: give the "
-            "wavenumbers in h-units, e.g. k * hmf.core.units.h_Mpc."
-        )
-    return tuple(float(x) for x in np.atleast_1d(value.to_value(h_Mpc)))
+def _positive_quantity(instance: Any, attribute: attrs.Attribute[Any], value: u.Quantity) -> None:
+    """Validate that a scalar Quantity field is finite and > 0 (in its stored unit)."""
+    check_finite_positive(attribute.name, value.value, where=type(instance).__name__)
 
 
 def _pairs(
@@ -427,9 +402,13 @@ class FromArray(_Tabulated, alias="FromArray"):
     that of total matter (else the same as ``t``). Neither needs to be normalised.
     """
 
-    k: tuple[float, ...] = field(
-        converter=_wavenumbers,
-        doc="Wavenumbers, a Quantity in h-units (e.g. k * hmf.core.units.h_Mpc), increasing.",
+    k: u.Quantity = quantity_field(
+        h_Mpc,
+        ndim=1,
+        doc=(
+            "Wavenumbers, increasing: a Quantity in h-units (e.g. k * hmf.core.units.h_Mpc), "
+            "stored in h/Mpc."
+        ),
     )
     t: tuple[float, ...] = field(
         converter=dimensionless_floats, doc="The CDM + baryon transfer function at k."
@@ -439,6 +418,11 @@ class FromArray(_Tabulated, alias="FromArray"):
         converter=attrs.converters.optional(dimensionless_floats),
         doc="The total-matter transfer function at k; None means the same as t.",
     )
+
+    @functools.cached_property
+    def _k(self) -> Array:
+        """The wavenumbers, as plain floats in h/Mpc."""
+        return np.asarray(self.k.value)
 
     @t.validator
     def _check_t(
@@ -463,7 +447,7 @@ class FromArray(_Tabulated, alias="FromArray"):
     ) -> tuple[Array, Mapping[str, Array], BoltzmannRun | None]:
         t = np.array(self.t)
         return (
-            np.array(self.k),
+            np.array(self._k),
             {"cb": t, "tot": t if self.t_tot is None else np.array(self.t_tot)},
             None,
         )
@@ -502,10 +486,11 @@ class FromFile(_Tabulated, alias="FromFile"):
 class _Boltzmann(_Tabulated, abstract=True):
     """A transfer model computed by a Boltzmann code."""
 
-    k_max: float = field(
+    k_max: u.Quantity = quantity_field(
+        h_Mpc,
         default=20.0 * h_Mpc,
-        converter=_wavenumber,
-        validator=positive,
+        ndim=0,
+        validator=_positive_quantity,
         doc=(
             "The largest wavenumber the code computes, a Quantity in h-units (stored in "
             "h/Mpc). Above it (strictly: above the code's last output node) T(k) is "
@@ -521,6 +506,11 @@ class _Boltzmann(_Tabulated, abstract=True):
             "a growth stage that shares the run."
         ),
     )
+
+    @functools.cached_property
+    def _k_max(self) -> float:
+        """``k_max`` as a plain float in h/Mpc."""
+        return float(self.k_max.value)
 
     @abc.abstractmethod
     def run_input(self, cosmology: FLRW, accuracy: KAccuracy) -> dict[str, Any]:
@@ -613,7 +603,7 @@ class CAMB(_Boltzmann, alias="CAMB"):
             "cosmology": camb_cosmology_input(cosmology),
             "dark_energy_model": self.dark_energy_model,
             "transfer": {
-                "kmax_mpc": self.k_max * float(cosmology.h),
+                "kmax_mpc": self._k_max * float(cosmology.h),
                 "k_per_logint": _camb_k_per_logint(accuracy),
                 "high_precision": accuracy.dln_k < KAccuracy().dln_k,
             },
@@ -692,7 +682,7 @@ class CLASS(_Boltzmann, alias="CLASS"):
         params.update(
             {
                 "output": "mTk,mPk",
-                "P_k_max_h/Mpc": self.k_max,
+                "P_k_max_h/Mpc": self._k_max,
                 "z_max_pk": self.z_max_growth,
                 "gauge": "synchronous",
             }

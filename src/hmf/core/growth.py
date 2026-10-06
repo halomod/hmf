@@ -4,7 +4,8 @@ The stage holds a cosmology and a growth model, and optionally the
 :class:`~hmf.core.transfer.Transfer` stage it goes with. It gives, for each matter
 species, the growth factor D(z) (normalised to D(0) = 1) and the growth rate
 :math:`f = d\ln D/d\ln a`. Redshifts are dimensionless and broadcast like numpy:
-a scalar gives a float, an array an array of the same shape.
+a scalar gives a scalar (a :class:`numpy.float64`), an array an array of the same
+shape.
 
 If the growth model is backed by the same Boltzmann code as the transfer stage's
 model (:class:`~hmf.core.growth_models.CambGrowth` with
@@ -33,6 +34,7 @@ from .domain import DomainError
 from .growth_models import GrowthModel, GrowthSolution, ODEGrowth
 from .stage import Stage
 from .transfer import Transfer
+from .units import unit_boundary
 
 __all__ = ["Growth"]
 
@@ -56,7 +58,7 @@ class Growth(Stage):
     --------
     >>> from hmf.core.growth import Growth
     >>> g = Growth()
-    >>> g.growth_factor(0.0)
+    >>> float(g.growth_factor(0.0))
     1.0
     """
 
@@ -150,6 +152,7 @@ class Growth(Stage):
             error=DomainError,
         )
 
+    @unit_boundary()
     def growth_factor(self, z: Any, species: str = "cb") -> Any:
         """The growth factor D(z), normalised to D(0) = 1.
 
@@ -162,13 +165,13 @@ class Growth(Stage):
 
         Returns
         -------
-        float or numpy.ndarray
-            With the shape of ``z``.
+        numpy.float64 or numpy.ndarray
+            With the shape of ``z`` (a scalar for a scalar ``z``).
         """
         z_arr = self._redshifts(z)
-        out = self.solution.growth_factor(z_arr, species)
-        return float(out) if out.ndim == 0 else out
+        return self.solution.growth_factor(z_arr, species)
 
+    @unit_boundary()
     def growth_rate(self, z: Any, species: str = "cb") -> Any:
         r"""The growth rate :math:`f = d\ln D/d\ln a`.
 
@@ -181,9 +184,8 @@ class Growth(Stage):
 
         Returns
         -------
-        float or numpy.ndarray
-            With the shape of ``z``.
+        numpy.float64 or numpy.ndarray
+            With the shape of ``z`` (a scalar for a scalar ``z``).
         """
         z_arr = self._redshifts(z)
-        out = self.solution.growth_rate(z_arr, species)
-        return float(out) if out.ndim == 0 else out
+        return self.solution.growth_rate(z_arr, species)

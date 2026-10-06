@@ -7,6 +7,7 @@ Physical references: the k -> 0 limit, an independent implementation of EH98
 
 import pickle
 
+import astropy.cosmology.units as cu
 import astropy.units as u
 import numpy as np
 import pytest
@@ -263,9 +264,27 @@ def test_fromarray_needs_wavenumber_quantities():
 
 
 def test_camb_k_max_is_a_quantity():
-    assert tm.CAMB(k_max=10 * h_Mpc).k_max == 10.0
-    with pytest.raises(UnitBoundaryError):
+    k_max = tm.CAMB(k_max=10 * h_Mpc).k_max
+    assert k_max.unit is h_Mpc
+    assert k_max.shape == ()
+    assert k_max.value == 10.0
+    assert tm.CAMB().k_max == 20.0 * h_Mpc
+    # Stored in the canonical unit, and compared by value in it.
+    camb = tm.CAMB(k_max=0.01 * cu.littleh / u.kpc)
+    assert camb.k_max.unit is h_Mpc
+    np.testing.assert_allclose(camb.k_max.value, 10.0, rtol=1e-15)
+    with pytest.raises(
+        UnitBoundaryError, match=r"CAMB: argument 'k_max'.*k_max \* hmf.core.units.h_Mpc"
+    ):
         tm.CAMB(k_max=10)
+    with pytest.raises(UnitBoundaryError, match="CLASS: argument 'k_max'"):
+        tm.CLASS(k_max=10)
+    with pytest.raises(u.UnitConversionError, match=r"CAMB: argument 'k_max'.*no H0"):
+        tm.CAMB(k_max=10 / u.Mpc)
+    with pytest.raises(ValueError, match="must be a scalar"):
+        tm.CAMB(k_max=[10, 20] * h_Mpc)
+    with pytest.raises(ValueError, match="k_max must be finite and > 0"):
+        tm.CAMB(k_max=0 * h_Mpc)
 
 
 def test_class_params_cannot_set_the_cosmology():
