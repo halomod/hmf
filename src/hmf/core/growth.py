@@ -20,7 +20,6 @@ from functools import cached_property
 from typing import Any
 
 import attrs
-import numpy as np
 from astropy.cosmology import FLRW, Planck18
 
 # For the fully qualified annotations below.
@@ -28,6 +27,7 @@ import hmf.core.transfer
 
 from ._fields import field
 from ._serialise import cosmology_key
+from ._validators import check_in_range
 from .cache import DiskCache, to_disk_cache
 from .domain import DomainError
 from .growth_models import GrowthModel, GrowthSolution, ODEGrowth
@@ -141,13 +141,14 @@ class Growth(Stage):
         return self.model.solve(self.cosmology, run=run, disk_cache=self.disk_cache)
 
     def _redshifts(self, z: Any) -> Any:
-        z_arr = np.asarray(z, dtype=float)
-        z_max = self.solution.z_max
-        if np.any(~((z_arr >= 0) & (z_arr <= z_max * (1 + 1e-12)))):
-            raise DomainError(
-                f"{type(self.model).__name__}: the growth is defined for 0 <= z <= {z_max:g}."
-            )
-        return z_arr
+        return check_in_range(
+            "z",
+            z,
+            where=type(self.model).__name__,
+            low=0.0,
+            high=self.solution.z_max * (1 + 1e-12),
+            error=DomainError,
+        )
 
     def growth_factor(self, z: Any, species: str = "cb") -> Any:
         """The growth factor D(z), normalised to D(0) = 1.

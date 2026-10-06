@@ -40,7 +40,7 @@ import numpy as np
 import numpy.typing as npt
 import platformdirs
 
-from ._fields import add_parameters_section, field
+from ._fields import Documented, field
 
 __all__ = ["CACHE_DIR_ENV", "DiskCache", "default_cache_dir"]
 
@@ -65,7 +65,7 @@ def default_cache_dir() -> Path:
 
 
 @attrs.frozen(kw_only=True)
-class DiskCache:
+class DiskCache(Documented):
     """Where, and whether, to keep Boltzmann-code output on disk.
 
     Pass one as the ``disk_cache`` of a :class:`~hmf.core.transfer.Transfer` or
@@ -130,9 +130,6 @@ class DiskCache:
                 Path(tmp).unlink()
             raise
         return path
-
-
-add_parameters_section(DiskCache)
 
 
 def to_disk_cache(value: DiskCache | bool | str | os.PathLike[str] | None) -> DiskCache | None:

@@ -75,7 +75,7 @@ from typing import Any, ClassVar, NamedTuple, Self
 
 import attrs
 
-from ._fields import FieldInfo, add_parameters_section, fields_info
+from ._fields import Documented
 
 __all__ = [
     "ENTRY_POINT_GROUP",
@@ -114,7 +114,7 @@ def qualified_name(cls: type) -> str:
 
 
 @attrs.frozen(kw_only=True)
-class Model(abc.ABC):
+class Model(Documented, abc.ABC):
     """Base class of every v4 model.
 
     Do not subclass it directly to write a model: subclass a model *kind* (a direct
@@ -198,7 +198,7 @@ class Model(abc.ABC):
                 k._check_alias(cls, options)
             for k in kinds:
                 k._register(cls, options)
-        add_parameters_section(cls)
+        super().__attrs_init_subclass__()
 
     @classmethod
     def _kinds(cls) -> list[type[Model]]:
@@ -233,17 +233,6 @@ class Model(abc.ABC):
     def qualified_name(cls) -> str:
         """Return this class's qualified name, ``package.module:Class``."""
         return qualified_name(cls)
-
-    @classmethod
-    def fields_info(cls) -> tuple[FieldInfo, ...]:
-        """Describe this model's parameters (its fields), without instantiating it.
-
-        Returns
-        -------
-        tuple of FieldInfo
-            The name, type, default and documentation of each parameter.
-        """
-        return fields_info(cls)
 
     @classmethod
     def _kind(cls) -> type[Model]:

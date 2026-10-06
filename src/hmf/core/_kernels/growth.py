@@ -17,6 +17,9 @@ from scipy.integrate import cumulative_simpson
 from scipy.interpolate import CubicSpline, PPoly
 from scipy.special import ellipeinc, ellipkinc
 
+from .arrays import read_only
+from .lattice import lattice, lattice_index
+
 __all__ = [
     "GrowthTable",
     "carroll92_growth",
@@ -35,8 +38,9 @@ Array = npt.NDArray[np.float64]
 def ln_a_grid(a_min: float, dln_a: float) -> Array:
     """A grid in ln a from ``ln(a_min)`` to 0 (included), with spacing ``dln_a``.
 
-    The nodes are on the lattice ``ln a = -i * dln_a``, counted down from a = 1, so
-    that grids with the same spacing share their nodes and a = 1 is always a node.
+    The nodes are on the lattice ``ln a = i * dln_a`` for integers ``i <= 0`` (see
+    :mod:`~hmf.core._kernels.lattice`), so that grids with the same spacing share their
+    nodes and a = 1 is always a node.
 
     Parameters
     ----------
@@ -50,10 +54,7 @@ def ln_a_grid(a_min: float, dln_a: float) -> Array:
     numpy.ndarray
         Increasing ln a, ending at exactly 0.
     """
-    n = int(np.ceil(-np.log(a_min) / dln_a - 1e-9))
-    out: Array = -dln_a * np.arange(n, -1, -1, dtype=float)
-    out[-1] = 0.0
-    return out
+    return lattice(lattice_index(float(np.log(a_min)), dln_a, up=False), 0, dln_a)
 
 
 def solve_growth_ode(
@@ -398,13 +399,10 @@ def tabulate_growth(ln_a: Array, d: Array, f: Array | None = None) -> GrowthTabl
     ln_d_spline = CubicSpline(ln_a, ln_d)
     f = ln_d_spline(ln_a, 1) if f is None else np.array(f, dtype=float)
     f_spline = CubicSpline(ln_a, f)
-    arrays = [ln_a, ln_d, f, np.asarray(ln_d_spline.c), np.asarray(f_spline.c)]
-    for arr in arrays:
-        arr.flags.writeable = False
     return GrowthTable(
-        ln_a=arrays[0],
-        ln_d=arrays[1],
-        f=arrays[2],
-        ln_d_coefficients=arrays[3],
-        f_coefficients=arrays[4],
+        ln_a=read_only(ln_a),
+        ln_d=read_only(ln_d),
+        f=read_only(f),
+        ln_d_coefficients=read_only(ln_d_spline.c),
+        f_coefficients=read_only(f_spline.c),
     )
