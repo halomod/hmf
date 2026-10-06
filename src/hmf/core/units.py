@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import functools
 import inspect
+import sys
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from types import MappingProxyType
@@ -440,6 +441,109 @@ def _boundary_specs(
     return specs
 
 
+def _convert(instance: Any, where: str, name: str, x: Any, unit: u.UnitBase) -> Any:
+    """An argument as a plain array in ``unit`` (the boundary's general path)."""
+    if isinstance(x, u.Quantity):
+        if x.unit is unit:
+            return x.view(np.ndarray)
+        context = getattr(instance, "_unit_context", _NO_H0_CONTEXT)
+        try:
+            factor = context.factor(x.unit, unit)
+        except u.UnitsError as e:
+            raise u.UnitConversionError(
+                f"{where}: argument {name!r} must be in units convertible to '{unit}': {e}"
+            ) from e
+        return x.view(np.ndarray) * factor
+    if x is None:
+        return None
+    raise UnitBoundaryError(_missing_unit_message(where, name, x, unit))
+
+
+def _finish(out: Any, returns: Any, where: str) -> Any:
+    """Attach the output unit(s) ``returns`` to a kernel output."""
+    if returns is None:
+        return out
+    if isinstance(returns, tuple):
+        return tuple(
+            o if r is None else _quantity_from_array(o, r, where)
+            for o, r in zip(out, returns, strict=True)
+        )
+    return _quantity_from_array(out, returns, where)
+
+
+def _wrap_one(
+    fn: Callable[..., Any],
+    where: str,
+    name: str,
+    position: int | None,
+    unit: u.UnitBase,
+    returns: Any,
+) -> Callable[..., Any]:
+    """The boundary wrapper of a method with one dimensional argument.
+
+    The common case, a plain Quantity in exactly the canonical unit and a plain
+    ndarray out, is inlined; anything else goes through :func:`_convert` and
+    :func:`_finish`.
+    """
+    # A keyword-only argument is never in args.
+    pos = sys.maxsize if position is None else position
+    single_return = isinstance(returns, u.UnitBase)
+
+    @functools.wraps(fn)
+    def wrapper(self: Any, /, *args: Any, **kwargs: Any) -> Any:
+        if len(args) > pos:
+            x = args[pos]
+            if type(x) is _Quantity and x._unit is unit:
+                x = _view(x, np.ndarray)
+            else:
+                x = _convert(self, where, name, x, unit)
+            args = (x, *args[1:]) if pos == 0 else (*args[:pos], x, *args[pos + 1 :])
+        elif name in kwargs:
+            x = kwargs[name]
+            if type(x) is _Quantity and x._unit is unit:
+                kwargs[name] = _view(x, np.ndarray)
+            else:
+                kwargs[name] = _convert(self, where, name, x, unit)
+        out = fn(self, *args, **kwargs)
+        if single_return and type(out) is np.ndarray:
+            q = _view(out, _Quantity)
+            q._unit = returns
+            return q
+        return _finish(out, returns, where)
+
+    return wrapper
+
+
+def _wrap_many(
+    fn: Callable[..., Any],
+    where: str,
+    specs: list[tuple[str, int | None, u.UnitBase]],
+    returns: Any,
+) -> Callable[..., Any]:
+    """The boundary wrapper of a method with any number of dimensional arguments."""
+    # The arguments that may be passed by position, as (name, position, unit).
+    positional = tuple((n, p, unit) for n, p, unit in specs if p is not None)
+
+    @functools.wraps(fn)
+    def wrapper(self: Any, /, *args: Any, **kwargs: Any) -> Any:
+        if args:
+            new_args = None
+            for name, position, unit in positional:
+                if position < len(args):
+                    if new_args is None:
+                        new_args = list(args)
+                    new_args[position] = _convert(self, where, name, args[position], unit)
+            if new_args is not None:
+                args = tuple(new_args)
+        if kwargs:
+            for name, _, unit in specs:
+                if name in kwargs:
+                    kwargs[name] = _convert(self, where, name, kwargs[name], unit)
+        return _finish(fn(self, *args, **kwargs), returns, where)
+
+    return wrapper
+
+
 def unit_boundary(
     *, returns: u.UnitBase | tuple[u.UnitBase | None, ...] | None = None, **inputs: u.UnitBase
 ) -> Callable[[Callable[Concatenate[S, P], R]], Callable[Concatenate[S, P], R]]:
@@ -500,68 +604,14 @@ def unit_boundary(
     def decorator(fn: Callable[Concatenate[S, P], R]) -> Callable[Concatenate[S, P], R]:
         where = f"{fn.__qualname__}()"
         specs = _boundary_specs(fn, inputs, where)
-        # The arguments that may be passed by position, as (name, position, unit).
-        positional = tuple((n, p, unit) for n, p, unit in specs if p is not None)
-
-        def convert(instance: Any, name: str, x: Any, unit: u.UnitBase) -> Any:
-            if isinstance(x, u.Quantity):
-                if x.unit is unit:
-                    return x.view(np.ndarray)
-                context = getattr(instance, "_unit_context", _NO_H0_CONTEXT)
-                try:
-                    factor = context.factor(x.unit, unit)
-                except u.UnitsError as e:
-                    raise u.UnitConversionError(
-                        f"{where}: argument {name!r} must be in units convertible to '{unit}': {e}"
-                    ) from e
-                return x.view(np.ndarray) * factor
-            if x is None:
-                return None
-            raise UnitBoundaryError(_missing_unit_message(where, name, x, unit))
-
-        # This wrapper is the boundary's fixed cost, budgeted at 2 µs per call and
-        # gated in benchmarks/test_gates.py, so the common case (a plain Quantity
-        # in exactly the canonical unit, and a plain ndarray out) is inlined; anything
-        # else goes through convert() and _quantity_from_array().
-        single_return = isinstance(returns, u.UnitBase)
-
-        @functools.wraps(fn)
-        def wrapper(self: S, /, *args: P.args, **kwargs: P.kwargs) -> R:
-            if args:
-                n_args = len(args)
-                for name, position, unit in positional:
-                    if position < n_args:
-                        x: Any = args[position]
-                        if type(x) is _Quantity and x._unit is unit:
-                            x = _view(x, np.ndarray)
-                        else:
-                            x = convert(self, name, x, unit)
-                        if position == 0:
-                            args = (x, *args[1:])  # type: ignore[assignment]
-                        else:
-                            args = (*args[:position], x, *args[position + 1 :])  # type: ignore[assignment]
-            if kwargs:
-                for name, _, unit in specs:
-                    if name in kwargs:
-                        x = kwargs[name]
-                        if type(x) is _Quantity and x._unit is unit:
-                            kwargs[name] = _view(x, np.ndarray)
-                        else:
-                            kwargs[name] = convert(self, name, x, unit)
-            out: Any = fn(self, *args, **kwargs)
-            if single_return:
-                if type(out) is np.ndarray:
-                    q = _view(out, _Quantity)
-                    q._unit = returns
-                    return q  # type: ignore[no-any-return]
-                return _quantity_from_array(out, returns, where)  # type: ignore[no-any-return]
-            if returns is None:
-                return out  # type: ignore[no-any-return]
-            return tuple(  # type: ignore[return-value]
-                o if r is None else _quantity_from_array(o, r, where)
-                for o, r in zip(out, returns, strict=True)
-            )
-
+        # The boundary's fixed cost is budgeted at 2 µs per call and gated in
+        # benchmarks/test_gates.py. The usual method has one dimensional argument, so
+        # that case gets a wrapper without loops.
+        if len(specs) == 1:
+            name, position, unit = specs[0]
+            wrapper = _wrap_one(fn, where, name, position, unit, returns)
+        else:
+            wrapper = _wrap_many(fn, where, specs, returns)
         wrapper.__unit_boundary__ = {"inputs": dict(inputs), "returns": returns}  # type: ignore[attr-defined]
         return wrapper
 
