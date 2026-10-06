@@ -21,6 +21,9 @@ as a field. The conventions every stage follows:
   base stage's ``_unit_context`` has no H0, so it accepts only h-units; a stage that
   can convert physical units (because it has a cosmology, or an H0) should override
   ``_unit_context`` to provide its H0.
+* **Cosmology**: a stage computed from a cosmology subclasses
+  :class:`CosmologyStage`, which holds the ``cosmology`` field and takes its units
+  context from the cosmology's H0.
 
 Routing flat parameter names through a tree of stages (issue #383) is not part of
 this base class yet.
@@ -33,11 +36,20 @@ from functools import cached_property
 from typing import Any, Self
 
 import attrs
+from astropy.cosmology import FLRW, Planck18
 
-from ._fields import Documented
+from ._fields import Documented, field
+from ._serialise import cosmology_key
+from .cache import to_disk_cache
 from .units import UnitContext
 
-__all__ = ["Stage"]
+__all__ = ["CosmologyStage", "Stage"]
+
+#: The documentation of the ``cosmology`` field of a :class:`CosmologyStage`.
+_COSMOLOGY_DOC = (
+    "The cosmology, an astropy FLRW. It is compared by its class and parameter values "
+    "(not its name or metadata)."
+)
 
 
 @attrs.frozen(kw_only=True)
@@ -108,3 +120,95 @@ class Stage(Documented):
         can convert physical units should override this to return ``UnitContext(H0)``.
         """
         return UnitContext(None)
+
+
+def _cosmology_field(*, also: str = "") -> Any:
+    """The ``cosmology`` field of a :class:`CosmologyStage`.
+
+    It defaults to Planck18, must be an astropy FLRW, and is compared and hashed by
+    :func:`~hmf.core._serialise.cosmology_key`. A subclass whose cosmology has a
+    further constraint redefines the field with this, stating the constraint in
+    ``also``.
+
+    Parameters
+    ----------
+    also
+        Further documentation, appended to the field's.
+
+    Returns
+    -------
+    Any
+        The field definition.
+    """
+    return field(
+        default=Planck18,
+        validator=attrs.validators.instance_of(FLRW),
+        eq=cosmology_key,
+        doc=f"{_COSMOLOGY_DOC} {also}" if also else _COSMOLOGY_DOC,
+    )
+
+
+def _disk_cache_field(*, doc: str) -> Any:
+    """A ``disk_cache`` field: where to cache Boltzmann-code output on disk.
+
+    It is converted by :func:`~hmf.core.cache.to_disk_cache` (a DiskCache, True for
+    the default directory, a directory, or None), defaults to None, and is not part of
+    the stage's value (``eq=False``), since it changes no result.
+
+    Parameters
+    ----------
+    doc
+        The field's documentation.
+
+    Returns
+    -------
+    Any
+        The field definition.
+    """
+    return field(default=None, converter=to_disk_cache, eq=False, doc=doc)
+
+
+def _check_model_cosmology(
+    instance: CosmologyStage, attribute: attrs.Attribute[Any], value: Any
+) -> None:
+    """Validate a model field: the model must apply to the stage's cosmology.
+
+    Use it as the ``validator`` of a field holding a model with a
+    ``check_cosmology(cosmology)`` method, which raises if it does not apply.
+    """
+    value.check_cosmology(instance.cosmology)
+
+
+@attrs.frozen(kw_only=True)
+class CosmologyStage(Stage):
+    """Base class of the stages computed from a cosmology.
+
+    It holds the ``cosmology`` field (an astropy FLRW, compared and hashed by its
+    class and parameter values, see :func:`~hmf.core._serialise.cosmology_key`), and
+    converts physical units with the cosmology's H0. Subclasses must be decorated with
+    ``@attrs.frozen(kw_only=True)``.
+    """
+
+    cosmology: FLRW = _cosmology_field()
+
+    @cached_property
+    def _unit_context(self) -> UnitContext:
+        """Units context with this stage's H0, to convert physical units to h-units."""
+        return UnitContext(self.cosmology.H0)
+
+    def same_cosmology(self, other: CosmologyStage) -> bool:
+        """Whether ``other`` has the same cosmology as this stage.
+
+        Cosmologies are compared by class and parameter values (see
+        :func:`~hmf.core._serialise.cosmology_key`), not by name or metadata.
+
+        Parameters
+        ----------
+        other
+            Another stage with a cosmology.
+
+        Returns
+        -------
+        bool
+        """
+        return cosmology_key(self.cosmology) == cosmology_key(other.cosmology)

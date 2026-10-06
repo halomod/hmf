@@ -43,7 +43,8 @@ from astropy.cosmology import FLRW
 
 from . import _references as refs
 from ._arrays import dimensionless_floats
-from ._boltzmann import BoltzmannRun, check_boltzmann_cosmology
+from ._boltzmann import BoltzmannRun
+from ._cosmology_models import _BoltzmannBacked, _CosmologyModel
 from ._fields import field
 from ._kernels import growth as kg
 from ._species import MATTER_SPECIES, check_species
@@ -151,15 +152,12 @@ def background(cosmology: FLRW, ln_a: Array) -> tuple[Array, Array, Array]:
 
 
 @attrs.frozen(kw_only=True)
-class GrowthModel(Model, kind=True):
+class GrowthModel(_CosmologyModel, Model, kind=True):
     """The kind of growth-factor models.
 
     Subclasses implement :meth:`solve`, and may check that they apply to a cosmology
     in :meth:`check_cosmology`.
     """
-
-    #: The Boltzmann code that computes the model (``"camb"`` or ``"class"``), if any.
-    backend: ClassVar[str | None] = None
 
     #: Where the model can be evaluated: z >= 0. The :class:`~hmf.core.growth.Growth`
     #: stage checks z against the model's class's domain (so a model can narrow it),
@@ -167,19 +165,6 @@ class GrowthModel(Model, kind=True):
     #: :attr:`GrowthSolution.z_max`, e.g. a table's largest redshift): growth is
     #: never extrapolated.
     valid_domain: ClassVar[Domain] = Domain({"z": (0, None)}, source="z >= 0.")
-
-    #: Where the model was calibrated, if that is stated by its source.
-    calibration_domain: ClassVar[Domain | None] = None
-
-    def check_cosmology(self, cosmology: FLRW) -> None:
-        """Raise if the model does not apply to ``cosmology`` (by default it does).
-
-        Raises
-        ------
-        ValueError
-            If it does not apply: a model that does not apply to a cosmology is a
-            configuration error.
-        """
 
     @abc.abstractmethod
     def solve(
@@ -240,7 +225,8 @@ class _Gridded(GrowthModel, abstract=True):
         self.check_cosmology(cosmology)
         ln_a = kg.ln_a_grid(self.a_min, self.dln_a)
         d, f = self._growth(cosmology, ln_a)
-        return _same_for_all(kg.tabulate_growth(ln_a, d, f), float(np.expm1(-ln_a[0])))
+        table = kg.tabulate_growth(ln_a, d, f)
+        return _same_for_all(table, table.z_max)
 
 
 def _radiation_a4(cosmology: FLRW, z: float) -> float:
@@ -462,7 +448,7 @@ class FromFile(GrowthModel, alias="FromFile"):
 
 
 @attrs.frozen(kw_only=True)
-class _BoltzmannGrowth(GrowthModel, abstract=True):
+class _BoltzmannGrowth(_BoltzmannBacked, GrowthModel, abstract=True):
     """The growth of each species at k = 0.01/Mpc, from a Boltzmann run."""
 
     z_max: float = field(
@@ -471,10 +457,6 @@ class _BoltzmannGrowth(GrowthModel, abstract=True):
         validator=positive,
         doc="The largest redshift of the growth factor.",
     )
-
-    def check_cosmology(self, cosmology: FLRW) -> None:
-        """Raise if the Boltzmann code can't compute ``cosmology``."""
-        check_boltzmann_cosmology(cosmology, type(self).__name__)
 
     @abc.abstractmethod
     def _own_run(self, cosmology: FLRW, disk_cache: DiskCache | None) -> BoltzmannRun:
@@ -514,7 +496,7 @@ class CambGrowth(_BoltzmannGrowth, alias="CAMB"):
 
     With a :class:`~hmf.core.growth.Growth` stage whose transfer model is
     :class:`~hmf.core.transfer_models.CAMB`, the growth comes from the transfer's
-    run. Otherwise it makes the run of ``CAMB(z_max_growth=z_max)`` at the default
+    run. Otherwise it makes the run of ``CAMB(z_max=z_max)`` at the default
     accuracy (which a default CAMB transfer stage shares).
     """
 
@@ -522,7 +504,7 @@ class CambGrowth(_BoltzmannGrowth, alias="CAMB"):
     references: ClassVar[tuple[str, ...]] = (refs.CAMB,)
 
     def _own_run(self, cosmology: FLRW, disk_cache: DiskCache | None) -> BoltzmannRun:
-        return CAMB(z_max_growth=self.z_max).run(cosmology, KAccuracy(), disk_cache=disk_cache)
+        return CAMB(z_max=self.z_max).run(cosmology, KAccuracy(), disk_cache=disk_cache)
 
 
 @attrs.frozen(kw_only=True)
@@ -540,4 +522,4 @@ class ClassGrowth(_BoltzmannGrowth, alias="CLASS"):
     references: ClassVar[tuple[str, ...]] = (refs.CLASS_I, refs.CLASS_II)
 
     def _own_run(self, cosmology: FLRW, disk_cache: DiskCache | None) -> BoltzmannRun:
-        return CLASS(z_max_growth=self.z_max).run(cosmology, KAccuracy(), disk_cache=disk_cache)
+        return CLASS(z_max=self.z_max).run(cosmology, KAccuracy(), disk_cache=disk_cache)

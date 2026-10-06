@@ -22,34 +22,24 @@ from typing import Any
 
 import attrs
 import numpy as np
-from astropy.cosmology import FLRW, Planck18
+from astropy.cosmology import FLRW
 
 # For the fully qualified annotations below.
 import hmf.core.transfer
 
 from ._fields import field
-from ._serialise import cosmology_key
-from .cache import DiskCache, to_disk_cache
+from .cache import DiskCache
 from .domain import Domain
 from .growth_models import GrowthModel, GrowthSolution, ODEGrowth
-from .stage import Stage
+from .stage import CosmologyStage, _check_model_cosmology, _cosmology_field, _disk_cache_field
 from .transfer import Transfer
 from .units import unit_boundary
 
 __all__ = ["Growth"]
 
 
-def _to_growth_model(value: Any) -> GrowthModel:
-    """Convert the ``model`` field: a model, a model class, or a name to look up."""
-    if isinstance(value, GrowthModel):
-        return value
-    if isinstance(value, (str, type)):
-        return GrowthModel.get(value)()
-    raise TypeError(f"model must be a GrowthModel, a class or a name, not {type(value).__name__}.")
-
-
 @attrs.frozen(kw_only=True)
-class Growth(Stage):
+class Growth(CosmologyStage):
     """The linear growth factor and growth rate.
 
     See the module documentation.
@@ -62,19 +52,13 @@ class Growth(Stage):
     1.0
     """
 
-    cosmology: FLRW = field(
-        default=Planck18,
-        validator=attrs.validators.instance_of(FLRW),
-        eq=cosmology_key,
-        doc=(
-            "The cosmology, an astropy FLRW. It is compared by its class and parameter "
-            "values (not its name or metadata). It must equal the transfer stage's, if "
-            "one is given (see from_transfer)."
-        ),
+    cosmology: FLRW = _cosmology_field(
+        also="It must equal the transfer stage's, if one is given (see from_transfer)."
     )
     model: GrowthModel = field(
         factory=ODEGrowth,
-        converter=_to_growth_model,
+        converter=GrowthModel.coerce,
+        validator=_check_model_cosmology,
         doc="The growth model: an instance, a class or a registered name (e.g. 'ODE').",
     )
     # Fully qualified, so that the docs can tell it from v3's Transfer.
@@ -86,27 +70,19 @@ class Growth(Stage):
             "Boltzmann code as the growth model, the growth comes from its run."
         ),
     )
-    disk_cache: DiskCache | None = field(
-        default=None,
-        converter=to_disk_cache,
-        eq=False,
+    disk_cache: DiskCache | None = _disk_cache_field(
         doc=(
             "Where to cache Boltzmann-code output on disk (see Transfer.disk_cache), for "
             "a run the growth model makes itself."
         ),
     )
 
-    @model.validator
-    def _check_model(self, attribute: attrs.Attribute[GrowthModel], value: GrowthModel) -> None:
-        """Check that the model applies to the cosmology."""
-        value.check_cosmology(self.cosmology)
-
     @transfer.validator
     def _check_transfer(
         self, attribute: attrs.Attribute[Transfer | None], value: Transfer | None
     ) -> None:
         """Check that the transfer stage has the same cosmology."""
-        if value is not None and cosmology_key(value.cosmology) != cosmology_key(self.cosmology):
+        if value is not None and not self.same_cosmology(value):
             raise ValueError(
                 "Growth: the cosmology differs from the transfer stage's. Use "
                 "Growth.from_transfer(transfer, ...) to take the transfer's cosmology."

@@ -164,13 +164,6 @@ class _NodeCache:
         return self.table[:, idx]
 
 
-def _to_filter(value: Any) -> Any:
-    """Accept a filter's alias (or class) as well as an instance."""
-    if isinstance(value, str) or (isinstance(value, type) and issubclass(value, Filter)):
-        return Filter.get(value)()
-    return value
-
-
 def _is_power_source(instance: Any, attribute: attrs.Attribute[Any], value: Any) -> None:
     if not isinstance(value, PowerSource):
         raise TypeError(
@@ -208,11 +201,10 @@ class MassVariance(Stage):
     )
     filter: Filter = field(
         factory=TopHat,
-        converter=_to_filter,
-        validator=attrs.validators.instance_of(Filter),
+        converter=Filter.coerce,
         doc="The smoothing filter: a Filter instance, or the alias of one (e.g. 'SharpK').",
     )
-    accuracy: MassAccuracy = field(
+    mass_accuracy: MassAccuracy = field(
         factory=MassAccuracy,
         validator=attrs.validators.instance_of(MassAccuracy),
         doc="The settings of the mass lattice.",
@@ -220,7 +212,7 @@ class MassVariance(Stage):
     k_accuracy: KAccuracy = field(
         factory=KAccuracy,
         validator=attrs.validators.instance_of(KAccuracy),
-        doc="The settings of the k grid. Its upper end is set from accuracy.log10_m_min.",
+        doc="The settings of the k grid. Its upper end is set from mass_accuracy.log10_m_min.",
     )
     truncation_rtol: float = field(
         default=1e-3,
@@ -249,7 +241,7 @@ class MassVariance(Stage):
     @cached_property
     def _step(self) -> float:
         """The lattice spacing in ln M."""
-        return self.accuracy.dlog10_m * _LN10
+        return self.mass_accuracy.dlog10_m * _LN10
 
     @cached_property
     def _k_grid(self) -> _KGrid:
@@ -258,7 +250,7 @@ class MassVariance(Stage):
         dln_k = ka.dln_k
         r_min = float(
             kern.lagrangian_radius(
-                10.0**self.accuracy.log10_m_min, self._rho_mean, self.filter.mass_assignment
+                10.0**self.mass_accuracy.log10_m_min, self._rho_mean, self.filter.mass_assignment
             )
         )
         i_min = lattice_index(ka.ln_k_min, dln_k, up=False)
@@ -331,13 +323,13 @@ class MassVariance(Stage):
 
     def _compute_nodes(self, j: IntArray) -> FloatArray:
         """The node quantities at lattice nodes ``j``, i.e. at log10 m = j * Δ."""
-        log10_m = j * np.float64(self.accuracy.dlog10_m)
+        log10_m = j * np.float64(self.mass_accuracy.dlog10_m)
         return self._direct(log10_m * _LN10)
 
     def _window_nodes(self, ln_r: FloatArray) -> FloatArray:
         """Node quantities for a filter with a smooth window."""
         grid = self._k_grid
-        second = self.accuracy.second_derivative
+        second = self.mass_accuracy.second_derivative
         r = np.exp(ln_r)
         derivs = self.filter.window_derivatives(r[:, None] * grid.k, order=2 if second else 1)
         ln_sigma, d_r, d2_r, err_grid = kern.window_ln_variance(
@@ -376,7 +368,7 @@ class MassVariance(Stage):
         s = (self._sharpk_cumulative[idx] + partial) / (2 * math.pi**2)
         k_cut = np.exp(ln_cut_ok)
         p_cut = self._power_at(k_cut)
-        second = self.accuracy.second_derivative
+        second = self.mass_accuracy.second_derivative
         if second:
             h = _DLN_K_SLOPE
             p_up = self._power_at(k_cut * math.exp(h))
@@ -402,7 +394,7 @@ class MassVariance(Stage):
 
     def _check_nodes(self, nodes: FloatArray, log10_m: FloatArray) -> None:
         """Raise if a node used for a mass is not finite or is not resolved by the k grid."""
-        rows = [_LN_SIGMA, _D1, _D2] if self.accuracy.second_derivative else [_LN_SIGMA, _D1]
+        rows = [_LN_SIGMA, _D1, _D2] if self.mass_accuracy.second_derivative else [_LN_SIGMA, _D1]
         bad_value = ~np.all(np.isfinite(nodes[rows]), axis=0)
         err = np.fmax(nodes[_ERR_SIGMA], nodes[_ERR_D1])
         err_grid = nodes[_ERR_GRID]
@@ -431,7 +423,10 @@ class MassVariance(Stage):
         hint = (
             "lower k_accuracy.ln_k_min"
             if side == "high"
-            else "lower accuracy.log10_m_min (which sets k_max), or raise k_accuracy.k_max_r_min"
+            else (
+                "lower mass_accuracy.log10_m_min (which sets k_max), or raise "
+                "k_accuracy.k_max_r_min"
+            )
         )
         what = (
             "sigma or its derivatives are not finite there (they underflow, or the k grid "
@@ -447,13 +442,13 @@ class MassVariance(Stage):
 
     def _interpolate(self, log10_m: FloatArray) -> tuple[FloatArray, FloatArray]:
         """The ln(sigma) and dln(sigma)/dln(m) at masses 10**log10_m (1D), from the lattice."""
-        acc = self.accuracy
+        acc = self.mass_accuracy
         if acc.extension == "raise":
             outside = (log10_m < acc.log10_m_min - 1e-12) | (log10_m > acc.log10_m_max + 1e-12)
             if np.any(outside):
                 raise DomainError(
                     f"MassVariance: masses outside the lattice [1e{acc.log10_m_min:g}, "
-                    f"1e{acc.log10_m_max:g}] Msun/h, with accuracy.extension='raise'."
+                    f"1e{acc.log10_m_max:g}] Msun/h, with mass_accuracy.extension='raise'."
                 )
         t = log10_m / acc.dlog10_m
         # The interval [j, j + 1] that contains each mass, so 0 <= u < 1. A plain floor,
@@ -555,7 +550,7 @@ class MassVariance(Stage):
         """The mass at which sigma(m) takes the given values: the inverse of :meth:`sigma`.
 
         sigma(m) is inverted on the lattice nodes of the default range
-        ``[accuracy.log10_m_min, accuracy.log10_m_max]``, then within the bracketing
+        ``[mass_accuracy.log10_m_min, mass_accuracy.log10_m_max]``, then within the bracketing
         interval by bisection on the sigma interpolant, so ``m_from_sigma(sigma(m))``
         returns ``m`` to about 1e-12.
 
@@ -580,7 +575,7 @@ class MassVariance(Stage):
             "sigma", sigma, where="MassVariance.m_from_sigma", error=DomainError
         )
         ln_t = np.log(target).ravel()
-        acc = self.accuracy
+        acc = self.mass_accuracy
         j_lo = lattice_index(acc.log10_m_min, acc.dlog10_m, up=True)
         j_hi = lattice_index(acc.log10_m_max, acc.dlog10_m, up=False)
         j = np.arange(j_lo, j_hi + 1, dtype=np.int64)

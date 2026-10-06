@@ -64,19 +64,26 @@ Models (:mod:`hmf.core.model`)
     *kind* with its own registry, and is registered under its qualified name
     ``package.module:Class`` and an optional unique alias. Lookup is per kind
     (``Kind.get(name)``), and also finds models by import path and through the
-    ``hmf.models`` entry-point group.
+    ``hmf.models`` entry-point group. ``Kind.coerce(value)`` turns an instance, a
+    name or a class into an instance of the kind: it is the converter of every
+    stage's model fields.
 
 Stages (:mod:`hmf.core.stage`)
     A stage is one immutable step of a calculation. Parameters change through
     ``evolve()``, which returns a new stage; expensive results are cached with
     :func:`functools.cached_property`. ``fields_info()`` describes the parameters
-    without creating an instance.
+    without creating an instance. A stage computed from a cosmology
+    (:class:`~hmf.core.transfer.Transfer`, :class:`~hmf.core.growth.Growth`)
+    subclasses :class:`~hmf.core.stage.CosmologyStage`, which holds the
+    ``cosmology`` field and converts physical units with its H0.
 
 Accuracy (:mod:`hmf.core.accuracy`)
     The internal mass and wavenumber grids are set by
     :class:`~hmf.core.accuracy.MassAccuracy` and
     :class:`~hmf.core.accuracy.KAccuracy`, each with ``fast()`` and ``high()``
-    presets.
+    presets. A stage's accuracy fields are named for their grid:
+    ``Transfer.k_accuracy``, ``MassVariance.mass_accuracy`` and
+    ``MassVariance.k_accuracy``.
 
 Domains (:mod:`hmf.core.domain`)
     Every model declares a *valid* domain (outside which it always raises a
@@ -201,7 +208,7 @@ Both are interpolated on a lattice of nodes at :math:`\log_{10} m = j\Delta`, bu
 lazily: results do not depend, bit for bit, on the order or batching of requests.
 σ uses a quintic Hermite interpolant in ln–ln; dlnσ/dlnM is interpolated
 separately, never by differentiating σ. The k grid is a lattice in ln k, fixed by
-the accuracy settings. Masses whose integrals the grid can't resolve (truncated at
+``k_accuracy`` (and ``mass_accuracy.log10_m_min``). Masses whose integrals the grid can't resolve (truncated at
 either end, or aliased) raise rather than return a wrong value.
 
 API

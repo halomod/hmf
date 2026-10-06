@@ -109,7 +109,9 @@ def test_shallow_power_law_with_tophat_raises():
     mv = _mv(AnalyticPower(PowerLaw(0.0)), "TopHat")
     with pytest.raises(DomainError, match=r"does not resolve|not finite"):
         mv.sigma(np.logspace(8, 15, 20) * Msun_h)
-    mv = _mv(AnalyticPower(PowerLaw(0.0)), "TopHat", accuracy=MassAccuracy(second_derivative=False))
+    mv = _mv(
+        AnalyticPower(PowerLaw(0.0)), "TopHat", mass_accuracy=MassAccuracy(second_derivative=False)
+    )
     with pytest.raises(DomainError, match="does not resolve"):
         mv.sigma(np.logspace(8, 15, 20) * Msun_h)
     assert RESOLUTION_RTOL == 1e-2
@@ -190,12 +192,12 @@ def test_extension_is_bit_identical(power, flt, acc):
     shared = np.logspace(8, 16, 397) * Msun_h
     wide = np.logspace(0, 18, 1001) * Msun_h
 
-    narrow_first = _mv(power, flt, accuracy=acc)
+    narrow_first = _mv(power, flt, mass_accuracy=acc)
     s1, d1 = narrow_first.sigma(shared), narrow_first.dlnsigma_dlnm(shared)
     narrow_first.sigma(wide)
     s1_after, d1_after = narrow_first.sigma(shared), narrow_first.dlnsigma_dlnm(shared)
 
-    wide_first = _mv(power, flt, accuracy=acc)
+    wide_first = _mv(power, flt, mass_accuracy=acc)
     wide_first.sigma(wide)
     s2, d2 = wide_first.sigma(shared), wide_first.dlnsigma_dlnm(shared)
 
@@ -265,7 +267,7 @@ def test_second_derivative_is_worthwhile():
     log10_m = np.linspace(*LOG10_M_RANGE, 1901) + 0.0037
     with_d2 = _interpolation_errors(_mv(BAO, "SharpK"), log10_m)
     without = _interpolation_errors(
-        _mv(BAO, "SharpK", accuracy=MassAccuracy(second_derivative=False)), log10_m
+        _mv(BAO, "SharpK", mass_accuracy=MassAccuracy(second_derivative=False)), log10_m
     )
     assert with_d2[0] < without[0] / 30
     assert with_d2[1] < without[1] / 3
@@ -276,7 +278,7 @@ def test_default_against_high(flt):
     """The default settings against high() (mass and k), all errors included."""
     m = np.logspace(*LOG10_M_RANGE, 301) * Msun_h
     default = _mv(BAO, flt)
-    high = _mv(BAO, flt, accuracy=MassAccuracy.high(), k_accuracy=KAccuracy.high())
+    high = _mv(BAO, flt, mass_accuracy=MassAccuracy.high(), k_accuracy=KAccuracy.high())
     np.testing.assert_allclose(default.sigma(m), high.sigma(m), rtol=1e-5)
     np.testing.assert_allclose(default.dlnsigma_dlnm(m), high.dlnsigma_dlnm(m), rtol=1e-4)
 
@@ -341,7 +343,7 @@ def test_radius_mass_round_trip(flt):
 @pytest.mark.parametrize("flt", FILTERS)
 @pytest.mark.parametrize("second", [True, False])
 def test_m_from_sigma_round_trip(power, flt, second):
-    mv = _mv(power, flt, accuracy=MassAccuracy(second_derivative=second))
+    mv = _mv(power, flt, mass_accuracy=MassAccuracy(second_derivative=second))
     m = np.logspace(0.01, 17.49, 400) * Msun_h
     back = mv.m_from_sigma(mv.sigma(m))
     assert back.unit is Msun_h
@@ -407,7 +409,7 @@ def test_truncation_bound_covers_the_true_error(flt):
     log10_m = np.linspace(-2.5, 3, 45)
     ka = KAccuracy(dln_k=0.004)
     mv = _mv(EH, flt, k_accuracy=ka)
-    ref = _mv(EH, flt, k_accuracy=ka, accuracy=MassAccuracy(log10_m_min=-7))
+    ref = _mv(EH, flt, k_accuracy=ka, mass_accuracy=MassAccuracy(log10_m_min=-7))
     a, b = mv._direct(log10_m * LN10), ref._direct(log10_m * LN10)
     true_sigma = np.abs(np.expm1(a[0] - b[0]))
     true_d = np.abs(a[1] / b[1] - 1)
@@ -427,7 +429,7 @@ def test_masses_below_the_resolving_limit_raise():
     with pytest.raises(ValueError, match="low-mass end"):
         mv.dlnsigma_dlnm(1e-3 * Msun_h)
     # Lowering log10_m_min moves k_max up, and the limit down.
-    _mv(accuracy=MassAccuracy(log10_m_min=-4)).sigma(1e-3 * Msun_h)
+    _mv(mass_accuracy=MassAccuracy(log10_m_min=-4)).sigma(1e-3 * Msun_h)
     # SharpK: only k = 1/R needs to be on the grid.
     sk = _mv(flt="SharpK")
     sk.sigma(1e-3 * Msun_h)
@@ -451,7 +453,7 @@ def test_underflow_raises():
 
 
 def test_extension_raise():
-    mv = _mv(accuracy=MassAccuracy(extension="raise", log10_m_min=6, log10_m_max=15))
+    mv = _mv(mass_accuracy=MassAccuracy(extension="raise", log10_m_min=6, log10_m_max=15))
     mv.sigma(np.array([1e6, 1e15]) * Msun_h)
     with pytest.raises(DomainError, match="extension='raise'"):
         mv.sigma(1e5 * Msun_h)
@@ -516,7 +518,7 @@ def test_invalid_fields():
     with pytest.raises(TypeError, match="PowerSource"):
         MassVariance(power=object())
     with pytest.raises(TypeError):
-        MassVariance(power=EH, accuracy=KAccuracy())
+        MassVariance(power=EH, mass_accuracy=KAccuracy())
 
 
 def test_with_a_tabulated_source():
@@ -581,7 +583,7 @@ def test_sharpk_tail_bounds():
 
 def test_m_from_sigma_with_off_lattice_range():
     """The default range need not sit on lattice nodes: the inside nodes are used."""
-    mv = _mv(accuracy=MassAccuracy(log10_m_min=0.011, log10_m_max=17.49))
+    mv = _mv(mass_accuracy=MassAccuracy(log10_m_min=0.011, log10_m_max=17.49))
     m = np.logspace(0.03, 17.47, 50) * Msun_h
     np.testing.assert_allclose(mv.m_from_sigma(mv.sigma(m)).value, m.value, rtol=1e-11)
     with pytest.raises(ValueError, match="outside"):
