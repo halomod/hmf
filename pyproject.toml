@@ -42,6 +42,7 @@ dependencies = [
     "cached_property",
     "attrs>=24.1",
     "cattrs>=23.2",
+    "platformdirs>=3.0",
 ]
 
 [project.optional-dependencies]
@@ -233,4 +234,9 @@ follow_imports = "normal"
 [[tool.mypy.overrides]]
 # astropy ships no type information.
 module = ["astropy", "astropy.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# Nor do scipy (without scipy-stubs) and the Boltzmann codes.
+module = ["scipy", "scipy.*", "camb", "camb.*", "classy"]
 ignore_missing_imports = true
