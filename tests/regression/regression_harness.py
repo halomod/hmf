@@ -475,8 +475,8 @@ def compare(
     mask = np.isfinite(ref) & (np.abs(ref) > floor) & np.isfinite(bound)
     with np.errstate(divide="ignore", invalid="ignore"):
         rel = np.abs(act / ref - 1)
-    rel = np.where(np.isfinite(rel), rel, np.inf)
-    ratio = np.where(mask, rel / bound, 0.0)
+        rel = np.where(np.isfinite(rel), rel, np.inf)
+        ratio = np.where(mask, rel / bound, 0.0)
 
     n = int(mask.sum())
     worst = tuple(int(i) for i in np.unravel_index(np.argmax(ratio), ratio.shape)) if n else None

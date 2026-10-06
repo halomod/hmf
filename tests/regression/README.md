@@ -14,7 +14,7 @@ against default-resolution v3 (whose own discretisation error is ~7e-4 in `dndm`
 | `test_reference_data.py` | The reference is what it claims: versions, resolution, coverage, size, convergence |
 | `test_reference_physics.py` | Physical checks of the reference itself (closed forms, normalisations, bounds) |
 | `test_regression_harness.py` | Tests of the harness |
-| `test_regression_v4.py` | v4 against the reference: one test per quantity, skipped until it has a provider |
+| `test_regression_v4.py` | v4 against the reference: one test per quantity, skipped until it has a provider; and the v4 normalised fits on the wide σ grid |
 
 ## Regenerating
 
@@ -82,6 +82,20 @@ The generator recomputes everything with both steps halved, and on a wider k ran
 (`-20 ≤ ln k ≤ 14`), and records the largest change of each quantity in units of its
 tolerance; `test_reference_is_converged` requires it to be below 1. That is what makes
 the tolerances meaningful: the reference itself is accurate to well within them.
+
+## v4 providers
+
+| Quantity | Provider | Status |
+|---|---|---|
+| `fsigma` | `v4_providers.fsigma`: each `hmf.core.fits` fit on the reference's own σ(M, z) and n_eff, so the fit alone is compared | all 174 cases agree with v3.7.2 to ~1e-14 |
+| `transfer`, `power`, `growth`, `sigma`, `dlnsdlnm` | — | the stages exist; providers to come |
+| `dndm`, `ngtm` | — | need the mass-function stage |
+
+The `fsigma` provider gives each fit the inputs v3.7.2 gave it, and undoes v4's
+intentional changes of a default: Manera's p (0.248 in v4, 0.289 in v3), Watson's
+mass definition (SO-mean(178) in v4, virial in v3), and Bocquet 200c/500c's mass
+ratio M_Δ/M200m, which v4 keeps out of f(σ) (`mass_ratio_to_200m`). These are listed
+in `V3_PARAMETERS` and `V3_MASS_DEFINITIONS` in `v4_providers.py`.
 
 ## Adding a v4 provider
 
