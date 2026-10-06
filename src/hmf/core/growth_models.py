@@ -45,6 +45,7 @@ from . import _references as refs
 from ._boltzmann import MATTER_SPECIES, BoltzmannRun, check_boltzmann_cosmology
 from ._fields import field
 from ._kernels import growth as kg
+from ._validators import positive
 from .accuracy import KAccuracy
 from .cache import DiskCache
 from .domain import Domain
@@ -101,11 +102,6 @@ def _same_for_all(table: kg.GrowthTable, z_max: float) -> GrowthSolution:
 def _floats(value: Any) -> tuple[float, ...]:
     """Convert an array of numbers to a tuple of floats."""
     return tuple(float(x) for x in np.atleast_1d(np.asarray(value, dtype=float)))
-
-
-def _positive(instance: Any, attribute: attrs.Attribute[float], value: float) -> None:
-    if not (math.isfinite(value) and value > 0):
-        raise ValueError(f"{type(instance).__name__}.{attribute.name} must be > 0, got {value}.")
 
 
 def background(cosmology: FLRW, ln_a: Array) -> tuple[Array, Array, Array]:
@@ -211,13 +207,13 @@ class _Gridded(GrowthModel, abstract=True):
     a_min: float = field(
         default=1e-8,
         converter=float,
-        validator=_positive,
+        validator=positive,
         doc="The smallest scale factor of the grid; z_max = 1/a_min - 1.",
     )
     dln_a: float = field(
         default=0.01,
         converter=float,
-        validator=_positive,
+        validator=positive,
         doc="The spacing of the grid in ln a.",
     )
 
@@ -467,7 +463,7 @@ class _BoltzmannGrowth(GrowthModel, abstract=True):
     z_max: float = field(
         default=20.0,
         converter=float,
-        validator=_positive,
+        validator=positive,
         doc="The largest redshift of the growth factor.",
     )
 

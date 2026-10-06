@@ -22,6 +22,7 @@ from typing import Any, ClassVar, Literal, Self
 import attrs
 
 from ._fields import FieldInfo, add_parameters_section, field, fields_info
+from ._validators import finite, positive
 
 __all__ = ["Accuracy", "Extension", "KAccuracy", "MassAccuracy"]
 
@@ -33,18 +34,6 @@ __all__ = ["Accuracy", "Extension", "KAccuracy", "MassAccuracy"]
 #: ``"raise"``
 #:     raise an error.
 Extension = Literal["auto", "raise"]
-
-
-def _positive(instance: Any, attribute: attrs.Attribute[float], value: float) -> None:
-    """Validate that a setting is finite and strictly positive."""
-    if not (math.isfinite(value) and value > 0):
-        raise ValueError(f"{type(instance).__name__}.{attribute.name} must be > 0, got {value}.")
-
-
-def _finite(instance: Any, attribute: attrs.Attribute[float], value: float) -> None:
-    """Validate that a setting is finite."""
-    if not math.isfinite(value):
-        raise ValueError(f"{type(instance).__name__}.{attribute.name} must be finite, got {value}.")
 
 
 _extension = attrs.validators.in_(("auto", "raise"))
@@ -128,19 +117,19 @@ class MassAccuracy(Accuracy):
     dlog10_m: float = field(
         default=0.02,
         converter=float,
-        validator=_positive,
+        validator=positive,
         doc="Spacing of the mass lattice, in log10(m / (Msun/h)).",
     )
     log10_m_min: float = field(
         default=0.0,
         converter=float,
-        validator=_finite,
+        validator=finite,
         doc="log10 of the smallest mass of the default grid, in Msun/h.",
     )
     log10_m_max: float = field(
         default=17.5,
         converter=float,
-        validator=_finite,
+        validator=finite,
         doc="log10 of the largest mass of the default grid, in Msun/h.",
     )
     extension: Extension = field(
@@ -181,19 +170,19 @@ class KAccuracy(Accuracy):
     dln_k: float = field(
         default=0.02,
         converter=float,
-        validator=_positive,
+        validator=positive,
         doc="Spacing of the wavenumber grid, in ln(k / (h/Mpc)).",
     )
     ln_k_min: float = field(
         default=math.log(1e-8),
         converter=float,
-        validator=_finite,
+        validator=finite,
         doc="ln of the smallest wavenumber of the grid, in h/Mpc.",
     )
     k_max_r_min: float = field(
         default=20.0,
         converter=float,
-        validator=_positive,
+        validator=positive,
         doc=(
             "The grid extends to at least k_max = k_max_r_min / R, with R the "
             "Lagrangian radius of the smallest mass requested."
