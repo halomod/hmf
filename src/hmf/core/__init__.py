@@ -15,43 +15,9 @@ Importing it emits a :class:`~hmf.exceptions.HMFCoreExperimentalWarning` (a
     warnings.simplefilter("ignore", HMFCoreExperimentalWarning)
     import hmf.core
 
-This package holds the conventions the rest of the v4 core builds on, and the first
-stages and models.
-
-**Conventions:**
-
-* :mod:`hmf.core.units`: the units boundary between public methods and kernels;
-* :mod:`hmf.core.model`: the :class:`~hmf.core.model.Model` base class and the
-  per-kind model registry;
-* :mod:`hmf.core.stage`: the :class:`~hmf.core.stage.Stage` base class;
-* :mod:`hmf.core.accuracy`: typed accuracy settings for the internal grids;
-* :mod:`hmf.core.domain`: model domains and the domain policy;
-* :func:`field`: an ``attrs`` field with documentation, for models and stages.
-
-**Stages:**
-
-* :mod:`hmf.core.transfer`: the :class:`~hmf.core.transfer.Transfer` stage, T(k) for
-  every matter species from one run of the transfer model;
-* :mod:`hmf.core.growth`: the :class:`~hmf.core.growth.Growth` stage, D(z);
-* :mod:`hmf.core.power_source`: sources of the linear power spectrum at z = 0;
-* :mod:`hmf.core.mass_variance`: the :class:`~hmf.core.mass_variance.MassVariance`
-  stage, sigma(m) on a deterministic mass lattice.
-
-**Models:**
-
-* :mod:`hmf.core.transfer_models`: transfer functions (the
-  :class:`~hmf.core.transfer_models.TransferModel` kind);
-* :mod:`hmf.core.growth_models`: growth factors (the
-  :class:`~hmf.core.growth_models.GrowthModel` kind);
-* :mod:`hmf.core.filters`: smoothing filters (the :class:`~hmf.core.filters.Filter`
-  kind);
-* :mod:`hmf.core.fits`: halo mass function fitting functions.
-
-**Utilities:** :mod:`hmf.core.cache` (the on-disk cache of Boltzmann-code output),
-and :mod:`hmf.core._kernels` (the conventions for the unit-free numerical kernels).
-
-See the "hmf.core (experimental)" page of the documentation for an overview, and the
-"hmf.core API" page for the full reference.
+Its modules are listed, grouped by role, on the "hmf.core API" page of the
+documentation; the "hmf.core (experimental)" page describes the conventions they
+follow.
 """
 
 import warnings
