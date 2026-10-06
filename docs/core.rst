@@ -29,10 +29,28 @@ Units (:mod:`hmf.core.units`)
     :class:`~hmf.core.units.UnitBoundaryError`. Outputs are in h-units, written
     explicitly with :data:`astropy.cosmology.units.littleh` (e.g.
     :data:`~hmf.core.units.Msun_h`). Inputs may be in h-units or in physical units,
-    which are converted with the object's own H0. Dimensionless inputs (z, sigma,
-    peak height, ...) are plain numbers. The
+    which are converted with the object's own H0. Dimensionless inputs and outputs
+    (z, sigma, peak height, T(k), ...) are plain numbers and arrays. The
     :func:`~hmf.core.units.unit_boundary` decorator implements this at a fixed cost
-    of under 2 µs per call.
+    of under 2 µs per call, and every conversion, inside or outside it, goes through
+    :func:`~hmf.core.units.to_canonical`, so the errors are the same everywhere.
+
+    * **H0.** An object with a cosmology (a :class:`~hmf.core.transfer.Transfer`, a
+      :class:`~hmf.core.power_source.TabulatedPower` given an ``H0``, ...) converts
+      physical units with its H0. Models have no cosmology, so they accept h-units
+      only, except in methods that take an ``H0`` argument (e.g.
+      :meth:`FittingFunction.modify_dndm <hmf.core.fits.FittingFunction.modify_dndm>`).
+      An H0 is always a scalar Quantity in km/s/Mpc
+      (e.g. ``70 * hmf.core.units.H0_unit``).
+    * **Model fields with units** (e.g. ``CAMB.k_max``) take a Quantity, and are
+      stored and read back as a Quantity in the canonical unit
+      (:func:`~hmf.core.units.quantity_field`), so ``attrs.evolve`` round-trips
+      them; they compare and hash by that value. Numeric parameters are stored as
+      floats, so ``SMT(a=1)`` and ``SMT(a=1.0)`` are the same model, with the same
+      content hash.
+    * **The scalar rule.** A scalar input gives a scalar output: a 0-d Quantity if
+      the output has a dimension, a :class:`numpy.float64` (which is also a
+      :class:`float`) if it is dimensionless. Arrays keep their shape.
 
 Kernels (:mod:`hmf.core._kernels`)
     The numerics are pure functions on plain arrays, in the canonical unit of each
@@ -87,7 +105,8 @@ Logarithms always name their base: ``log10_...`` or ``ln_...``, never ``log``.
 Transfer and growth
 -------------------
 :class:`~hmf.core.transfer.Transfer` (a function of k) gives the transfer function
-T(k) and the unnormalised power spectrum :math:`k^{n_s} T^2` at z = 0, and
+T(k) and the unnormalised power spectrum :math:`k^{n_s} T^2` at z = 0 (a plain,
+dimensionless array with an arbitrary amplitude, which a later stage normalises), and
 :class:`~hmf.core.growth.Growth` (a function of z) the growth factor and growth rate,
 for each matter species: ``"cb"`` (CDM + baryons) and ``"tot"`` (total matter,
 including massive neutrinos). Their models are in

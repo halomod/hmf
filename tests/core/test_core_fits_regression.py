@@ -29,7 +29,7 @@ from astropy.cosmology import FlatLambdaCDM
 
 from hmf.core import fits
 from hmf.core.fits import FittingFunction
-from hmf.core.units import Msun_h, dndm_unit, number_density_unit
+from hmf.core.units import H0_unit, Msun_h, dndm_unit, number_density_unit
 from hmf.exceptions import HMFExtrapolationWarning
 from hmf.halos import mass_definitions as md
 from hmf.mass_function import fitting_functions as ff
@@ -111,7 +111,7 @@ def test_manera_default_differs_from_v3():
 def test_bocquet_mass_conversion_matches_v3(name, z):
     """v3's f(sigma) is v4's f(sigma) times mass_ratio_to_200m."""
     model = FittingFunction.get(name)()
-    ratio = model.mass_ratio_to_200m(M * Msun_h, z=z, omega_m0=COSMO.Om0, h=COSMO.h)
+    ratio = model.mass_ratio_to_200m(M * Msun_h, z=z, omega_m0=COSMO.Om0, H0=COSMO.H0)
     fit = getattr(ff, name)(nu2=(DELTA_C / SIGMA) ** 2, m=M, z=z, cosmo=COSMO, delta_c=DELTA_C)
     np.testing.assert_allclose(_v4(model, z, 200.0) * ratio, fit.fsigma, rtol=1e-12)
 
@@ -125,7 +125,7 @@ def test_behroozi_modify_dndm_matches_v3():
             m / 0.7, dndm, z, ngtm, h=0.7
         )
         v4 = fits.Behroozi().modify_dndm(
-            m * Msun_h, dndm * dndm_unit, z=z, ngtm=ngtm * number_density_unit, h=0.7
+            m * Msun_h, dndm * dndm_unit, z=z, ngtm=ngtm * number_density_unit, H0=70 * H0_unit
         )
         np.testing.assert_allclose(v4.to_value(dndm_unit), v3, rtol=1e-12)
 

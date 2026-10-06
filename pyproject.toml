@@ -209,8 +209,12 @@ property-decorators = [
 ]
 
 [tool.ruff.lint.flake8-bugbear]
-# hmf.core's documented attrs field (RUF009).
-extend-immutable-calls = ["hmf.core._fields.field", "hmf.core.field"]
+# hmf.core's documented attrs fields (RUF009).
+extend-immutable-calls = [
+    "hmf.core._fields.field",
+    "hmf.core.field",
+    "hmf.core.units.quantity_field",
+]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 21

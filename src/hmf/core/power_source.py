@@ -4,8 +4,11 @@ r"""Sources of the linear matter power spectrum at z = 0.
 power spectrum, which make up the :class:`PowerSource` protocol:
 
 * ``_power(k)``: the *unnormalised* linear power spectrum at z = 0, as a kernel-level
-  function of plain arrays in canonical units (k in h/Mpc, P in (Mpc/h)³). The
-  normalisation (sigma8) is applied later, as a scalar;
+  function of plain arrays, with k in h/Mpc. Its amplitude is arbitrary, since the
+  normalisation (sigma8) is applied later, as a scalar, so only its shape matters
+  and it has no fixed unit: a :class:`TabulatedPower` gives its table in (Mpc/h)³,
+  while :meth:`Transfer.unnormalised_power <hmf.core.transfer.Transfer.unnormalised_power>`'s
+  :math:`k^{n_s} T(k)^2` is dimensionless;
 * ``_rho_mean0``: the mean matter density today, in M☉ h² / Mpc³;
 * ``_unit_context``: the :class:`~hmf.core.units.UnitContext` (with its H0) used by
   the units boundary of the stages built on it.
@@ -29,14 +32,16 @@ from numpy.typing import NDArray
 from scipy.interpolate import CubicSpline
 
 from ._fields import field
+from ._serialise import quantity_key
 from .stage import Stage
 from .units import (
-    H0_unit,
-    UnitBoundaryError,
+    HasUnitContext,
     UnitContext,
+    _require_quantity,
     h_Mpc,
     power_unit,
     rho_unit,
+    to_canonical,
     unit_boundary,
 )
 
@@ -44,16 +49,18 @@ __all__ = ["PowerSource", "TabulatedPower"]
 
 
 @runtime_checkable
-class PowerSource(Protocol):
+class PowerSource(HasUnitContext, Protocol):
     """A source of the unnormalised linear matter power spectrum at z = 0.
 
     See the module documentation. Implementations must be immutable and hashable
     (they are fields of frozen stages), and ``_power`` must be a pure, elementwise
-    function, so that results do not depend on the batch size.
+    function, so that results do not depend on the batch size. The
+    ``_unit_context`` (with the H0) of stages built on the source comes from
+    :class:`~hmf.core.units.HasUnitContext`.
     """
 
     def _power(self, k: NDArray[np.float64]) -> NDArray[np.float64]:
-        """The unnormalised linear power at z = 0, in (Mpc/h)³, at k in h/Mpc."""
+        """The unnormalised linear power at z = 0 (arbitrary amplitude), at k in h/Mpc."""
         ...
 
     @property
@@ -61,44 +68,24 @@ class PowerSource(Protocol):
         """The mean matter density today, in M☉ h² / Mpc³."""
         ...
 
-    @property
-    def _unit_context(self) -> UnitContext:
-        """The units context (with the H0) of stages built on this source."""
-        ...
 
-
-def _quantity_eq(a: Any, b: Any) -> bool:
-    """Equality of two Quantities (or None): same unit and values."""
-    if a is None or b is None:
-        return a is b
-    return bool(a.unit == b.unit and a.shape == b.shape and np.array_equal(a.value, b.value))
-
-
-_qeq = attrs.cmp_using(eq=_quantity_eq)
-
-
-def _is_quantity(name: str) -> Any:
-    """A validator that the value is a Quantity."""
+def _quantity(name: str, unit: u.UnitBase) -> Any:
+    """A validator that the value is a Quantity (it is converted to ``unit`` later)."""
 
     def validate(instance: Any, attribute: attrs.Attribute[Any], value: Any) -> None:
-        if not isinstance(value, u.Quantity):
-            raise UnitBoundaryError(
-                f"TabulatedPower: {name!r} must be an astropy Quantity, not a bare "
-                f"{type(value).__name__}."
-            )
+        _require_quantity(value, unit, where="TabulatedPower", name=name)
 
     return validate
 
 
-def _table_column(name: str) -> Any:
-    """A converter to a read-only float copy of a Quantity (bare values raise)."""
+def _table_column(name: str, unit: u.UnitBase) -> Any:
+    """A converter to a read-only float copy of a Quantity (bare values raise).
+
+    The column keeps its unit: it is converted to ``unit`` once the H0 is known.
+    """
 
     def convert(value: Any) -> u.Quantity:
-        if not isinstance(value, u.Quantity):
-            raise UnitBoundaryError(
-                f"TabulatedPower: {name!r} must be an astropy Quantity, not a bare "
-                f"{type(value).__name__}."
-            )
+        _require_quantity(value, unit, where="TabulatedPower", name=name)
         out = u.Quantity(value, dtype=float, copy=True)
         out.flags.writeable = False
         return out
@@ -133,27 +120,23 @@ class TabulatedPower(Stage):
     """
 
     k: u.Quantity = field(
-        eq=_qeq,
-        hash=False,
-        converter=_table_column("k"),
+        eq=quantity_key,
+        converter=_table_column("k", h_Mpc),
         doc="The wavenumbers of the table: 1D, strictly increasing, > 0 (h/Mpc or 1/Mpc).",
     )
     pk: u.Quantity = field(
-        eq=_qeq,
-        hash=False,
-        converter=_table_column("pk"),
+        eq=quantity_key,
+        converter=_table_column("pk", power_unit),
         doc="The power at k: finite and > 0 ((Mpc/h)^3 or Mpc^3).",
     )
     mean_density: u.Quantity = field(
-        eq=_qeq,
-        hash=False,
-        validator=_is_quantity("mean_density"),
+        eq=quantity_key,
+        validator=_quantity("mean_density", rho_unit),
         doc="The mean matter density today (Msun h^2 / Mpc^3, or Msun / Mpc^3).",
     )
     H0: u.Quantity | None = field(
         default=None,
-        eq=_qeq,
-        hash=False,
+        eq=quantity_key,
         doc=(
             "The Hubble constant, used to convert inputs given in physical units. "
             "If None, every dimensional input must be in h-units."
@@ -166,11 +149,8 @@ class TabulatedPower(Stage):
     )
 
     def __attrs_post_init__(self) -> None:
-        """Validate the table, and its units (with the H0)."""
-        if self.H0 is not None and not isinstance(self.H0, u.Quantity):
-            raise UnitBoundaryError("TabulatedPower: H0 must be a Quantity, e.g. 70 * H0_unit.")
-        if self.H0 is not None and not self.H0.unit.is_equivalent(H0_unit):
-            raise u.UnitConversionError(f"TabulatedPower: H0 must be in {H0_unit}.")
+        """Validate the H0, the table, and its units (with the H0)."""
+        _ = self._unit_context  # UnitContext validates the H0.
         if self.k.ndim != 1 or self.k.shape != self.pk.shape or self.k.size < 4:
             raise ValueError("TabulatedPower: k and pk must be 1D, of the same length (>= 4).")
         ln_k, ln_p = self._table
@@ -183,18 +163,15 @@ class TabulatedPower(Stage):
 
     @cached_property
     def _unit_context(self) -> UnitContext:
-        """The units context, with this source's H0."""
-        return UnitContext(self.H0)
+        """The units context, with this source's H0 (which it validates)."""
+        return UnitContext(self.H0, where="TabulatedPower")
 
     def _canonical(self, q: u.Quantity, unit: u.UnitBase, name: str) -> NDArray[np.float64]:
         """The values of a field in the canonical unit."""
-        try:
-            factor = self._unit_context.factor(q.unit, unit)
-        except u.UnitsError as e:
-            raise u.UnitConversionError(
-                f"TabulatedPower: {name!r} must be in units convertible to '{unit}': {e}"
-            ) from e
-        return np.asarray(q.value * factor, dtype=float)
+        values = to_canonical(
+            q, unit, context=self._unit_context, where="TabulatedPower", name=name
+        )
+        return np.asarray(values, dtype=float)
 
     @cached_property
     def _table(self) -> tuple[NDArray[np.float64], NDArray[np.float64]]:

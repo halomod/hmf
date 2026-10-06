@@ -27,6 +27,7 @@ from ._fields import field
 from ._kernels import filters as kernels
 from ._validators import positive
 from .model import Model
+from .units import unit_boundary
 
 __all__ = ["Envelope", "Filter", "SharpK", "SmoothK", "TailBounds", "TopHat"]
 
@@ -93,6 +94,11 @@ class Filter(Model, kind=True):
     def window_derivatives(self, x: ArrayLike, order: int = 2) -> tuple[NDArray[np.float64], ...]:
         r"""The window and its logarithmic derivatives at :math:`x = kR`.
 
+        This is the kernel-level method, which library code (e.g.
+        :class:`~hmf.core.mass_variance.MassVariance`) calls: it returns plain arrays,
+        0-d for a scalar ``x``. :meth:`window` and :meth:`dwindow_dlnx` are the public
+        methods, which follow the scalar rule of :func:`~hmf.core.units.unit_boundary`.
+
         Parameters
         ----------
         x
@@ -106,6 +112,7 @@ class Filter(Model, kind=True):
             :math:`(W,)`, :math:`(W, W')` or :math:`(W, W', W'')`.
         """
 
+    @unit_boundary()
     def window(self, x: ArrayLike) -> NDArray[np.float64]:
         r"""The window :math:`W(x)`, with :math:`x = kR`.
 
@@ -116,11 +123,12 @@ class Filter(Model, kind=True):
 
         Returns
         -------
-        ndarray
-            The window.
+        numpy.float64 or ndarray
+            The window, of the shape of ``x`` (a scalar for a scalar ``x``).
         """
         return self.window_derivatives(x, order=0)[0]
 
+    @unit_boundary()
     def dwindow_dlnx(self, x: ArrayLike) -> NDArray[np.float64]:
         r"""The derivative :math:`dW/d\ln x`, with :math:`x = kR`.
 
@@ -131,8 +139,8 @@ class Filter(Model, kind=True):
 
         Returns
         -------
-        ndarray
-            The derivative.
+        numpy.float64 or ndarray
+            The derivative, of the shape of ``x`` (a scalar for a scalar ``x``).
         """
         return self.window_derivatives(x, order=1)[1]
 

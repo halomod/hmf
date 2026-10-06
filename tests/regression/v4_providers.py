@@ -123,7 +123,7 @@ def v4_fsigma(
         m=m * Msun_h,
     )
     if hasattr(fit, "mass_ratio_to_200m"):
-        f = f * fit.mass_ratio_to_200m(m * Msun_h, z=z, omega_m0=cosmo.Om0, h=cosmo.h)
+        f = f * fit.mass_ratio_to_200m(m * Msun_h, z=z, omega_m0=cosmo.Om0, H0=cosmo.H0)
     return np.asarray(f)
 
 

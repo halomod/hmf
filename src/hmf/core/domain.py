@@ -29,7 +29,7 @@ import numpy as np
 import numpy.typing as npt
 
 from ..exceptions import HMFExtrapolationWarning
-from .units import UnitBoundaryError
+from .units import _require_quantity, to_canonical
 
 __all__ = [
     "DOMAIN_POLICIES",
@@ -111,14 +111,18 @@ class Interval:
         -------
         bool or numpy.ndarray of bool
             False for NaN.
+
+        Raises
+        ------
+        hmf.core.units.UnitBoundaryError
+            If the interval has a unit and ``x`` is not a Quantity.
+        astropy.units.UnitConversionError
+            If ``x`` can't be converted to the interval's unit without an H0.
         """
         if self.unit is not None:
-            if not isinstance(x, u.Quantity):
-                raise UnitBoundaryError(
-                    f"Domain: {name!r} must be a Quantity in units convertible to "
-                    f"'{self.unit}', not {type(x).__name__}."
-                )
-            value = x.to_value(self.unit)
+            # Bounds are in canonical units, and a domain has no H0: h-units only.
+            _require_quantity(x, self.unit, where="Domain", name=name, has_h0=False)
+            value = to_canonical(x, self.unit, where="Domain", name=name)
         elif isinstance(x, u.Quantity):
             value = x.to_value(u.dimensionless_unscaled)
         else:

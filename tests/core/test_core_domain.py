@@ -71,7 +71,7 @@ def test_contains_units(domain):
     assert domain.contains(m=[1e9, 1e12] * Msun_h).tolist() == [False, True]
     with pytest.raises(u.UnitConversionError):
         domain.contains(m=1e12 * u.Msun)
-    with pytest.raises(UnitBoundaryError, match="'m' must be a Quantity"):
+    with pytest.raises(UnitBoundaryError, match=r"'m' is dimensional.*Msun_h` \(h-units: "):
         domain.contains(m=1e12)
 
 

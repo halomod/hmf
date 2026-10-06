@@ -523,8 +523,8 @@ class MassVariance(Stage):
 
         Returns
         -------
-        ndarray
-            sigma, dimensionless, of the shape of ``m``.
+        numpy.float64 or ndarray
+            sigma, dimensionless, of the shape of ``m`` (a scalar for a scalar ``m``).
 
         Raises
         ------
@@ -532,7 +532,7 @@ class MassVariance(Stage):
             If a mass is outside the lattice (with ``extension='raise'``), can't be
             resolved by the k grid, or sigma is not finite there.
         """
-        return np.exp(self._ln_sigma_and_slope(m)[0])[()]
+        return np.exp(self._ln_sigma_and_slope(m)[0])
 
     @unit_boundary(m=Msun_h)
     def dlnsigma_dlnm(self, m: Any) -> FloatArray:
@@ -545,15 +545,16 @@ class MassVariance(Stage):
 
         Returns
         -------
-        ndarray
-            dln(sigma)/dln(m), dimensionless, of the shape of ``m``.
+        numpy.float64 or ndarray
+            dln(sigma)/dln(m), dimensionless, of the shape of ``m`` (a scalar for a
+            scalar ``m``).
 
         Raises
         ------
         ValueError
             As for :meth:`sigma`.
         """
-        return self._ln_sigma_and_slope(m)[1][()]
+        return self._ln_sigma_and_slope(m)[1]
 
     @unit_boundary(returns=Msun_h)
     def m_from_sigma(self, sigma: Any) -> FloatArray:
@@ -620,7 +621,7 @@ class MassVariance(Stage):
         cs = (nodes[_D2, a], nodes[_D2, b]) if acc.second_derivative else (None, None)
         u = interp.invert_hermite(ln_t, self._step, ln_s[a], ln_s[b], d[a], d[b], *cs)
         m: FloatArray = 10.0 ** ((j[a] + u) * acc.dlog10_m)
-        return m.reshape(target.shape)[()]
+        return m.reshape(target.shape)
 
     @unit_boundary(r=Mpc_h, returns=Msun_h)
     def m_from_radius(self, r: Any) -> FloatArray:
@@ -636,7 +637,7 @@ class MassVariance(Stage):
         Quantity
             Masses, in Msun/h.
         """
-        return kern.lagrangian_mass(r, self._rho_mean, self.filter.mass_assignment)[()]
+        return kern.lagrangian_mass(r, self._rho_mean, self.filter.mass_assignment)
 
     @unit_boundary(m=Msun_h, returns=Mpc_h)
     def radius_from_m(self, m: Any) -> FloatArray:
@@ -652,4 +653,4 @@ class MassVariance(Stage):
         Quantity
             Radii, in Mpc/h.
         """
-        return kern.lagrangian_radius(m, self._rho_mean, self.filter.mass_assignment)[()]
+        return kern.lagrangian_radius(m, self._rho_mean, self.filter.mass_assignment)
