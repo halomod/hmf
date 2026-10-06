@@ -78,4 +78,6 @@ contributors; they are not part of the public API.
    _kernels.filters
    _kernels.mass_variance
    _kernels.interpolation
+   _kernels.lattice
+   _kernels.arrays
    _kernels.fits
