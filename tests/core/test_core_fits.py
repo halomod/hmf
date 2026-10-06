@@ -117,7 +117,7 @@ def test_fit_declares_its_metadata(cls):
     for attr in ("valid_domain", "calibration_domain", "measured_mass_definition", "simulations"):
         assert attr in cls.__dict__, f"{cls.__name__} inherits {attr} instead of declaring it"
     assert isinstance(cls.valid_domain, Domain)
-    # No calibration domain is None, never an empty Domain; only PS has none.
+    # No calibration domain is None; only PS has none.
     if cls is fits.PS:
         assert cls.calibration_domain is None
     else:
@@ -138,7 +138,7 @@ def test_fit_declares_its_metadata(cls):
     assert all(isinstance(r, str) and r for r in cls.references)
     assert cls.parameter_source
     assert "TODO" not in cls.parameter_source
-    # Every fit is defined only for sigma > 0: an open bound, not a sentinel.
+    # Every fit is defined only for sigma > 0, an open bound.
     sigma = cls.valid_domain["sigma"]
     assert sigma.lower == 0
     assert sigma.lower_open

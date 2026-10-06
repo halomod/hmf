@@ -11,6 +11,10 @@ Instructions for AI coding agents working in this repository.
 - Write or update tests for every behavior change.
 - Add numpydoc-style docstrings for new public modules, classes, and functions.
 - Update docstrings whenever parameters are added or changed.
+- Write docstrings, comments and docs about the code as it is. Do not describe what
+  was removed or changed (e.g. "a ValueError, not a TypeError" after changing the
+  type, "no longer", "used to", "instead of the old ..."): readers never see the
+  removed code. History belongs in the commit message and the PR description.
 - Prefer minimal, file-scoped checks before broad checks.
 
 ## Do not

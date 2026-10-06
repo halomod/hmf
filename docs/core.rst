@@ -113,8 +113,7 @@ Errors
       domain.
     * :class:`ValueError`: a bad option, configuration or combination, or a missing
       input. A model that does not apply to the cosmology it is given (e.g.
-      ``Eisenstein97Growth`` with a non-flat cosmology) is a configuration error, so
-      a :class:`ValueError`, not a :class:`TypeError`.
+      ``Eisenstein97Growth`` with a non-flat cosmology) is a configuration error.
     * :class:`TypeError`: an object of the wrong kind.
 
     So ``except ValueError`` catches every bad input, and ``except DomainError`` only

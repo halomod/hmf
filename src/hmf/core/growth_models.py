@@ -284,8 +284,8 @@ class ODEGrowth(_Gridded, alias="ODE"):
 
 
 def _check_lambda(cosmology: FLRW, name: str) -> None:
-    # A ValueError, not a TypeError: the cosmology is an FLRW, to which the model does
-    # not apply (a configuration error; see "Errors" in hmf.core.domain).
+    # A model that does not apply to the cosmology is a configuration error (see
+    # "Errors" in hmf.core.domain), so a ValueError despite the isinstance check.
     if not isinstance(cosmology, ac.LambdaCDM):
         raise ValueError(  # noqa: TRY004
             f"{name} is exact only for a cosmological constant (w = -1), not "

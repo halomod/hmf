@@ -141,7 +141,7 @@ def check_boltzmann_cosmology(cosmo: ac.FLRW, name: str) -> None:
     ValueError
         If ``cosmo`` is not a LambdaCDM, wCDM or w0waCDM (or a flat variant), or does
         not set the baryon density or the CMB temperature: the code does not apply to
-        it (a configuration error, not a TypeError).
+        it.
     """
     if not isinstance(cosmo, (ac.LambdaCDM, ac.wCDM, ac.w0waCDM)):
         raise ValueError(  # noqa: TRY004 (a configuration error: see hmf.core.domain)

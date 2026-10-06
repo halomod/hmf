@@ -206,7 +206,7 @@ def test_exception_rule(call, kind):
 
 
 def test_open_bound_message_says_greater_than():
-    """Tinker08's Delta > 75 is an open bound, and the error says so (it said ">= 75")."""
+    """Tinker08's Delta > 75 is an open bound, and the error describes it as one."""
     with pytest.raises(DomainError, match="75 < delta_halo <= 30000") as info:
         fits.Tinker08().fsigma(1.0, z=0.0, delta_halo=75.0)
     assert ">= 75" not in str(info.value)
@@ -226,7 +226,7 @@ def test_every_registered_model_declares_both_domains(kind):
     for name, cls in models.items():
         assert isinstance(cls.valid_domain, Domain), name
         assert cls.valid_domain.variables, name
-        # No calibration domain is None, never an empty Domain.
+        # No calibration domain is None; a calibration domain bounds something.
         calibration = cls.calibration_domain
         assert calibration is None or (isinstance(calibration, Domain) and calibration.variables)
 

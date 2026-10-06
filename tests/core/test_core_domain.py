@@ -135,7 +135,7 @@ def test_open_bounds_exclude_the_bound(lower_open, upper_open, expected):
     interval = Interval(0, 1, lower_open=lower_open, upper_open=upper_open)
     x = np.array([-1e-300, 0.0, 0.5, 1.0, np.nan])
     assert interval.contains(x).tolist() == expected
-    # The smallest float above an open bound is inside: no sentinel is needed.
+    # The smallest float above an open bound is inside.
     assert interval.contains(np.nextafter(0.0, 1.0)) is True
 
 

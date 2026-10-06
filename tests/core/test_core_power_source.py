@@ -59,8 +59,6 @@ def test_extension_values():
     assert _power_law_table().extension == "auto"
     with pytest.raises(ValueError, match="extension"):
         _power_law_table(extension="clip")
-    with pytest.raises(TypeError, match="extrapolate"):
-        _power_law_table(extrapolate=True)
 
 
 def test_extrapolation_warns_once_per_instance_and_end():
