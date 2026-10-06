@@ -2,7 +2,8 @@
 
 The v4 core evaluates expensive quantities on internal grids, and interpolates
 between their nodes. These classes hold the settings of those grids. They are typed,
-validated, immutable containers; the stages that use them come later.
+validated, immutable containers, given to the stages that build the grids (e.g.
+:class:`~hmf.core.mass_variance.MassVariance`).
 
 Each class has three presets: the defaults (the class's constructor), :meth:`fast`
 (roughly v3's accuracy, at about a quarter of the per-node cost) and :meth:`high`
@@ -21,7 +22,7 @@ from typing import Any, ClassVar, Literal, Self
 
 import attrs
 
-from ._fields import FieldInfo, add_parameters_section, field, fields_info
+from ._fields import Documented, field
 from ._validators import finite, positive
 
 __all__ = ["Accuracy", "Extension", "KAccuracy", "MassAccuracy"]
@@ -40,7 +41,7 @@ _extension = attrs.validators.in_(("auto", "raise"))
 
 
 @attrs.frozen(kw_only=True)
-class Accuracy:
+class Accuracy(Documented):
     """Base class of the accuracy settings.
 
     Subclasses define their settings as fields, with the defaults as field defaults,
@@ -51,11 +52,6 @@ class Accuracy:
 
     _fast: ClassVar[Mapping[str, Any]] = MappingProxyType({})
     _high: ClassVar[Mapping[str, Any]] = MappingProxyType({})
-
-    @classmethod
-    def __attrs_init_subclass__(cls) -> None:
-        """Generate the subclass's docstring "Parameters" section from its fields."""
-        add_parameters_section(cls)
 
     @classmethod
     def fast(cls, **overrides: Any) -> Self:
@@ -88,17 +84,6 @@ class Accuracy:
             A new instance.
         """
         return cls(**{**cls._high, **overrides})
-
-    @classmethod
-    def fields_info(cls) -> tuple[FieldInfo, ...]:
-        """Describe the settings, without creating an instance.
-
-        Returns
-        -------
-        tuple of FieldInfo
-            The name, type, default and documentation of each setting.
-        """
-        return fields_info(cls)
 
 
 @attrs.frozen(kw_only=True)
@@ -160,8 +145,10 @@ class MassAccuracy(Accuracy):
 class KAccuracy(Accuracy):
     """Settings of the internal wavenumber grid (the lattice in ln k).
 
-    The grid's upper end is not a setting: it is derived from the smallest mass
-    requested, as ``k_max >= k_max_r_min / R(m_min)``.
+    The grid's upper end is not a setting: it is derived from the mass lattice's
+    settings, as ``k_max >= k_max_r_min / R(m_min)`` with ``m_min`` the smallest mass of
+    the default mass grid (``MassAccuracy.log10_m_min``), not the smallest mass
+    requested. So the k grid does not change when the mass lattice extends.
     """
 
     _fast: ClassVar[Mapping[str, Any]] = MappingProxyType({"dln_k": 0.05})
@@ -185,7 +172,8 @@ class KAccuracy(Accuracy):
         validator=positive,
         doc=(
             "The grid extends to at least k_max = k_max_r_min / R, with R the "
-            "Lagrangian radius of the smallest mass requested."
+            "Lagrangian radius of the smallest mass of the default mass grid "
+            "(MassAccuracy.log10_m_min)."
         ),
     )
     extension: Extension = field(

@@ -45,6 +45,7 @@ from contextlib import contextmanager
 from types import MappingProxyType
 from typing import Any, Concatenate, ParamSpec, Protocol, TypeVar
 
+import astropy.constants as _constants
 import astropy.cosmology.units as cu
 import astropy.units as u
 import numpy as np
@@ -616,3 +617,15 @@ def unit_boundary(
         return wrapper
 
     return decorator
+
+
+# ---------------------------------------------------------------------------------
+# Physical constants
+# ---------------------------------------------------------------------------------
+
+#: The critical density today over h², :math:`3 (100\,{\rm km\,s^{-1}\,Mpc^{-1}})^2 /
+#: (8\pi G)`, from astropy's G and M☉: a Quantity in :data:`rho_unit` (M☉ h² / Mpc³),
+#: about 2.775e11.
+RHO_CRIT0_H2 = (3 * (100 * u.km / u.s / u.Mpc) ** 2 / (8 * np.pi * _constants.G)).to(
+    u.Msun / u.Mpc**3
+).value * rho_unit

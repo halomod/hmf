@@ -18,6 +18,8 @@ import numpy.typing as npt
 import scipy.special as sp
 from scipy.interpolate import CubicSpline
 
+from .arrays import float_array
+
 __all__ = [
     "angulo",
     "behroozi_modify_dndm",
@@ -46,11 +48,6 @@ __all__ = [
 FloatArray = npt.NDArray[np.float64]
 
 
-def _f(x: npt.ArrayLike) -> FloatArray:
-    """Convert to a float array (a no-op for float arrays)."""
-    return np.asarray(x, dtype=np.float64)
-
-
 def peak_height(sigma: npt.ArrayLike, delta_c: npt.ArrayLike) -> FloatArray:
     r"""The peak height, :math:`\nu = \delta_c / \sigma`.
 
@@ -66,18 +63,18 @@ def peak_height(sigma: npt.ArrayLike, delta_c: npt.ArrayLike) -> FloatArray:
     numpy.ndarray
         :math:`\nu`.
     """
-    return _f(delta_c) / _f(sigma)
+    return float_array(delta_c) / float_array(sigma)
 
 
 def ln_sigma_inv(sigma: npt.ArrayLike) -> FloatArray:
     r"""The natural log of the inverse of :math:`\sigma`, :math:`\ln\sigma^{-1}`."""
-    return -np.log(_f(sigma))
+    return -np.log(float_array(sigma))
 
 
 def press_schechter(nu: npt.ArrayLike) -> FloatArray:
     r"""Press & Schechter (1974): :math:`\sqrt{2/\pi}\,\nu\exp(-\nu^2/2)`."""
-    nu = _f(nu)
-    return _f(np.sqrt(2.0 / np.pi) * nu * np.exp(-0.5 * nu**2))
+    nu = float_array(nu)
+    return float_array(np.sqrt(2.0 / np.pi) * nu * np.exp(-0.5 * nu**2))
 
 
 def sheth_tormen_norm(p: npt.ArrayLike) -> FloatArray:
@@ -86,15 +83,15 @@ def sheth_tormen_norm(p: npt.ArrayLike) -> FloatArray:
     :math:`A = [1 + 2^{-p}\Gamma(1/2 - p)/\Gamma(1/2)]^{-1}`, which requires
     :math:`p < 1/2`.
     """
-    p = _f(p)
-    return _f(1.0 / (1.0 + 2.0**-p * sp.gamma(0.5 - p) / sp.gamma(0.5)))
+    p = float_array(p)
+    return float_array(1.0 / (1.0 + 2.0**-p * sp.gamma(0.5 - p) / sp.gamma(0.5)))
 
 
 def sheth_tormen(
     nu: npt.ArrayLike, A: npt.ArrayLike, a: npt.ArrayLike, p: npt.ArrayLike
 ) -> FloatArray:
     r"""Sheth-Tormen: :math:`A\sqrt{2a/\pi}\,\nu e^{-a\nu^2/2}[1 + (a\nu^2)^{-p}]`."""
-    nu, A, a, p = _f(nu), _f(A), _f(a), _f(p)
+    nu, A, a, p = float_array(nu), float_array(A), float_array(a), float_array(p)
     anu2 = a * nu**2
     return A * np.sqrt(2.0 * a / np.pi) * nu * np.exp(-anu2 / 2.0) * (1.0 + anu2**-p)
 
@@ -103,7 +100,9 @@ def jenkins(
     sigma: npt.ArrayLike, A: npt.ArrayLike, b: npt.ArrayLike, c: npt.ArrayLike
 ) -> FloatArray:
     r"""Jenkins et al. (2001): :math:`A\exp(-|\ln\sigma^{-1} + b|^c)`."""
-    return _f(A) * np.exp(-(np.abs(ln_sigma_inv(sigma) + _f(b)) ** _f(c)))
+    return float_array(A) * np.exp(
+        -(np.abs(ln_sigma_inv(sigma) + float_array(b)) ** float_array(c))
+    )
 
 
 def warren(
@@ -118,8 +117,12 @@ def warren(
 
     Many later fits share it, with other parameters (and c = 1 for some).
     """
-    sigma = _f(sigma)
-    return _f(A) * ((_f(e) / sigma) ** _f(b) + _f(c)) * np.exp(-_f(d) / sigma**2)
+    sigma = float_array(sigma)
+    return (
+        float_array(A)
+        * ((float_array(e) / sigma) ** float_array(b) + float_array(c))
+        * np.exp(-float_array(d) / sigma**2)
+    )
 
 
 def angulo(
@@ -135,8 +138,8 @@ def angulo(
 
 def reed03_factor(sigma: npt.ArrayLike, c: npt.ArrayLike) -> FloatArray:
     r"""The Reed et al. (2003) factor on Sheth-Tormen: :math:`\exp[-c/(\sigma\cosh^5 2\sigma)]`."""
-    sigma = _f(sigma)
-    return _f(np.exp(-_f(c) / (sigma * np.cosh(2.0 * sigma) ** 5)))
+    sigma = float_array(sigma)
+    return float_array(np.exp(-float_array(c) / (sigma * np.cosh(2.0 * sigma) ** 5)))
 
 
 def reed07(
@@ -158,10 +161,17 @@ def reed07(
     with :math:`G_1 = \exp[-(\ln\sigma^{-1} - 0.4)^2 / (2\cdot 0.6^2)]` and
     :math:`G_2 = \exp[-(\ln\sigma^{-1} - 0.75)^2 / (2\cdot 0.2^2)]`.
     """
-    nu, n_eff, A, a, c, p = _f(nu), _f(n_eff), _f(A), _f(a), _f(c), _f(p)
-    lns = ln_sigma_inv(sigma)
-    g1 = np.exp(-((lns - 0.4) ** 2) / (2 * 0.6**2))
-    g2 = np.exp(-((lns - 0.75) ** 2) / (2 * 0.2**2))
+    nu, n_eff, A, a, c, p = (
+        float_array(nu),
+        float_array(n_eff),
+        float_array(A),
+        float_array(a),
+        float_array(c),
+        float_array(p),
+    )
+    ln_inv_sigma = ln_sigma_inv(sigma)
+    g1 = np.exp(-((ln_inv_sigma - 0.4) ** 2) / (2 * 0.6**2))
+    g2 = np.exp(-((ln_inv_sigma - 0.75) ** 2) / (2 * 0.2**2))
     return (
         A
         * np.sqrt(2.0 * a / np.pi)
@@ -177,7 +187,7 @@ def peacock(nu: npt.ArrayLike, a: npt.ArrayLike, b: npt.ArrayLike, c: npt.ArrayL
     That is :math:`\nu e^{-c\nu^2}(2cd\nu + ab\nu^{b-1})/d^2` with
     :math:`d = 1 + a\nu^b`.
     """
-    nu, a, b, c = _f(nu), _f(a), _f(b), _f(c)
+    nu, a, b, c = float_array(nu), float_array(a), float_array(b), float_array(c)
     d = 1.0 + a * nu**b
     return nu * np.exp(-c * nu**2) * (2.0 * c * d * nu + b * a * nu ** (b - 1.0)) / d**2
 
@@ -203,10 +213,10 @@ def watson_gamma(
     :math:`d = -d_a\Omega_m(z) - d_b`. ``delta_halo`` is relative to the mean density.
     It is exactly 1 at :math:`\Delta = 178`.
     """
-    x = _f(delta_halo) / 178.0
-    C = np.exp(_f(C_a) * (x - 1.0))
-    d = -_f(d_a) * _f(omega_m_z) - _f(d_b)
-    return C * x**d * np.exp(_f(p) * (1.0 - x) / _f(sigma) ** _f(q))
+    x = float_array(delta_halo) / 178.0
+    C = np.exp(float_array(C_a) * (x - 1.0))
+    d = -float_array(d_a) * float_array(omega_m_z) - float_array(d_b)
+    return C * x**d * np.exp(float_array(p) * (1.0 - x) / float_array(sigma) ** float_array(q))
 
 
 def log10_delta_spline(
@@ -231,8 +241,8 @@ def log10_delta_spline(
     numpy.ndarray
         The interpolated values, with the shape of ``delta_halo``.
     """
-    spline = CubicSpline(np.log10(_f(delta_tab)), _f(values), bc_type="natural")
-    return _f(spline(np.log10(_f(delta_halo))))
+    spline = CubicSpline(np.log10(float_array(delta_tab)), float_array(values), bc_type="natural")
+    return float_array(spline(np.log10(float_array(delta_halo))))
 
 
 def tinker08_b_exponent(delta_halo: npt.ArrayLike) -> FloatArray:
@@ -240,7 +250,7 @@ def tinker08_b_exponent(delta_halo: npt.ArrayLike) -> FloatArray:
 
     Defined for :math:`\Delta > 75` only.
     """
-    return _f(10.0 ** (-((0.75 / np.log10(_f(delta_halo) / 75.0)) ** 1.2)))
+    return float_array(10.0 ** (-((0.75 / np.log10(float_array(delta_halo) / 75.0)) ** 1.2)))
 
 
 def tinker08(
@@ -251,8 +261,12 @@ def tinker08(
     c: npt.ArrayLike,
 ) -> FloatArray:
     r"""Tinker et al. (2008) eq. 3: :math:`A[(\sigma/b)^{-a} + 1]\exp(-c/\sigma^2)`."""
-    sigma = _f(sigma)
-    return _f(A) * ((sigma / _f(b)) ** -_f(a) + 1.0) * np.exp(-_f(c) / sigma**2)
+    sigma = float_array(sigma)
+    return (
+        float_array(A)
+        * ((sigma / float_array(b)) ** -float_array(a) + 1.0)
+        * np.exp(-float_array(c) / sigma**2)
+    )
 
 
 def tinker10_norm(
@@ -263,8 +277,13 @@ def tinker10_norm(
     Requires :math:`\beta > 0`, :math:`\gamma > 0`, :math:`\eta > -1/2` and
     :math:`\eta - \phi > -1/2`.
     """
-    beta, gamma, phi, eta = _f(beta), _f(gamma), _f(phi), _f(eta)
-    return _f(
+    beta, gamma, phi, eta = (
+        float_array(beta),
+        float_array(gamma),
+        float_array(phi),
+        float_array(eta),
+    )
+    return float_array(
         1.0
         / (
             2.0 ** (eta - phi - 0.5)
@@ -290,12 +309,12 @@ def tinker10(
 
     :math:`\alpha[1 + (\beta\nu)^{-2\phi}]\nu^{2\eta + 1}\exp(-\gamma\nu^2/2)`.
     """
-    nu = _f(nu)
+    nu = float_array(nu)
     return (
-        _f(alpha)
-        * (1.0 + (_f(beta) * nu) ** (-2.0 * _f(phi)))
-        * nu ** (2.0 * _f(eta) + 1.0)
-        * np.exp(-_f(gamma) * nu**2 / 2.0)
+        float_array(alpha)
+        * (1.0 + (float_array(beta) * nu) ** (-2.0 * float_array(phi)))
+        * nu ** (2.0 * float_array(eta) + 1.0)
+        * np.exp(-float_array(gamma) * nu**2 / 2.0)
     )
 
 
@@ -306,8 +325,8 @@ def bhattacharya_norm(p: npt.ArrayLike, q: npt.ArrayLike) -> FloatArray:
     :math:`2^{q/2 - p - 1/2}[2^p\Gamma(q/2) + \Gamma(q/2 - p)]/\sqrt{\pi}`, finite for
     :math:`q > 0` and :math:`2p < q`; this returns its reciprocal.
     """
-    p, q = _f(p), _f(q)
-    return _f(
+    p, q = float_array(p), float_array(q)
+    return float_array(
         np.sqrt(np.pi)
         / (2.0 ** (-0.5 - p + q / 2.0) * (2.0**p * sp.gamma(q / 2.0) + sp.gamma(q / 2.0 - p)))
     )
@@ -321,7 +340,9 @@ def bhattacharya(
     q: npt.ArrayLike,
 ) -> FloatArray:
     r"""Bhattacharya et al. (2011) eq. 12: Sheth-Tormen times :math:`(\sqrt{a}\,\nu)^{q-1}`."""
-    return sheth_tormen(nu, A, a, p) * (np.sqrt(_f(a)) * _f(nu)) ** (_f(q) - 1.0)
+    return sheth_tormen(nu, A, a, p) * (np.sqrt(float_array(a)) * float_array(nu)) ** (
+        float_array(q) - 1.0
+    )
 
 
 def behroozi_modify_dndm(
@@ -364,14 +385,14 @@ def behroozi_modify_dndm(
         The corrected dn/dM, in the units of ``dndm``. Non-finite inputs give
         non-finite outputs: nothing is replaced by a sentinel.
     """
-    m_msun, z, h = _f(m_msun), _f(z), _f(h)
+    m_msun, z, h = float_array(m_msun), float_array(z), float_array(h)
     a = 1.0 / (1.0 + z)
     alpha = 0.144 / (1.0 + np.exp(14.79 * (a - 0.213)))
     gamma = 0.5 / (1.0 + np.exp(6.5 * a))
     mscale = (m_msun / 10**11.5) ** gamma
     theta = 10.0 ** (alpha * mscale)
     dtheta_dm = theta * np.log(10.0) * alpha * gamma * mscale / (m_msun * h)
-    return _f(_f(dndm) * theta - _f(ngtm) * dtheta_dm)
+    return float_array(float_array(dndm) * theta - float_array(ngtm) * dtheta_dm)
 
 
 def bocquet16_mass_ratio_200c(
@@ -394,7 +415,7 @@ def bocquet16_mass_ratio_200c(
         The ratio, an approximation calibrated for NFW haloes with the Duffy et al.
         (2008) concentrations.
     """
-    m_msun, z, om = _f(m_msun), _f(z), _f(omega_m0)
+    m_msun, z, om = float_array(m_msun), float_array(z), float_array(omega_m0)
     g0 = 3.54e-2 + om**0.09
     g1 = 4.56e-2 + 2.68e-2 / om
     g2 = 0.721 + 3.5e-2 / om
@@ -403,7 +424,7 @@ def bocquet16_mass_ratio_200c(
     d1 = 6.52e-3 - 6.86e-3 * om
     g = g0 + g1 * np.exp(-(((g2 - z) / g3) ** 2))
     d = d0 + d1 * z
-    return _f(g + d * np.log(m_msun))
+    return float_array(g + d * np.log(m_msun))
 
 
 def bocquet16_mass_ratio_500c(
@@ -413,10 +434,10 @@ def bocquet16_mass_ratio_500c(
 
     Parameters are as for :func:`bocquet16_mass_ratio_200c`.
     """
-    m_msun, z, om = _f(m_msun), _f(z), _f(omega_m0)
+    m_msun, z, om = float_array(m_msun), float_array(z), float_array(omega_m0)
     alpha_0 = 0.880 + 0.329 * om
     alpha_1 = 1.0 + 4.31e-2 / om
     alpha_2 = -0.365 + 0.254 / om
     alpha = alpha_0 * (alpha_1 * z + alpha_2) / (z + alpha_2)
     beta = -1.7e-2 + om * 3.74e-3
-    return _f(alpha + beta * np.log(m_msun))
+    return float_array(alpha + beta * np.log(m_msun))

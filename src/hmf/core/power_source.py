@@ -29,6 +29,7 @@ from numpy.typing import NDArray
 from scipy.interpolate import CubicSpline
 
 from ._fields import field
+from ._validators import check_finite_positive, check_increasing, check_table
 from .stage import Stage
 from .units import (
     H0_unit,
@@ -171,15 +172,14 @@ class TabulatedPower(Stage):
             raise UnitBoundaryError("TabulatedPower: H0 must be a Quantity, e.g. 70 * H0_unit.")
         if self.H0 is not None and not self.H0.unit.is_equivalent(H0_unit):
             raise u.UnitConversionError(f"TabulatedPower: H0 must be in {H0_unit}.")
-        if self.k.ndim != 1 or self.k.shape != self.pk.shape or self.k.size < 4:
-            raise ValueError("TabulatedPower: k and pk must be 1D, of the same length (>= 4).")
-        ln_k, ln_p = self._table
-        if not np.all(np.isfinite(ln_k)) or not np.all(np.diff(ln_k) > 0):
-            raise ValueError("TabulatedPower: k must be finite, > 0 and strictly increasing.")
-        if not np.all(np.isfinite(ln_p)):
-            raise ValueError("TabulatedPower: pk must be finite and > 0.")
-        if not (math.isfinite(self._rho_mean0) and self._rho_mean0 > 0):
-            raise ValueError("TabulatedPower: mean_density must be finite and > 0.")
+        where = "TabulatedPower"
+        k, pk = check_table({"k": self.k.value, "pk": self.pk.value}, where=where, min_size=4)
+        # Converting to canonical units multiplies by a factor > 0, which keeps these.
+        check_finite_positive("k", k, where=where)
+        check_increasing("k", k, where=where)
+        check_finite_positive("pk", pk, where=where)
+        self._table
+        check_finite_positive("mean_density", self._rho_mean0, where=where)
 
     @cached_property
     def _unit_context(self) -> UnitContext:
