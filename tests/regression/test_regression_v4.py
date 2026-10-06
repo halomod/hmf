@@ -2,8 +2,8 @@
 
 One test per quantity runs every case of that quantity through its v4 provider (see
 ``v4_providers.py``) and compares the result with the reference, with the tolerance
-of ``data/tolerances.json``. A quantity without a provider is skipped: the v4
-stages do not exist yet, so for now every test here is skipped.
+of ``data/tolerances.json``. A quantity without a provider (one whose v4 stage does
+not exist yet) is skipped, as is a quantity whose provider supports none of its cases.
 """
 
 import numpy as np

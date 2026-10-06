@@ -32,7 +32,9 @@ from numpy.typing import NDArray
 from scipy.interpolate import CubicSpline
 
 from ._fields import field
+from ._kernels.arrays import read_only
 from ._serialise import quantity_key
+from ._validators import check_finite_positive, check_increasing, check_table
 from .stage import Stage
 from .units import (
     HasUnitContext,
@@ -85,9 +87,9 @@ def _table_column(name: str, unit: u.UnitBase) -> Any:
     """
 
     def convert(value: Any) -> u.Quantity:
-        _require_quantity(value, unit, where="TabulatedPower", name=name)
-        out = u.Quantity(value, dtype=float, copy=True)
-        out.flags.writeable = False
+        out: u.Quantity = read_only(
+            _require_quantity(value, unit, where="TabulatedPower", name=name)
+        )
         return out
 
     return convert
@@ -151,15 +153,14 @@ class TabulatedPower(Stage):
     def __attrs_post_init__(self) -> None:
         """Validate the H0, the table, and its units (with the H0)."""
         _ = self._unit_context  # UnitContext validates the H0.
-        if self.k.ndim != 1 or self.k.shape != self.pk.shape or self.k.size < 4:
-            raise ValueError("TabulatedPower: k and pk must be 1D, of the same length (>= 4).")
-        ln_k, ln_p = self._table
-        if not np.all(np.isfinite(ln_k)) or not np.all(np.diff(ln_k) > 0):
-            raise ValueError("TabulatedPower: k must be finite, > 0 and strictly increasing.")
-        if not np.all(np.isfinite(ln_p)):
-            raise ValueError("TabulatedPower: pk must be finite and > 0.")
-        if not (math.isfinite(self._rho_mean0) and self._rho_mean0 > 0):
-            raise ValueError("TabulatedPower: mean_density must be finite and > 0.")
+        where = "TabulatedPower"
+        k, pk = check_table({"k": self.k.value, "pk": self.pk.value}, where=where, min_size=4)
+        # Converting to canonical units multiplies by a factor > 0, which keeps these.
+        check_finite_positive("k", k, where=where)
+        check_increasing("k", k, where=where)
+        check_finite_positive("pk", pk, where=where)
+        _ = self._table  # Converts the table now, so unit errors raise here.
+        check_finite_positive("mean_density", self._rho_mean0, where=where)
 
     @cached_property
     def _unit_context(self) -> UnitContext:

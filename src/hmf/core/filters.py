@@ -23,6 +23,7 @@ import attrs
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
+from . import _references as refs
 from ._fields import field
 from ._kernels import filters as kernels
 from ._validators import positive
@@ -283,9 +284,7 @@ class SmoothK(Filter, alias="SmoothK"):
     variance of a power law :math:`P \propto k^n` converges for :math:`n < 2\beta - 3`.
     """
 
-    references: ClassVar[tuple[str, ...]] = (
-        "Leo, M., Baugh, C. M., Li, B., Pascoli, S., 2018. JCAP 04, 010. arXiv:1801.02547",
-    )
+    references: ClassVar[tuple[str, ...]] = (refs.LEO18,)
     parameter_source: ClassVar[str] = "Leo et al. 2018, JCAP 04, 010, Section 5 (best fit)"
 
     beta: float = field(

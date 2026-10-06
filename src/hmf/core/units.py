@@ -66,16 +66,19 @@ from contextlib import contextmanager
 from types import MappingProxyType
 from typing import Any, Concatenate, ParamSpec, Protocol, TypeVar
 
+import astropy.constants as _constants
 import astropy.cosmology.units as cu
 import astropy.units as u
 import attrs
 import numpy as np
 
 from ._fields import field
+from ._kernels.arrays import read_only
 from ._serialise import quantity_key
 
 __all__ = [
     "CANONICAL_UNITS",
+    "RHO_CRIT0_H2",
     "H0_unit",
     "HasUnitContext",
     "Mpc_h",
@@ -617,9 +620,7 @@ def _require_quantity(
 
 def _read_only_quantity(values: Any, unit: u.UnitBase) -> u.Quantity:
     """A read-only float copy of ``values`` (plain, in ``unit``), as a Quantity in ``unit``."""
-    arr = np.array(values, dtype=float)
-    arr.flags.writeable = False
-    q = arr.view(u.Quantity)
+    q = read_only(values).view(u.Quantity)
     q._unit = unit
     return q
 
@@ -894,3 +895,15 @@ def unit_boundary(
         return wrapper
 
     return decorator
+
+
+# ---------------------------------------------------------------------------------
+# Physical constants
+# ---------------------------------------------------------------------------------
+
+#: The critical density today over h², :math:`3 (100\,{\rm km\,s^{-1}\,Mpc^{-1}})^2 /
+#: (8\pi G)`, from astropy's G and M☉: a Quantity in :data:`rho_unit` (M☉ h² / Mpc³),
+#: about 2.775e11.
+RHO_CRIT0_H2 = (3 * (100 * u.km / u.s / u.Mpc) ** 2 / (8 * np.pi * _constants.G)).to(
+    u.Msun / u.Mpc**3
+).value * rho_unit

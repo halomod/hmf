@@ -41,11 +41,13 @@ from astropy.cosmology import FLRW, Planck18
 from ._boltzmann import BoltzmannRun
 from ._fields import field
 from ._serialise import cosmology_key
+from ._species import check_species
+from ._validators import check_in_range
 from .accuracy import KAccuracy
 from .cache import DiskCache, to_disk_cache
 from .domain import DomainError
 from .stage import Stage
-from .transfer_models import CAMB, TransferModel, TransferSolution, check_species
+from .transfer_models import CAMB, TransferModel, TransferSolution
 from .units import UnitContext, h_Mpc, unit_boundary
 
 __all__ = ["Transfer", "UnnormalisedPower"]
@@ -65,8 +67,9 @@ def _to_transfer_model(value: Any) -> TransferModel:
 
 
 def _check_k(k: Array) -> None:
-    if np.any(~(np.asarray(k) > 0)):
-        raise DomainError("Wavenumbers must be > 0 (and not NaN).")
+    # Note: this accepts k = inf, unlike the other checks of array inputs in hmf.core,
+    # which require them to be finite too. Whether it should is still to be decided.
+    check_in_range("k", k, where="Transfer", low=0.0, low_open=True, error=DomainError)
 
 
 @attrs.frozen(eq=False)

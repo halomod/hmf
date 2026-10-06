@@ -28,6 +28,8 @@ import attrs
 import numpy as np
 from astropy.cosmology import FLRW
 
+from .model import qualified_name
+
 __all__ = ["canonical", "canonical_json", "content_hash", "cosmology_key", "quantity_key"]
 
 
@@ -65,9 +67,8 @@ def cosmology_key(cosmo: FLRW) -> tuple[Any, ...]:
     params = getattr(cosmo, "parameters", None)
     if not isinstance(params, Mapping):  # pragma: no cover - astropy < 6.1
         params = {name: getattr(cosmo, name) for name in type(cosmo).__parameters__}
-    cls = type(cosmo)
     return (
-        f"{cls.__module__}:{cls.__qualname__}",
+        qualified_name(type(cosmo)),
         tuple(sorted((str(name), _plain(value)) for name, value in params.items())),
     )
 
@@ -141,7 +142,7 @@ def canonical(obj: Any) -> Any:
         return {"__cosmology__": canonical(cosmology_key(obj))}
     if attrs.has(type(obj)):
         cls = type(obj)
-        out: dict[str, Any] = {"__class__": f"{cls.__module__}:{cls.__qualname__}"}
+        out: dict[str, Any] = {"__class__": qualified_name(cls)}
         for a in attrs.fields(cls):
             if a.eq:
                 out[a.name] = canonical(getattr(obj, a.name))

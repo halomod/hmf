@@ -283,7 +283,7 @@ def test_camb_k_max_is_a_quantity():
         tm.CAMB(k_max=10 / u.Mpc)
     with pytest.raises(ValueError, match="must be a scalar"):
         tm.CAMB(k_max=[10, 20] * h_Mpc)
-    with pytest.raises(ValueError, match="k_max must be > 0"):
+    with pytest.raises(ValueError, match="k_max must be finite and > 0"):
         tm.CAMB(k_max=0 * h_Mpc)
 
 

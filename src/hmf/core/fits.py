@@ -83,12 +83,15 @@ import attrs
 import numpy as np
 import numpy.typing as npt
 
+from . import _references as refs
+from ._arrays import float_array, optional_float_array
 from ._fields import field
 from ._kernels import fits as _k
-from ._validators import less_than, positive
+from ._validators import check_finite_positive, less_than, positive
 from .domain import Domain, DomainError, DomainPolicy, apply_domain_policy
 from .model import Model
 from .units import (
+    RHO_CRIT0_H2,
     H0_unit,
     Mpc_h,
     Msun_h,
@@ -98,6 +101,7 @@ from .units import (
     kpc_h,
     number_density_unit,
     quantity_field,
+    rho_unit,
     to_canonical,
     unit_boundary,
 )
@@ -238,8 +242,6 @@ def _so_any(preferred: MeasuredMassDefinition, note: str = "") -> MeasuredMassDe
 # ---------------------------------------------------------------------------------
 # Metadata: the simulations a fit was calibrated on
 # ---------------------------------------------------------------------------------
-#: The critical density today, in h^2 Msun / Mpc^3, for :attr:`SimulationDetails.particle_mass`.
-_RHO_CRIT0 = 2.775366e11
 
 PerSimulation = tuple[Any, ...]
 
@@ -350,7 +352,7 @@ class SimulationDetails:
         if self.omega_m is None or any(om is None for om in self.omega_m):
             return None
         volume = self.box_size.to_value(Mpc_h) ** 3
-        mass = np.array(self.omega_m, dtype=float) * _RHO_CRIT0 * volume
+        mass = np.array(self.omega_m, dtype=float) * RHO_CRIT0_H2.to_value(rho_unit) * volume
         return (mass / np.array(self.n_particles, dtype=float)) << Msun_h
 
 
@@ -368,14 +370,6 @@ def _derived(
 # ---------------------------------------------------------------------------------
 # Inputs
 # ---------------------------------------------------------------------------------
-def _as_float_array(x: npt.ArrayLike) -> FloatArray:
-    return np.asarray(x, dtype=np.float64)
-
-
-def _as_array(x: npt.ArrayLike | None) -> FloatArray | None:
-    return None if x is None else np.asarray(x, dtype=np.float64)
-
-
 @attrs.frozen(kw_only=True)
 class FitInputs:
     r"""The resolved physical inputs of a fit, as float arrays.
@@ -391,17 +385,21 @@ class FitInputs:
         The optional inputs (``m`` in canonical Msun/h); ``None`` if not given.
     """
 
-    sigma: FloatArray = attrs.field(converter=_as_float_array)
-    _z: FloatArray | None = attrs.field(default=None, converter=_as_array, alias="z")
+    sigma: FloatArray = attrs.field(converter=float_array)
+    _z: FloatArray | None = attrs.field(default=None, converter=optional_float_array, alias="z")
     _omega_m_z: FloatArray | None = attrs.field(
-        default=None, converter=_as_array, alias="omega_m_z"
+        default=None, converter=optional_float_array, alias="omega_m_z"
     )
     _delta_halo: FloatArray | None = attrs.field(
-        default=None, converter=_as_array, alias="delta_halo"
+        default=None, converter=optional_float_array, alias="delta_halo"
     )
-    _delta_c: FloatArray | None = attrs.field(default=None, converter=_as_array, alias="delta_c")
-    _n_eff: FloatArray | None = attrs.field(default=None, converter=_as_array, alias="n_eff")
-    _m: FloatArray | None = attrs.field(default=None, converter=_as_array, alias="m")
+    _delta_c: FloatArray | None = attrs.field(
+        default=None, converter=optional_float_array, alias="delta_c"
+    )
+    _n_eff: FloatArray | None = attrs.field(
+        default=None, converter=optional_float_array, alias="n_eff"
+    )
+    _m: FloatArray | None = attrs.field(default=None, converter=optional_float_array, alias="m")
 
     def given(self, name: str) -> bool:
         """Whether the input ``name`` was given."""
@@ -918,12 +916,7 @@ def _p(default: float | None, doc: str, **kwargs: Any) -> Any:
 def _check_physical(name: str, **params: FloatArray) -> None:
     """Raise a DomainError if any of ``params`` is not finite and > 0."""
     for key, value in params.items():
-        bad = ~(np.isfinite(value) & (value > 0))
-        if np.any(bad):
-            raise DomainError(
-                f"{name}: parameter {key} is unphysical (must be finite and > 0) for "
-                f"{int(np.count_nonzero(bad))} of {np.size(bad)} input(s)."
-            )
+        check_finite_positive(f"parameter {key}", value, where=name, error=DomainError)
 
 
 # ---------------------------------------------------------------------------------
@@ -939,12 +932,7 @@ class PS(FittingFunction, alias="PS"):
     normalised: all mass is in haloes. It has no free parameters.
     """
 
-    references: ClassVar[tuple[str, ...]] = (
-        (
-            "Press, W. H., Schechter, P., 1974. ApJ 187, 425. "
-            "https://ui.adsabs.harvard.edu/abs/1974ApJ...187..425P"
-        ),
-    )
+    references: ClassVar[tuple[str, ...]] = (refs.PS74,)
     parameter_source: ClassVar[str] = "Press & Schechter 1974: analytic, no free parameters."
     requires: ClassVar[frozenset[str]] = frozenset({"delta_c"})
     valid_domain: ClassVar[Domain] = Domain(
@@ -963,15 +951,6 @@ class PS(FittingFunction, alias="PS"):
     def _fsigma(self, x: FitInputs) -> FloatArray:
         return _k.press_schechter(x.nu)
 
-
-_SMT_REF = (
-    "Sheth, R. K., Mo, H. J., Tormen, G., 2001. MNRAS 323, 1. "
-    "https://doi.org/10.1046/j.1365-8711.2001.04006.x"
-)
-_ST99_REF = (
-    "Sheth, R. K., Tormen, G., 1999. MNRAS 308, 119. "
-    "https://doi.org/10.1046/j.1365-8711.1999.02692.x"
-)
 
 #: p < 1/2, so that the Sheth-Tormen form can be normalised.
 _P_BELOW_HALF = less_than(0.5)
@@ -995,7 +974,7 @@ class SMT(FittingFunction, alias="SMT"):
     It reduces to :class:`PS` for :math:`A = 1/2`, :math:`a = 1`, :math:`p = 0`.
     """
 
-    references: ClassVar[tuple[str, ...]] = (_SMT_REF, _ST99_REF)
+    references: ClassVar[tuple[str, ...]] = (refs.SMT01, refs.ST99)
     parameter_source: ClassVar[str] = (
         "Sheth & Tormen 1999, eq. 10 (a = 0.707, p = 0.3); A from the normalisation "
         "(Sheth, Mo & Tormen 2001, eq. 5: A = 0.3222)."
@@ -1071,9 +1050,7 @@ class Reed03(SMT, alias="Reed03"):
     .. math:: f(\sigma) = f_{\rm ST}(\sigma)\exp\left[-\frac{c}{\sigma\cosh^5(2\sigma)}\right].
     """
 
-    references: ClassVar[tuple[str, ...]] = (
-        "Reed, D., et al., 2003. MNRAS 346, 565. https://doi.org/10.1046/j.1365-2966.2003.07113.x",
-    )
+    references: ClassVar[tuple[str, ...]] = (refs.REED03,)
     parameter_source: ClassVar[str] = (
         "Reed et al. 2003 (arXiv v2), eq. 5 (A, a, p of Sheth-Tormen) and eq. 9 (c = 0.7)."
     )
@@ -1124,12 +1101,7 @@ class Reed03(SMT, alias="Reed03"):
 class Courtin(SMT, alias="Courtin"):
     r"""The Courtin et al. (2011) mass function: Sheth-Tormen with refitted parameters."""
 
-    references: ClassVar[tuple[str, ...]] = (
-        (
-            "Courtin, J., et al., 2011. MNRAS 410, 1911. "
-            "https://doi.org/10.1111/j.1365-2966.2010.17573.x"
-        ),
-    )
+    references: ClassVar[tuple[str, ...]] = (refs.COURTIN11,)
     parameter_source: ClassVar[str] = (
         "Courtin et al. 2011 (arXiv v2), eq. 22, which was fitted with delta_c fixed "
         "to 1.673 (pass that delta_c to reproduce the paper)."
@@ -1175,12 +1147,7 @@ class Courtin(SMT, alias="Courtin"):
 class Manera(SMT, alias="Manera"):
     r"""The Manera, Sheth & Scoccimarro (2010) mass function: Sheth-Tormen, refitted."""
 
-    references: ClassVar[tuple[str, ...]] = (
-        (
-            "Manera, M., Sheth, R. K., Scoccimarro, R., 2010. MNRAS 402, 589. "
-            "https://doi.org/10.1111/j.1365-2966.2009.15921.x"
-        ),
-    )
+    references: ClassVar[tuple[str, ...]] = (refs.MANERA10,)
     parameter_source: ClassVar[str] = (
         "Manera et al. 2010 (arXiv v2), Table 2: z = 0, 'New ML', linking length 0.2 "
         "(q = 0.709, p = 0.248). hmf 3.x used p = 0.289, from the l_link = 0.15 row."
@@ -1232,12 +1199,7 @@ class Jenkins(FittingFunction, alias="Jenkins"):
     .. math:: f(\sigma) = A\exp\left(-\left|\ln\sigma^{-1} + b\right|^c\right).
     """
 
-    references: ClassVar[tuple[str, ...]] = (
-        (
-            "Jenkins, A., et al., 2001. MNRAS 321, 372. "
-            "https://doi.org/10.1046/j.1365-8711.2001.04029.x"
-        ),
-    )
+    references: ClassVar[tuple[str, ...]] = (refs.JENKINS01,)
     parameter_source: ClassVar[str] = "Jenkins et al. 2001 (arXiv v2, as accepted), eq. 9."
     valid_domain: ClassVar[Domain] = Domain({"sigma": _SIGMA_POSITIVE}, source="sigma > 0.")
     calibration_domain: ClassVar[Domain] = Domain(
@@ -1291,9 +1253,7 @@ class Warren(FittingFunction, alias="Warren"):
     The paper's (A, a, b, c) are hmf's (A, b, c, d), with e = 1.
     """
 
-    references: ClassVar[tuple[str, ...]] = (
-        "Warren, M. S., et al., 2006. ApJ 646, 881. https://doi.org/10.1086/504962",
-    )
+    references: ClassVar[tuple[str, ...]] = (refs.WARREN06,)
     parameter_source: ClassVar[str] = "Warren et al. 2006 (arXiv v1), eq. 8."
     valid_domain: ClassVar[Domain] = _SIGMA_VALID
     calibration_domain: ClassVar[Domain] = Domain(
@@ -1351,9 +1311,7 @@ class Reed07(FittingFunction, alias="Reed07"):
     is ``a / c``.
     """
 
-    references: ClassVar[tuple[str, ...]] = (
-        "Reed, D. S., et al., 2007. MNRAS 374, 2. https://doi.org/10.1111/j.1365-2966.2006.11204.x",
-    )
+    references: ClassVar[tuple[str, ...]] = (refs.REED07,)
     parameter_source: ClassVar[str] = (
         "Reed et al. 2007 (arXiv v4), eqs. 11-12: c = 1.08, ca = 0.764, p = 0.3, "
         "A = 0.3222 (A' = 0.310 = A / sqrt(c) in eq. 12)."
@@ -1425,9 +1383,7 @@ class Peacock(FittingFunction, alias="Peacock"):
     :math:`f = -dF/d\ln\nu`. Since :math:`F(0) = 1`, it is normalised.
     """
 
-    references: ClassVar[tuple[str, ...]] = (
-        "Peacock, J. A., 2007. MNRAS 379, 1067. https://doi.org/10.1111/j.1365-2966.2007.11979.x",
-    )
+    references: ClassVar[tuple[str, ...]] = (refs.PEACOCK07,)
     parameter_source: ClassVar[str] = "Peacock 2007 (arXiv v2), eq. 9."
     requires: ClassVar[frozenset[str]] = frozenset({"delta_c"})
     valid_domain: ClassVar[Domain] = _NU_VALID
@@ -1455,9 +1411,6 @@ class Peacock(FittingFunction, alias="Peacock"):
 # ---------------------------------------------------------------------------------
 # Angulo, Watson, Crocce, Bhattacharya
 # ---------------------------------------------------------------------------------
-_ANGULO_REF = (
-    "Angulo, R. E., et al., 2012. MNRAS 426, 2046. https://doi.org/10.1111/j.1365-2966.2012.21830.x"
-)
 
 
 @attrs.frozen(kw_only=True)
@@ -1468,7 +1421,7 @@ class Angulo(FittingFunction, alias="Angulo"):
         \exp\left(-\frac{c}{\sigma^2}\right).
     """
 
-    references: ClassVar[tuple[str, ...]] = (_ANGULO_REF,)
+    references: ClassVar[tuple[str, ...]] = (refs.ANGULO12,)
     parameter_source: ClassVar[str] = (
         "Angulo et al. 2012 (arXiv v2), eq. 2. The paper prints A[d/sigma + 1]^b; the "
         "form used here, A[(d/sigma)^b + 1], is the one that matches its data (and "
@@ -1540,9 +1493,6 @@ class AnguloBound(Angulo, alias="AnguloBound"):
     d: float = _p(1.675, "The scale d of sigma.")
 
 
-_WATSON_REF = "Watson, W. A., et al., 2013. MNRAS 433, 1230. https://doi.org/10.1093/mnras/stt791"
-
-
 @attrs.frozen(kw_only=True)
 class Watson_FoF(Warren, alias="Watson_FoF"):
     r"""The Watson et al. (2013) friends-of-friends mass function.
@@ -1550,7 +1500,7 @@ class Watson_FoF(Warren, alias="Watson_FoF"):
     The :class:`Warren` form, with Watson's parameters.
     """
 
-    references: ClassVar[tuple[str, ...]] = (_WATSON_REF,)
+    references: ClassVar[tuple[str, ...]] = (refs.WATSON13,)
     parameter_source: ClassVar[str] = "Watson et al. 2013 (arXiv v4 = published), eq. 12, Table 2."
     valid_domain: ClassVar[Domain] = _SIGMA_VALID
     calibration_domain: ClassVar[Domain] = Domain(
@@ -1610,7 +1560,7 @@ class Watson(FittingFunction, alias="Watson"):
     :math:`\Delta` (relative to the mean), and is 1 at :math:`\Delta = 178`.
     """
 
-    references: ClassVar[tuple[str, ...]] = (_WATSON_REF,)
+    references: ClassVar[tuple[str, ...]] = (refs.WATSON13,)
     parameter_source: ClassVar[str] = (
         "Watson et al. 2013 (arXiv v4 = published): Table 2 (z = 0 'AHF' and z >= 6 "
         "fits; the Sec. 4.5.2 text swaps alpha_0 and beta_0, Table 2 is followed), "
@@ -1741,12 +1691,7 @@ class Crocce(FittingFunction, alias="Crocce"):
     e = 1.
     """
 
-    references: ClassVar[tuple[str, ...]] = (
-        (
-            "Crocce, M., et al., 2010. MNRAS 403, 1353. "
-            "https://doi.org/10.1111/j.1365-2966.2009.16194.x"
-        ),
-    )
+    references: ClassVar[tuple[str, ...]] = (refs.CROCCE10,)
     parameter_source: ClassVar[str] = "Crocce et al. 2010 (arXiv v2), eqs. 20 and 22, Table 2."
     requires: ClassVar[frozenset[str]] = frozenset({"z"})
     valid_domain: ClassVar[Domain] = _Z_VALID
@@ -1816,9 +1761,7 @@ class Bhattacharya(FittingFunction, alias="Bhattacharya"):
     (which needs :math:`q > 0` and :math:`2p < q`). For q = 1 it is Sheth-Tormen.
     """
 
-    references: ClassVar[tuple[str, ...]] = (
-        "Bhattacharya, S., et al., 2011. ApJ 732, 122. https://doi.org/10.1088/0004-637X/732/2/122",
-    )
+    references: ClassVar[tuple[str, ...]] = (refs.BHATTACHARYA11,)
     parameter_source: ClassVar[str] = "Bhattacharya et al. 2011 (arXiv v6), eq. 12 and Table 4."
     requires: ClassVar[frozenset[str]] = frozenset({"z", "delta_c"})
     valid_domain: ClassVar[Domain] = Domain(
@@ -1893,8 +1836,6 @@ class Bhattacharya(FittingFunction, alias="Bhattacharya"):
 #: The overdensities (relative to the mean) of the Tinker 2008 and 2010 tables.
 _TINKER_DELTAS = (200, 300, 400, 600, 800, 1200, 1600, 2400, 3200)
 
-_TINKER08_REF = "Tinker, J., et al., 2008. ApJ 688, 709. https://doi.org/10.1086/591439"
-
 
 @attrs.frozen(kw_only=True)
 class Tinker08(FittingFunction, alias="Tinker08"):
@@ -1914,7 +1855,7 @@ class Tinker08(FittingFunction, alias="Tinker08"):
     beyond the paper's three).
     """
 
-    references: ClassVar[tuple[str, ...]] = (_TINKER08_REF,)
+    references: ClassVar[tuple[str, ...]] = (refs.TINKER08,)
     parameter_source: ClassVar[str] = (
         "Tinker et al. 2008 (arXiv v1 = published), Table 2 and eqs. 5-8; the "
         "extra digits reproduce Table B3's spline second derivatives."
@@ -2121,13 +2062,7 @@ class Behroozi(Tinker08, alias="Behroozi"):
     with :math:`M_\star = 10^{11.5}\,M_\odot` (eqs. G2-G3).
     """
 
-    references: ClassVar[tuple[str, ...]] = (
-        (
-            "Behroozi, P. S., Wechsler, R. H., Conroy, C., 2013. ApJ 770, 57. "
-            "https://doi.org/10.1088/0004-637X/770/1/57"
-        ),
-        _TINKER08_REF,
-    )
+    references: ClassVar[tuple[str, ...]] = (refs.BEHROOZI13, refs.TINKER08)
     parameter_source: ClassVar[str] = (
         "Behroozi et al. 2013 (arXiv v2), App. G, eqs. G2-G3 (the correction); "
         "f(sigma) parameters from Tinker et al. 2008, Table 2."
@@ -2219,9 +2154,7 @@ class Tinker10(FittingFunction, alias="Tinker10"):
     :math:`\eta - \phi > -1/2`; otherwise it raises).
     """
 
-    references: ClassVar[tuple[str, ...]] = (
-        "Tinker, J., et al., 2010. ApJ 724, 878. https://doi.org/10.1088/0004-637X/724/2/878",
-    )
+    references: ClassVar[tuple[str, ...]] = (refs.TINKER10,)
     parameter_source: ClassVar[str] = (
         "Tinker et al. 2010 (arXiv v2), Table 4 and eqs. 9-12 (and the z = 3 cap, Sec. 4)."
     )
@@ -2383,12 +2316,7 @@ class Tinker10(FittingFunction, alias="Tinker10"):
 class Pillepich(Warren, alias="Pillepich"):
     r"""The Pillepich, Porciani & Hahn (2010) mass function: the :class:`Warren` form."""
 
-    references: ClassVar[tuple[str, ...]] = (
-        (
-            "Pillepich, A., Porciani, C., Hahn, O., 2010. MNRAS 402, 191. "
-            "https://doi.org/10.1111/j.1365-2966.2009.15914.x"
-        ),
-    )
+    references: ClassVar[tuple[str, ...]] = (refs.PILLEPICH10,)
     parameter_source: ClassVar[str] = (
         "Pillepich et al. 2010 (arXiv v3), Sec. 3.1: the Gaussian (f_NL = 0) runs, in "
         "Warren notation (A, a, b, c) = (0.6853, 1.868, 0.3324, 1.2266)."
@@ -2438,9 +2366,7 @@ class Ishiyama(Warren, alias="Ishiyama"):
     :math:`(A, B, C, D)` = hmf's ``(A, e, b, d)``.
     """
 
-    references: ClassVar[tuple[str, ...]] = (
-        "Ishiyama, T., et al., 2015. PASJ 67, 61. https://doi.org/10.1093/pasj/psv021",
-    )
+    references: ClassVar[tuple[str, ...]] = (refs.ISHIYAMA15,)
     parameter_source: ClassVar[str] = "Ishiyama et al. 2015 (arXiv v3), eq. 2 and Table 3 (z = 0)."
     valid_domain: ClassVar[Domain] = _SIGMA_VALID
     calibration_domain: ClassVar[Domain] = Domain(
@@ -2480,7 +2406,6 @@ class Ishiyama(Warren, alias="Ishiyama"):
     e: float = _p(2.184, "The scale e of sigma (the paper's B).")
 
 
-_BOCQUET_REF = "Bocquet, S., et al., 2016. MNRAS 456, 2361. https://doi.org/10.1093/mnras/stv2657"
 _BOCQUET_DOMAIN = Domain(
     {"m": [4.4e11, 7.0e15] * Msun_h, "z": (0, 2)},
     source=(
@@ -2503,7 +2428,7 @@ class Bocquet200mDMOnly(FittingFunction, alias="Bocquet200mDMOnly"):
     (b, e, d).
     """
 
-    references: ClassVar[tuple[str, ...]] = (_BOCQUET_REF,)
+    references: ClassVar[tuple[str, ...]] = (refs.BOCQUET16,)
     parameter_source: ClassVar[str] = (
         "Bocquet et al. 2016 (arXiv v3 = published), Table 2; paper (a, b, c) -> hmf (b, e, d)."
     )
@@ -2847,9 +2772,7 @@ class Yung24(FittingFunction, alias="Yung24"):
     The paper's quadratics are fitted for z = 6-19 only, and are not used outside it.
     """
 
-    references: ClassVar[tuple[str, ...]] = (
-        "Yung, L. Y. A., et al., 2024. MNRAS 530, 4868. https://doi.org/10.1093/mnras/stae1188",
-    )
+    references: ClassVar[tuple[str, ...]] = (refs.YUNG24,)
     parameter_source: ClassVar[str] = (
         "Yung et al. 2024 (arXiv v3), App. A: Table A1 (mass_units='h') and Table A2 "
         "(mass_units='physical')."

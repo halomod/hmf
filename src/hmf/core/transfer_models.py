@@ -38,8 +38,8 @@ import numpy.typing as npt
 from astropy.cosmology import FLRW
 
 from . import _references as refs
+from ._arrays import dimensionless_floats
 from ._boltzmann import (
-    MATTER_SPECIES,
     BoltzmannRun,
     camb_cosmology_input,
     check_boltzmann_cosmology,
@@ -48,7 +48,8 @@ from ._boltzmann import (
 )
 from ._fields import field
 from ._kernels import transfer as kt
-from ._validators import positive
+from ._species import CAMB_COLUMNS, MATTER_SPECIES, Species, check_species
+from ._validators import check_finite_positive, positive
 from .accuracy import KAccuracy
 from .cache import DiskCache
 from .domain import Domain
@@ -73,19 +74,9 @@ __all__ = [
 
 Array = npt.NDArray[np.float64]
 
-#: A matter species: ``"cb"`` (CDM + baryons) or ``"tot"`` (total matter).
-Species = Literal["cb", "tot"]
-
 #: The wavenumber, in 1/Mpc (no h), at which the Boltzmann codes evaluate the growth
 #: factor of each species (see :mod:`hmf.core.growth_models`).
 BOLTZMANN_GROWTH_K_REF = 0.01
-
-
-def check_species(species: str) -> str:
-    """Raise ``ValueError`` unless ``species`` is one of :data:`MATTER_SPECIES`."""
-    if species not in MATTER_SPECIES:
-        raise ValueError(f"species must be one of {MATTER_SPECIES}, got {species!r}.")
-    return species
 
 
 @attrs.frozen(eq=False)
@@ -126,14 +117,7 @@ def _all_species(fn: Callable[[Array], Array]) -> Mapping[str, Callable[[Array],
 
 def _positive_quantity(instance: Any, attribute: attrs.Attribute[Any], value: u.Quantity) -> None:
     """Validate that a scalar Quantity field is finite and > 0 (in its stored unit)."""
-    positive(instance, attribute, float(value.value))
-
-
-def _floats(value: Any) -> tuple[float, ...]:
-    """Convert an array of dimensionless numbers to a tuple of floats."""
-    if isinstance(value, u.Quantity):
-        value = value.to_value(u.dimensionless_unscaled)
-    return tuple(float(x) for x in np.atleast_1d(np.asarray(value, dtype=float)))
+    check_finite_positive(attribute.name, value.value, where=type(instance).__name__)
 
 
 def _pairs(
@@ -426,10 +410,12 @@ class FromArray(_Tabulated, alias="FromArray"):
             "stored in h/Mpc."
         ),
     )
-    t: tuple[float, ...] = field(converter=_floats, doc="The CDM + baryon transfer function at k.")
+    t: tuple[float, ...] = field(
+        converter=dimensionless_floats, doc="The CDM + baryon transfer function at k."
+    )
     t_tot: tuple[float, ...] | None = field(
         default=None,
-        converter=attrs.converters.optional(_floats),
+        converter=attrs.converters.optional(dimensionless_floats),
         doc="The total-matter transfer function at k; None means the same as t.",
     )
 
@@ -467,10 +453,6 @@ class FromArray(_Tabulated, alias="FromArray"):
         )
 
 
-#: Zero-based columns of a CAMB transfer-function file for each species.
-_CAMB_FILE_COLUMNS: Mapping[str, int] = MappingProxyType({"tot": 6, "cb": 7})
-
-
 @attrs.frozen(kw_only=True)
 class FromFile(_Tabulated, alias="FromFile"):
     """A transfer function read from a text file.
@@ -490,7 +472,7 @@ class FromFile(_Tabulated, alias="FromFile"):
         k = data[:, 0]
         if data.shape[1] == 2:
             return k, {"cb": data[:, 1], "tot": data[:, 1]}, None
-        tot_col, cb_col = _CAMB_FILE_COLUMNS["tot"], _CAMB_FILE_COLUMNS["cb"]
+        tot_col, cb_col = CAMB_COLUMNS["tot"], CAMB_COLUMNS["cb"]
         if data.shape[1] <= tot_col:
             raise ValueError(
                 f"{self.fname} has {data.shape[1]} columns: expected 2 (k, T) or a CAMB "
