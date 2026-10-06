@@ -21,6 +21,7 @@
    :hidden:
 
    api
+   api_core
 
 .. toctree::
    :hidden:

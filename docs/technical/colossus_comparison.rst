@@ -4,12 +4,11 @@ Colossus Comparison Notes
 This note documents the known causes of differences between ``hmf`` and
 `Colossus <https://bdiemer.bitbucket.io/colossus/>`_ for the native
 ``Tinker08`` halo mass function.
-In versions pre-3.6.1, a major difference was the growth factor computation, which was
-definitively less accurate in ``hmf`` than in Colossus. However, after
-fixing the growth factor implementation in
-`this PR <https://github.com/halomod/hmf/pull/270>`_ for v3.6.0, and then tightening
-the growth-selector threshold in v3.6.1, some small residual differences remain,
-particularly at high redshift.
+Before v3.6.0, a major difference was the growth factor computation, which was
+definitely less accurate in ``hmf`` than in Colossus. The growth factor
+implementation was fixed in `#270 <https://github.com/halomod/hmf/pull/270>`_ for
+v3.6.0, and the threshold that selects the growth solution was tightened in v3.6.1.
+Some small residual differences remain, particularly at high redshift.
 
 The goal of this note is not to argue that either code is definitively "more
 correct". Instead, it records the main implementation choices that explain the
@@ -57,7 +56,7 @@ The main causes of the residual difference
 ------------------------------------------
 
 Three effects matter. Two are input mismatches that the regression test
-removes, and one is a genuine algorithmic difference.
+(``test_tinker08_matches_colossus`` in ``tests/test_fits.py``) removes, and one is a genuine algorithmic difference.
 
 Massive-neutrino background
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -102,8 +101,8 @@ High-redshift growth implementation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``hmf`` uses the full ODE growth solution whenever the radiation fraction
-exceeds the calibrated threshold (essentially for z>1.5). Colossus uses a
-hybrid approach for LCDM cosmologies:
+exceeds the calibrated threshold (essentially for :math:`z > 1.5`). Colossus uses a
+hybrid approach for ΛCDM cosmologies:
 
 - an analytic matter-radiation approximation at high redshift, and
 - an integral solution at low redshift,
@@ -111,7 +110,7 @@ hybrid approach for LCDM cosmologies:
 with a transition regime between them.
 
 With cosmology and coefficients matched, this is the only remaining
-difference. Against CAMB's CDM+baryon growth at :math:`k/h = 5`, the Colossus
+difference. Against CAMB's CDM+baryon growth at :math:`k = 5\,h\,{\rm Mpc}^{-1}`, the Colossus
 growth factor is 5--7 :math:`\times 10^{-4}` low at ``z = 4``--``10``, while
 ``hmf`` is within :math:`2\times 10^{-4}`. The halo abundance is very
 sensitive to :math:`\sigma` in the exponential tail, so the residual is

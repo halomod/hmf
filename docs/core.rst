@@ -142,5 +142,4 @@ either end, or aliased) raise rather than return a wrong value.
 
 API
 ---
-The modules are listed in the :doc:`API reference <api>`, under "hmf.core
-(experimental)".
+The modules are listed in the :doc:`hmf.core API reference <api_core>`.
