@@ -161,14 +161,25 @@ class GrowthModel(Model, kind=True):
     #: The Boltzmann code that computes the model (``"camb"`` or ``"class"``), if any.
     backend: ClassVar[str | None] = None
 
-    #: Where the model can be evaluated: z >= 0 (and up to the solution's z_max).
-    valid_domain: ClassVar[Domain] = Domain({"z": (0, None)})
+    #: Where the model can be evaluated: z >= 0. The :class:`~hmf.core.growth.Growth`
+    #: stage checks z against the model's class's domain (so a model can narrow it),
+    #: and also against the redshifts its solution covers (up to
+    #: :attr:`GrowthSolution.z_max`, e.g. a table's largest redshift): growth is
+    #: never extrapolated.
+    valid_domain: ClassVar[Domain] = Domain({"z": (0, None)}, source="z >= 0.")
 
     #: Where the model was calibrated, if that is stated by its source.
     calibration_domain: ClassVar[Domain | None] = None
 
     def check_cosmology(self, cosmology: FLRW) -> None:
-        """Raise if the model does not apply to ``cosmology`` (by default it does)."""
+        """Raise if the model does not apply to ``cosmology`` (by default it does).
+
+        Raises
+        ------
+        ValueError
+            If it does not apply: a model that does not apply to a cosmology is a
+            configuration error.
+        """
 
     @abc.abstractmethod
     def solve(
@@ -273,8 +284,10 @@ class ODEGrowth(_Gridded, alias="ODE"):
 
 
 def _check_lambda(cosmology: FLRW, name: str) -> None:
+    # A model that does not apply to the cosmology is a configuration error (see
+    # "Errors" in hmf.core.domain), so a ValueError despite the isinstance check.
     if not isinstance(cosmology, ac.LambdaCDM):
-        raise TypeError(
+        raise ValueError(  # noqa: TRY004
             f"{name} is exact only for a cosmological constant (w = -1), not "
             f"{type(cosmology).__name__}. Use ODEGrowth (or a Boltzmann code)."
         )

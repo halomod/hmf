@@ -56,9 +56,9 @@ Each fit has two :class:`~hmf.core.domain.Domain`\ s (issue #390):
     where its formula is defined, or sensible. :meth:`FittingFunction.fsigma`
     **always raises** :class:`~hmf.core.domain.DomainError` outside it.
 :attr:`FittingFunction.calibration_domain`
-    where it was calibrated against simulations, with its source. Outside it, the
-    result is an extrapolation, handled by a :data:`~hmf.core.domain.DomainPolicy`
-    with :func:`evaluate_fsigma`.
+    where it was calibrated against simulations, with its source (``None`` for a fit
+    that was not, such as :class:`PS`). Outside it, the result is an extrapolation,
+    handled by a :data:`~hmf.core.domain.DomainPolicy` with :func:`evaluate_fsigma`.
 
 The bounds of both are in these variables: the inputs above, and the derived
 ``ln_sigma_inv`` (:math:`\ln\sigma^{-1}`), ``log10_sigma_inv``
@@ -150,12 +150,8 @@ BoolArray = npt.NDArray[np.bool_]
 #: The physical inputs a fit may require, besides ``sigma`` (which all require).
 INPUTS: tuple[str, ...] = ("z", "omega_m_z", "delta_halo", "delta_c", "n_eff", "m")
 
-#: The smallest float above zero: the lower bound of a variable that must be > 0
-#: (:class:`~hmf.core.domain.Interval` bounds are inclusive).
-_TINY = float(np.nextafter(0.0, 1.0))
-
-#: sigma > 0, the valid-domain bound of every fit.
-_SIGMA_POSITIVE = (_TINY, None)
+#: The bounds of a variable that must be > 0 (e.g. sigma, in every fit's valid domain).
+_POSITIVE = (0, None, "(]")
 
 
 # ---------------------------------------------------------------------------------
@@ -480,10 +476,10 @@ _DERIVED_NEEDS: Mapping[str, tuple[str, ...]] = MappingProxyType(
 )
 
 
-def _domain_inputs(domain: Domain) -> frozenset[str]:
-    """The inputs (besides sigma) needed to check a domain."""
+def _domain_inputs(domain: Domain | None) -> frozenset[str]:
+    """The inputs (besides sigma) needed to check a domain (none for ``None``)."""
     needs: set[str] = set()
-    for name in domain.variables:
+    for name in () if domain is None else domain.variables:
         if name in _DERIVED_NEEDS:
             needs.update(_DERIVED_NEEDS[name])
         elif name != "sigma":
@@ -491,8 +487,10 @@ def _domain_inputs(domain: Domain) -> frozenset[str]:
     return frozenset(needs)
 
 
-def _contains(domain: Domain, x: FitInputs) -> bool | BoolArray:
-    """Whether the inputs ``x`` are inside ``domain``."""
+def _contains(domain: Domain | None, x: FitInputs) -> bool | BoolArray:
+    """Whether the inputs ``x`` are inside ``domain`` (everywhere, for ``None``)."""
+    if domain is None:
+        return True
     return domain.contains(**{name: x.domain_value(name) for name in domain.variables})
 
 
@@ -514,8 +512,9 @@ class FittingFunction(Model, kind=True):
     #: Where the formula is defined or sensible: :meth:`fsigma` raises outside it.
     valid_domain: ClassVar[Domain]
 
-    #: Where the fit was calibrated against simulations, with its source.
-    calibration_domain: ClassVar[Domain]
+    #: Where the fit was calibrated against simulations, with its source; ``None`` for
+    #: a fit that was not calibrated (e.g. an analytic one).
+    calibration_domain: ClassVar[Domain | None]
 
     #: The halo mass definition the fit was measured in.
     measured_mass_definition: ClassVar[MeasuredMassDefinition]
@@ -608,11 +607,10 @@ class FittingFunction(Model, kind=True):
             Always, if any value is outside the valid domain: this does not depend on
             any policy.
         """
-        apply_domain_policy(
-            None,
-            _contains(self.valid_domain, x),
-            "raise",
-            description=f"{type(self).__name__}'s valid domain ({_describe(self.valid_domain)})",
+        domain = self.valid_domain
+        domain.check(
+            {name: x.domain_value(name) for name in domain.variables},
+            where=f"{type(self).__name__}'s valid domain",
         )
 
     def in_calibration_domain(self, x: FitInputs) -> bool | BoolArray:
@@ -626,7 +624,8 @@ class FittingFunction(Model, kind=True):
         Returns
         -------
         bool or numpy.ndarray of bool
-            A bool if every input is a scalar, else the broadcast array.
+            A bool if every input is a scalar, else the broadcast array. ``True`` if
+            the fit has no calibration domain (it is ``None``).
 
         Raises
         ------
@@ -797,24 +796,6 @@ def _hubble(H0: Any, where: str) -> tuple[UnitContext, float]:
     return context, float(H0.to_value(H0_unit)) / 100
 
 
-def _describe(domain: Domain) -> str:
-    """A short description of a domain's bounds."""
-    parts = []
-    for name, interval in domain.bounds:
-        unit = f" {interval.unit}" if interval.unit is not None else ""
-        lower = (
-            ""
-            if interval.lower == -np.inf
-            else f"{name} > 0"
-            if interval.lower == _TINY
-            else f"{name} >= {interval.lower:g}"
-        )
-        upper = "" if interval.upper == np.inf else f"{name} <= {interval.upper:g}"
-        text = " and ".join(p for p in (lower, upper) if p)
-        parts.append(text + unit if text else f"any {name}")
-    return ", ".join(parts) or "unbounded"
-
-
 # ---------------------------------------------------------------------------------
 # Evaluation with a domain policy
 # ---------------------------------------------------------------------------------
@@ -892,12 +873,14 @@ def evaluate_fsigma(
         )
     f = model.fsigma_from_inputs(x)
     inside = np.broadcast_to(model.in_calibration_domain(x), f.shape)
-    name = type(model).__name__
+    calibration = model.calibration_domain
+    # Without a calibration domain everything is inside: this only checks the policy.
     out = apply_domain_policy(
         f,
         inside,
         policy,
-        description=f"{name}'s calibration domain ({_describe(model.calibration_domain)})",
+        description=f"{type(model).__name__}'s calibration domain "
+        f"({'none' if calibration is None else calibration.describe()})",
     )
     return FSigmaResult(np.asarray(out, dtype=np.float64), np.array(inside, dtype=bool))
 
@@ -936,12 +919,11 @@ class PS(FittingFunction, alias="PS"):
     parameter_source: ClassVar[str] = "Press & Schechter 1974: analytic, no free parameters."
     requires: ClassVar[frozenset[str]] = frozenset({"delta_c"})
     valid_domain: ClassVar[Domain] = Domain(
-        {"sigma": _SIGMA_POSITIVE, "delta_c": (_TINY, None)},
+        {"sigma": _POSITIVE, "delta_c": _POSITIVE},
         source="sigma > 0 and delta_c > 0.",
     )
-    calibration_domain: ClassVar[Domain] = Domain(
-        {}, source="Analytic (spherical collapse); not calibrated on simulations."
-    )
+    #: Analytic (spherical collapse): not calibrated on simulations.
+    calibration_domain: ClassVar[Domain | None] = None
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = _so_virial(
         note="Analytic: spherical collapse, i.e. virialised haloes."
     )
@@ -955,9 +937,7 @@ class PS(FittingFunction, alias="PS"):
 #: p < 1/2, so that the Sheth-Tormen form can be normalised.
 _P_BELOW_HALF = less_than(0.5)
 
-_NU_VALID = Domain(
-    {"sigma": _SIGMA_POSITIVE, "delta_c": (_TINY, None)}, source="sigma > 0 and delta_c > 0."
-)
+_NU_VALID = Domain({"sigma": _POSITIVE, "delta_c": _POSITIVE}, source="sigma > 0 and delta_c > 0.")
 
 
 @attrs.frozen(kw_only=True)
@@ -981,7 +961,7 @@ class SMT(FittingFunction, alias="SMT"):
     )
     requires: ClassVar[frozenset[str]] = frozenset({"delta_c"})
     valid_domain: ClassVar[Domain] = _NU_VALID
-    calibration_domain: ClassVar[Domain] = Domain(
+    calibration_domain: ClassVar[Domain | None] = Domain(
         {"z": (0, 4)},
         source=(
             "Sheth & Tormen 1999, Fig. 2 caption: GIF simulations at z = 0, 0.5, 1, 2, 4. "
@@ -1037,7 +1017,7 @@ class SMT(FittingFunction, alias="SMT"):
 class ST(SMT, alias="ST"):
     """The Sheth-Tormen mass function: the same model as :class:`SMT`, under its other name."""
 
-    calibration_domain: ClassVar[Domain] = SMT.calibration_domain
+    calibration_domain: ClassVar[Domain | None] = SMT.calibration_domain
     valid_domain: ClassVar[Domain] = SMT.valid_domain
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = SMT.measured_mass_definition
     simulations: ClassVar[SimulationDetails | None] = SMT.simulations
@@ -1055,7 +1035,7 @@ class Reed03(SMT, alias="Reed03"):
         "Reed et al. 2003 (arXiv v2), eq. 5 (A, a, p of Sheth-Tormen) and eq. 9 (c = 0.7)."
     )
     valid_domain: ClassVar[Domain] = _NU_VALID
-    calibration_domain: ClassVar[Domain] = Domain(
+    calibration_domain: ClassVar[Domain | None] = Domain(
         {"ln_sigma_inv": (-1.7, 0.9), "z": (0, 14.5)},
         source=(
             "Reed et al. 2003: 'valid over the range -1.7 <= ln(1/sigma) <= 0.9' (Sec. 4, "
@@ -1107,7 +1087,7 @@ class Courtin(SMT, alias="Courtin"):
         "to 1.673 (pass that delta_c to reproduce the paper)."
     )
     valid_domain: ClassVar[Domain] = _NU_VALID
-    calibration_domain: ClassVar[Domain] = Domain(
+    calibration_domain: ClassVar[Domain | None] = Domain(
         {"ln_sigma_inv": (-0.8, 0.7), "z": (0, 0)},
         source=(
             "Courtin et al. 2011: the LCDM-WMAP5 runs 'at z = 0 in the range "
@@ -1153,7 +1133,7 @@ class Manera(SMT, alias="Manera"):
         "(q = 0.709, p = 0.248). hmf 3.x used p = 0.289, from the l_link = 0.15 row."
     )
     valid_domain: ClassVar[Domain] = _NU_VALID
-    calibration_domain: ClassVar[Domain] = Domain(
+    calibration_domain: ClassVar[Domain | None] = Domain(
         {"m": (6.3e13 * Msun_h, None), "z": (0, 0)},
         source=(
             "Manera et al. 2010: haloes with more than 105 particles, M >~ 6.3e13 Msun/h "
@@ -1201,8 +1181,8 @@ class Jenkins(FittingFunction, alias="Jenkins"):
 
     references: ClassVar[tuple[str, ...]] = (refs.JENKINS01,)
     parameter_source: ClassVar[str] = "Jenkins et al. 2001 (arXiv v2, as accepted), eq. 9."
-    valid_domain: ClassVar[Domain] = Domain({"sigma": _SIGMA_POSITIVE}, source="sigma > 0.")
-    calibration_domain: ClassVar[Domain] = Domain(
+    valid_domain: ClassVar[Domain] = Domain({"sigma": _POSITIVE}, source="sigma > 0.")
+    calibration_domain: ClassVar[Domain | None] = Domain(
         {"ln_sigma_inv": (-1.2, 1.05), "z": (0, 5)},
         source=(
             "Jenkins et al. 2001: 'valid over the range -1.2 <= ln(1/sigma) <= 1.05' "
@@ -1240,7 +1220,7 @@ class Jenkins(FittingFunction, alias="Jenkins"):
         return _k.jenkins(x.sigma, self.A, self.b, self.c)
 
 
-_SIGMA_VALID = Domain({"sigma": _SIGMA_POSITIVE}, source="sigma > 0.")
+_SIGMA_VALID = Domain({"sigma": _POSITIVE}, source="sigma > 0.")
 
 
 @attrs.frozen(kw_only=True)
@@ -1256,7 +1236,7 @@ class Warren(FittingFunction, alias="Warren"):
     references: ClassVar[tuple[str, ...]] = (refs.WARREN06,)
     parameter_source: ClassVar[str] = "Warren et al. 2006 (arXiv v1), eq. 8."
     valid_domain: ClassVar[Domain] = _SIGMA_VALID
-    calibration_domain: ClassVar[Domain] = Domain(
+    calibration_domain: ClassVar[Domain | None] = Domain(
         {"m": [1e10, 1e15] * Msun_h, "z": (0, 0)},
         source=(
             "Warren et al. 2006 state only 'over five orders of magnitude' in mass (Sec. "
@@ -1318,10 +1298,10 @@ class Reed07(FittingFunction, alias="Reed07"):
     )
     requires: ClassVar[frozenset[str]] = frozenset({"delta_c", "n_eff"})
     valid_domain: ClassVar[Domain] = Domain(
-        {"sigma": _SIGMA_POSITIVE, "delta_c": (_TINY, None), "n_eff": (np.nextafter(-3, 0), None)},
+        {"sigma": _POSITIVE, "delta_c": _POSITIVE, "n_eff": (-3, None, "(]")},
         source="sigma > 0, delta_c > 0, and n_eff > -3 (the n_eff term diverges at -3).",
     )
-    calibration_domain: ClassVar[Domain] = Domain(
+    calibration_domain: ClassVar[Domain | None] = Domain(
         {"z": (0, 30), "ln_sigma_inv": (-0.4, 1.2)},
         source=(
             "Reed et al. 2007: data at z = 0, 1, 4, 10, 20, 30 (Figs. 4, 6). ln(1/sigma) "
@@ -1387,7 +1367,7 @@ class Peacock(FittingFunction, alias="Peacock"):
     parameter_source: ClassVar[str] = "Peacock 2007 (arXiv v2), eq. 9."
     requires: ClassVar[frozenset[str]] = frozenset({"delta_c"})
     valid_domain: ClassVar[Domain] = _NU_VALID
-    calibration_domain: ClassVar[Domain] = Domain(
+    calibration_domain: ClassVar[Domain | None] = Domain(
         {"m": [1e10, 1e15] * Msun_h, "z": (0, 0)},
         source=(
             "Peacock 2007 fits the Warren et al. 2006 formula, not simulations, 'to a "
@@ -1428,7 +1408,7 @@ class Angulo(FittingFunction, alias="Angulo"):
         "Warren et al. 2006 to 1-3%)."
     )
     valid_domain: ClassVar[Domain] = _SIGMA_VALID
-    calibration_domain: ClassVar[Domain] = Domain(
+    calibration_domain: ClassVar[Domain | None] = Domain(
         {"m": [7.3e7, 7.3e15] * Msun_h, "z": (0, 0)},
         source=(
             "Angulo et al. 2012: MXXL + MS + MS-II at z = 0, 'about 8 decades in halo "
@@ -1481,7 +1461,7 @@ class AnguloBound(Angulo, alias="AnguloBound"):
 
     parameter_source: ClassVar[str] = "Angulo et al. 2012 (arXiv v2), eq. 3."
     valid_domain: ClassVar[Domain] = _SIGMA_VALID
-    calibration_domain: ClassVar[Domain] = Angulo.calibration_domain
+    calibration_domain: ClassVar[Domain | None] = Angulo.calibration_domain
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = MeasuredMassDefinition(
         kind="self_bound",
         note="Angulo et al. 2012, Sec. 2.2: all SUBFIND self-bound subhaloes.",
@@ -1503,7 +1483,7 @@ class Watson_FoF(Warren, alias="Watson_FoF"):
     references: ClassVar[tuple[str, ...]] = (refs.WATSON13,)
     parameter_source: ClassVar[str] = "Watson et al. 2013 (arXiv v4 = published), eq. 12, Table 2."
     valid_domain: ClassVar[Domain] = _SIGMA_VALID
-    calibration_domain: ClassVar[Domain] = Domain(
+    calibration_domain: ClassVar[Domain | None] = Domain(
         {"ln_sigma_inv": (-0.55, 1.31), "z": (0, 26)},
         source=(
             "Watson et al. 2013: 'valid in the range -0.55 <= ln(1/sigma) < 1.31' "
@@ -1569,9 +1549,9 @@ class Watson(FittingFunction, alias="Watson"):
     requires: ClassVar[frozenset[str]] = frozenset({"z", "omega_m_z", "delta_halo"})
     valid_domain: ClassVar[Domain] = Domain(
         {
-            "sigma": _SIGMA_POSITIVE,
+            "sigma": _POSITIVE,
             "z": (0, None),
-            "omega_m_z": (_TINY, None),
+            "omega_m_z": _POSITIVE,
             "delta_halo": (1.0, None),
         },
         source=(
@@ -1579,7 +1559,7 @@ class Watson(FittingFunction, alias="Watson"):
             "Gamma diverges as Delta -> 0)."
         ),
     )
-    calibration_domain: ClassVar[Domain] = Domain(
+    calibration_domain: ClassVar[Domain | None] = Domain(
         {"ln_sigma_inv": (-0.55, 1.05), "z": (0, 26), "delta_halo": (100, 1600)},
         source=(
             "Watson et al. 2013, AHF haloes: the z = 0 fit is 'valid in the range "
@@ -1680,7 +1660,7 @@ class Watson(FittingFunction, alias="Watson"):
         return gamma_correction * _k.angulo(x.sigma, A, alpha, gamma, beta)
 
 
-_Z_VALID = Domain({"sigma": _SIGMA_POSITIVE, "z": (0, None)}, source="sigma > 0 and z >= 0.")
+_Z_VALID = Domain({"sigma": _POSITIVE, "z": (0, None)}, source="sigma > 0 and z >= 0.")
 
 
 @attrs.frozen(kw_only=True)
@@ -1695,7 +1675,7 @@ class Crocce(FittingFunction, alias="Crocce"):
     parameter_source: ClassVar[str] = "Crocce et al. 2010 (arXiv v2), eqs. 20 and 22, Table 2."
     requires: ClassVar[frozenset[str]] = frozenset({"z"})
     valid_domain: ClassVar[Domain] = _Z_VALID
-    calibration_domain: ClassVar[Domain] = Domain(
+    calibration_domain: ClassVar[Domain | None] = Domain(
         {"m": [2e10, 2.5e15] * Msun_h, "z": (0, 1)},
         source=(
             "Crocce et al. 2010: 2% accuracy for 2e10 < M < 2.5e15 Msun/h at z = 0 "
@@ -1765,10 +1745,10 @@ class Bhattacharya(FittingFunction, alias="Bhattacharya"):
     parameter_source: ClassVar[str] = "Bhattacharya et al. 2011 (arXiv v6), eq. 12 and Table 4."
     requires: ClassVar[frozenset[str]] = frozenset({"z", "delta_c"})
     valid_domain: ClassVar[Domain] = Domain(
-        {"sigma": _SIGMA_POSITIVE, "z": (0, None), "delta_c": (_TINY, None)},
+        {"sigma": _POSITIVE, "z": (0, None), "delta_c": _POSITIVE},
         source="sigma > 0, z >= 0 and delta_c > 0.",
     )
-    calibration_domain: ClassVar[Domain] = Domain(
+    calibration_domain: ClassVar[Domain | None] = Domain(
         {"m": [4.3e11, 2.2e15] * Msun_h, "z": (0, 2)},
         source=(
             "Bhattacharya et al. 2011: 6e11-3e15 Msun (Table 4 title; abstract), i.e. "
@@ -1863,9 +1843,9 @@ class Tinker08(FittingFunction, alias="Tinker08"):
     requires: ClassVar[frozenset[str]] = frozenset({"z", "delta_halo"})
     valid_domain: ClassVar[Domain] = Domain(
         {
-            "sigma": _SIGMA_POSITIVE,
+            "sigma": _POSITIVE,
             "z": (0, None),
-            "delta_halo": (np.nextafter(75.0, np.inf), 3.0e4),
+            "delta_halo": (75.0, 3.0e4, "(]"),
         },
         source=(
             "sigma > 0, z >= 0, and 75 < Delta <= 3e4: eq. 8 needs Delta > 75, and the "
@@ -1873,7 +1853,7 @@ class Tinker08(FittingFunction, alias="Tinker08"):
             "42.7 < Delta < 3.07e4. Parameters that are not > 0 raise in any case."
         ),
     )
-    calibration_domain: ClassVar[Domain] = Domain(
+    calibration_domain: ClassVar[Domain | None] = Domain(
         {"sigma": (0.4, 4.0), "z": (0, 2.5), "delta_halo": (200, 3200)},
         source=(
             "Tinker et al. 2008: 'calibrated over the range 0.25 <~ 1/sigma <~ 2.5' "
@@ -2068,7 +2048,7 @@ class Behroozi(Tinker08, alias="Behroozi"):
         "f(sigma) parameters from Tinker et al. 2008, Table 2."
     )
     valid_domain: ClassVar[Domain] = Tinker08.valid_domain
-    calibration_domain: ClassVar[Domain] = Domain(
+    calibration_domain: ClassVar[Domain | None] = Domain(
         {"z": (0, 9)},
         source=(
             "Behroozi et al. 2013, App. G: the correction is fit to the Consuelo "
@@ -2161,9 +2141,9 @@ class Tinker10(FittingFunction, alias="Tinker10"):
     requires: ClassVar[frozenset[str]] = frozenset({"z", "delta_halo", "delta_c"})
     valid_domain: ClassVar[Domain] = Domain(
         {
-            "sigma": _SIGMA_POSITIVE,
+            "sigma": _POSITIVE,
             "z": (0, None),
-            "delta_c": (_TINY, None),
+            "delta_c": _POSITIVE,
             "delta_halo": (70.0, 3600.0),
         },
         source=(
@@ -2173,7 +2153,7 @@ class Tinker10(FittingFunction, alias="Tinker10"):
             "3662). Parameters that can not be normalised raise in any case."
         ),
     )
-    calibration_domain: ClassVar[Domain] = Domain(
+    calibration_domain: ClassVar[Domain | None] = Domain(
         {"sigma": (0.4, 4.0), "z": (0, 2.5), "delta_halo": (200, 3200)},
         source=(
             "Tinker et al. 2010 fit the z = 0 Tinker et al. 2008 data for "
@@ -2322,7 +2302,7 @@ class Pillepich(Warren, alias="Pillepich"):
         "Warren notation (A, a, b, c) = (0.6853, 1.868, 0.3324, 1.2266)."
     )
     valid_domain: ClassVar[Domain] = _SIGMA_VALID
-    calibration_domain: ClassVar[Domain] = Domain(
+    calibration_domain: ClassVar[Domain | None] = Domain(
         {"ln_sigma_inv": (-1.2, 1.1), "z": (0, 1.6)},
         source=(
             "Pillepich et al. 2010, Sec. 3.1: '-1.2 < ln(1/sigma) < 1.1, which roughly "
@@ -2369,7 +2349,7 @@ class Ishiyama(Warren, alias="Ishiyama"):
     references: ClassVar[tuple[str, ...]] = (refs.ISHIYAMA15,)
     parameter_source: ClassVar[str] = "Ishiyama et al. 2015 (arXiv v3), eq. 2 and Table 3 (z = 0)."
     valid_domain: ClassVar[Domain] = _SIGMA_VALID
-    calibration_domain: ClassVar[Domain] = Domain(
+    calibration_domain: ClassVar[Domain | None] = Domain(
         {"log10_sigma_inv": (-0.7, 0.3), "z": (0, 10)},
         source=(
             "Ishiyama et al. 2015, Sec. 3.1: 'calibrated in the mass range of "
@@ -2434,7 +2414,7 @@ class Bocquet200mDMOnly(FittingFunction, alias="Bocquet200mDMOnly"):
     )
     requires: ClassVar[frozenset[str]] = frozenset({"z"})
     valid_domain: ClassVar[Domain] = _Z_VALID
-    calibration_domain: ClassVar[Domain] = _BOCQUET_DOMAIN
+    calibration_domain: ClassVar[Domain | None] = _BOCQUET_DOMAIN
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = _so_mean(
         200, note="Bocquet et al. 2016, Sec. 2.2: SO masses about SUBFIND potential minima."
     )
@@ -2539,7 +2519,7 @@ class Bocquet200mHydro(Bocquet200mDMOnly, alias="Bocquet200mHydro"):
     r"""The Bocquet et al. (2016) mass function for M200m, with hydrodynamics."""
 
     valid_domain: ClassVar[Domain] = _Z_VALID
-    calibration_domain: ClassVar[Domain] = _BOCQUET_DOMAIN
+    calibration_domain: ClassVar[Domain | None] = _BOCQUET_DOMAIN
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = (
         Bocquet200mDMOnly.measured_mass_definition
     )
@@ -2592,7 +2572,7 @@ class Bocquet200cDMOnly(Bocquet200mDMOnly, alias="Bocquet200cDMOnly"):
     """
 
     valid_domain: ClassVar[Domain] = _Z_VALID
-    calibration_domain: ClassVar[Domain] = _BOCQUET_DOMAIN
+    calibration_domain: ClassVar[Domain | None] = _BOCQUET_DOMAIN
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = _so_crit(
         200, note=_BOCQUET_200C_NOTE
     )
@@ -2626,7 +2606,7 @@ class Bocquet200cHydro(Bocquet200cDMOnly, alias="Bocquet200cHydro"):
     """
 
     valid_domain: ClassVar[Domain] = _Z_VALID
-    calibration_domain: ClassVar[Domain] = _BOCQUET_DOMAIN
+    calibration_domain: ClassVar[Domain | None] = _BOCQUET_DOMAIN
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = (
         Bocquet200cDMOnly.measured_mass_definition
     )
@@ -2651,7 +2631,7 @@ class Bocquet500cDMOnly(Bocquet200mDMOnly, alias="Bocquet500cDMOnly"):
     """
 
     valid_domain: ClassVar[Domain] = _Z_VALID
-    calibration_domain: ClassVar[Domain] = _BOCQUET_DOMAIN
+    calibration_domain: ClassVar[Domain | None] = _BOCQUET_DOMAIN
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = _so_crit(
         500, note=_BOCQUET_200C_NOTE.replace("App. A", "eq. 6")
     )
@@ -2685,7 +2665,7 @@ class Bocquet500cHydro(Bocquet500cDMOnly, alias="Bocquet500cHydro"):
     """
 
     valid_domain: ClassVar[Domain] = _Z_VALID
-    calibration_domain: ClassVar[Domain] = _BOCQUET_DOMAIN
+    calibration_domain: ClassVar[Domain | None] = _BOCQUET_DOMAIN
     measured_mass_definition: ClassVar[MeasuredMassDefinition] = (
         Bocquet500cDMOnly.measured_mass_definition
     )
@@ -2779,13 +2759,13 @@ class Yung24(FittingFunction, alias="Yung24"):
     )
     requires: ClassVar[frozenset[str]] = frozenset({"z"})
     valid_domain: ClassVar[Domain] = Domain(
-        {"sigma": _SIGMA_POSITIVE, "z": (6, 19)},
+        {"sigma": _POSITIVE, "z": (6, 19)},
         source=(
             "sigma > 0 and 6 <= z <= 19: the redshift quadratics of App. A are fitted "
             "over z = 6-19 only (hmf 3.x raised outside it too)."
         ),
     )
-    calibration_domain: ClassVar[Domain] = Domain(
+    calibration_domain: ClassVar[Domain | None] = Domain(
         {"m": [1e6, 1e13] * Msun_h, "z": (6, 19)},
         source=(
             "Yung et al. 2024, App. A: 'fitted to gureft+MultiDark HMFs between z = 6 "

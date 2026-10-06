@@ -295,7 +295,7 @@ def test_class_params_cannot_set_the_cosmology():
 def test_boltzmann_models_reject_unsupported_cosmologies():
     from astropy.cosmology import Flatw0wzCDM
 
-    with pytest.raises(TypeError, match="LambdaCDM"):
+    with pytest.raises(ValueError, match="LambdaCDM"):
         Transfer(cosmology=Flatw0wzCDM(H0=70, Om0=0.3, Ob0=0.05, Tcmb0=2.7), model="CAMB")
     with pytest.raises(ValueError, match="Ob0"):
         Transfer(cosmology=FlatLambdaCDM(H0=70, Om0=0.3, Tcmb0=2.7), model="CAMB")

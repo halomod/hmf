@@ -94,6 +94,9 @@ class TransferSolution:
     #: The largest wavenumber (h/Mpc) of the table, above which T(k) is extrapolated;
     #: ``None`` for a fitting formula.
     k_max_table: float | None = None
+    #: The smallest wavenumber (h/Mpc) of the table, below which T(k) is extrapolated;
+    #: ``None`` for a fitting formula.
+    k_min_table: float | None = None
 
     @property
     def species(self) -> tuple[str, ...]:
@@ -146,14 +149,30 @@ class TransferModel(Model, kind=True):
     #: The Boltzmann code that computes the model (``"camb"`` or ``"class"``), if any.
     backend: ClassVar[str | None] = None
 
-    #: Where the model can be evaluated: any k > 0.
-    valid_domain: ClassVar[Domain] = Domain({"k": (0 * h_Mpc, None)})
+    #: Where the model can be evaluated: any k > 0. The
+    #: :class:`~hmf.core.transfer.Transfer` stage checks k against the model's class's
+    #: domain, so a model can narrow it.
+    valid_domain: ClassVar[Domain] = Domain(
+        {"k": (0 * h_Mpc, None, "(]")}, source="T(k) is defined for k > 0."
+    )
 
     #: Where the model was calibrated, if that is stated by its source.
     calibration_domain: ClassVar[Domain | None] = None
 
+    #: Whether the model's table was supplied by the user, so that extrapolating it
+    #: (beyond :attr:`TransferSolution.k_min_table` and ``k_max_table``) warns. The
+    #: Boltzmann codes' tables are extrapolated by design, without a warning.
+    _user_table: ClassVar[bool] = False
+
     def check_cosmology(self, cosmology: FLRW) -> None:
-        """Raise if the model does not apply to ``cosmology`` (by default it does)."""
+        """Raise if the model does not apply to ``cosmology`` (by default it does).
+
+        Raises
+        ------
+        ValueError
+            If it does not apply: a model that does not apply to a cosmology is a
+            configuration error.
+        """
 
     @abc.abstractmethod
     def solve(
@@ -391,6 +410,7 @@ class _Tabulated(TransferModel, abstract=True):
             MappingProxyType({s: tab.ln_t for s, tab in tables.items()}),
             run=run,
             k_max_table=min(tab.k_max for tab in tables.values()),
+            k_min_table=max(tab.k_min for tab in tables.values()),
         )
 
 
@@ -400,7 +420,13 @@ class FromArray(_Tabulated, alias="FromArray"):
 
     ``t`` is the transfer function of the CDM + baryon field; ``t_tot``, if given,
     that of total matter (else the same as ``t``). Neither needs to be normalised.
+    Beyond the table, T(k) is extrapolated as for every table (see
+    :class:`~hmf.core._kernels.transfer.TabulatedTransfer`), and the
+    :class:`~hmf.core.transfer.Transfer` stage emits an
+    :class:`~hmf.exceptions.HMFExtrapolationWarning` (once per stage instance).
     """
+
+    _user_table: ClassVar[bool] = True
 
     k: u.Quantity = quantity_field(
         h_Mpc,
@@ -460,8 +486,11 @@ class FromFile(_Tabulated, alias="FromFile"):
     The file has either two columns, k (in h/Mpc) and T, used for both species; or
     the columns of a CAMB transfer-function file, of which column 0 is k (h/Mpc),
     column 6 total matter and column 7 (if present) CDM + baryons. The file is read
-    when the model is solved; its content is not part of the model's value.
+    when the model is solved; its content is not part of the model's value. Beyond
+    the table, T(k) is extrapolated with a warning, as for :class:`FromArray`.
     """
+
+    _user_table: ClassVar[bool] = True
 
     fname: Path = field(converter=Path, doc="The file to read.")
 

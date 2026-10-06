@@ -49,7 +49,7 @@ Every node carries a bound on the error that the truncation of the k integrals a
 both ends of the grid causes, in sigma *and* in dln(sigma)/dln(m) (which enters dn/dm, and
 is typically kR times more sensitive). A request that needs a node whose bound
 exceeds ``truncation_rtol``, or where sigma or its derivatives are not finite, raises a
-:class:`ValueError`.
+:class:`~hmf.core.domain.DomainError`.
 
 Every node also carries a Richardson estimate of the error from the resolution of the
 k grid (Simpson's rule on the grid against every other grid point). A request that
@@ -78,6 +78,7 @@ from ._kernels import mass_variance as kern
 from ._kernels.lattice import lattice, lattice_index
 from ._validators import check_finite_positive, positive
 from .accuracy import KAccuracy, MassAccuracy
+from .domain import DomainError
 from .filters import Filter, TopHat
 from .power_source import PowerSource
 from .stage import Stage
@@ -219,10 +220,7 @@ class MassVariance(Stage):
     k_accuracy: KAccuracy = field(
         factory=KAccuracy,
         validator=attrs.validators.instance_of(KAccuracy),
-        doc=(
-            "The settings of the k grid. Its upper end is set from accuracy.log10_m_min. "
-            "Its 'extension' setting does not apply here: MassVariance takes no k."
-        ),
+        doc="The settings of the k grid. Its upper end is set from accuracy.log10_m_min.",
     )
     truncation_rtol: float = field(
         default=1e-3,
@@ -231,7 +229,7 @@ class MassVariance(Stage):
         doc=(
             "The largest bound on the relative error in sigma or dln(sigma)/dln(m), from "
             "truncating the k integrals at the ends of the grid, accepted for a mass. "
-            "Masses beyond it raise a ValueError."
+            "Masses beyond it raise a DomainError."
         ),
     )
 
@@ -421,7 +419,7 @@ class MassVariance(Stage):
             f"and R = {r:.3g} Mpc/h."
         )
         if not bad_value[i] and not err_grid[i] <= RESOLUTION_RTOL:
-            raise ValueError(
+            raise DomainError(
                 f"MassVariance: can't evaluate m = {m:.4g} Msun/h: the k grid does not resolve "
                 f"the integrals there (estimated error {err_grid[i]:.2g} > {RESOLUTION_RTOL:g}). "
                 f"Decrease k_accuracy.dln_k. (With the {type(self.filter).__name__} filter, a "
@@ -442,7 +440,7 @@ class MassVariance(Stage):
             else f"the bound on the error from truncating the k grid is {err[i]:.2g}, more "
             f"than truncation_rtol = {self.truncation_rtol:g}"
         )
-        raise ValueError(
+        raise DomainError(
             f"MassVariance: can't evaluate m = {m:.4g} Msun/h, at the {side}-mass end: "
             f"{what}. {where} To reach this mass, {hint}."
         )
@@ -453,7 +451,7 @@ class MassVariance(Stage):
         if acc.extension == "raise":
             outside = (log10_m < acc.log10_m_min - 1e-12) | (log10_m > acc.log10_m_max + 1e-12)
             if np.any(outside):
-                raise ValueError(
+                raise DomainError(
                     f"MassVariance: masses outside the lattice [1e{acc.log10_m_min:g}, "
                     f"1e{acc.log10_m_max:g}] Msun/h, with accuracy.extension='raise'."
                 )
@@ -495,7 +493,7 @@ class MassVariance(Stage):
 
     def _log10_mass(self, m: FloatArray) -> FloatArray:
         """log10 of masses in Msun/h, checked to be finite and positive."""
-        return np.log10(check_finite_positive("masses", m, where="MassVariance"))
+        return np.log10(check_finite_positive("masses", m, where="MassVariance", error=DomainError))
 
     def _ln_sigma_and_slope(self, m: FloatArray) -> tuple[FloatArray, FloatArray]:
         """Kernel-level ln(sigma) and dln(sigma)/dln(m) at masses m in Msun/h (any shape)."""
@@ -523,9 +521,10 @@ class MassVariance(Stage):
 
         Raises
         ------
-        ValueError
-            If a mass is outside the lattice (with ``extension='raise'``), can't be
-            resolved by the k grid, or sigma is not finite there.
+        DomainError
+            If a mass is not finite and > 0, is outside the lattice (with
+            ``extension='raise'``), can't be resolved by the k grid, or sigma is not
+            finite there.
         """
         return np.exp(self._ln_sigma_and_slope(m)[0])
 
@@ -546,7 +545,7 @@ class MassVariance(Stage):
 
         Raises
         ------
-        ValueError
+        DomainError
             As for :meth:`sigma`.
         """
         return self._ln_sigma_and_slope(m)[1]
@@ -572,11 +571,14 @@ class MassVariance(Stage):
 
         Raises
         ------
-        ValueError
-            If a value is outside the range of sigma on the default lattice range, or
-            sigma(m) is not monotonically decreasing where the value is crossed.
+        DomainError
+            If a value is not finite and > 0, is outside the range of sigma on the
+            default lattice range, or sigma(m) is not monotonically decreasing where
+            the value is crossed.
         """
-        target = check_finite_positive("sigma", sigma, where="MassVariance.m_from_sigma")
+        target = check_finite_positive(
+            "sigma", sigma, where="MassVariance.m_from_sigma", error=DomainError
+        )
         ln_t = np.log(target).ravel()
         acc = self.accuracy
         j_lo = lattice_index(acc.log10_m_min, acc.dlog10_m, up=True)
@@ -585,7 +587,7 @@ class MassVariance(Stage):
         nodes = self._nodes.get(j, self._compute_nodes)
         ln_s, d = nodes[_LN_SIGMA], nodes[_D1]
         if np.any((ln_t > ln_s.max()) | (ln_t < ln_s.min())):
-            raise ValueError(
+            raise DomainError(
                 f"MassVariance.m_from_sigma: sigma outside [{math.exp(ln_s.min()):.4g}, "
                 f"{math.exp(ln_s.max()):.4g}], its range on the lattice "
                 f"[1e{acc.log10_m_min:g}, 1e{acc.log10_m_max:g}] Msun/h."
@@ -601,7 +603,7 @@ class MassVariance(Stage):
         monotonic = (d[interval] < 0) & (d[interval + 1] < 0)
         bad = ~(unique & monotonic)
         if np.any(bad):
-            raise ValueError(
+            raise DomainError(
                 "MassVariance.m_from_sigma: sigma(m) is not monotonically decreasing "
                 f"where it crosses sigma = {math.exp(ln_t[np.argmax(bad)]):.6g}, so the "
                 "inverse is not unique."

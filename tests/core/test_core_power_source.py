@@ -1,12 +1,16 @@
 """Tests of hmf.core.power_source: the PowerSource protocol and TabulatedPower."""
 
+import warnings
+
 import astropy.units as u
 import numpy as np
 import pytest
 from power_models import RHO_CRIT0, AnalyticPower, EisensteinHuNoWiggle
 
+from hmf.core.domain import DomainError
 from hmf.core.power_source import PowerSource, TabulatedPower
 from hmf.core.units import H0_unit, UnitBoundaryError, h_Mpc, power_unit, rho_unit
+from hmf.exceptions import HMFExtrapolationWarning
 
 
 def _power_law_table(n=-1.5, amplitude=3.0, **kwargs):
@@ -29,7 +33,8 @@ def test_power_law_is_reproduced_and_extrapolated_exactly():
     """Ln P is linear in ln k, so the spline and the power-law extrapolation are exact."""
     src = _power_law_table()
     k = np.logspace(-8, 5, 40)
-    np.testing.assert_allclose(src._power(k), 3.0 * k**-1.5, rtol=1e-12)
+    with pytest.warns(HMFExtrapolationWarning, match="extrapolated as a power law"):
+        np.testing.assert_allclose(src._power(k), 3.0 * k**-1.5, rtol=1e-12)
 
 
 def test_spline_is_accurate_for_a_smooth_spectrum():
@@ -41,11 +46,51 @@ def test_spline_is_accurate_for_a_smooth_spectrum():
     np.testing.assert_allclose(src._power(kk), eh(kk), rtol=1e-6)
 
 
-def test_extrapolate_false_raises():
-    src = _power_law_table(extrapolate=False)
+def test_extension_raise_raises_a_domain_error():
+    src = _power_law_table(extension="raise")
     src._power(np.array([1e-3, 1.0, 10.0]))
-    with pytest.raises(ValueError, match="outside the table"):
+    with pytest.raises(DomainError, match=r"above the table.*extension='raise'"):
         src._power(np.array([20.0]))
+    with pytest.raises(DomainError, match="below the table"):
+        src.power(1e-4 * h_Mpc)
+
+
+def test_extension_values():
+    assert _power_law_table().extension == "auto"
+    with pytest.raises(ValueError, match="extension"):
+        _power_law_table(extension="clip")
+
+
+def test_extrapolation_warns_once_per_instance_and_end():
+    """Each end of the table warns once per instance; an equal instance warns again."""
+    src = _power_law_table()
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        src._power(np.array([1.0]))  # inside: no warning
+        src.power(np.array([20.0, 30.0]) * h_Mpc)
+        src.power(40.0 * h_Mpc)
+        src._power(np.array([1e-5]))
+        src._power(np.array([1e-6, 100.0]))
+        _power_law_table().power(20.0 * h_Mpc)
+    messages = [str(w.message) for w in caught]
+    assert all(w.category is HMFExtrapolationWarning for w in caught)
+    assert len(messages) == 3, messages
+    assert "2 value(s) of k above the table [0.001, 10] h/Mpc" in messages[0]
+    assert "below the table" in messages[1]
+    assert "above the table" in messages[2]
+
+
+def test_inside_the_table_does_not_warn():
+    src = _power_law_table()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        src.power(np.logspace(-3, 1, 9) * h_Mpc)
+
+
+@pytest.mark.parametrize("k", [0.0, -1.0, np.nan])
+def test_non_positive_k_is_a_domain_error(k):
+    with pytest.raises(DomainError, match="k must be > 0"):
+        _power_law_table().power(k * h_Mpc)
 
 
 def test_public_power_is_unit_checked():

@@ -172,8 +172,11 @@ def boltzmann_runs():
 
 @pytest.fixture(scope="module")
 def power_source():
-    """Unnormalised EH power (Planck18) as a table: no Boltzmann run needed."""
-    k = np.logspace(-6, 4, 3001) * h_Mpc
+    """Unnormalised EH power (Planck18) as a table: no Boltzmann run needed.
+
+    It spans MassVariance's default k grid, so it is never extrapolated (which warns).
+    """
+    k = np.logspace(-9, 7, 4801) * h_Mpc
     return TabulatedPower(
         k=k,
         # In arbitrary units: sigma's amplitude does not matter here.

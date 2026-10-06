@@ -22,7 +22,6 @@ def test_k_defaults():
     assert acc.dln_k == 0.02
     assert acc.ln_k_min == pytest.approx(math.log(1e-8), rel=1e-15)
     assert acc.k_max_r_min == 20.0
-    assert acc.extension == "raise"
 
 
 def test_fast_presets():
@@ -82,7 +81,6 @@ def test_bounds_finite():
 
 def test_extension_values():
     assert MassAccuracy(extension="raise").extension == "raise"
-    assert KAccuracy(extension="auto").extension == "auto"
     with pytest.raises(ValueError, match="extension"):
         MassAccuracy(extension="clip")
 

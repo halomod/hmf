@@ -25,10 +25,12 @@ from scipy import integrate
 from scipy.special import gamma
 
 from hmf.core.accuracy import KAccuracy, MassAccuracy
+from hmf.core.domain import DomainError
 from hmf.core.filters import SharpK, SmoothK, TopHat
 from hmf.core.mass_variance import RESOLUTION_RTOL, MassVariance
 from hmf.core.power_source import TabulatedPower
 from hmf.core.units import Mpc_h, Msun_h, UnitBoundaryError, h_Mpc, power_unit, rho_unit
+from hmf.exceptions import HMFExtrapolationWarning
 
 FILTERS = ["TopHat", "SharpK", "SmoothK"]
 EH = AnalyticPower(EisensteinHuNoWiggle())
@@ -105,10 +107,10 @@ def test_shallow_power_law_with_tophat_raises():
     dln(sigma)/dln(m) only converges conditionally, and the grid aliases it.
     """
     mv = _mv(AnalyticPower(PowerLaw(0.0)), "TopHat")
-    with pytest.raises(ValueError, match=r"does not resolve|not finite"):
+    with pytest.raises(DomainError, match=r"does not resolve|not finite"):
         mv.sigma(np.logspace(8, 15, 20) * Msun_h)
     mv = _mv(AnalyticPower(PowerLaw(0.0)), "TopHat", accuracy=MassAccuracy(second_derivative=False))
-    with pytest.raises(ValueError, match="does not resolve"):
+    with pytest.raises(DomainError, match="does not resolve"):
         mv.sigma(np.logspace(8, 15, 20) * Msun_h)
     assert RESOLUTION_RTOL == 1e-2
 
@@ -349,11 +351,11 @@ def test_m_from_sigma_round_trip(power, flt, second):
 def test_m_from_sigma_out_of_range():
     mv = _mv()
     s_lo, s_hi = mv.sigma(10**17.5 * Msun_h), mv.sigma(1 * Msun_h)
-    with pytest.raises(ValueError, match="outside"):
+    with pytest.raises(DomainError, match="outside"):
         mv.m_from_sigma(1.01 * s_hi)
-    with pytest.raises(ValueError, match="outside"):
+    with pytest.raises(DomainError, match="outside"):
         mv.m_from_sigma(0.99 * s_lo)
-    with pytest.raises(ValueError, match="finite"):
+    with pytest.raises(DomainError, match="finite"):
         mv.m_from_sigma(-1.0)
 
 
@@ -368,7 +370,7 @@ def test_m_from_sigma_raises_where_sigma_is_not_monotonic():
     s = mv.sigma(m)
     rising = np.flatnonzero(np.diff(s) > 0)
     assert rising.size, "the spectrum should make sigma non-monotonic"
-    with pytest.raises(ValueError, match="not monotonically decreasing"):
+    with pytest.raises(DomainError, match="not monotonically decreasing"):
         mv.m_from_sigma(s[rising[0] + 1])
     # Where sigma is monotonic, inversion still works.
     np.testing.assert_allclose(mv.m_from_sigma(s[0]).value, m[0].value, rtol=1e-10)
@@ -444,22 +446,22 @@ def test_underflow_raises():
     """A power so small that sigma^2 underflows (to 0 at R ~ 1e4 Mpc/h) gives an error."""
     mv = _mv(AnalyticPower(PowerLaw(0.0, amplitude=1e-310)), "SharpK")
     mv.sigma(1e15 * Msun_h)
-    with pytest.raises(ValueError, match="not finite"):
+    with pytest.raises(DomainError, match="not finite"):
         mv.sigma(1e26 * Msun_h)
 
 
 def test_extension_raise():
     mv = _mv(accuracy=MassAccuracy(extension="raise", log10_m_min=6, log10_m_max=15))
     mv.sigma(np.array([1e6, 1e15]) * Msun_h)
-    with pytest.raises(ValueError, match="extension='raise'"):
+    with pytest.raises(DomainError, match="extension='raise'"):
         mv.sigma(1e5 * Msun_h)
-    with pytest.raises(ValueError, match="extension='raise'"):
+    with pytest.raises(DomainError, match="extension='raise'"):
         mv.dlnsigma_dlnm(1e16 * Msun_h)
 
 
 @pytest.mark.parametrize("bad", [0.0, -1.0, np.nan, np.inf])
 def test_invalid_masses_raise(bad):
-    with pytest.raises(ValueError, match="finite and > 0"):
+    with pytest.raises(DomainError, match="finite and > 0"):
         _mv().sigma(bad * Msun_h)
 
 
@@ -525,7 +527,9 @@ def test_with_a_tabulated_source():
     )
     mv = MassVariance(power=src, filter="SharpK")
     m = np.logspace(8, 14, 5) * Msun_h
-    np.testing.assert_allclose(mv.dlnsigma_dlnm(m), -1 / 3, rtol=1e-8)
+    # The k grid reaches beyond the table, which is extrapolated: exactly, for a power law.
+    with pytest.warns(HMFExtrapolationWarning, match="extrapolated as a power law"):
+        np.testing.assert_allclose(mv.dlnsigma_dlnm(m), -1 / 3, rtol=1e-8)
 
 
 # ---------------------------------------------------------------------------------

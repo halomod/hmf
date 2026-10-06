@@ -1,26 +1,54 @@
-"""Model domains and the domain policy.
+"""Model domains, the domain policy, and the errors of :mod:`hmf.core`.
 
-Each model will carry two domains, as class variables:
+Each model carries two domains, as class variables:
 
 ``valid_domain``
     Where the model's formula is mathematically defined or sensible (e.g. sigma > 0).
-    Outside it, evaluation **always raises**.
+    Outside it, evaluation **always raises** a :class:`DomainError`.
 ``calibration_domain``
-    Where the model was calibrated against simulations. Outside it, results are
-    extrapolations, handled according to the user's :data:`DomainPolicy`.
+    Where the model was calibrated against simulations, or ``None`` if it has none.
+    Outside it, results are extrapolations, handled according to the user's
+    :data:`DomainPolicy`.
 
-This module provides the :class:`Domain` type describing either, and
-:func:`apply_domain_policy`, which applies a policy to a result.
+This module provides the :class:`Domain` type describing either (with
+:meth:`Domain.describe` and :meth:`Domain.check`), :func:`apply_domain_policy`,
+which applies a policy to a result, and :func:`warn_once`, which emits a warning once
+per object.
 
 Bounds are given in the canonical units of :data:`hmf.core.units.CANONICAL_UNITS`.
 A bound on a dimensional variable is a :class:`~astropy.units.Quantity`; the values
-checked against it must then be Quantities too.
+checked against it must then be Quantities too. Each bound is closed (``>=``,
+``<=``) or open (``>``, ``<``).
+
+Errors
+------
+Every error :mod:`hmf.core` raises about its inputs is one of three types:
+
+:class:`DomainError` (a :class:`ValueError`)
+    An input *value* is outside what can be evaluated: a non-positive or NaN k, m
+    or sigma; a mass outside the lattice with ``extension="raise"``; a k outside a
+    table that is not extrapolated; a z beyond a growth table; anything outside a
+    model's ``valid_domain``.
+:class:`ValueError`
+    A bad option, configuration or combination of them, or a missing input. This
+    includes a model that does not apply to the cosmology it is given (e.g.
+    ``Eisenstein97Growth`` with a non-flat cosmology).
+:class:`TypeError`
+    An object of the wrong kind (e.g. a model that is not a model).
+
+Values that are outside a *calibration* domain, or that are extrapolated beyond a
+table the user supplied, are not errors: they emit an
+:class:`~hmf.exceptions.HMFExtrapolationWarning` (once per object, with
+:func:`warn_once`), or follow the :data:`DomainPolicy`.
 """
 
 from __future__ import annotations
 
 import warnings
+import weakref
 from collections.abc import Mapping
+from functools import cached_property
+from types import MappingProxyType
 from typing import Any, Literal, get_args
 
 import astropy.units as u
@@ -39,6 +67,7 @@ __all__ = [
     "HMFExtrapolationWarning",
     "Interval",
     "apply_domain_policy",
+    "warn_once",
 ]
 
 #: What to do with results outside a model's calibration domain:
@@ -58,7 +87,11 @@ DOMAIN_POLICIES: tuple[str, ...] = get_args(DomainPolicy)
 
 
 class DomainError(ValueError):
-    """Inputs are outside a model's domain, and the policy forbids that."""
+    """An input value is outside what can be evaluated (see "Errors" above).
+
+    E.g. outside a model's valid domain, outside a table that is not extrapolated,
+    or outside a calibration domain with the ``"raise"`` policy.
+    """
 
 
 def _lower(x: float | None) -> float:
@@ -71,24 +104,45 @@ def _upper(x: float | None) -> float:
     return np.inf if x is None else float(x)
 
 
+def _format_bound(x: float, unit: u.UnitBase | None) -> str:
+    """A bound for a message: the number, with its unit if it has one."""
+    return f"{x:g}" if unit is None else f"{x:g} {unit.to_string()}"
+
+
 @attrs.frozen
 class Interval:
-    """A closed interval ``[lower, upper]`` of one variable.
+    """An interval of one variable, each of whose bounds is closed or open.
 
     Parameters
     ----------
     lower
-        The lower bound, inclusive. ``-inf`` (or ``None``) for no lower bound.
+        The lower bound. ``-inf`` (or ``None``) for no lower bound.
     upper
-        The upper bound, inclusive. ``inf`` (or ``None``) for no upper bound.
+        The upper bound. ``inf`` (or ``None``) for no upper bound.
     unit
         The unit of the bounds, for a dimensional variable; ``None`` if the variable
         is dimensionless.
+    lower_open, upper_open
+        Whether each bound is excluded (``>`` and ``<``) rather than included (``>=``
+        and ``<=``, the default).
+
+    Examples
+    --------
+    >>> Interval(0, None, lower_open=True).describe("sigma")
+    'sigma > 0'
+    >>> Interval(75, 3e4, lower_open=True).describe("delta_halo")
+    '75 < delta_halo <= 30000'
     """
 
     lower: float = attrs.field(converter=_lower)
     upper: float = attrs.field(converter=_upper)
     unit: u.UnitBase | None = None
+    lower_open: bool = attrs.field(
+        default=False, kw_only=True, validator=attrs.validators.instance_of(bool)
+    )
+    upper_open: bool = attrs.field(
+        default=False, kw_only=True, validator=attrs.validators.instance_of(bool)
+    )
 
     @upper.validator
     def _check_order(self, attribute: attrs.Attribute[float], value: float) -> None:
@@ -97,8 +151,43 @@ class Interval:
                 f"Interval bounds must satisfy lower <= upper, got [{self.lower}, {value}]."
             )
 
+    def __attrs_post_init__(self) -> None:
+        """Check that the interval is not empty."""
+        if self.lower == self.upper and (self.lower_open or self.upper_open):
+            raise ValueError(
+                f"The interval with equal bounds {self.lower} and an open end is empty."
+            )
+
+    def describe(self, name: str = "x") -> str:
+        """The interval as an inequality on the variable ``name``.
+
+        Parameters
+        ----------
+        name
+            The variable's name.
+
+        Returns
+        -------
+        str
+            E.g. ``"sigma > 0"``, ``"75 < delta_halo <= 30000"``, or ``"any z"`` for no
+            bounds. Bounds are followed by the unit, if there is one.
+        """
+        lo, hi = np.isfinite(self.lower), np.isfinite(self.upper)
+        lo_text = _format_bound(self.lower, self.unit)
+        hi_text = _format_bound(self.upper, self.unit)
+        if lo and hi:
+            return (
+                f"{lo_text} {'<' if self.lower_open else '<='} {name} "
+                f"{'<' if self.upper_open else '<='} {hi_text}"
+            )
+        if lo:
+            return f"{name} {'>' if self.lower_open else '>='} {lo_text}"
+        if hi:
+            return f"{name} {'<' if self.upper_open else '<='} {hi_text}"
+        return f"any {name}"
+
     def contains(self, x: Any, *, name: str = "value") -> bool | npt.NDArray[np.bool_]:
-        """Whether ``x`` lies within the interval (bounds included).
+        """Whether ``x`` lies within the interval (closed bounds included).
 
         Parameters
         ----------
@@ -120,18 +209,38 @@ class Interval:
             If ``x`` can't be converted to the interval's unit without an H0.
         """
         if self.unit is not None:
-            # Bounds are in canonical units, and a domain has no H0: h-units only.
-            _require_quantity(x, self.unit, where="Domain", name=name, has_h0=False)
-            value = to_canonical(x, self.unit, where="Domain", name=name)
+            if isinstance(x, u.Quantity) and x.unit is self.unit:
+                value = x.value  # already in the canonical unit (the common case)
+            else:
+                # Bounds are in canonical units, and a domain has no H0: h-units only.
+                _require_quantity(x, self.unit, where="Domain", name=name, has_h0=False)
+                value = to_canonical(x, self.unit, where="Domain", name=name)
         elif isinstance(x, u.Quantity):
             value = x.to_value(u.dimensionless_unscaled)
         else:
-            value = np.asarray(x)
-        inside = (value >= self.lower) & (value <= self.upper)
+            value = x
+        if isinstance(value, (float, int)):  # a scalar (np.float64 too): plain Python
+            return bool(
+                (value > self.lower if self.lower_open else value >= self.lower)
+                and (value < self.upper if self.upper_open else value <= self.upper)
+            )
+        value = np.asarray(value)
+        above = (value > self.lower) if self.lower_open else (value >= self.lower)
+        below = (value < self.upper) if self.upper_open else (value <= self.upper)
+        inside = above & below
         return bool(inside) if np.ndim(inside) == 0 else inside
 
 
-def _to_interval(bound: Interval | tuple[Any, Any] | u.Quantity) -> Interval:
+#: The interval notations of the 3-tuple shorthand, and whether each end is open.
+_BRACKETS: Mapping[str, tuple[bool, bool]] = {
+    "[]": (False, False),
+    "(]": (True, False),
+    "[)": (False, True),
+    "()": (True, True),
+}
+
+
+def _to_interval(bound: Interval | tuple[Any, ...] | u.Quantity) -> Interval:
     """Convert one bound specification to an :class:`Interval`."""
     if isinstance(bound, Interval):
         return bound
@@ -139,19 +248,26 @@ def _to_interval(bound: Interval | tuple[Any, Any] | u.Quantity) -> Interval:
         if bound.shape != (2,):
             raise ValueError(f"A Quantity bound must have shape (2,), not {bound.shape}.")
         return Interval(bound[0].value, bound[1].value, bound.unit)
-    lower, upper = bound
+    if len(bound) == 3:
+        lower, upper, brackets = bound
+        if brackets not in _BRACKETS:
+            raise ValueError(
+                f"The third item of a bound must be one of {list(_BRACKETS)}, not {brackets!r}."
+            )
+        lower_open, upper_open = _BRACKETS[brackets]
+    else:
+        lower, upper = bound
+        lower_open = upper_open = False
+    unit = None
     if isinstance(lower, u.Quantity) or isinstance(upper, u.Quantity):
         unit = lower.unit if isinstance(lower, u.Quantity) else upper.unit
-        return Interval(
-            None if lower is None else u.Quantity(lower).to_value(unit),
-            None if upper is None else u.Quantity(upper).to_value(unit),
-            unit,
-        )
-    return Interval(lower, upper)
+        lower = None if lower is None else u.Quantity(lower).to_value(unit)
+        upper = None if upper is None else u.Quantity(upper).to_value(unit)
+    return Interval(lower, upper, unit, lower_open=lower_open, upper_open=upper_open)
 
 
 def _to_bounds(
-    bounds: Mapping[str, Interval | tuple[Any, Any] | u.Quantity],
+    bounds: Mapping[str, Interval | tuple[Any, ...] | u.Quantity],
 ) -> tuple[tuple[str, Interval], ...]:
     """Convert a mapping of bounds to the sorted tuple :class:`Domain` stores."""
     return tuple(sorted((str(k), _to_interval(v)) for k, v in dict(bounds).items()))
@@ -167,9 +283,12 @@ class Domain:
     ----------
     bounds
         A mapping from variable name (``"z"``, ``"sigma"``, ``"m"``, ``"delta_halo"``,
-        ...) to its bounds: an :class:`Interval`, a ``(lower, upper)`` pair (``None``
-        for unbounded; Quantities for a dimensional variable), or a Quantity of shape
-        ``(2,)``.
+        ...) to its bounds: an :class:`Interval`; a ``(lower, upper)`` pair (``None``
+        for unbounded; Quantities for a dimensional variable), whose bounds are
+        closed; a ``(lower, upper, brackets)`` triple, with ``brackets`` the interval
+        notation ``"[]"``, ``"(]"``, ``"[)"`` or ``"()"`` (``"("`` and ``")"`` mark
+        an open, excluded, bound: ``(0, None, "(]")`` is ``> 0``); or a Quantity of
+        shape ``(2,)``, whose bounds are closed.
     source
         Where the domain comes from (e.g. "Tinker et al. 2008, Sec. 4"), if it is a
         calibration domain.
@@ -182,10 +301,17 @@ class Domain:
     True
     >>> d.contains(z=np.array([0.5, 3.0]))
     array([ True, False])
+    >>> Domain({"sigma": (0, None, "(]"), "z": (0, 2.5)}).describe()
+    'sigma > 0, 0 <= z <= 2.5'
     """
 
     bounds: tuple[tuple[str, Interval], ...] = attrs.field(converter=_to_bounds)
     source: str = ""
+
+    @cached_property
+    def _intervals(self) -> Mapping[str, Interval]:
+        """The intervals by variable name (for fast lookups)."""
+        return MappingProxyType(dict(self.bounds))
 
     @property
     def variables(self) -> tuple[str, ...]:
@@ -194,10 +320,7 @@ class Domain:
 
     def __getitem__(self, name: str) -> Interval:
         """Return the interval of variable ``name``."""
-        for key, interval in self.bounds:
-            if key == name:
-                return interval
-        raise KeyError(name)
+        return self._intervals[name]
 
     def contains(self, **values: Any) -> bool | npt.NDArray[np.bool_]:
         """Whether the given values lie within the domain.
@@ -218,15 +341,112 @@ class Domain:
         ValueError
             If a name is not a variable of the domain (it is most likely a typo).
         """
-        unknown = sorted(set(values) - set(self.variables))
+        intervals = self._intervals
+        unknown = sorted(name for name in values if name not in intervals)
         if unknown:
             raise ValueError(
                 f"The domain has no variable(s) {unknown}; it bounds {list(self.variables)}."
             )
         inside: bool | npt.NDArray[np.bool_] = True
         for name, value in values.items():
-            inside = inside & self[name].contains(value, name=name)
+            inside = inside & intervals[name].contains(value, name=name)
         return inside if np.ndim(inside) else bool(inside)
+
+    def describe(self) -> str:
+        """The domain as inequalities on its variables, e.g. ``"sigma > 0, z >= 0"``.
+
+        Returns
+        -------
+        str
+            One inequality per variable (see :meth:`Interval.describe`), or
+            ``"unbounded"`` for a domain without variables.
+        """
+        return ", ".join(interval.describe(name) for name, interval in self.bounds) or "unbounded"
+
+    def check(self, values: Mapping[str, Any], *, where: str) -> None:
+        """Raise a :class:`DomainError` if any of the values is outside the domain.
+
+        Parameters
+        ----------
+        values
+            The value(s) of some of the domain's variables, by name, as for
+            :meth:`contains`.
+        where
+            Who checks them (e.g. ``"Tinker08's valid domain"``), for the message.
+
+        Raises
+        ------
+        DomainError
+            If any value is outside the domain (NaN included). The message gives
+            the variables out of range and the domain's :meth:`describe`.
+        ValueError
+            If a name is not a variable of the domain.
+        """
+        inside = self.contains(**values)
+        if inside is True or (inside is not False and np.all(inside)):
+            return
+        bad = [name for name, value in values.items() if not np.all(self.contains(**{name: value}))]
+        n_out = int(np.size(inside) - np.count_nonzero(inside))
+        raise DomainError(
+            f"{where}: {n_out} of {np.size(inside)} value(s) are outside the domain "
+            f"({self.describe()}); out of range: {', '.join(bad)}."
+        )
+
+
+#: The keys of the warnings already emitted, by the id of the object they are about.
+#: An entry is removed when its object is garbage collected (so ids can't be reused).
+_WARNED: dict[int, set[str]] = {}
+
+
+def warn_once(
+    owner: object,
+    key: str,
+    message: str,
+    category: type[Warning] = HMFExtrapolationWarning,
+    *,
+    stacklevel: int = 2,
+) -> bool:
+    """Emit a warning once per object and key.
+
+    The objects of :mod:`hmf.core` are frozen and compare by value, so this keeps the
+    keys already warned about by the object's *identity*, outside the object: two
+    equal stages each warn once.
+
+    Parameters
+    ----------
+    owner
+        The object the warning is about (e.g. a stage). If it can not be weakly
+        referenced, the warning is emitted every time.
+    key
+        What the warning is about, e.g. ``"k above the table"``. Each key warns once.
+    message
+        The warning's message.
+    category
+        The warning's class.
+    stacklevel
+        As for :func:`warnings.warn`, from the caller of this function.
+
+    Returns
+    -------
+    bool
+        Whether the warning was emitted (False if it was already, for this object
+        and key).
+    """
+    try:
+        weakref.ref(owner)
+    except TypeError:
+        warnings.warn(message, category, stacklevel=stacklevel + 1)
+        return True
+    ident = id(owner)
+    done = _WARNED.get(ident)
+    if done is None:
+        done = _WARNED[ident] = set()
+        weakref.finalize(owner, _WARNED.pop, ident, None)
+    if key in done:
+        return False
+    done.add(key)
+    warnings.warn(message, category, stacklevel=stacklevel + 1)
+    return True
 
 
 def apply_domain_policy(
@@ -235,6 +455,7 @@ def apply_domain_policy(
     policy: DomainPolicy,
     *,
     description: str = "the model",
+    owner: object | None = None,
 ) -> Any:
     """Apply a domain policy to a result computed (partly) outside a domain.
 
@@ -248,6 +469,9 @@ def apply_domain_policy(
         What to do with values outside it (see :data:`DomainPolicy`).
     description
         Names the model and domain in messages, e.g. "Tinker08's calibration domain".
+    owner
+        The object (e.g. a stage) the ``"warn"`` policy warns once for, per
+        ``description`` (see :func:`warn_once`). If ``None``, it warns on every call.
 
     Returns
     -------
@@ -265,8 +489,8 @@ def apply_domain_policy(
     Warns
     -----
     HMFExtrapolationWarning
-        With the ``"warn"`` policy, if any value is outside the domain. Emitting it
-        once per stage instance, rather than once per call, is up to the caller.
+        With the ``"warn"`` policy, if any value is outside the domain: once per
+        ``owner`` (and ``description``), or on every call without an ``owner``.
     """
     if policy not in DOMAIN_POLICIES:
         raise ValueError(f"Unknown domain policy {policy!r}; use one of {DOMAIN_POLICIES}.")
@@ -277,7 +501,11 @@ def apply_domain_policy(
     if policy == "raise":
         raise DomainError(message)
     if policy == "warn":
-        warnings.warn(message + " They are extrapolations.", HMFExtrapolationWarning, stacklevel=2)
+        message += " They are extrapolations."
+        if owner is None:
+            warnings.warn(message, HMFExtrapolationWarning, stacklevel=2)
+        else:
+            warn_once(owner, description, message, stacklevel=2)
         return result
     # "mask"
     if isinstance(result, u.Quantity):

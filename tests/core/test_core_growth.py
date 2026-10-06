@@ -215,8 +215,9 @@ def test_camb_growth_is_scale_dependent_with_massive_neutrinos():
 @pytest.mark.parametrize(
     ("model", "cosmo", "error"),
     [
-        ("Integral", WCDM, TypeError),
-        ("GenMF", WCDM, TypeError),
+        # A model that does not apply to the cosmology is a configuration error.
+        ("Integral", WCDM, ValueError),
+        ("GenMF", WCDM, ValueError),
         ("Eisenstein97", OPEN_LAMBDA, ValueError),
         ("Heath77", LCDM, ValueError),
         ("GenMF", cosmology.LambdaCDM(H0=70, Om0=0.5, Ode0=0.7, Tcmb0=0), ValueError),
@@ -224,8 +225,9 @@ def test_camb_growth_is_scale_dependent_with_massive_neutrinos():
     ],
 )
 def test_models_reject_cosmologies_they_do_not_apply_to(model, cosmo, error):
-    with pytest.raises(error):
+    with pytest.raises(error) as info:
         Growth(cosmology=cosmo, model=model)
+    assert not isinstance(info.value, (TypeError, DomainError))
 
 
 def test_redshift_domain():

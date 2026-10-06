@@ -27,13 +27,20 @@ from ._validators import finite, positive
 
 __all__ = ["Accuracy", "Extension", "KAccuracy", "MassAccuracy"]
 
-#: What to do with requests outside an internal grid:
+#: What to do with requests outside an internal grid or a table: the out-of-range
+#: switch of :mod:`hmf.core`. What ``"auto"`` does depends on the object:
 #:
 #: ``"auto"``
-#:     extend the grid lazily, with nodes on the same lattice, so that results do not
-#:     depend on the order of requests;
+#:     handle them: :attr:`MassAccuracy.extension` extends the mass lattice lazily,
+#:     with nodes on the same lattice, so that results do not depend on the order of
+#:     requests; :attr:`TabulatedPower.extension
+#:     <hmf.core.power_source.TabulatedPower.extension>` extrapolates the table as a
+#:     power law (with an :class:`~hmf.exceptions.HMFExtrapolationWarning`);
 #: ``"raise"``
-#:     raise an error.
+#:     raise a :class:`~hmf.core.domain.DomainError`.
+#:
+#: It is not a :data:`~hmf.core.domain.DomainPolicy`, which is what to do outside a
+#: model's *calibration* domain.
 Extension = Literal["auto", "raise"]
 
 
@@ -175,9 +182,4 @@ class KAccuracy(Accuracy):
             "Lagrangian radius of the smallest mass of the default mass grid "
             "(MassAccuracy.log10_m_min)."
         ),
-    )
-    extension: Extension = field(
-        default="raise",
-        validator=_extension,
-        doc="What to do with wavenumbers outside the grid: 'auto' or 'raise'.",
     )
