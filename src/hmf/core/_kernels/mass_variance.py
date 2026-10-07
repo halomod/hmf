@@ -207,7 +207,7 @@ def panel_integrals(ln_a: ArrayLike, ln_b: ArrayLike, f: FloatArray) -> FloatArr
 
 
 def sharpk_ln_variance(
-    s_below: FloatArray, k3p_cut: FloatArray, n_eff_cut: FloatArray, second: bool
+    s_below: FloatArray, k3p_cut: FloatArray, dln_p_dln_k_cut: FloatArray, second: bool
 ) -> tuple[FloatArray, FloatArray, FloatArray | None]:
     r"""The ln(sigma) and its derivatives in ln R, for the sharp-k filter.
 
@@ -216,10 +216,10 @@ def sharpk_ln_variance(
     .. math::
 
         \frac{d\ln\sigma}{d\ln R} = -\frac{g}{2s}, \qquad
-        \frac{d^2\ln\sigma}{d(\ln R)^2} = \frac{1}{2}\left[\frac{g (3 + n_{\rm eff})}{s}
-            - \frac{g^2}{s^2}\right],
+        \frac{d^2\ln\sigma}{d(\ln R)^2} = \frac{1}{2}\left[\frac{g}{s}
+            \left(3 + \frac{d\ln P}{d\ln k}\right) - \frac{g^2}{s^2}\right],
 
-    where :math:`n_{\rm eff} = d\ln P / d\ln k` at the cut-off. Both are ratios of the
+    with :math:`d\ln P / d\ln k` at the cut-off. Both are ratios of the
     power, so they do not depend on its normalisation.
 
     Parameters
@@ -228,7 +228,7 @@ def sharpk_ln_variance(
         :math:`\sigma^2(R) = \frac{1}{2\pi^2}\int^{1/R} k^3 P\, d\ln k`.
     k3p_cut
         :math:`k^3 P(k)` at :math:`k = 1/R`.
-    n_eff_cut
+    dln_p_dln_k_cut
         :math:`d\ln P / d\ln k` at :math:`k = 1/R` (only used if ``second``).
     second
         Whether to return the second derivative.
@@ -241,7 +241,7 @@ def sharpk_ln_variance(
     # A variance that underflows to 0 gives non-finite results, which callers check.
     with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
         g_over_s = k3p_cut / _TWO_PI2 / s_below
-        d2 = (g_over_s * (3 + n_eff_cut) - g_over_s * g_over_s) / 2 if second else None
+        d2 = (g_over_s * (3 + dln_p_dln_k_cut) - g_over_s * g_over_s) / 2 if second else None
         ln_sigma = 0.5 * np.log(s_below)
     return ln_sigma, -g_over_s / 2, d2
 

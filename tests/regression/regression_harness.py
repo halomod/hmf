@@ -85,19 +85,27 @@ class Tolerances:
     overrides: tuple[Mapping[str, Any], ...]
     floor: float
 
+    def _matching(self, quantity: str, case: Case) -> Iterator[Mapping[str, Any]]:
+        """The overrides of ``quantity`` whose :class:`Case` fields match ``case``."""
+        for o in self.overrides:
+            fields = {k: v for k, v in o.items() if k not in _OVERRIDE_KEYS}
+            if o["quantity"] == quantity and all(getattr(case, k) == v for k, v in fields.items()):
+                yield o
+
     def get(self, quantity: str, case: Case | None = None) -> Tolerance:
         """The tolerance of ``quantity``, with any override matching ``case``.
 
         An override is a dict with a ``"quantity"``, a ``"rtol"``, a
         ``"justification"``, and any of the :class:`Case` fields (``"filter"``,
-        ``"transfer"``, ...) to match. The last matching override wins.
+        ``"transfer"``, ...) to match. The last matching override wins. Overrides
+        with an ``"lnk_range"`` apply to part of the k axis only: see
+        :meth:`lnk_ranges`.
         """
         tol = self.quantities[quantity]
         if case is None:
             return tol
-        for o in self.overrides:
-            fields = {k: v for k, v in o.items() if k not in ("quantity", "rtol", "justification")}
-            if o["quantity"] == quantity and all(getattr(case, k) == v for k, v in fields.items()):
+        for o in self._matching(quantity, case):
+            if "lnk_range" not in o:
                 tol = Tolerance(
                     rtol=o["rtol"],
                     amplify=tol.amplify,
@@ -106,6 +114,30 @@ class Tolerances:
                     floor=tol.floor,
                 )
         return tol
+
+    def lnk_ranges(self, quantity: str, case: Case) -> list[tuple[float, float, float]]:
+        """The overrides of ``case`` that apply to a range of ln k only.
+
+        Such an override has an ``"lnk_range"``, ``[low, high]`` (``null`` for no
+        bound), and applies its ``"rtol"`` to the points of the case's ``"lnk"`` axis
+        with ``low <= ln k < high``, in order (a later one wins where they overlap).
+
+        Returns
+        -------
+        list of (low, high, rtol)
+        """
+        out = []
+        for o in self._matching(quantity, case):
+            if "lnk_range" in o:
+                low, high = o["lnk_range"]
+                out.append(
+                    (-np.inf if low is None else low, np.inf if high is None else high, o["rtol"])
+                )
+        return out
+
+
+#: The keys of an override that are not :class:`Case` fields to match.
+_OVERRIDE_KEYS = frozenset({"quantity", "rtol", "justification", "lnk_range"})
 
 
 def load_tolerances(path: Path | None = None) -> Tolerances:
@@ -287,8 +319,11 @@ class Reference:
         For the quantities of a fit (``dndm``, ``fsigma``, ``ngtm``): the slope
         ``dln f/dln sigma`` along the mass axis (``"fsigma_slope"``) and, for
         ``ngtm``, its dn/dln M-weighted average above each mass
-        (``"ngtm_weighted_slope"``). Empty for the other quantities.
+        (``"ngtm_weighted_slope"``). For a case with an ``"lnk"`` axis, ln k
+        (``"lnk"``), for the overrides restricted to a range of it. Empty otherwise.
         """
+        if "lnk" in case.axes:
+            return {"lnk": self.lnk}
         if case.fit is None:
             return {}
         fields = {
@@ -436,7 +471,8 @@ def compare(
         The case, to apply any per-case override of the tolerance.
     context
         :meth:`Reference.context` of the case. Required for the quantities whose
-        tolerance propagates the sigma tolerance (``dndm``, ``fsigma``, ``ngtm``).
+        tolerance propagates the sigma tolerance (``dndm``, ``fsigma``, ``ngtm``),
+        and for an override restricted to a range of ln k.
     tolerances
         The tolerances; ``data/tolerances.json`` by default.
     raise_on_failure
@@ -463,6 +499,17 @@ def compare(
         raise ValueError(f"{quantity}: shape {act.shape} differs from the reference's {ref.shape}")
 
     bound = np.full(ref.shape, tol.rtol)
+    ranges = tolerances.lnk_ranges(quantity, case) if case is not None else []
+    if ranges:
+        if context is None or "lnk" not in context or "lnk" not in case.axes:
+            raise ValueError(f"{quantity}: an lnk_range override needs context['lnk']")
+        lnk = np.asarray(context["lnk"])
+        axis = case.axes.index("lnk")
+        shape = [1] * ref.ndim
+        shape[axis] = lnk.size
+        for low, high, rtol in ranges:
+            inside = ((lnk >= low) & (lnk < high)).reshape(shape)
+            bound = np.where(inside, rtol, bound)
     if tol.amplify is not None:
         name = {"fsigma_slope": "fsigma_slope", "ngtm_weighted": "ngtm_weighted_slope"}[tol.amplify]
         if context is None or name not in context:

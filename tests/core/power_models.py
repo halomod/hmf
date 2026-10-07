@@ -27,12 +27,10 @@ class AnalyticPower:
     rho_mean0: float = 0.3 * RHO_CRIT0
     H0: float = 70.0
 
-    def _power(self, k):
-        return self.function(np.asarray(k, dtype=float))
-
-    @property
-    def _rho_mean0(self) -> float:
-        return self.rho_mean0
+    def ln_power_kernel(self, ln_k):
+        # A non-positive power has no log: it gives -inf or NaN, which MassVariance rejects.
+        with np.errstate(divide="ignore", invalid="ignore"):
+            return np.log(self.function(np.exp(np.asarray(ln_k, dtype=float))))
 
     @cached_property
     def _unit_context(self) -> UnitContext:

@@ -518,7 +518,12 @@ def test_behroozi_correction_at_pivot_mass():
         dndm = m**-1.9 * np.exp(-m / 1e13)
         ngtm = _cumulative(m, dndm)
         corrected = fits.Behroozi().modify_dndm(
-            m * Msun_h, dndm * dndm_unit, z=z, ngtm=ngtm * number_density_unit, H0=100 * h * H0_unit
+            m * Msun_h,
+            dndm * dndm_unit,
+            z=z,
+            ngtm=ngtm * number_density_unit,
+            H0=100 * h * H0_unit,
+            omega_m0=0.3,
         )
         assert corrected.unit is dndm_unit
         n_corrected = _cumulative(m, corrected.to_value(dndm_unit))
@@ -543,7 +548,7 @@ def test_modify_dndm_is_identity_by_default():
     dndm = np.array([1.0, 2.0]) * dndm_unit
     ngtm = np.array([3.0, 1.0]) * number_density_unit
     out = fits.Tinker08().modify_dndm(
-        [1e12, 1e13] * Msun_h, dndm, z=0.0, ngtm=ngtm, H0=70 * H0_unit
+        [1e12, 1e13] * Msun_h, dndm, z=0.0, ngtm=ngtm, H0=70 * H0_unit, omega_m0=0.3
     )
     assert out.unit is dndm_unit
     np.testing.assert_array_equal(out.value, dndm.value)
@@ -589,7 +594,12 @@ def test_fit_methods_with_h0_convert_physical_units():
     ngtm = m**-0.9 / 0.9
     model = fits.Behroozi()
     in_h_units = model.modify_dndm(
-        m * Msun_h, dndm * dndm_unit, z=4.0, ngtm=ngtm * number_density_unit, H0=70 * H0_unit
+        m * Msun_h,
+        dndm * dndm_unit,
+        z=4.0,
+        ngtm=ngtm * number_density_unit,
+        H0=70 * H0_unit,
+        omega_m0=0.3,
     )
     # The same values in physical units: m / h Msun, dndm h^4 / Msun / Mpc^3, ...
     physical = model.modify_dndm(
@@ -598,6 +608,7 @@ def test_fit_methods_with_h0_convert_physical_units():
         z=4.0,
         ngtm=ngtm * h**3 / u.Mpc**3,
         H0=70 * H0_unit,
+        omega_m0=0.3,
     )
     assert physical.unit is dndm_unit
     np.testing.assert_allclose(physical.value, in_h_units.value, rtol=1e-12)
@@ -614,7 +625,12 @@ def test_fit_methods_with_h0_convert_physical_units():
     for bad in (0.7, None):
         with pytest.raises(UnitBoundaryError, match=r"Behroozi.modify_dndm\(\): H0"):
             model.modify_dndm(
-                m * Msun_h, dndm * dndm_unit, z=4.0, ngtm=ngtm * number_density_unit, H0=bad
+                m * Msun_h,
+                dndm * dndm_unit,
+                z=4.0,
+                ngtm=ngtm * number_density_unit,
+                H0=bad,
+                omega_m0=0.3,
             )
     with pytest.raises(u.UnitConversionError, match="H0"):
         fits.Bocquet200cDMOnly().mass_ratio_to_200m(m * Msun_h, z=0.0, omega_m0=0.3, H0=70 * u.km)
@@ -827,7 +843,12 @@ def test_public_methods_are_unit_boundaries():
         fits.Bocquet500cDMOnly().mass_ratio_to_200m(1e14, z=0.0, omega_m0=0.3, H0=70 * H0_unit)
     with pytest.raises(UnitBoundaryError, match="dndm"):
         fits.Behroozi().modify_dndm(
-            [1e12] * Msun_h, [1.0], z=1.0, ngtm=[1.0] * number_density_unit, H0=70 * H0_unit
+            [1e12] * Msun_h,
+            [1.0],
+            z=1.0,
+            ngtm=[1.0] * number_density_unit,
+            H0=70 * H0_unit,
+            omega_m0=0.3,
         )
 
 
@@ -850,16 +871,16 @@ def test_masses_without_h_need_a_hubble_constant():
 
 
 def test_library_path_takes_plain_canonical_arrays():
-    """FitInputs + fsigma_from_inputs / evaluate_fsigma: the same numbers, no units."""
+    """FitInputs + fsigma_kernel / evaluate_fsigma: the same numbers, no units."""
     model = fits.Bocquet200cHydro()
     m = np.geomspace(1e12, 1e15, 4)
     sigma = np.linspace(0.6, 2.0, 4)
     public = model.fsigma(sigma, z=0.5, m=m * Msun_h)
     x = FitInputs(sigma=sigma, z=0.5, m=m)
-    np.testing.assert_array_equal(model.fsigma_from_inputs(x), public)
+    np.testing.assert_array_equal(model.fsigma_kernel(x), public)
     np.testing.assert_array_equal(evaluate_fsigma(model, x).fsigma, public)
     np.testing.assert_array_equal(
-        model._mass_ratio_to_200m(m, z=0.5, omega_m0=0.3, h=0.7),
+        model.mass_ratio_to_200m_kernel(m, z=0.5, omega_m0=0.3, h=0.7),
         model.mass_ratio_to_200m(m * Msun_h, z=0.5, omega_m0=0.3, H0=70 * H0_unit),
     )
     with pytest.raises(ValueError, match="needs the input"):
@@ -959,3 +980,138 @@ def test_derived_simulation_details():
     assert derived.n_simulations == base.n_simulations
     with pytest.raises(TypeError, match="from None"):
         fits._derived(None)
+
+
+# ---------------------------------------------------------------------------------
+# The overdensity of a measured mass definition, relative to the mean density
+# ---------------------------------------------------------------------------------
+
+_OMEGA_M_Z = np.array([0.05, 0.3, 0.7, 1.0])
+
+
+def test_so_mean_overdensity_is_unchanged():
+    mdef = MeasuredMassDefinition(kind="so_mean", overdensity=200)
+    np.testing.assert_array_equal(mdef.delta_halo_mean_kernel(_OMEGA_M_Z), 200.0)
+    assert mdef.delta_halo_mean_kernel(0.3).shape == ()
+
+
+def test_so_critical_overdensity_is_the_same_halo_density():
+    """Delta_c rho_c(z) = Delta_m rho_m(z), with rho_m(z) = Omega_m0 rho_c0 (1 + z)^3.
+
+    The halo density is computed both ways from astropy's densities (rho_c(z) from
+    H(z), rho_m(z) from today's), with Omega_m(z) from hmf.core._species. In
+    Einstein-de Sitter (Omega_m = 1) the two definitions coincide.
+    """
+    from astropy.cosmology import Planck18
+
+    from hmf.core._species import omega_m
+
+    mdef = MeasuredMassDefinition(kind="so_critical", overdensity=500)
+    z = np.array([0.0, 0.5, 2.0, 6.0])
+    delta_m = mdef.delta_halo_mean_kernel(omega_m(Planck18, z))
+    rho_m = Planck18.Om0 * Planck18.critical_density0 * (1 + z) ** 3
+    np.testing.assert_allclose(
+        (delta_m * rho_m).to_value(u.g / u.cm**3),
+        (500 * Planck18.critical_density(z)).to_value(u.g / u.cm**3),
+        rtol=1e-13,
+    )
+    assert mdef.delta_halo_mean_kernel(1.0) == 500.0
+    assert np.all(mdef.delta_halo_mean_kernel(_OMEGA_M_Z[:-1]) > 500.0)
+
+
+def test_bryan_norman_virial_overdensity():
+    """18 pi^2 for Omega_m = 1; ~330 times the mean density for Planck18 today."""
+    from astropy.cosmology import Planck18
+
+    from hmf.core._species import omega_m
+
+    mdef = MeasuredMassDefinition(kind="so_virial")
+    assert mdef.delta_halo_mean_kernel(1.0) == pytest.approx(18 * np.pi**2, rel=1e-15)
+    # Bryan & Norman (1998): Delta_c ~ 100 for Omega_m ~ 0.3, so Delta_m ~ 330.
+    delta_m0 = mdef.delta_halo_mean_kernel(omega_m(Planck18, 0.0))
+    assert 300 < delta_m0 < 360
+    # It decreases towards 18 pi^2 as Omega_m(z) -> 1 at high z.
+    delta = mdef.delta_halo_mean_kernel(omega_m(Planck18, np.array([0.0, 1.0, 3.0, 10.0])))
+    assert np.all(np.diff(delta) < 0)
+    assert delta[-1] == pytest.approx(18 * np.pi**2, rel=1e-2)
+
+
+def test_fof_overdensity():
+    """9 / (2 pi b^3): about 179 for b = 0.2, falling as b^-3, whatever Omega_m(z)."""
+    fof = MeasuredMassDefinition(kind="fof", linking_length=0.2)
+    delta = fof.delta_halo_mean_kernel(_OMEGA_M_Z)
+    np.testing.assert_allclose(delta, 9 / (2 * np.pi * 0.2**3), rtol=1e-15)
+    assert 178 < delta[0] < 180
+    wide = MeasuredMassDefinition(kind="fof", linking_length=0.4)
+    assert wide.delta_halo_mean_kernel(0.3) == pytest.approx(delta[0] / 8, rel=1e-14)
+
+
+def test_so_any_uses_its_preferred_definition_and_self_bound_has_none():
+    watson = fits.Watson.measured_mass_definition
+    assert watson.kind == "so_any"
+    np.testing.assert_array_equal(
+        watson.delta_halo_mean_kernel(_OMEGA_M_Z),
+        watson.preferred.delta_halo_mean_kernel(_OMEGA_M_Z),
+    )
+    with pytest.raises(ValueError, match="no overdensity"):
+        fits.AnguloBound.measured_mass_definition.delta_halo_mean_kernel(0.3)
+
+
+@pytest.mark.parametrize("cls", ALL, ids=lambda c: c.__name__)
+def test_every_fit_has_a_delta_halo_if_it_needs_one(cls):
+    """A fit that needs delta_halo can get it from its own measured mass definition."""
+    if "delta_halo" not in cls.domain_inputs():
+        return
+    delta = cls.measured_mass_definition.delta_halo_mean_kernel(_OMEGA_M_Z)
+    assert np.all(np.isfinite(delta) & (delta > 0))
+
+
+# ---------------------------------------------------------------------------------
+# Post-processing the mass function: one call for every fit
+# ---------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("name", sorted(FittingFunction.get_models()), ids=str)
+def test_every_fit_is_post_processed_through_the_same_call(name):
+    """modify_dndm_kernel takes the same arguments for every registered fit.
+
+    It is the identity unless the fit sets modifies_dndm; it keeps dn/dm positive and
+    finite. The Bocquet 200c and 500c fits multiply it by M_Delta / M200m < 1 (the
+    critical density exceeds the mean), the others are checked elsewhere.
+    """
+    model = FittingFunction.get(name)()
+    m = np.geomspace(1e13, 1e15, 7)  # Msun/h
+    dndm = 1e-3 * (m / 1e13) ** -1.9 * np.exp(-m / 1e15)
+    ngtm = 1e-3 * 1e13 / 0.9 * (m / 1e13) ** -0.9
+    args = {"z": 0.5, "ngtm": ngtm, "h": 0.7, "omega_m0": 0.3}
+    out = model.modify_dndm_kernel(m, dndm, **args)
+    assert out.shape == m.shape
+    assert np.all(np.isfinite(out) & (out > 0))
+    if not model.modifies_dndm:
+        np.testing.assert_array_equal(out, dndm)
+    elif isinstance(model, fits.Bocquet200mDMOnly):
+        assert np.all(out < dndm)
+        np.testing.assert_array_equal(
+            out, dndm * model.mass_ratio_to_200m_kernel(m, z=0.5, omega_m0=0.3, h=0.7)
+        )
+    # The public method is the same calculation, with Quantities.
+    public = model.modify_dndm(
+        m * Msun_h,
+        dndm * dndm_unit,
+        z=0.5,
+        ngtm=ngtm * number_density_unit,
+        H0=70 * H0_unit,
+        omega_m0=0.3,
+    )
+    np.testing.assert_array_equal(public.to_value(dndm_unit), out)
+
+
+def test_which_fits_modify_dndm():
+    modify = {name for name, cls in FittingFunction.get_models().items() if cls.modifies_dndm}
+    assert {cls.__name__ for cls in map(FittingFunction.get, modify)} == {
+        "Behroozi",
+        "Bocquet200cDMOnly",
+        "Bocquet200cHydro",
+        "Bocquet500cDMOnly",
+        "Bocquet500cHydro",
+    }

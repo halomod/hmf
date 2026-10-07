@@ -9,8 +9,10 @@ model) and gives, for each matter species (``"cb"``, CDM + baryons; ``"tot"``, t
   linear power spectrum at z = 0. It is a plain (dimensionless) array, with k in
   h/Mpc and an arbitrary amplitude: normalising it, e.g. to sigma_8, and giving it
   the units of a power spectrum, is the job of a later stage;
-* :meth:`Transfer.power_kernel`: the same at kernel level, as a pure function of k
-  in h/Mpc on plain arrays, for later stages.
+* :meth:`Transfer.power_kernel`: the same at kernel level, for later stages: an
+  :class:`UnnormalisedPower`, a :class:`~hmf.core.power_source.PowerSource` whose
+  methods are pure functions of plain arrays in canonical units, with the mean
+  density of the species (see :mod:`hmf.core._kernels`).
 
 Every species comes from the same solution, so asking for the power spectrum of one
 species and normalising with another never runs the Boltzmann code twice. Runs are
@@ -39,47 +41,17 @@ import numpy.typing as npt
 
 from ._boltzmann import BoltzmannRun
 from ._fields import field
-from ._species import check_species
+from ._species import check_species, rho_mean0
 from .accuracy import KAccuracy
 from .cache import DiskCache
 from .domain import warn_once
 from .stage import CosmologyStage, _check_model_cosmology, _disk_cache_field
 from .transfer_models import CAMB, TransferModel, TransferSolution
-from .units import h_Mpc, unit_boundary
+from .units import UnitContext, h_Mpc, unit_boundary
 
 __all__ = ["Transfer", "UnnormalisedPower"]
 
 Array = npt.NDArray[np.float64]
-
-
-@attrs.frozen(eq=False)
-class UnnormalisedPower:
-    r"""The shape of the linear power spectrum of one species at z = 0, at kernel level.
-
-    :math:`P(k) \propto k^{n_s} T(k)^2`, with k in h/Mpc, on plain arrays. It is a
-    pure function: it has no state besides its (immutable) solution.
-    """
-
-    #: The transfer solution.
-    solution: TransferSolution
-    #: The species.
-    species: str
-    #: The spectral index.
-    n_s: float
-
-    def ln_power(self, ln_k: Array) -> Array:
-        """Ln of :math:`k^{n_s} T^2` at ``ln k`` (k in h/Mpc)."""
-        ln_k = np.asarray(ln_k, dtype=float)
-        out: Array = self.n_s * ln_k + 2 * self.solution.ln_transfer(np.exp(ln_k), self.species)
-        return out
-
-    def power(self, k: Array) -> Array:
-        """:math:`k^{n_s} T(k)^2` at ``k`` (in h/Mpc)."""
-        k = np.asarray(k, dtype=float)
-        out: Array = k**self.n_s * self.solution.transfer(k, self.species) ** 2
-        return out
-
-    __call__ = power
 
 
 @attrs.frozen(kw_only=True)
@@ -227,12 +199,90 @@ class Transfer(CosmologyStage):
             As for :meth:`transfer_function`.
         """
         self._check_k(k)
-        return self.power_kernel(species).power(k)
+        return self.power_kernel(species).power_kernel(k)
 
     def power_kernel(self, species: str = "cb") -> UnnormalisedPower:
-        """The kernel-level shape of the power spectrum of ``species``.
+        """The kernel-level shape of the power spectrum of ``species``, a PowerSource.
 
-        For library code working in canonical units: its ``power(k)`` takes k in h/Mpc
-        as a plain array.
+        For library code working in canonical units (see :mod:`hmf.core._kernels`),
+        e.g. as the ``power`` of a :class:`~hmf.core.mass_variance.MassVariance`.
+
+        Parameters
+        ----------
+        species
+            ``"cb"`` (CDM + baryons) or ``"tot"`` (total matter).
+
+        Returns
+        -------
+        UnnormalisedPower
+            :math:`k^{n_s} T(k)^2` of ``species`` on plain arrays (k in h/Mpc), with
+            the mean density of the same species and this stage's units context.
+
+        Raises
+        ------
+        ValueError
+            If ``species`` is not a matter species.
         """
-        return UnnormalisedPower(self.solution, check_species(species), self.n_s)
+        return UnnormalisedPower(transfer=self, species=species)
+
+
+@attrs.frozen(kw_only=True)
+class UnnormalisedPower:
+    r"""The shape of the linear power spectrum of one species at z = 0, at kernel level.
+
+    :math:`P(k) \propto k^{n_s} T(k)^2`, with k in h/Mpc, on plain arrays: a
+    :class:`~hmf.core.power_source.PowerSource`, made by
+    :meth:`Transfer.power_kernel`. Its amplitude is arbitrary: the normalisation to
+    sigma_8 is applied later, as a scalar. Its methods are pure; it compares and
+    hashes by its transfer stage and species.
+    """
+
+    #: The transfer stage.
+    transfer: Transfer = attrs.field(validator=attrs.validators.instance_of(Transfer))
+    #: The matter species, ``"cb"`` or ``"tot"``.
+    species: str = attrs.field(converter=check_species)
+
+    def ln_power_kernel(self, ln_k: Array) -> Array:
+        """Ln of :math:`k^{n_s} T(k)^2` at ln(k / (h/Mpc)).
+
+        Parameters
+        ----------
+        ln_k
+            ln k, with k in h/Mpc: a plain array.
+
+        Returns
+        -------
+        numpy.ndarray
+            The (dimensionless) ln P, with the shape of ``ln_k``.
+        """
+        ln_k = np.asarray(ln_k, dtype=float)
+        ln_t = self.transfer.solution.ln_transfer(np.exp(ln_k), self.species)
+        out: Array = self.transfer.n_s * ln_k + 2 * ln_t
+        return out
+
+    def power_kernel(self, k: Array) -> Array:
+        """:math:`k^{n_s} T(k)^2`, dimensionless, at k in h/Mpc (a plain array).
+
+        Parameters
+        ----------
+        k
+            Wavenumbers in h/Mpc: a plain array.
+
+        Returns
+        -------
+        numpy.ndarray
+            With the shape of ``k``.
+        """
+        k = np.asarray(k, dtype=float)
+        out: Array = k**self.transfer.n_s * self.transfer.solution.transfer(k, self.species) ** 2
+        return out
+
+    @cached_property
+    def rho_mean0(self) -> float:
+        """The mean comoving density today of the species, in Msun h^2 / Mpc^3."""
+        return rho_mean0(self.transfer.cosmology, self.species)
+
+    @property
+    def _unit_context(self) -> UnitContext:
+        """The transfer stage's units context (with the cosmology's H0)."""
+        return self.transfer._unit_context

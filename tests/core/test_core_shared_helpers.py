@@ -13,7 +13,7 @@ import re
 import astropy.units as u
 import numpy as np
 import pytest
-from astropy.cosmology import Planck18
+from astropy.cosmology import FlatLambdaCDM, LambdaCDM, Planck18
 
 import hmf.core
 from hmf.core import _boltzmann, _references, _species, transfer_models
@@ -136,6 +136,79 @@ def test_species_are_defined_once():
 def test_camb_columns_are_those_of_a_camb_transfer_file():
     # CAMB's columns: k, CDM, baryons, photons, massless nu, massive nu, total, no-nu.
     assert dict(_species.CAMB_COLUMNS) == {"tot": 6, "cb": 7}
+
+
+#: Planck18's other parameters, for cosmologies that differ in their neutrinos.
+_P18 = {"H0": Planck18.H0, "Om0": Planck18.Om0, "Ob0": Planck18.Ob0, "Tcmb0": Planck18.Tcmb0}
+
+
+@pytest.mark.parametrize(
+    "m_nu",
+    [[0.0, 0.0, 0.06], [0.1, 0.1, 0.1], [0.0, 0.05, 0.1], [0.2, 0.2, 0.2]],
+    ids=["planck18", "3x0.1", "0+0.05+0.1", "3x0.2"],
+)
+def test_tot_adds_the_massive_neutrino_density(m_nu):
+    """rho_mean0(tot) - rho_mean0(cb) is the density of the massive neutrinos.
+
+    Omega_nu h^2 = sum(m_nu) / 93.14 eV (e.g. Lesgourgues & Pastor 2006), for the
+    standard decoupling (Neff = 3.046). Astropy instead scales each species' density
+    by Neff / 3, and computes it with the Komatsu et al. (2011) fit, which differ
+    from 93.14 eV by under 1% (0.3-0.6% here), the tolerance.
+    """
+    cosmo = FlatLambdaCDM(**_P18, m_nu=m_nu * u.eV)
+    expected = sum(m_nu) / 93.14 / cosmo.h**2 * RHO_CRIT0_H2.to_value(rho_unit)
+    diff = _species.rho_mean0(cosmo, "tot") - _species.rho_mean0(cosmo, "cb")
+    assert diff == pytest.approx(expected, rel=1e-2)
+    assert _species.rho_mean0(cosmo, "cb") == pytest.approx(
+        (cosmo.Om0 * cosmo.critical_density0 / cosmo.h**2).to_value(u.Msun / u.Mpc**3), rel=1e-12
+    )
+
+
+@pytest.mark.parametrize("tcmb0", [Planck18.Tcmb0, 0 * u.K], ids=["massless", "no-neutrinos"])
+def test_cb_is_tot_without_massive_neutrinos(tcmb0):
+    cosmo = FlatLambdaCDM(**{**_P18, "Tcmb0": tcmb0}, m_nu=0 * u.eV)
+    assert _species.rho_mean0(cosmo, "tot") == _species.rho_mean0(cosmo, "cb")
+    z = np.array([0.0, 1.0, 100.0])
+    np.testing.assert_array_equal(
+        _species.omega_m(cosmo, z, "tot"), _species.omega_m(cosmo, z, "cb")
+    )
+
+
+def test_omega_m_of_cb_is_astropys():
+    z = np.linspace(0, 10, 11)
+    np.testing.assert_array_equal(_species.omega_m(Planck18, z), Planck18.Om(z))
+    assert _species.omega_m(Planck18, 0.0, "tot") == pytest.approx(
+        _species.omega_m0(Planck18, "tot"), rel=1e-15
+    )
+    with pytest.raises(ValueError, match="species"):
+        _species.omega_m(Planck18, 0.0, "nu")
+
+
+def test_omega_m_is_one_in_einstein_de_sitter():
+    cosmo = FlatLambdaCDM(H0=70, Om0=1.0, Tcmb0=0)
+    z = np.array([0.0, 0.5, 3.0, 1e3])
+    for species in ("cb", "tot"):
+        np.testing.assert_allclose(_species.omega_m(cosmo, z, species), 1.0, rtol=1e-14)
+
+
+def test_omega_m_tends_to_one_at_high_z_in_flat_lcdm():
+    """Without radiation, matter dominates flat LCDM at high z: Omega_m -> 1 from below.
+
+    1 - Omega_m(z) = Omega_L / (Omega_m0 (1 + z)^3 + Omega_L).
+    """
+    cosmo = FlatLambdaCDM(H0=70, Om0=0.3, Tcmb0=0)
+    z = np.array([0.0, 1.0, 10.0, 100.0, 1e4])
+    om = _species.omega_m(cosmo, z)
+    assert np.all(np.diff(om) > 0)
+    assert np.all(om < 1)
+    assert 1 - om[-1] < 1e-11
+    # With radiation, matter dominates only in between: Omega_m < 1, falling at high z.
+    om = _species.omega_m(Planck18, np.array([10.0, 1e3, 1e5]), "tot")
+    assert np.all((om > 0) & (om < 1))
+    assert om[-1] < 0.1
+    # A curved universe without dark energy too (Omega_k > 0 fades as (1 + z)^-1).
+    open_cosmo = LambdaCDM(H0=70, Om0=0.3, Ode0=0.0, Tcmb0=0)
+    assert 1 - _species.omega_m(open_cosmo, 1e6) < 1e-5
 
 
 # ---------------------------------------------------------------------------------

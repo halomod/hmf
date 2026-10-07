@@ -29,6 +29,31 @@ Conventions
 
 Together these make the kernels the seam for a future JAX backend.
 
+Kernel-level entry points of stages and models
+----------------------------------------------
+Library code, such as a stage built on other stages, never calls the unit-checked
+public methods. It calls their *kernel-level entry points*: public methods (or
+functions) whose names end in ``_kernel``, e.g.
+:meth:`MassVariance.ln_sigma_and_slope_kernel
+<hmf.core.mass_variance.MassVariance.ln_sigma_and_slope_kernel>`,
+:meth:`FittingFunction.fsigma_kernel <hmf.core.fits.FittingFunction.fsigma_kernel>`,
+:meth:`FittingFunction.modify_dndm_kernel
+<hmf.core.fits.FittingFunction.modify_dndm_kernel>` and the ``ln_power_kernel`` of a
+:class:`~hmf.core.power_source.PowerSource`. Each one
+
+* takes and returns plain floats and arrays in the canonical units below, and states
+  the unit of each argument and result in its docstring;
+* follows rules 1-7 above: pure, vectorised, batch-size independent. A stage may
+  memoise what it computes (e.g. the lattice of a
+  :class:`~hmf.core.mass_variance.MassVariance`), as long as no result depends on
+  it.
+
+Read-only data holders keep plain names but follow the same rules: e.g.
+:attr:`Transfer.solution <hmf.core.transfer.Transfer.solution>`,
+:attr:`Growth.solution <hmf.core.growth.Growth.solution>` (whose methods take and
+return plain arrays) and a ``PowerSource``'s ``rho_mean0`` (a float in
+M☉ h² / Mpc³).
+
 Canonical units
 ---------------
 This table mirrors :data:`hmf.core.units.CANONICAL_UNITS`; a test checks that the two

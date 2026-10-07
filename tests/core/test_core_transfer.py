@@ -351,15 +351,17 @@ def test_unnormalised_power_is_k_ns_t_squared():
         t.unnormalised_power(k * h_Mpc), k**0.95 * t.transfer_function(k * h_Mpc) ** 2, rtol=1e-14
     )
     kernel = t.power_kernel("tot")
-    np.testing.assert_allclose(np.exp(kernel.ln_power(np.log(k))), kernel.power(k), rtol=1e-13)
+    np.testing.assert_allclose(
+        np.exp(kernel.ln_power_kernel(np.log(k))), kernel.power_kernel(k), rtol=1e-13
+    )
 
 
 def test_power_kernel_is_batch_size_independent():
     kernel = Transfer(model="CAMB").power_kernel()
     k = np.logspace(-4, 3, 101)
-    full = kernel.power(k)
-    assert np.array_equal(full[17:40], kernel.power(k[17:40]))
-    assert np.array_equal(full[5:6], kernel.power(k[5:6]))
+    full = kernel.power_kernel(k)
+    assert np.array_equal(full[17:40], kernel.power_kernel(k[17:40]))
+    assert np.array_equal(full[5:6], kernel.power_kernel(k[5:6]))
 
 
 def test_unknown_species_raises():

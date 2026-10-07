@@ -1,22 +1,26 @@
 r"""Sources of the linear matter power spectrum at z = 0.
 
 :class:`~hmf.core.mass_variance.MassVariance` needs only three things from the
-power spectrum, which make up the :class:`PowerSource` protocol:
+power spectrum, which make up the :class:`PowerSource` protocol. The first two are
+kernel-level (see :mod:`hmf.core._kernels`): plain floats and arrays in canonical
+units, for library code.
 
-* ``_power(k)``: the *unnormalised* linear power spectrum at z = 0, as a kernel-level
-  function of plain arrays, with k in h/Mpc. Its amplitude is arbitrary, since the
-  normalisation (sigma8) is applied later, as a scalar, so only its shape matters
-  and it has no fixed unit: a :class:`TabulatedPower` gives its table in (Mpc/h)³,
-  while :meth:`Transfer.unnormalised_power <hmf.core.transfer.Transfer.unnormalised_power>`'s
+* ``ln_power_kernel(ln_k)``: the natural log of the linear power spectrum of one
+  matter species at z = 0, with k in h/Mpc. Its amplitude is arbitrary: the
+  normalisation to sigma_8 is applied later, as a scalar, by the ``LinearPower``
+  stage, so only the shape matters and it has no fixed unit. A
+  :class:`TabulatedPower` gives its table in (Mpc/h)³, while
+  :meth:`Transfer.power_kernel <hmf.core.transfer.Transfer.power_kernel>`'s
   :math:`k^{n_s} T(k)^2` is dimensionless;
-* ``_rho_mean0``: the mean matter density today, in M☉ h² / Mpc³;
+* ``rho_mean0``: the mean comoving density today of the *same* matter species, in
+  M☉ h² / Mpc³ (:data:`~hmf.core.units.rho_unit`);
 * ``_unit_context``: the :class:`~hmf.core.units.UnitContext` (with its H0) used by
-  the units boundary of the stages built on it.
+  the units boundary of the stages built on it (see
+  :class:`~hmf.core.units.HasUnitContext`).
 
-The members are private because they are kernel-level (plain arrays, not Quantities):
-library code uses them, users do not. The ``LinearPower`` stage of the v4 core will
-implement this protocol. :class:`TabulatedPower` implements it for a power spectrum
-given as a table.
+:meth:`Transfer.power_kernel <hmf.core.transfer.Transfer.power_kernel>` implements it
+for the power of a :class:`~hmf.core.transfer.Transfer` stage, and
+:class:`TabulatedPower` for a power spectrum given as a table.
 """
 
 from __future__ import annotations
@@ -54,22 +58,33 @@ __all__ = ["PowerSource", "TabulatedPower"]
 
 @runtime_checkable
 class PowerSource(HasUnitContext, Protocol):
-    """A source of the unnormalised linear matter power spectrum at z = 0.
+    """A source of the linear matter power spectrum of one species at z = 0.
 
     See the module documentation. Implementations must be immutable and hashable
-    (they are fields of frozen stages), and ``_power`` must be a pure, elementwise
-    function, so that results do not depend on the batch size. The
+    (they are fields of frozen stages), and ``ln_power_kernel`` must be a pure,
+    elementwise function, so that results do not depend on the batch size. The
     ``_unit_context`` (with the H0) of stages built on the source comes from
     :class:`~hmf.core.units.HasUnitContext`.
     """
 
-    def _power(self, k: NDArray[np.float64]) -> NDArray[np.float64]:
-        """The unnormalised linear power at z = 0 (arbitrary amplitude), at k in h/Mpc."""
+    def ln_power_kernel(self, ln_k: NDArray[np.float64]) -> NDArray[np.float64]:
+        """The ln of the power at z = 0 (arbitrary amplitude), at ln(k / (h/Mpc)).
+
+        Parameters
+        ----------
+        ln_k
+            ln k, with k in h/Mpc: a plain array.
+
+        Returns
+        -------
+        numpy.ndarray
+            ln P, with the shape of ``ln_k``.
+        """
         ...
 
     @property
-    def _rho_mean0(self) -> float:
-        """The mean matter density today, in M☉ h² / Mpc³."""
+    def rho_mean0(self) -> float:
+        """The mean comoving density today of the species, in Msun h^2 / Mpc^3."""
         ...
 
 
@@ -169,7 +184,7 @@ class TabulatedPower(Stage):
         check_increasing("k", k, where=where)
         check_finite_positive("pk", pk, where=where)
         _ = self._table  # Converts the table now, so unit errors raise here.
-        check_finite_positive("mean_density", self._rho_mean0, where=where)
+        check_finite_positive("mean_density", self.rho_mean0, where=where)
 
     @cached_property
     def _unit_context(self) -> UnitContext:
@@ -197,25 +212,35 @@ class TabulatedPower(Stage):
         return FrozenSpline.fit(*self._table)
 
     @cached_property
-    def _rho_mean0(self) -> float:
-        """The mean matter density today, in M☉ h² / Mpc³."""
+    def rho_mean0(self) -> float:
+        """``mean_density`` in Msun h^2 / Mpc^3, as a plain float (kernel level)."""
         return float(self._canonical(self.mean_density, rho_unit, "mean_density"))
 
-    def _power(self, k: NDArray[np.float64]) -> NDArray[np.float64]:
-        """The power at k (h/Mpc), in (Mpc/h)³: the kernel-level :class:`PowerSource` method.
+    def ln_power_kernel(self, ln_k: NDArray[np.float64]) -> NDArray[np.float64]:
+        """The ln of the power, in (Mpc/h)³, at ln(k / (h/Mpc)) (:class:`PowerSource`).
+
+        Parameters
+        ----------
+        ln_k
+            ln k, with k in h/Mpc: a plain array.
+
+        Returns
+        -------
+        numpy.ndarray
+            ln(P / (Mpc/h)³), with the shape of ``ln_k``.
 
         Raises
         ------
         DomainError
-            If ``k`` is outside the table and ``extension`` is ``"raise"``.
+            If ``ln_k`` is outside the table and ``extension`` is ``"raise"``.
 
         Warns
         -----
         HMFExtrapolationWarning
-            If ``k`` is outside the table and ``extension`` is ``"auto"``: once per
+            If ``ln_k`` is outside the table and ``extension`` is ``"auto"``: once per
             instance for each end of the table.
         """
-        ln_k = np.log(np.asarray(k, dtype=float))
+        ln_k = np.asarray(ln_k, dtype=float)
         table_k = self._table[0]
         lo, hi = table_k[0], table_k[-1]
         below, above = ln_k < lo, ln_k > hi
@@ -234,7 +259,7 @@ class TabulatedPower(Stage):
                 message + " are extrapolated as a power law. Give a wider table to avoid "
                 "this, or extension='raise' to make it an error.",
             )
-        return np.asarray(np.exp(extrapolate_power_law(self._spline, ln_k)), dtype=float)
+        return np.asarray(extrapolate_power_law(self._spline, ln_k), dtype=float)
 
     @unit_boundary(k=h_Mpc, returns=power_unit)
     def power(self, k: Any) -> NDArray[np.float64]:
@@ -256,4 +281,4 @@ class TabulatedPower(Stage):
             If a k is not > 0, or is outside the table with ``extension="raise"``.
         """
         check_in_range("k", k, where="TabulatedPower", low=0.0, low_open=True, error=DomainError)
-        return self._power(k)
+        return np.exp(self.ln_power_kernel(np.log(np.asarray(k, dtype=float))))

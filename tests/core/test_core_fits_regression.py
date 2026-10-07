@@ -125,7 +125,12 @@ def test_behroozi_modify_dndm_matches_v3():
             m / 0.7, dndm, z, ngtm, h=0.7
         )
         v4 = fits.Behroozi().modify_dndm(
-            m * Msun_h, dndm * dndm_unit, z=z, ngtm=ngtm * number_density_unit, H0=70 * H0_unit
+            m * Msun_h,
+            dndm * dndm_unit,
+            z=z,
+            ngtm=ngtm * number_density_unit,
+            H0=70 * H0_unit,
+            omega_m0=0.3,
         )
         np.testing.assert_allclose(v4.to_value(dndm_unit), v3, rtol=1e-12)
 

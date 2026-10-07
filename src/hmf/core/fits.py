@@ -19,7 +19,7 @@ fit, normally a mass-function :class:`~hmf.core.stage.Stage`.
 ================  ===================================================================
 ``sigma``         :math:`\sigma(m, z)`; always required.
 ``z``             redshift.
-``omega_m_z``     the matter density parameter at ``z``, :math:`\Omega_m(z)`.
+``omega_m_z``     the density parameter of CDM + baryons at ``z``, :math:`\Omega_m(z)`.
 ``delta_halo``    the halo overdensity relative to the **mean** density, :math:`\Delta_m`.
 ``delta_c``       the critical overdensity for collapse, :math:`\delta_c`.
 ``n_eff``         the effective spectral index at ``m``.
@@ -28,6 +28,15 @@ fit, normally a mass-function :class:`~hmf.core.stage.Stage`.
 
 Each fit lists the ones it needs in :attr:`FittingFunction.requires`. All of them
 broadcast against each other.
+
+:math:`\Omega_m` (``omega_m_z``, and ``omega_m0`` of :meth:`FittingFunction.modify_dndm`)
+is that of CDM + baryons, the matter species ``"cb"``
+(:func:`hmf.core._species.omega_m`), as is the mean density of the mass function:
+the fits are universal in the CDM + baryon field when neutrinos are massive (Costanzi
+et al. 2013; Castorina et al. 2014), and none was calibrated with massive neutrinos.
+The overdensity of a fit's own mass definition follows from it with
+:meth:`MeasuredMassDefinition.delta_halo_mean_kernel`, and ``n_eff`` from the slope
+of sigma with :func:`hmf.core.mass_variance.n_eff_kernel`.
 
 Evaluating a fit
 ----------------
@@ -42,11 +51,27 @@ With plain arrays in canonical units
     Code that already holds every input as a plain array in the canonical units of
     :data:`hmf.core.units.CANONICAL_UNITS` (mass in Msun/h), such as a
     :class:`~hmf.core.stage.Stage`, puts them in a :class:`FitInputs` and calls
-    :func:`evaluate_fsigma` (or :meth:`FittingFunction.fsigma_from_inputs`). This
+    :func:`evaluate_fsigma` (or :meth:`FittingFunction.fsigma_kernel`). This
     skips the unit checks and conversions, which matters inside loops, and is also
     where the domain policy (below) is applied.
 
-Both give the same numbers.
+Both give the same numbers. The kernel-level methods, which end in ``_kernel``,
+follow the conventions of :mod:`hmf.core._kernels`.
+
+Post-processing the mass function
+---------------------------------
+:math:`dn/dm` from :math:`f(\sigma)` (the equation above) is not the end for every
+fit: :meth:`FittingFunction.modify_dndm` (and its kernel,
+:meth:`FittingFunction.modify_dndm_kernel`) maps it to the fit's mass function. Every
+fit has it, with the same arguments; it is the identity unless the class sets
+:attr:`FittingFunction.modifies_dndm`:
+
+* :class:`Behroozi` applies its high-redshift correction, which needs n(>m);
+* the Bocquet 200c and 500c fits multiply by the ratio of masses
+  :math:`M_\Delta/M_{200m}` of their eq. 5, which needs :math:`\Omega_{m,0}` and h.
+
+So a mass function calls ``modify_dndm_kernel`` for every fit, and can skip it, and
+computing n(>m) for it, when ``modifies_dndm`` is False.
 
 Domains
 -------
@@ -66,9 +91,10 @@ The bounds of both are in these variables: the inputs above, and the derived
 
 Mass definitions
 ----------------
-Each fit records the mass definition it was measured in, as
-:class:`MeasuredMassDefinition` metadata. Converting between mass definitions is not
-part of this module (issue #392).
+Each fit records the mass definition it was measured in, as a
+:class:`MeasuredMassDefinition`, which also gives its overdensity relative to the
+mean density (:meth:`MeasuredMassDefinition.delta_halo_mean_kernel`). Converting
+between mass definitions is not part of this module (issue #392).
 """
 
 from __future__ import annotations
@@ -162,10 +188,12 @@ MassDefinitionKind = Literal["fof", "so_mean", "so_critical", "so_virial", "so_a
 
 @attrs.frozen(kw_only=True)
 class MeasuredMassDefinition:
-    """The halo mass definition a fit was measured in (metadata only).
+    """The halo mass definition a fit was measured in.
 
     This is a simple, hashable record, to be mapped onto the mass-definition types
-    of issue #392. It does no conversion.
+    of issue #392. It does no conversion, but gives the overdensity relative to the
+    mean density (:meth:`delta_halo_mean_kernel`), the ``delta_halo`` input of the
+    fits.
 
     Parameters
     ----------
@@ -199,6 +227,63 @@ class MeasuredMassDefinition:
             raise ValueError("An overdensity is given for, and only for, SO-mean/critical.")
         if (self.kind == "so_any") != (self.preferred is not None):
             raise ValueError("A preferred definition is given for, and only for, 'so_any'.")
+
+    def delta_halo_mean_kernel(self, omega_m_z: npt.ArrayLike) -> FloatArray:
+        r"""The halo overdensity relative to the mean density, :math:`\Delta_m`.
+
+        A pure, elementwise kernel of :math:`\Omega_m(z)` (of CDM + baryons, see
+        the :mod:`module documentation <hmf.core.fits>`), on plain arrays:
+
+        ``"so_mean"``
+            the overdensity itself;
+        ``"so_critical"``
+            :math:`\Delta_c/\Omega_m(z)`;
+        ``"so_virial"``
+            Bryan & Norman (1998): :math:`(18\pi^2 + 82x - 39x^2)/\Omega_m(z)`, with
+            :math:`x = \Omega_m(z) - 1` (so :math:`18\pi^2` in Einstein-de Sitter);
+        ``"fof"``
+            the overdensity of the isodensity surface the linking length b selects,
+            for a singular isothermal sphere: :math:`9/(2\pi b^3)`, independent of
+            :math:`\Omega_m(z)` (White, Hernquist & Springel 2001; about 179 for
+            b = 0.2), as hmf 3.x's ``FOF``;
+        ``"so_any"``
+            that of the ``preferred`` definition.
+
+        Parameters
+        ----------
+        omega_m_z
+            :math:`\Omega_m(z)`, dimensionless.
+
+        Returns
+        -------
+        numpy.ndarray
+            :math:`\Delta_m`, dimensionless, with the shape of ``omega_m_z``.
+
+        Raises
+        ------
+        ValueError
+            For ``"self_bound"``, which has no overdensity.
+        """
+        if self.kind == "so_any":
+            assert self.preferred is not None
+            return self.preferred.delta_halo_mean_kernel(omega_m_z)
+        om = np.asarray(omega_m_z, dtype=np.float64)
+        if self.kind == "so_mean":
+            assert self.overdensity is not None
+            return np.full_like(om, self.overdensity)
+        out: FloatArray
+        if self.kind == "so_critical":
+            assert self.overdensity is not None
+            out = self.overdensity / om
+            return out
+        if self.kind == "so_virial":
+            x = om - 1
+            out = (18 * np.pi**2 + 82 * x - 39 * x**2) / om
+            return out
+        if self.kind == "fof":
+            assert self.linking_length is not None
+            return np.full_like(om, 9 / (2 * np.pi * self.linking_length**3))
+        raise ValueError(f"The mass definition {self} has no overdensity.")
 
     def __str__(self) -> str:
         """A short label, e.g. ``FoF(b=0.2)`` or ``SO-crit(500)``."""
@@ -522,7 +607,9 @@ class FittingFunction(Model, kind=True):
     #: The simulations the fit was calibrated on (None for a fit to no simulations).
     simulations: ClassVar[SimulationDetails | None]
 
-    #: Whether :meth:`modify_dndm` changes the mass function (see :class:`Behroozi`).
+    #: Whether :meth:`modify_dndm_kernel` changes the mass function (see
+    #: "Post-processing the mass function" in the :mod:`module documentation
+    #: <hmf.core.fits>`); if False, it is the identity.
     modifies_dndm: ClassVar[bool] = False
 
     #: Whether the fit is normalised by construction (see :attr:`normalized`).
@@ -650,7 +737,7 @@ class FittingFunction(Model, kind=True):
 
         ``m`` must be a Quantity (see :mod:`hmf.core.units`); every other input is
         dimensionless. Code that already has plain arrays in canonical units calls
-        :meth:`fsigma_from_inputs` or :func:`evaluate_fsigma` instead (see
+        :meth:`fsigma_kernel` or :func:`evaluate_fsigma` instead (see
         "Evaluating a fit" in the :mod:`module documentation <hmf.core.fits>`). It
         applies no calibration policy (see :func:`evaluate_fsigma` for that), but
         always checks :attr:`valid_domain`.
@@ -696,10 +783,14 @@ class FittingFunction(Model, kind=True):
             n_eff=n_eff,
             m=m,
         )
-        return self.fsigma_from_inputs(x)
+        return self.fsigma_kernel(x)
 
-    def fsigma_from_inputs(self, x: FitInputs) -> FloatArray:
-        """:meth:`fsigma`, from inputs that are plain arrays in canonical units.
+    def fsigma_kernel(self, x: FitInputs) -> FloatArray:
+        """:meth:`fsigma` at kernel level, from inputs that are plain arrays.
+
+        The inputs are in canonical units (the mass in Msun/h); see
+        :mod:`hmf.core._kernels`. It checks the valid domain, as :meth:`fsigma`
+        does, and applies no calibration policy (see :func:`evaluate_fsigma`).
 
         Parameters
         ----------
@@ -726,14 +817,23 @@ class FittingFunction(Model, kind=True):
         """Compute f(sigma) from inputs inside the valid domain."""
 
     @unit_boundary(returns=dndm_unit)
-    def modify_dndm(self, m: Any, dndm: Any, *, z: npt.ArrayLike, ngtm: Any, H0: Any) -> Any:
-        """Modify the mass function computed from :meth:`fsigma` (a no-op by default).
+    def modify_dndm(
+        self,
+        m: Any,
+        dndm: Any,
+        *,
+        z: npt.ArrayLike,
+        ngtm: Any,
+        H0: Any,
+        omega_m0: npt.ArrayLike,
+    ) -> Any:
+        """Map the mass function computed from :meth:`fsigma` to the fit's.
 
-        A fit that is not a pure function of sigma (e.g. :class:`Behroozi`) sets
-        :attr:`modifies_dndm`, and overrides :meth:`_modify_dndm`: the same
-        calculation on plain arrays in canonical units, which this method calls
-        after converting its arguments (and which a mass-function
-        :class:`~hmf.core.stage.Stage` calls directly).
+        The identity unless :attr:`modifies_dndm` (see "Post-processing the mass
+        function" in the :mod:`module documentation <hmf.core.fits>`). Every fit
+        takes the same arguments, whether it uses them or not. This method converts
+        them and calls :meth:`modify_dndm_kernel`, which a mass-function
+        :class:`~hmf.core.stage.Stage` calls directly.
 
         Parameters
         ----------
@@ -749,23 +849,26 @@ class FittingFunction(Model, kind=True):
         H0
             The Hubble constant, a scalar Quantity (e.g. ``70 * H0_unit``). It converts
             physical units, and gives h to fits whose formula is in physical units.
+        omega_m0
+            The density parameter of CDM + baryons today.
 
         Returns
         -------
         Quantity
-            The modified mass function, in :data:`~hmf.core.units.dndm_unit`.
+            The fit's mass function, in :data:`~hmf.core.units.dndm_unit`.
         """
         where = f"{type(self).__name__}.modify_dndm()"
         context, h = _hubble(H0, where)
-        return self._modify_dndm(
+        return self.modify_dndm_kernel(
             to_canonical(m, Msun_h, context=context, where=where, name="m"),
             to_canonical(dndm, dndm_unit, context=context, where=where, name="dndm"),
             z=z,
             ngtm=to_canonical(ngtm, number_density_unit, context=context, where=where, name="ngtm"),
             h=h,
+            omega_m0=omega_m0,
         )
 
-    def _modify_dndm(
+    def modify_dndm_kernel(
         self,
         m: npt.ArrayLike,
         dndm: npt.ArrayLike,
@@ -773,10 +876,32 @@ class FittingFunction(Model, kind=True):
         z: npt.ArrayLike,
         ngtm: npt.ArrayLike,
         h: npt.ArrayLike,
+        omega_m0: npt.ArrayLike,
     ) -> FloatArray:
-        """:meth:`modify_dndm` on plain arrays in canonical units (identity here).
+        """:meth:`modify_dndm` at kernel level, on plain arrays (the identity here).
 
-        ``m`` in Msun/h, ``dndm`` in h^4 / (Msun Mpc^3) and ``ngtm`` in h^3 / Mpc^3.
+        A pure kernel in canonical units (see :mod:`hmf.core._kernels`), which a fit
+        that sets :attr:`modifies_dndm` overrides. All arguments broadcast.
+
+        Parameters
+        ----------
+        m
+            Halo masses, in Msun/h.
+        dndm
+            The mass function from :meth:`fsigma`, in h^4 / (Msun Mpc^3).
+        z
+            Redshift.
+        ngtm
+            The cumulative mass function n(>m) from :meth:`fsigma`, in h^3 / Mpc^3.
+        h
+            The dimensionless Hubble parameter, H0 / (100 km/s/Mpc).
+        omega_m0
+            The density parameter of CDM + baryons today.
+
+        Returns
+        -------
+        numpy.ndarray
+            The fit's mass function, in h^4 / (Msun Mpc^3).
         """
         return np.asarray(dndm, dtype=np.float64)
 
@@ -871,7 +996,7 @@ def evaluate_fsigma(
         raise ValueError(
             f"Checking {type(model).__name__}'s calibration domain needs the input(s) {missing}."
         )
-    f = model.fsigma_from_inputs(x)
+    f = model.fsigma_kernel(x)
     inside = np.broadcast_to(model.in_calibration_domain(x), f.shape)
     calibration = model.calibration_domain
     # Without a calibration domain everything is inside: this only checks the policy.
@@ -2033,7 +2158,7 @@ class Behroozi(Tinker08, alias="Behroozi"):
     r"""The Behroozi, Wechsler & Conroy (2013) mass function.
 
     :math:`f(\sigma)` is that of :class:`Tinker08` (evaluated at the virial
-    overdensity), and :meth:`modify_dndm` applies the empirical high-redshift
+    overdensity), and :meth:`modify_dndm_kernel` applies the empirical high-redshift
     correction of App. G to the mass function:
 
     .. math::
@@ -2086,7 +2211,7 @@ class Behroozi(Tinker08, alias="Behroozi"):
     )
     modifies_dndm: ClassVar[bool] = True
 
-    def _modify_dndm(
+    def modify_dndm_kernel(
         self,
         m: npt.ArrayLike,
         dndm: npt.ArrayLike,
@@ -2094,8 +2219,9 @@ class Behroozi(Tinker08, alias="Behroozi"):
         z: npt.ArrayLike,
         ngtm: npt.ArrayLike,
         h: npt.ArrayLike,
+        omega_m0: npt.ArrayLike,
     ) -> FloatArray:
-        """Apply the App. G correction to the Tinker (2008) mass function (unit-free).
+        """Apply the App. G correction to the Tinker (2008) mass function (kernel level).
 
         Parameters
         ----------
@@ -2109,6 +2235,8 @@ class Behroozi(Tinker08, alias="Behroozi"):
             The cumulative Tinker (2008) mass function n(>m), in h^3 / Mpc^3.
         h
             The dimensionless Hubble parameter (the pivot mass is in Msun).
+        omega_m0
+            Not used.
 
         Returns
         -------
@@ -2474,10 +2602,10 @@ class Bocquet200mDMOnly(FittingFunction, alias="Bocquet200mDMOnly"):
         Bocquet et al. build their 200c and 500c mass functions from
         :math:`dn/dM_\Delta = f(\sigma)(\bar\rho_m/M_\Delta)(d\ln\sigma^{-1}/dM_\Delta)
         (M_\Delta/M_{200m})` (eq. 5), with this ratio: 1 for the 200m fits, eq. A2
-        for 200c and eq. 6 for 500c. Applying it (and evaluating sigma at M200m) is
-        left to the mass-function :class:`~hmf.core.stage.Stage` (issue #392), which
-        calls :meth:`_mass_ratio_to_200m`, the same calculation on plain arrays in
-        canonical units.
+        for 200c and eq. 6 for 500c. :meth:`modify_dndm_kernel` multiplies the mass
+        function by it (with :meth:`mass_ratio_to_200m_kernel`, the same calculation
+        on plain arrays in canonical units). Evaluating sigma at M200m is left to the
+        mass-function :class:`~hmf.core.stage.Stage` (issue #392).
 
         Parameters
         ----------
@@ -2500,13 +2628,53 @@ class Bocquet200mDMOnly(FittingFunction, alias="Bocquet200mDMOnly"):
         where = f"{type(self).__name__}.mass_ratio_to_200m()"
         context, h = _hubble(H0, where)
         m = to_canonical(m, Msun_h, context=context, where=where, name="m")
-        return self._mass_ratio_to_200m(m, z=z, omega_m0=omega_m0, h=h)
+        return self.mass_ratio_to_200m_kernel(m, z=z, omega_m0=omega_m0, h=h)
 
-    def _mass_ratio_to_200m(
+    def mass_ratio_to_200m_kernel(
         self, m: npt.ArrayLike, *, z: npt.ArrayLike, omega_m0: npt.ArrayLike, h: npt.ArrayLike
     ) -> FloatArray:
-        """:meth:`mass_ratio_to_200m`, with ``m`` a plain array in Msun/h (1 here)."""
+        """:meth:`mass_ratio_to_200m` at kernel level: ``m`` a plain array in Msun/h.
+
+        1 for the 200m fits. A pure kernel (see :mod:`hmf.core._kernels`): ``z``,
+        ``omega_m0`` and ``h`` (dimensionless) broadcast with ``m``.
+        """
         return np.ones(np.broadcast(np.asarray(m), np.asarray(z)).shape)
+
+    def modify_dndm_kernel(
+        self,
+        m: npt.ArrayLike,
+        dndm: npt.ArrayLike,
+        *,
+        z: npt.ArrayLike,
+        ngtm: npt.ArrayLike,
+        h: npt.ArrayLike,
+        omega_m0: npt.ArrayLike,
+    ) -> FloatArray:
+        """The mass function times :meth:`mass_ratio_to_200m_kernel` (eq. 5; kernel level).
+
+        Parameters
+        ----------
+        m
+            Halo masses in the fit's definition, in Msun/h.
+        dndm
+            The mass function from :meth:`fsigma`, in h^4 / (Msun Mpc^3).
+        z
+            Redshift.
+        ngtm
+            Not used.
+        h
+            The dimensionless Hubble parameter (the ratios take ln(M / Msun)).
+        omega_m0
+            The density parameter of CDM + baryons today.
+
+        Returns
+        -------
+        numpy.ndarray
+            The mass function in the fit's definition, in h^4 / (Msun Mpc^3).
+        """
+        ratio = self.mass_ratio_to_200m_kernel(m, z=z, omega_m0=omega_m0, h=h)
+        out: FloatArray = np.asarray(dndm, dtype=np.float64) * ratio
+        return out
 
     def _fsigma(self, x: FitInputs) -> FloatArray:
         A, b, d, e = self._parameters(x.z)
@@ -2556,8 +2724,8 @@ class Bocquet200mHydro(Bocquet200mDMOnly, alias="Bocquet200mHydro"):
 
 _BOCQUET_200C_NOTE = (
     "Bocquet et al. 2016, Sec. 2.2. f(sigma) is meant to be used with sigma at "
-    "M200m and the ratio mass_ratio_to_200m (eq. 5; App. A), which this model does "
-    "not apply itself (issue #392)."
+    "M200m (issue #392), and the mass function with the ratio mass_ratio_to_200m "
+    "(eq. 5; App. A), which modify_dndm applies."
 )
 
 
@@ -2567,7 +2735,8 @@ class Bocquet200cDMOnly(Bocquet200mDMOnly, alias="Bocquet200cDMOnly"):
 
     :meth:`fsigma` is the eq. 3 form with the 200c parameters only.
     :meth:`mass_ratio_to_200m` gives :math:`M_{200c}/M_{200m}` (eq. A2), which the
-    mass function needs as well (eq. 5); hmf 3.x multiplied :math:`f(\sigma)` by it.
+    mass function needs as well (eq. 5): :meth:`modify_dndm_kernel` multiplies it by
+    the ratio (hmf 3.x multiplied :math:`f(\sigma)` by it, which is the same).
     """
 
     valid_domain: ClassVar[Domain] = _Z_VALID
@@ -2585,7 +2754,9 @@ class Bocquet200cDMOnly(Bocquet200mDMOnly, alias="Bocquet200cDMOnly"):
     d_z: float = _p(-0.153, "The redshift exponent of d.")
     e_z: float = _p(-0.621, "The redshift exponent of e.")
 
-    def _mass_ratio_to_200m(
+    modifies_dndm: ClassVar[bool] = True
+
+    def mass_ratio_to_200m_kernel(
         self, m: npt.ArrayLike, *, z: npt.ArrayLike, omega_m0: npt.ArrayLike, h: npt.ArrayLike
     ) -> FloatArray:
         r""":math:`M_{200c}/M_{200m}`, Bocquet et al. (2016) eq. A2.
@@ -2626,7 +2797,8 @@ class Bocquet500cDMOnly(Bocquet200mDMOnly, alias="Bocquet500cDMOnly"):
 
     :meth:`fsigma` is the eq. 3 form with the 500c parameters only.
     :meth:`mass_ratio_to_200m` gives :math:`M_{500c}/M_{200m}` (eq. 6), which the
-    mass function needs as well (eq. 5); hmf 3.x multiplied :math:`f(\sigma)` by it.
+    mass function needs as well (eq. 5): :meth:`modify_dndm_kernel` multiplies it by
+    the ratio (hmf 3.x multiplied :math:`f(\sigma)` by it, which is the same).
     """
 
     valid_domain: ClassVar[Domain] = _Z_VALID
@@ -2644,7 +2816,9 @@ class Bocquet500cDMOnly(Bocquet200mDMOnly, alias="Bocquet500cDMOnly"):
     d_z: float = _p(-0.31, "The redshift exponent of d.")
     e_z: float = _p(-0.698, "The redshift exponent of e.")
 
-    def _mass_ratio_to_200m(
+    modifies_dndm: ClassVar[bool] = True
+
+    def mass_ratio_to_200m_kernel(
         self, m: npt.ArrayLike, *, z: npt.ArrayLike, omega_m0: npt.ArrayLike, h: npt.ArrayLike
     ) -> FloatArray:
         r""":math:`M_{500c}/M_{200m}`, Bocquet et al. (2016) eq. 6.

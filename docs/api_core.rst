@@ -63,6 +63,17 @@ Utilities
 
    cache
 
+Shared helpers (internal)
+-------------------------
+The matter species, and their mean densities and density parameters, for library
+code.
+
+.. autosummary::
+   :toctree: _autosummary
+   :template: core-module.rst
+
+   _species
+
 Kernels (internal)
 ------------------
 The unit-free numerics behind the public methods. They are documented for

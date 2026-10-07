@@ -26,9 +26,9 @@ Slots:
 ========== =========== ================================================================
 Quantity   Step        Compared on
 ========== =========== ================================================================
-transfer   2a          T(k) on ``reference.lnk``, per cosmology, transfer and species
+transfer   2a (done)   T(k) on ``reference.lnk``, per cosmology, transfer and species
 power      2a/2b       P(k, z=0) on ``reference.lnk``, normalised to sigma_8
-growth     2a          D(z) on ``reference.z_growth``
+growth     2a (done)   D(z) on ``reference.z_growth``
 sigma      2b          sigma(M, z) on ``reference.m`` x ``case.z``, per filter
 dlnsdlnm   2b          dln sigma/dln M on ``reference.m``
 fsigma     2c (done)   f(sigma(M, z)) of each fit, on ``reference.m`` x ``case.z``
@@ -40,8 +40,56 @@ ngtm       2b + 2c     n(>M) on ``reference.m`` x ``case.z``
 import numpy as np
 from regression_harness import Case, Reference, register_provider
 
+from hmf.core._species import omega_m, omega_m0
 from hmf.core.fits import FittingFunction, MeasuredMassDefinition
-from hmf.core.units import Msun_h
+from hmf.core.growth import Growth
+from hmf.core.mass_variance import n_eff_kernel
+from hmf.core.transfer import Transfer
+from hmf.core.transfer_models import CAMB
+from hmf.core.units import Msun_h, h_Mpc
+
+# ---------------------------------------------------------------------------------
+# transfer and growth (step 2a)
+# ---------------------------------------------------------------------------------
+
+#: v3.7.2 ran CAMB with CAMBparams' default ``Transfer.kmax`` (0.9 / Mpc), and
+#: extrapolated T(k) beyond it with EH98's shape (``extrapolate_with_eh``). The
+#: provider runs v4's CAMB to the same k_max, so that the two compare the same CAMB
+#: output (v4's default is 20 h/Mpc).
+V3_CAMB_KMAX_MPC = 0.9
+
+
+@register_provider("transfer")
+def transfer(case: Case, reference: Reference) -> np.ndarray:
+    """T(k) of the v4 Transfer stage, with v3.7.2's CAMB settings and normalisation.
+
+    v4 normalises T to 1 as k -> 0; v3.7.2 to 1 at CAMB's smallest k (7.4e-5 h/Mpc),
+    where T = 1 - 5.6e-5. So a CAMB case is divided by its value there (EH, a fit,
+    is 1 at k -> 0 in both).
+    """
+    cosmo = reference.cosmology(case.cosmology)
+    species = case.species or "cb"
+    if case.transfer == "CAMB":
+        model = CAMB(k_max=V3_CAMB_KMAX_MPC / float(cosmo.h) * h_Mpc)
+    else:
+        model = case.transfer
+    stage = Transfer(cosmology=cosmo, model=model)
+    t = stage.transfer_function(np.exp(reference.lnk) * h_Mpc, species)
+    k_min = stage.solution.k_min_table
+    if k_min is not None:
+        t = t / stage.transfer_function(k_min * h_Mpc, species)
+    return np.asarray(t)
+
+
+@register_provider("growth")
+def growth(case: Case, reference: Reference) -> np.ndarray:
+    """D(z) of the v4 Growth stage with its default model, the growth ODE.
+
+    The reference is v3.7.2's ODEGrowthFactor, for every cosmology.
+    """
+    stage = Growth(cosmology=reference.cosmology(case.cosmology), model="ODE")
+    return np.asarray(stage.growth_factor(reference.z_growth))
+
 
 # ---------------------------------------------------------------------------------
 # fsigma: the fitting functions (step 2c)
@@ -58,26 +106,10 @@ V3_PARAMETERS = {"Manera": {"p": 0.289}}
 V3_MASS_DEFINITIONS = {"Watson": MeasuredMassDefinition(kind="so_virial")}
 
 
-def delta_halo_mean(mdef: MeasuredMassDefinition, cosmo, z: float) -> float | None:
-    """The halo overdensity relative to the mean density of a measured mass definition.
-
-    As v3.7.2 computes it (``halo_overdensity_mean``): Delta for SO-mean, Delta /
-    Omega_m(z) for SO-critical, Bryan & Norman (1998) for SO-virial, and that of the
-    preferred definition for SO-any. None for definitions with no overdensity (FoF,
-    self-bound), whose fits do not take one.
-    """
-    if mdef.kind == "so_any":
-        assert mdef.preferred is not None
-        return delta_halo_mean(mdef.preferred, cosmo, z)
-    om = float(cosmo.Om(z))
-    if mdef.kind == "so_mean":
-        return mdef.overdensity
-    if mdef.kind == "so_critical":
-        return mdef.overdensity / om
-    if mdef.kind == "so_virial":
-        x = om - 1
-        return (18 * np.pi**2 + 82 * x - 39 * x**2) / om
-    return None
+#: Fits whose v4 modify_dndm_kernel v3.7.2 applied to dn/dm only, so that its f(sigma)
+#: does not include it. v3 folded the other fits' modification (Bocquet's mass ratio
+#: M_Delta/M200m) into f(sigma).
+V3_DNDM_ONLY = frozenset({"Behroozi"})
 
 
 def v4_fsigma(
@@ -92,10 +124,13 @@ def v4_fsigma(
 ) -> np.ndarray:
     """f(sigma) of the v4 fit ``name``, with the inputs v3.7.2 gave it.
 
-    Each fit is evaluated in its v3 mass definition, with Omega_m(z) of ``cosmo``.
-    v4's f(sigma) of the Bocquet 200c/500c fits leaves out the mass ratio M_Delta /
-    M200m that v3 folded in, so it is applied here; and v4's intentional changes of a
-    default (:data:`V3_PARAMETERS`, :data:`V3_MASS_DEFINITIONS`) are undone.
+    Each fit is evaluated in its v3 mass definition, with Omega_m(z) of CDM +
+    baryons of ``cosmo`` and the overdensity of that definition. v4 applies the mass
+    ratio M_Delta / M200m of the Bocquet 200c/500c fits to dn/dm, through
+    ``modify_dndm_kernel``, but v3 folded it into f(sigma); dn/dm is proportional to
+    f(sigma) at fixed m and the ratio is a factor, so it is applied to f here (except
+    for :data:`V3_DNDM_ONLY`). And v4's intentional changes of a default
+    (:data:`V3_PARAMETERS`, :data:`V3_MASS_DEFINITIONS`) are undone.
 
     Parameters
     ----------
@@ -113,17 +148,27 @@ def v4_fsigma(
     """
     fit = FittingFunction.get(name)(**V3_PARAMETERS.get(name, {}))
     mdef = V3_MASS_DEFINITIONS.get(name, fit.measured_mass_definition)
+    om = omega_m(cosmo, z, "cb")
+    needs_delta = "delta_halo" in fit.domain_inputs()
     f = fit.fsigma(
         sigma,
         z=z,
-        omega_m_z=float(cosmo.Om(z)),
-        delta_halo=delta_halo_mean(mdef, cosmo, z),
+        omega_m_z=om,
+        delta_halo=mdef.delta_halo_mean_kernel(om) if needs_delta else None,
         delta_c=delta_c,
         n_eff=n_eff,
         m=m * Msun_h,
     )
-    if hasattr(fit, "mass_ratio_to_200m"):
-        f = f * fit.mass_ratio_to_200m(m * Msun_h, z=z, omega_m0=cosmo.Om0, H0=cosmo.H0)
+    if fit.modifies_dndm and name not in V3_DNDM_ONLY:
+        # n(>m) is not needed by these; NaN makes any use of it fail the comparison.
+        f = fit.modify_dndm_kernel(
+            m,
+            f,
+            z=z,
+            ngtm=np.full_like(f, np.nan),
+            h=float(cosmo.h),
+            omega_m0=omega_m0(cosmo, "cb"),
+        )
     return np.asarray(f)
 
 
@@ -142,7 +187,7 @@ def fsigma(case: Case, reference: Reference) -> np.ndarray:
             "dlnsdlnm", cosmology=case.cosmology, transfer=case.transfer, filter=case.filter
         )
     )
-    n_eff = -3 * (2 * dlnsdlnm + 1)
+    n_eff = n_eff_kernel(dlnsdlnm)
     return np.array(
         [
             v4_fsigma(

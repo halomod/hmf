@@ -58,6 +58,14 @@ Kernels (:mod:`hmf.core._kernels`)
     Quantities, do not loop over array elements in Python, never modify their
     inputs, and give results that do not depend on the batch size.
 
+    Stages and models expose them to library code (a stage built on other stages)
+    as *kernel-level entry points*: public methods or functions whose names end in
+    ``_kernel``, which take and return plain arrays in canonical units, state the
+    unit of each argument in their docstrings, and follow the same rules. Library
+    code calls these, never the unit-checked public methods. Read-only data holders
+    (``Transfer.solution``, ``Growth.solution``, a power source's ``rho_mean0``)
+    keep plain names, under the same rules.
+
 Models (:mod:`hmf.core.model`)
     A model (a fitting function, a transfer function, ...) is a frozen,
     keyword-only ``attrs`` class whose fields are its parameters. Each belongs to a
@@ -193,16 +201,21 @@ Mass variance
 :class:`~hmf.core.mass_variance.MassVariance` gives the mass
 variance σ(M) of the *unnormalised* linear power at z = 0, and its slope
 dlnσ/dlnM, for a smoothing filter (:mod:`hmf.core.filters`: ``TopHat``, ``SharpK``,
-``SmoothK``). The power comes from any :class:`~hmf.core.power_source.PowerSource`,
-e.g. a :class:`~hmf.core.power_source.TabulatedPower`::
+``SmoothK``). The power comes from any :class:`~hmf.core.power_source.PowerSource`:
+the power of one species of a :class:`~hmf.core.transfer.Transfer` stage
+(:meth:`~hmf.core.transfer.Transfer.power_kernel`, which carries the mean density
+of the same species), or a :class:`~hmf.core.power_source.TabulatedPower`::
 
     from hmf.core.mass_variance import MassVariance
     from hmf.core.power_source import TabulatedPower
+    from hmf.core.transfer import Transfer
     from hmf.core.units import Msun_h, h_Mpc, power_unit, rho_unit
 
-    source = TabulatedPower(k=k * h_Mpc, pk=pk * power_unit, mean_density=rho * rho_unit)
-    mv = MassVariance(power=source, filter="SharpK")
+    mv = MassVariance(power=Transfer(model="EH").power_kernel("cb"), filter="SharpK")
     mv.sigma(m * Msun_h), mv.dlnsigma_dlnm(m * Msun_h), mv.m_from_sigma(0.5)
+
+    source = TabulatedPower(k=k * h_Mpc, pk=pk * power_unit, mean_density=rho * rho_unit)
+    MassVariance(power=source)
 
 Both are interpolated on a lattice of nodes at :math:`\log_{10} m = j\Delta`, built
 lazily: results do not depend, bit for bit, on the order or batching of requests.
@@ -210,6 +223,29 @@ lazily: results do not depend, bit for bit, on the order or batching of requests
 separately, never by differentiating σ. The k grid is a lattice in ln k, fixed by
 ``k_accuracy`` (and ``mass_accuracy.log10_m_min``). Masses whose integrals the grid can't resolve (truncated at
 either end, or aliased) raise rather than return a wrong value.
+
+Composing stages
+----------------
+The mass function will be built from these stages and the fits, through their
+kernel-level entry points only:
+
+* σ(m) and dlnσ/dlnm from
+  :meth:`MassVariance.ln_sigma_and_slope_kernel
+  <hmf.core.mass_variance.MassVariance.ln_sigma_and_slope_kernel>`, and ``n_eff``
+  from them with :func:`~hmf.core.mass_variance.n_eff_kernel`;
+* the mean density from the power source's ``rho_mean0``, and Ω_m(z) of CDM +
+  baryons from :func:`hmf.core._species.omega_m` (``"cb"``);
+* the overdensity of a fit's mass definition from
+  :meth:`MeasuredMassDefinition.delta_halo_mean_kernel
+  <hmf.core.fits.MeasuredMassDefinition.delta_halo_mean_kernel>`;
+* f(σ) from :meth:`FittingFunction.fsigma_kernel
+  <hmf.core.fits.FittingFunction.fsigma_kernel>` (or
+  :func:`~hmf.core.fits.evaluate_fsigma`, with a domain policy), and the fit's mass
+  function from :meth:`FittingFunction.modify_dndm_kernel
+  <hmf.core.fits.FittingFunction.modify_dndm_kernel>`, which every fit has.
+
+The critical overdensity δc is an open input: it will be a field of the
+mass-function stage.
 
 API
 ---
