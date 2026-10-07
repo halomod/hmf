@@ -36,7 +36,7 @@ import hmf.core.transfer
 
 from ._fields import field
 from .cache import DiskCache
-from .domain import Domain, check_extent
+from .domain import Domain, Interval, check_extent
 from .growth_models import GrowthModel, GrowthSolution, ODEGrowth
 from .stage import CosmologyStage, _check_model_cosmology, _cosmology_field, _disk_cache_field
 from .transfer import Transfer
@@ -148,12 +148,29 @@ class Growth(CosmologyStage):
         self._table_domain.check({"z": z}, where=f"Growth ({name}), the solution's table")
         return np.asarray(z, dtype=float)
 
+    @cached_property
+    def _z_interval(self) -> Interval:
+        """The redshifts that are both in the model's valid domain and in the table."""
+        table = self._table_domain["z"]
+        valid = type(self.model).valid_domain
+        if "z" not in valid.variables:
+            return table
+        bound = valid["z"]
+        lower, lower_open = max((bound.lower, bound.lower_open), (table.lower, table.lower_open))
+        # The smaller upper bound; at equal bounds, open if either is.
+        upper, upper_closed = min(
+            (bound.upper, not bound.upper_open), (table.upper, not table.upper_open)
+        )
+        return Interval(lower, upper, lower_open=lower_open, upper_open=not upper_closed)
+
     def _redshifts_kernel(self, z: npt.ArrayLike, method: str) -> npt.NDArray[np.float64]:
         """Check plain redshifts as :meth:`_redshifts` does, from their extent only."""
-        where = f"Growth.{method} ({type(self.model).__name__})"
-        z_arr = check_extent("z", z, type(self.model).valid_domain, where=where)
         return check_extent(
-            "z", z_arr, self._table_domain["z"], where=f"{where}, the solution's table"
+            "z",
+            z,
+            self._z_interval,
+            where=f"Growth.{method} ({type(self.model).__name__}: the model's valid "
+            "domain and the solution's table)",
         )
 
     def growth_factor_kernel(

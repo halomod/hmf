@@ -441,9 +441,12 @@ def check_extent(
         If any value is not finite, or is outside the interval.
     """
     values = np.asarray(x, dtype=np.float64)
-    if values.size == 0:
+    if values.ndim == 0:
+        lo = hi = float(values)
+    elif values.size == 0:
         return values
-    lo, hi = float(values.min()), float(values.max())
+    else:
+        lo, hi = float(values.min()), float(values.max())
     if not (math.isfinite(lo) and math.isfinite(hi)):
         raise DomainError(f"{where}: {name} must be finite, got values in [{lo:g}, {hi:g}].")
     var = name.removeprefix("ln_") if ln_values else name
