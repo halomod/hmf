@@ -47,10 +47,14 @@ def test_camb_settings_are_applied_by_path():
     p = _boltzmann._camb_params(model.run_input(Planck18, KAccuracy()))
     assert p.Accuracy.AccuracyBoost == 1.5
     assert p.Transfer.high_precision
-    with pytest.raises(AttributeError, match="no setting"):
-        _boltzmann._camb_params(
-            tm.CAMB(settings={"Accuracy.NoSuchThing": 1}).run_input(Planck18, KAccuracy())
-        )
+
+
+@pytest.mark.parametrize("name", ["Accuracy.NoSuchThing", "NoSuchGroup.AccuracyBoost", "Nope"])
+def test_camb_unknown_setting_raises_when_built(name):
+    """An unknown CAMBparams setting is a bad option: a ValueError, before CAMB runs."""
+    pytest.importorskip("camb")
+    with pytest.raises(ValueError, match=f"CAMBparams has no setting '{name}'"):
+        tm.CAMB(settings={name: 1})
 
 
 def test_camb_and_class_inputs_describe_dark_energy():
@@ -237,7 +241,7 @@ def test_transfer_model_field_validation():
         tm.CAMB(settings={"Accuracy.AccuracyBoost": [1, 2]})
     assert tm.CAMB(settings=None).settings == ()
     with pytest.raises(ValueError, match="same length"):
-        tm.FromArray(k=np.ones(5) * h_Mpc, t=np.ones(5), t_tot=np.ones(4))
+        tm.FromArray(k=np.arange(1, 6) * h_Mpc, t=np.ones(5), t_tot=np.ones(4))
     model = tm.FromArray(k=[1, 2, 3, 4] * h_Mpc, t=np.ones(4) * u.dimensionless_unscaled)
     assert model.t == (1.0, 1.0, 1.0, 1.0)
 

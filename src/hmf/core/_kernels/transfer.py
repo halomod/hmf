@@ -10,7 +10,8 @@ floats, and their scales (sound horizon, k_eq, ...) from :func:`eh98_scales`.
 
 A transfer function tabulated by a Boltzmann code (or given by the user) is
 interpolated by :class:`TabulatedTransfer`, which also extrapolates it beyond the
-table on both sides: see its documentation.
+table on both sides: see its documentation. :func:`low_k_turn_up_end` finds a
+spurious low-k turn-up in a Boltzmann code's table, to cut before tabulating it.
 """
 
 from __future__ import annotations
@@ -33,6 +34,7 @@ __all__ = [
     "ln_t_bond_efs",
     "ln_t_eh98",
     "ln_t_eh98_no_wiggle",
+    "low_k_turn_up_end",
     "tabulate_transfer",
 ]
 
@@ -358,6 +360,61 @@ class TabulatedTransfer:
         k = np.asarray(k, dtype=float)
         out: Array = ln_t_eh98_no_wiggle(k, self.scales) + self.ln_residual(np.log(k))
         return out
+
+
+#: The largest |d ln T / d ln k| between two nodes of a plateau of T(k).
+_PLATEAU_SLOPE = 1e-4
+
+#: The largest |d ln T / d ln k| of EH98 no-wiggle where T(k) is on its large-scale
+#: plateau: a plateau of a table at larger k is a feature of T, not its limit.
+_LARGE_SCALE_SLOPE = 1e-3
+
+
+def low_k_turn_up_end(k: Array, t: Array, scales: EH98Scales) -> int:
+    r"""The index of the first node above a spurious low-k turn-up of a table of T(k).
+
+    Some versions of CAMB produce a transfer function that turns up at low k. A table
+    has such a turn-up if:
+
+    * it reaches a plateau (two adjacent nodes with
+      :math:`|d\ln T/d\ln k| < 10^{-4}`) above its first node;
+    * the plateau is on large scales, where T(k) is flat: there EH98 no-wiggle has
+      :math:`|d\ln T/d\ln k| < 10^{-3}`;
+    * every node below the plateau has a larger T than its start, and no node above
+      it has a larger T (to within :math:`10^{-4}` in ln T).
+
+    A flat stretch at smaller scales, or a table that turns down at low k, is not a
+    turn-up.
+
+    Parameters
+    ----------
+    k
+        Wavenumbers of the table, in h/Mpc, strictly increasing and positive.
+    t
+        The transfer function at ``k`` (dimensionless), positive.
+    scales
+        The EH98 scales of the cosmology (from :func:`eh98_scales`), for the
+        large-scale regime.
+
+    Returns
+    -------
+    int
+        The index of the start of the plateau if the table turns up below it, else 0.
+        ``k[i:]`` and ``t[i:]`` are the table without the turn-up.
+    """
+    ln_k = np.log(np.asarray(k, dtype=float))
+    ln_t = np.log(np.asarray(t, dtype=float))
+    flat = np.flatnonzero(np.abs(np.diff(ln_t) / np.diff(ln_k)) < _PLATEAU_SLOPE)
+    if not flat.size or flat[0] == 0:
+        return 0
+    start = int(flat[0])
+    k_pair = np.exp(ln_k[start : start + 2])
+    ln_t_eh = ln_t_eh98_no_wiggle(k_pair, scales)
+    eh_slope = abs(float(np.diff(ln_t_eh)[0] / np.diff(ln_k[start : start + 2])[0]))
+    on_large_scales = eh_slope < _LARGE_SCALE_SLOPE
+    turns_up = bool(np.all(ln_t[:start] > ln_t[start]))
+    is_limit = bool(np.all(ln_t[start + 1 :] <= ln_t[start] + _PLATEAU_SLOPE))
+    return start if on_large_scales and turns_up and is_limit else 0
 
 
 def tabulate_transfer(

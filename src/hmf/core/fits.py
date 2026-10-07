@@ -102,7 +102,7 @@ from __future__ import annotations
 import abc
 from collections.abc import Callable, Mapping
 from types import MappingProxyType
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar, Literal, get_args
 
 import astropy.units as u
 import attrs
@@ -113,7 +113,7 @@ from . import _references as refs
 from ._arrays import float_array, optional_float_array
 from ._fields import field
 from ._kernels import fits as _k
-from ._validators import check_finite_positive, less_than, positive
+from ._validators import check_finite_positive, less_than, one_of, positive
 from .domain import (
     Domain,
     DomainError,
@@ -225,7 +225,7 @@ class MeasuredMassDefinition:
         Anything else worth knowing (halo finder, unbinding, ...).
     """
 
-    kind: MassDefinitionKind
+    kind: MassDefinitionKind = attrs.field(validator=one_of(get_args(MassDefinitionKind)))
     linking_length: float | None = None
     overdensity: float | None = None
     preferred: MeasuredMassDefinition | None = None

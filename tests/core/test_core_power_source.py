@@ -110,9 +110,9 @@ def test_inside_the_table_does_not_warn():
         src.power(np.logspace(-3, 1, 9) * h_Mpc)
 
 
-@pytest.mark.parametrize("k", [0.0, -1.0, np.nan])
+@pytest.mark.parametrize("k", [0.0, -1.0, np.nan, np.inf])
 def test_non_positive_k_is_a_domain_error(k):
-    with pytest.raises(DomainError, match="k must be > 0"):
+    with pytest.raises(DomainError, match="k must be finite and > 0"):
         _power_law_table().power(k * h_Mpc)
 
 

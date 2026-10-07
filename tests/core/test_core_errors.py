@@ -67,6 +67,7 @@ SITES = [
     # MassVariance: masses, sigma and the lattice.
     ("mv-mass-zero", lambda: _mv().sigma(0.0 * Msun_h), "domain"),
     ("mv-mass-nan", lambda: _mv().dlnsigma_dlnm(np.nan * Msun_h), "domain"),
+    ("mv-mass-inf", lambda: _mv().sigma(np.inf * Msun_h), "domain"),
     (
         "mv-outside-lattice",
         lambda: _mv(mass_accuracy=MassAccuracy(extension="raise")).sigma(1e18 * Msun_h),
@@ -83,6 +84,7 @@ SITES = [
     ),
     ("mv-sigma-out-of-range", lambda: _mv().m_from_sigma(1e6), "domain"),
     ("mv-sigma-negative", lambda: _mv().m_from_sigma(-1.0), "domain"),
+    ("mv-sigma-inf", lambda: _mv().m_from_sigma(np.inf), "domain"),
     (
         "mv-power-not-positive",
         lambda: MassVariance(power=AnalyticPower(lambda k: -np.ones_like(k))).sigma(1e12 * Msun_h),
@@ -92,9 +94,16 @@ SITES = [
     # TabulatedPower.
     ("power-k-outside", lambda: _table_power(extension="raise").power(100.0 * h_Mpc), "domain"),
     ("power-k-zero", lambda: _table_power().power(0.0 * h_Mpc), "domain"),
+    ("power-k-inf", lambda: _table_power().power(np.inf * h_Mpc), "domain"),
     ("power-extension-option", lambda: _table_power(extension="clip"), "value"),
     # Transfer and its models.
     ("transfer-k-zero", lambda: Transfer(model="EH").transfer_function(0.0 * h_Mpc), "domain"),
+    ("transfer-k-inf", lambda: Transfer(model="EH").transfer_function(np.inf * h_Mpc), "domain"),
+    (
+        "transfer-fromarray-k-inf",
+        lambda: Transfer(model=_eh_table()).unnormalised_power(np.inf * h_Mpc),
+        "domain",
+    ),
     (
         "transfer-k-negative",
         lambda: Transfer(model="BBKS").unnormalised_power(-1.0 * h_Mpc),
@@ -122,10 +131,32 @@ SITES = [
     ),
     ("transfer-class-params", lambda: transfer_models.CLASS(class_params={"h": 0.7}), "value"),
     ("transfer-camb-setting-kind", lambda: transfer_models.CAMB(settings={"a": [1]}), "type"),
+    (
+        "transfer-camb-unknown-setting",
+        lambda: transfer_models.CAMB(settings={"Accuracy.NoSuchThing": 1}),
+        "value",
+    ),
+    (
+        "transfer-fromarray-k-negative",
+        lambda: transfer_models.FromArray(k=[-1, 1, 2, 3, 4] * h_Mpc, t=np.ones(5)),
+        "value",
+    ),
+    (
+        "transfer-fromarray-k-decreasing",
+        lambda: transfer_models.FromArray(k=[4, 3, 2, 1] * h_Mpc, t=np.ones(4)),
+        "value",
+    ),
+    (
+        "transfer-fromarray-t-negative",
+        lambda: transfer_models.FromArray(k=[1, 2, 3, 4] * h_Mpc, t=[1, 0.5, -0.1, 0.1]),
+        "value",
+    ),
+    ("transfer-model-not-found", lambda: Transfer(model="Nope"), "value"),
     ("transfer-model-kind", lambda: Transfer(model=3), "type"),
     # Growth and its models.
     ("growth-z-negative", lambda: Growth().growth_factor(-0.1), "domain"),
     ("growth-z-nan", lambda: Growth().growth_rate(np.nan), "domain"),
+    ("growth-z-inf", lambda: Growth().growth_factor(np.inf), "domain"),
     (
         "growth-z-beyond-table",
         lambda: Growth(
@@ -157,12 +188,21 @@ SITES = [
         "value",
     ),
     ("growth-model-kind", lambda: Growth(model=3.0), "type"),
+    ("growth-model-not-found", lambda: Growth(model="Nope"), "value"),
     # Filters.
     ("filter-x-negative", lambda: TopHat().window(-1.0), "domain"),
     ("filter-x-nan", lambda: TopHat().dwindow_dlnx(np.nan), "domain"),
+    ("filter-x-inf", lambda: TopHat().window(np.inf), "domain"),
     ("filter-sharpk-derivative", lambda: SharpK().dwindow_dlnx(0.5), "value"),
     # Fits.
     ("fit-sigma-zero", lambda: fits.ST().fsigma(0.0, delta_c=DELTA_C), "domain"),
+    ("fit-sigma-inf", lambda: fits.SMT().fsigma(np.inf, delta_c=DELTA_C), "domain"),
+    ("fit-z-inf", lambda: fits.Tinker08().fsigma(1.0, z=np.inf, delta_halo=200.0), "domain"),
+    (
+        "fit-delta-inf",
+        lambda: fits.Tinker08().fsigma(1.0, z=0.0, delta_halo=np.inf),
+        "domain",
+    ),
     ("fit-delta-75", lambda: fits.Tinker08().fsigma(1.0, z=0.0, delta_halo=75.0), "domain"),
     ("fit-n_eff--3", lambda: fits.Reed07().fsigma(1.0, delta_c=DELTA_C, n_eff=-3.0), "domain"),
     (
@@ -184,9 +224,16 @@ SITES = [
         "value",
     ),
     ("fit-bad-parameters", lambda: fits.Bhattacharya(p=1.0, q=1.0), "value"),
+    ("fit-model-not-found", lambda: FittingFunction.get("Nope"), "value"),
+    ("fit-mass-definition-kind", lambda: fits.MeasuredMassDefinition(kind="bogus"), "value"),
     # Domains.
     ("domain-unknown-variable", lambda: Domain({"z": (0, 1)}).contains(zz=0.5), "value"),
     ("domain-bad-brackets", lambda: Domain({"z": (0, 1, "{}")}), "value"),
+    (
+        "domain-inf-at-unbounded-end",
+        lambda: Domain({"z": (0, None)}).check({"z": np.inf}, where="W"),
+        "domain",
+    ),
 ]
 
 _EXPECTED = {"domain": DomainError, "value": ValueError, "type": TypeError}
@@ -203,6 +250,30 @@ def test_exception_rule(call, kind):
     # A DomainError is a ValueError, so ``except ValueError`` catches every bad input.
     if kind == "domain":
         assert isinstance(info.value, ValueError)
+
+
+@pytest.mark.parametrize(
+    ("call", "match"),
+    [
+        (lambda: Transfer(model="EH").transfer_function(np.inf * h_Mpc), "out of range: k"),
+        (lambda: fits.SMT().fsigma(np.inf, delta_c=DELTA_C), "out of range: sigma"),
+        (
+            lambda: fits.Tinker08().fsigma(1.0, z=np.inf, delta_halo=200.0),
+            "valid domain.*out of range: z",
+        ),
+    ],
+    ids=["k", "sigma", "z"],
+)
+def test_infinite_inputs_name_the_variable(call, match):
+    """An infinite input is outside the valid domain, and the error says which one."""
+    with pytest.raises(DomainError, match=match):
+        call()
+
+
+def test_model_not_found_is_a_value_error_and_a_lookup_error():
+    with pytest.raises(ValueError, match="No TransferModel model is known as 'Nope'") as info:
+        Transfer(model="Nope")
+    assert isinstance(info.value, LookupError)
 
 
 def test_open_bound_message_says_greater_than():

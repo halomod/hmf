@@ -91,8 +91,11 @@ ENTRY_POINT_GROUP = "hmf.models"
 _loaded_entry_points: set[str] = set()
 
 
-class ModelNotFoundError(LookupError):
-    """No model of the requested kind is registered or importable under a name."""
+class ModelNotFoundError(LookupError, ValueError):
+    """No model of the requested kind is registered or importable under a name.
+
+    A :class:`ValueError` (a bad option), and a :class:`LookupError`.
+    """
 
 
 class DuplicateAliasError(ValueError):

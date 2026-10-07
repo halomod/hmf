@@ -27,6 +27,7 @@ __all__ = [
     "check_table",
     "finite",
     "less_than",
+    "one_of",
     "positive",
 ]
 
@@ -65,6 +66,30 @@ def less_than(bound: float) -> Validator:
         if not value < bound:
             raise ValueError(
                 f"{type(instance).__name__}.{attribute.name} must be < {bound:g}, got {value}."
+            )
+
+    return check
+
+
+def one_of(options: tuple[Any, ...]) -> Validator:
+    """Return a validator that a value is one of ``options`` (as ``attrs.validators.in_``).
+
+    Parameters
+    ----------
+    options
+        The valid values.
+
+    Returns
+    -------
+    callable
+        The validator.
+    """
+
+    def check(instance: Any, attribute: attrs.Attribute[Any], value: Any) -> None:
+        if value not in options:
+            raise ValueError(
+                f"{type(instance).__name__}.{attribute.name} must be one of "
+                f"{', '.join(map(repr, options))}; got {value!r}."
             )
 
     return check
@@ -129,8 +154,8 @@ def check_in_range(
 ) -> FloatArray:
     """Check that every value of an array is within bounds (NaN never is).
 
-    Infinite values pass if the bounds allow them: with no ``high``, ``inf`` is in
-    range.
+    An unbounded end is open: with no ``low``, ``-inf`` is out of range, and with no
+    ``high``, ``inf`` is.
 
     Parameters
     ----------
@@ -155,18 +180,24 @@ def check_in_range(
     Raises
     ------
     Exception
-        ``error``, if a value is out of range or NaN.
+        ``error``, if a value is out of range, NaN, or infinite at an unbounded end.
     """
     arr = np.asarray(value, dtype=float)
     ok = ~np.isnan(arr)
     requirement = []
-    if low is not None:
+    if low is None or high is None:
+        requirement.append("finite")
+    if low is None:
+        ok &= arr > -np.inf
+    else:
         ok &= (arr > low) if low_open else (arr >= low)
         requirement.append(f"{'>' if low_open else '>='} {low:g}")
-    if high is not None:
+    if high is None:
+        ok &= arr < np.inf
+    else:
         ok &= (arr < high) if high_open else (arr <= high)
         requirement.append(f"{'<' if high_open else '<='} {high:g}")
-    what = " and ".join(requirement) or "a number"
+    what = " and ".join(requirement)
     _raise_if_any(~ok, f"{where}: {name} must be {what}", "are out of range or NaN", error)
     return arr
 

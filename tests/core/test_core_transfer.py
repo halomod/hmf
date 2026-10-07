@@ -14,7 +14,9 @@ import pytest
 from astropy import constants as const
 from astropy.cosmology import FlatLambdaCDM, Planck18, wCDM
 
+from hmf.core import _boltzmann
 from hmf.core import transfer_models as tm
+from hmf.core._kernels import transfer as kt
 from hmf.core.accuracy import KAccuracy
 from hmf.core.domain import DomainError
 from hmf.core.transfer import Transfer
@@ -22,6 +24,7 @@ from hmf.core.units import UnitBoundaryError, h_Mpc
 
 ANALYTIC = [tm.EH_BAO, tm.EH_NoBAO, tm.BBKS, tm.BondEfs]
 ACC = KAccuracy()
+SCALES = tm._eh98_scales(Planck18)
 
 
 def ln_t(model, k, cosmo=Planck18, species="cb"):
@@ -260,7 +263,113 @@ def test_fromarray_needs_wavenumber_quantities():
     with pytest.raises(u.UnitConversionError):
         tm.FromArray(k=np.ones(5) / u.Mpc, t=np.ones(5))
     with pytest.raises(ValueError, match="same length"):
-        tm.FromArray(k=np.ones(5) * h_Mpc, t=np.ones(4))
+        tm.FromArray(k=np.arange(1, 6) * h_Mpc, t=np.ones(4))
+
+
+@pytest.mark.parametrize(
+    ("k", "t", "match"),
+    [
+        ([-1.0, 1.0, 2.0, 3.0, 4.0], np.ones(5), "k must be finite and > 0"),
+        ([0.0, 1.0, 2.0, 3.0, 4.0], np.ones(5), "k must be finite and > 0"),
+        ([1.0, 2.0, np.inf, 4.0, 5.0], np.ones(5), "k must be finite and > 0"),
+        ([1.0, 3.0, 2.0, 4.0, 5.0], np.ones(5), "k must be strictly increasing"),
+        ([1.0, 2.0, 2.0, 4.0, 5.0], np.ones(5), "k must be strictly increasing"),
+        ([1.0, 2.0, 3.0], np.ones(3), "k must be 1D.*with at least 4 values"),
+        ([1.0, 2.0, 3.0, 4.0], [1.0, 0.5, 0.0, 0.1], "t must be finite and > 0"),
+        ([1.0, 2.0, 3.0, 4.0], [1.0, 0.5, -0.2, 0.1], "t must be finite and > 0"),
+        ([1.0, 2.0, 3.0, 4.0], [1.0, np.nan, 0.2, 0.1], "t must be finite and > 0"),
+    ],
+)
+def test_fromarray_validates_its_table_when_built(k, t, match):
+    """A table that can't be a transfer function is a bad option: a ValueError."""
+    with pytest.raises(ValueError, match=f"FromArray: {match}") as info:
+        tm.FromArray(k=k * h_Mpc, t=t)
+    assert not isinstance(info.value, DomainError)
+
+
+def test_fromarray_validates_t_tot_when_built():
+    k = [1.0, 2.0, 3.0, 4.0] * h_Mpc
+    with pytest.raises(ValueError, match="FromArray: t_tot must be finite and > 0"):
+        tm.FromArray(k=k, t=np.ones(4), t_tot=[1.0, 0.5, np.inf, 0.1])
+    with pytest.raises(ValueError, match="FromArray: k and t_tot must be 1D, of the same length"):
+        tm.FromArray(k=k, t=np.ones(4), t_tot=np.ones(5))
+    assert tm.FromArray(k=k, t=np.ones(4), t_tot=[1.0, 0.9, 0.8, 0.7]).t_tot == (1.0, 0.9, 0.8, 0.7)
+
+
+def _broken_power_law_table():
+    """T = k^-1/2 except for a flat stretch at 1 < k < 2 (h/Mpc), continuous."""
+    k = np.geomspace(0.01, 100.0, 400)
+    t = np.where(k <= 1.0, k**-0.5, np.where(k < 2.0, 1.0, (k / 2.0) ** -0.5))
+    return k, t
+
+
+def test_fromarray_keeps_every_node_of_a_table_with_a_flat_stretch():
+    """A flat stretch of a user table is not a low-k turn-up: no node is dropped.
+
+    Below the flat stretch T is exactly k^-1/2, so T(0.05) / T(0.5) = 10^(1/2).
+    """
+    k, t = _broken_power_law_table()
+    stage = Transfer(model=tm.FromArray(k=k * h_Mpc, t=t))
+    assert stage.solution.k_min_table == pytest.approx(0.01, rel=1e-12)
+    ratio = stage.transfer_function(0.05 * h_Mpc) / stage.transfer_function(0.5 * h_Mpc)
+    # Tolerance: the cubic spline of the residual from EH98 on 400 nodes; measured 2e-10.
+    assert ratio == pytest.approx((0.05 / 0.5) ** -0.5, rel=1e-6)
+
+
+def test_fromarray_never_trims_a_low_k_turn_up(tmp_path):
+    """A user table is used as given, even below a plateau, in FromArray and FromFile."""
+    k = np.geomspace(1e-5, 10.0, 100)
+    t = 1 / np.sqrt(1 + (k / 0.02) ** 2)
+    t[:5] *= 1 + 0.01 * np.arange(5, 0, -1)
+    assert kt.low_k_turn_up_end(k, t, SCALES) == 5
+    np.savetxt(tmp_path / "t.dat", np.column_stack([k, t]))
+    for model in (tm.FromArray(k=k * h_Mpc, t=t), tm.FromFile(fname=tmp_path / "t.dat")):
+        assert model.solve(Planck18, ACC).k_min_table == pytest.approx(1e-5, rel=1e-12)
+
+
+def test_boltzmann_table_drops_a_low_k_turn_up(monkeypatch):
+    """A turn-up below the large-scale plateau of a Boltzmann run is cut, for every species."""
+    k = np.geomspace(1e-5, 10.0, 100)
+    t = 1 / np.sqrt(1 + (k / 0.02) ** 2)
+    t_cb = t.copy()
+    t_cb[:3] *= [1.03, 1.02, 1.01]
+    t_tot = t.copy()
+    t_tot[:5] *= [1.05, 1.04, 1.03, 1.02, 1.01]
+    run = _boltzmann.make_run(
+        "camb", k=k, transfer={"cb": t_cb, "tot": t_tot}, growth_z=[0.0], growth={}
+    )
+    monkeypatch.setattr(tm.CAMB, "run", lambda self, *args, **kwargs: run)
+    sol = tm.CAMB().solve(Planck18, ACC)
+    assert sol.k_min_table == pytest.approx(k[5], rel=1e-12)
+    # Below the cut T follows the plateau (normalised to 1, then the EH98 shape, which
+    # is flat to 1e-5 there), not the turn-up's >= 1%.
+    np.testing.assert_allclose(sol.transfer(k[:5], "tot"), 1.0, atol=1e-5)
+
+
+def test_low_k_turn_up_end():
+    k = np.geomspace(1e-5, 10.0, 100)
+    t = 1 / np.sqrt(1 + (k / 0.02) ** 2)
+    assert kt.low_k_turn_up_end(k, t, SCALES) == 0  # flat from the first node
+    up = t.copy()
+    up[:5] *= 1 + 0.01 * np.arange(5, 0, -1)
+    assert kt.low_k_turn_up_end(k, up, SCALES) == 5
+    # T lower below the plateau is a turn-down, not a turn-up: kept.
+    down = t.copy()
+    down[:5] *= 1 - 0.01 * np.arange(5, 0, -1)
+    assert kt.low_k_turn_up_end(k, down, SCALES) == 0
+    # A flat stretch at intermediate k is below larger T at low k: kept.
+    kb, tb = _broken_power_law_table()
+    assert kt.low_k_turn_up_end(kb, tb, SCALES) == 0
+    # The same turn-up, shifted to k ~ 0.1 h/Mpc, where T is not flat: kept.
+    assert kt.low_k_turn_up_end(k * 1e4, up, SCALES) == 0
+    # A plateau above which T rises again is not the large-scale limit: kept.
+    bump = up.copy()
+    bump[20] = 1.1
+    assert kt.low_k_turn_up_end(k, bump, SCALES) == 0
+    # Pure: the inputs are not modified.
+    copy = up.copy()
+    kt.low_k_turn_up_end(k, up, SCALES)
+    np.testing.assert_array_equal(up, copy)
 
 
 def test_camb_k_max_is_a_quantity():

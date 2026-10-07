@@ -132,10 +132,11 @@ Errors
     Every error about an input is one of three types:
 
     * :class:`~hmf.core.domain.DomainError` (a :class:`ValueError`): an input
-      *value* is outside what can be evaluated. Non-positive or NaN k, m or sigma; a
-      mass outside the lattice with ``extension="raise"``; k outside a table that is
-      not extrapolated; z beyond a growth table; anything outside a model's valid
-      domain.
+      *value* is outside what can be evaluated. Non-positive, NaN or infinite k, m or
+      sigma; a mass outside the lattice with ``extension="raise"``; k outside a table
+      that is not extrapolated; z beyond a growth table; anything outside a model's
+      valid domain. Infinite values are outside every domain, so an infinite z or
+      ``delta_halo`` raises a :class:`~hmf.core.domain.DomainError` too.
     * :class:`ValueError`: a bad option, configuration or combination, or a missing
       input. A model that does not apply to the cosmology it is given (e.g.
       ``Eisenstein97Growth`` with a non-flat cosmology) is a configuration error.
