@@ -123,7 +123,7 @@ def test_growth_kernels_check_the_model_domain_and_the_table(
     assert interval.upper == pytest.approx(upper, rel=1e-11)
     g.growth_factor_kernel(np.array([lower + 0.01, upper - 0.01]))
     for z in (lower if lower_open else lower - 0.01, upper + 0.01):
-        with pytest.raises(DomainError, match="Growth.growth_factor_kernel"):
+        with pytest.raises(DomainError, match=r"Growth\.growth_factor_kernel"):
             g.growth_factor_kernel(z)
 
 
