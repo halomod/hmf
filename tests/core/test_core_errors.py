@@ -336,12 +336,12 @@ def test_boltzmann_tail_does_not_warn():
 
 
 def test_tabulated_power_warns_once_in_mass_variance():
-    """A TabulatedPower narrower than MassVariance's k grid warns once for each end."""
+    """A TabulatedPower narrower than MassVariance's k grid at both ends warns once."""
     mv = MassVariance(power=_table_power())
     messages = _caught(lambda: (mv.sigma(1e12 * Msun_h), mv.dlnsigma_dlnm(1e13 * Msun_h)))
-    assert len(messages) == 2, messages
-    assert "below the table" in messages[0]
-    assert "above the table" in messages[1]
+    assert len(messages) == 1, messages
+    assert "below the table's smallest wavenumber, 0.001 h/Mpc" in messages[0]
+    assert "above the table's largest wavenumber, 10 h/Mpc" in messages[0]
 
 
 # ---------------------------------------------------------------------------------

@@ -44,7 +44,8 @@ from ._fields import field
 from ._species import check_species, rho_mean0
 from .accuracy import KAccuracy
 from .cache import DiskCache
-from .domain import warn_once
+from .domain import check_extent
+from .power_source import TableRange
 from .stage import CosmologyStage, _check_model_cosmology, _disk_cache_field
 from .transfer_models import CAMB, TransferModel, TransferSolution
 from .units import UnitContext, h_Mpc, unit_boundary
@@ -113,31 +114,41 @@ class Transfer(CosmologyStage):
         k_max = self.solution.k_max_table
         return None if k_max is None else u.Quantity(k_max, h_Mpc)
 
-    def _check_k(self, k: Array) -> None:
-        """Check k (in h/Mpc) against the model's valid domain, and warn if extrapolated.
+    @cached_property
+    def _table_range(self) -> TableRange | None:
+        """The range of the user's table, beyond which T(k) is extrapolated, if any.
 
-        The domain is that of the model's class, so a model can narrow it. A table the
-        user supplied (``FromArray``, ``FromFile``) warns, once per stage, if k is
-        outside it; the Boltzmann codes' tables are extrapolated by design, silently.
+        A table the user supplied (``FromArray``, ``FromFile``) has one; a fitting
+        formula has none, and the Boltzmann codes' tables are extrapolated by design,
+        so they have none either.
         """
         model = type(self.model)
-        model.valid_domain.check({"k": k << h_Mpc}, where=f"Transfer ({model.__name__})")
         if not model._user_table:
-            return
+            return None
         k_min, k_max = self.solution.k_min_table, self.solution.k_max_table
         # A table has both.
         assert k_min is not None
         assert k_max is not None
-        for side, outside, bound in (("below", k < k_min, k_min), ("above", k > k_max, k_max)):
-            if np.any(outside):
-                warn_once(
-                    self,
-                    f"k {side} the table",
-                    f"Transfer ({model.__name__}): k {side} the table's "
-                    f"{'smallest' if side == 'below' else 'largest'} wavenumber, "
-                    f"{bound:.4g} h/Mpc, is extrapolated (with the shape of EH98).",
-                    stacklevel=4,  # the caller of the public method
-                )
+        return TableRange(
+            k_min=k_min,
+            k_max=k_max,
+            where=f"Transfer ({model.__name__})",
+            how="with the shape of EH98",
+        )
+
+    def _check_k(self, k: Array) -> None:
+        """Check k (in h/Mpc) against the model's valid domain, and warn if extrapolated.
+
+        The domain is that of the model's class, so a model can narrow it. A table the
+        user supplied warns, once per stage and end, if k is outside it (see
+        :meth:`TableRange.warn_outside <hmf.core.power_source.TableRange.warn_outside>`).
+        """
+        model = type(self.model)
+        model.valid_domain.check({"k": k << h_Mpc}, where=f"Transfer ({model.__name__})")
+        table = self._table_range
+        if table is not None and np.size(k):
+            # The caller of the public method.
+            table.warn_outside(self, float(np.min(k)), float(np.max(k)), stacklevel=4)
 
     @unit_boundary(k=h_Mpc)
     def transfer_function(self, k: Any, species: str = "cb") -> Any:
@@ -234,7 +245,9 @@ class UnnormalisedPower:
     :class:`~hmf.core.power_source.PowerSource`, made by
     :meth:`Transfer.power_kernel`. Its amplitude is arbitrary: the normalisation to
     sigma_8 is applied later, as a scalar. Its methods are pure; it compares and
-    hashes by its transfer stage and species.
+    hashes by its transfer stage and species. They check k against the transfer
+    model's valid domain, and do not warn when they extrapolate a user's table: a
+    stage built on it warns, with :attr:`table_range`.
     """
 
     #: The transfer stage.
@@ -254,8 +267,20 @@ class UnnormalisedPower:
         -------
         numpy.ndarray
             The (dimensionless) ln P, with the shape of ``ln_k``.
+
+        Raises
+        ------
+        DomainError
+            If a ln k is not finite, or k is outside the model's valid domain.
         """
-        ln_k = np.asarray(ln_k, dtype=float)
+        model = type(self.transfer.model)
+        ln_k = check_extent(
+            "ln_k",
+            ln_k,
+            model.valid_domain,
+            where=f"UnnormalisedPower.ln_power_kernel ({model.__name__})",
+            ln_values=True,
+        )
         ln_t = self.transfer.solution.ln_transfer(np.exp(ln_k), self.species)
         out: Array = self.transfer.n_s * ln_k + 2 * ln_t
         return out
@@ -272,8 +297,19 @@ class UnnormalisedPower:
         -------
         numpy.ndarray
             With the shape of ``k``.
+
+        Raises
+        ------
+        DomainError
+            If a k is not finite, or is outside the model's valid domain (k > 0).
         """
-        k = np.asarray(k, dtype=float)
+        model = type(self.transfer.model)
+        k = check_extent(
+            "k",
+            k,
+            model.valid_domain,
+            where=f"UnnormalisedPower.power_kernel ({model.__name__})",
+        )
         out: Array = k**self.transfer.n_s * self.transfer.solution.transfer(k, self.species) ** 2
         return out
 
@@ -281,6 +317,15 @@ class UnnormalisedPower:
     def rho_mean0(self) -> float:
         """The mean comoving density today of the species, in Msun h^2 / Mpc^3."""
         return rho_mean0(self.transfer.cosmology, self.species)
+
+    @property
+    def table_range(self) -> TableRange | None:
+        """The range of the user's transfer table, beyond which it is extrapolated.
+
+        ``None`` unless the transfer model is a table the user supplied (see
+        :class:`~hmf.core.power_source.PowerSource`).
+        """
+        return self.transfer._table_range
 
     @property
     def _unit_context(self) -> UnitContext:

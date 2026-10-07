@@ -36,6 +36,7 @@ public methods. It calls their *kernel-level entry points*: public methods (or
 functions) whose names end in ``_kernel``, e.g.
 :meth:`MassVariance.ln_sigma_and_slope_kernel
 <hmf.core.mass_variance.MassVariance.ln_sigma_and_slope_kernel>`,
+:meth:`Growth.growth_factor_kernel <hmf.core.growth.Growth.growth_factor_kernel>`,
 :meth:`FittingFunction.fsigma_kernel <hmf.core.fits.FittingFunction.fsigma_kernel>`,
 :meth:`FittingFunction.modify_dndm_kernel
 <hmf.core.fits.FittingFunction.modify_dndm_kernel>` and the ``ln_power_kernel`` of a
@@ -46,13 +47,27 @@ functions) whose names end in ``_kernel``, e.g.
 * follows rules 1-7 above: pure, vectorised, batch-size independent. A stage may
   memoise what it computes (e.g. the lattice of a
   :class:`~hmf.core.mass_variance.MassVariance`), as long as no result depends on
-  it.
+  it;
+* **checks its input against its owner's domain**, and raises a
+  :class:`~hmf.core.domain.DomainError` outside it (NaN and infinities included), so
+  that its caller never gets a silent extrapolation. The check is cheap: it compares
+  the smallest and largest value with the domain's bounds
+  (:func:`~hmf.core.domain.check_extent`), with no other pass over the array. Where
+  an owner extrapolates a table the user supplied by design (e.g. a
+  :class:`~hmf.core.power_source.TabulatedPower`), the kernel does not warn: the
+  owner exposes the table's range (a ``PowerSource``'s ``table_range``), and the
+  stage that evaluates it warns once (see :mod:`hmf.core.power_source`).
 
-Read-only data holders keep plain names but follow the same rules: e.g.
-:attr:`Transfer.solution <hmf.core.transfer.Transfer.solution>`,
+The pure functions in this subpackage do not check their inputs: their callers, the
+kernel-level entry points, do.
+
+Read-only data holders keep plain names but follow rules 1-7, and do not check
+their inputs: e.g. :attr:`Transfer.solution <hmf.core.transfer.Transfer.solution>`,
 :attr:`Growth.solution <hmf.core.growth.Growth.solution>` (whose methods take and
-return plain arrays) and a ``PowerSource``'s ``rho_mean0`` (a float in
-M☉ h² / Mpc³).
+return plain arrays, and are NaN beyond its table) and a ``PowerSource``'s
+``rho_mean0`` (a float in M☉ h² / Mpc³). Library code evaluates them through the
+kernel-level entry points (e.g. :meth:`Growth.growth_factor_kernel
+<hmf.core.growth.Growth.growth_factor_kernel>`), not directly.
 
 Canonical units
 ---------------

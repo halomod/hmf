@@ -13,6 +13,12 @@ model (:class:`~hmf.core.growth_models.CambGrowth` with
 :class:`~hmf.core.growth_models.ClassGrowth` with
 :class:`~hmf.core.transfer_models.CLASS`), the growth comes from the transfer's run:
 one run for both.
+
+Library code working in plain arrays (see :mod:`hmf.core._kernels`) calls the
+kernel-level entry points :meth:`Growth.growth_factor_kernel` and
+:meth:`Growth.growth_rate_kernel`, which check z as the public methods do.
+:attr:`Growth.solution` is the data behind them: it does not check z, and is NaN
+outside the redshifts it covers.
 """
 
 from __future__ import annotations
@@ -22,6 +28,7 @@ from typing import Any
 
 import attrs
 import numpy as np
+import numpy.typing as npt
 from astropy.cosmology import FLRW
 
 # For the fully qualified annotations below.
@@ -29,7 +36,7 @@ import hmf.core.transfer
 
 from ._fields import field
 from .cache import DiskCache
-from .domain import Domain
+from .domain import Domain, check_extent
 from .growth_models import GrowthModel, GrowthSolution, ODEGrowth
 from .stage import CosmologyStage, _check_model_cosmology, _cosmology_field, _disk_cache_field
 from .transfer import Transfer
@@ -108,7 +115,11 @@ class Growth(CosmologyStage):
 
     @cached_property
     def solution(self) -> GrowthSolution:
-        """The kernel-level growth of every species (one model solve)."""
+        """The growth of every species (one model solve): data, not an entry point.
+
+        Its methods do not check z, and are NaN outside the redshifts it covers:
+        library code calls :meth:`growth_factor_kernel` and :meth:`growth_rate_kernel`.
+        """
         run = None
         if (
             self.transfer is not None
@@ -136,6 +147,68 @@ class Growth(CosmologyStage):
         type(self.model).valid_domain.check({"z": z}, where=f"Growth ({name})")
         self._table_domain.check({"z": z}, where=f"Growth ({name}), the solution's table")
         return np.asarray(z, dtype=float)
+
+    def _redshifts_kernel(self, z: npt.ArrayLike, method: str) -> npt.NDArray[np.float64]:
+        """Check plain redshifts as :meth:`_redshifts` does, from their extent only."""
+        where = f"Growth.{method} ({type(self.model).__name__})"
+        z_arr = check_extent("z", z, type(self.model).valid_domain, where=where)
+        return check_extent(
+            "z", z_arr, self._table_domain["z"], where=f"{where}, the solution's table"
+        )
+
+    def growth_factor_kernel(
+        self, z: npt.ArrayLike, species: str = "cb"
+    ) -> npt.NDArray[np.float64]:
+        """:meth:`growth_factor` at kernel level, on plain arrays.
+
+        For library code (see :mod:`hmf.core._kernels`). It checks z as
+        :meth:`growth_factor` does, from the smallest and largest z only.
+
+        Parameters
+        ----------
+        z
+            Redshift(s), dimensionless: a float or a plain array.
+        species
+            ``"cb"`` (CDM + baryons) or ``"tot"`` (total matter).
+
+        Returns
+        -------
+        numpy.ndarray
+            D(z)/D(0), dimensionless, with the shape of ``z``.
+
+        Raises
+        ------
+        DomainError
+            As for :meth:`growth_factor`, or if a z is not finite.
+        """
+        return self.solution.growth_factor(
+            self._redshifts_kernel(z, "growth_factor_kernel"), species
+        )
+
+    def growth_rate_kernel(self, z: npt.ArrayLike, species: str = "cb") -> npt.NDArray[np.float64]:
+        r""":meth:`growth_rate` at kernel level, on plain arrays.
+
+        For library code (see :mod:`hmf.core._kernels`). It checks z as
+        :meth:`growth_rate` does, from the smallest and largest z only.
+
+        Parameters
+        ----------
+        z
+            Redshift(s), dimensionless: a float or a plain array.
+        species
+            ``"cb"`` or ``"tot"``.
+
+        Returns
+        -------
+        numpy.ndarray
+            :math:`f = d\ln D/d\ln a`, dimensionless, with the shape of ``z``.
+
+        Raises
+        ------
+        DomainError
+            As for :meth:`growth_rate`, or if a z is not finite.
+        """
+        return self.solution.growth_rate(self._redshifts_kernel(z, "growth_rate_kernel"), species)
 
     @unit_boundary()
     def growth_factor(self, z: Any, species: str = "cb") -> Any:

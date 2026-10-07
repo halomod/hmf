@@ -12,8 +12,9 @@ Each model carries two domains, as class variables:
 
 This module provides the :class:`Domain` type describing either (with
 :meth:`Domain.describe` and :meth:`Domain.check`), :func:`apply_domain_policy`,
-which applies a policy to a result, and :func:`warn_once`, which emits a warning once
-per object.
+which applies a policy to a result, :func:`warn_once`, which emits a warning once
+per object, and :func:`check_extent`, the cheap check of a kernel-level entry point's
+input against a domain (see :mod:`hmf.core._kernels`).
 
 Bounds are given in the canonical units of :data:`hmf.core.units.CANONICAL_UNITS`.
 A bound on a dimensional variable is a :class:`~astropy.units.Quantity`; the values
@@ -44,6 +45,7 @@ table the user supplied, are not errors: they emit an
 
 from __future__ import annotations
 
+import math
 import warnings
 import weakref
 from collections.abc import Mapping
@@ -67,6 +69,7 @@ __all__ = [
     "HMFExtrapolationWarning",
     "Interval",
     "apply_domain_policy",
+    "check_extent",
     "warn_once",
 ]
 
@@ -393,6 +396,71 @@ class Domain:
         )
 
 
+def check_extent(
+    name: str,
+    x: npt.ArrayLike,
+    bounds: Interval | Domain | None = None,
+    *,
+    where: str,
+    ln_values: bool = False,
+) -> npt.NDArray[np.float64]:
+    """Check that plain values are finite and inside an interval, from their extent.
+
+    The check of a kernel-level entry point (see :mod:`hmf.core._kernels`): it
+    compares only the smallest and largest value with the interval's bounds, one
+    pass over the array for each, so it is cheap enough for every call. NaN
+    propagates to the extent, so it raises too.
+
+    Parameters
+    ----------
+    name
+        The variable's name, for the message, and the variable a :class:`Domain`
+        bounds (without the ``ln_`` prefix, with ``ln_values``).
+    x
+        The values: a float or a plain array, in the canonical unit of the interval.
+    bounds
+        The bounds, in canonical units (a bound's unit, if it has one, is not
+        compared): an :class:`Interval`, or a :class:`Domain`, whose interval of
+        ``name`` is used if it bounds it. ``None`` checks only that the values are
+        finite.
+    where
+        Who checks them (e.g. ``"Growth.growth_factor_kernel (FromArray)"``), for the
+        message.
+    ln_values
+        Whether ``x`` holds the natural log of the variable (e.g. ln k for a bound
+        on k): the extent is exponentiated before it is compared with the bounds.
+
+    Returns
+    -------
+    numpy.ndarray
+        ``x`` as a float array (not a copy, if it already is one).
+
+    Raises
+    ------
+    DomainError
+        If any value is not finite, or is outside the interval.
+    """
+    values = np.asarray(x, dtype=np.float64)
+    if values.size == 0:
+        return values
+    lo, hi = float(values.min()), float(values.max())
+    if not (math.isfinite(lo) and math.isfinite(hi)):
+        raise DomainError(f"{where}: {name} must be finite, got values in [{lo:g}, {hi:g}].")
+    var = name.removeprefix("ln_") if ln_values else name
+    interval = bounds._intervals.get(var) if isinstance(bounds, Domain) else bounds
+    if interval is None:
+        return values
+    if ln_values:
+        lo, hi = math.exp(lo), math.exp(hi)
+    above = lo > interval.lower if interval.lower_open else lo >= interval.lower
+    below = hi < interval.upper if interval.upper_open else hi <= interval.upper
+    if not (above and below):
+        raise DomainError(
+            f"{where}: {var} in [{lo:g}, {hi:g}] is outside the domain ({interval.describe(var)})."
+        )
+    return values
+
+
 #: The keys of the warnings already emitted, by the id of the object they are about.
 #: An entry is removed when its object is garbage collected (so ids can't be reused).
 _WARNED: dict[int, set[str]] = {}
@@ -400,7 +468,7 @@ _WARNED: dict[int, set[str]] = {}
 
 def warn_once(
     owner: object,
-    key: str,
+    key: str | tuple[str, ...],
     message: str,
     category: type[Warning] = HMFExtrapolationWarning,
     *,
@@ -419,6 +487,8 @@ def warn_once(
         referenced, the warning is emitted every time.
     key
         What the warning is about, e.g. ``"k above the table"``. Each key warns once.
+        A tuple of keys warns if any of them has not warned yet, and then counts as
+        a warning about each (one message about several things).
     message
         The warning's message.
     category
@@ -442,9 +512,10 @@ def warn_once(
     if done is None:
         done = _WARNED[ident] = set()
         weakref.finalize(owner, _WARNED.pop, ident, None)
-    if key in done:
+    keys = (key,) if isinstance(key, str) else key
+    if done.issuperset(keys):
         return False
-    done.add(key)
+    done.update(keys)
     warnings.warn(message, category, stacklevel=stacklevel + 1)
     return True
 
