@@ -25,7 +25,7 @@ import hmf.core.transfer
 from hmf.core import fits, growth_models, transfer_models
 from hmf.core._kernels import growth as kg
 from hmf.core.accuracy import KAccuracy
-from hmf.core.domain import DomainError, Interval, check_extent, warn_once
+from hmf.core.domain import Domain, DomainError, Interval, check_extent, warn_once
 from hmf.core.fits import FitInputs, evaluate_fsigma
 from hmf.core.growth import Growth
 from hmf.core.mass_variance import MassVariance, n_eff_kernel
@@ -101,6 +101,30 @@ def test_growth_kernels_reproduce_einstein_de_sitter():
     z = np.linspace(0.0, 3.0, 101)
     np.testing.assert_allclose(g.growth_factor_kernel(z), 1 / (1 + z), rtol=1e-10)
     np.testing.assert_allclose(g.growth_rate_kernel(z), 1.0, rtol=1e-8)
+
+
+@pytest.mark.parametrize(
+    ("valid", "lower", "lower_open", "upper"),
+    [
+        (Domain({"z": (0.5, None, "(]")}), 0.5, True, 3.0),  # the model narrows z
+        (Domain({"z": (0.0, 2.0)}), 0.0, False, 2.0),  # below the table's z_max
+        (Domain({}), 0.0, False, 3.0),  # the model does not bound z: the table does
+    ],
+)
+def test_growth_kernels_check_the_model_domain_and_the_table(
+    monkeypatch, valid, lower, lower_open, upper
+):
+    """The kernels' z interval is the intersection of the valid domain and the table."""
+    monkeypatch.setattr(growth_models.FromArray, "valid_domain", valid)
+    g = _eds_growth()
+    interval = g._z_interval
+    assert interval.lower == lower
+    assert interval.lower_open is lower_open
+    assert interval.upper == pytest.approx(upper, rel=1e-11)
+    g.growth_factor_kernel(np.array([lower + 0.01, upper - 0.01]))
+    for z in (lower if lower_open else lower - 0.01, upper + 0.01):
+        with pytest.raises(DomainError, match="Growth.growth_factor_kernel"):
+            g.growth_factor_kernel(z)
 
 
 def test_growth_kernels_accept_the_last_redshift_of_the_table():
