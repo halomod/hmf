@@ -260,7 +260,8 @@ CASES = [
     ("modify_dndm", fits.Behroozi().modify_dndm,
      lambda s: (
          (_shaped(_M, s) * Msun_h, _shaped(_M, s) ** -1.9 * dndm_unit),
-         {"z": 4.0, "ngtm": _shaped(_M, s) ** -0.9 * number_density_unit, "H0": 70 * H0_unit},
+         {"z": 4.0, "ngtm": _shaped(_M, s) ** -0.9 * number_density_unit, "H0": 70 * H0_unit,
+          "omega_m0": 0.3},
      ), dndm_unit),
 ] + [
     (f"{cls.__name__}.mass_ratio_to_200m", cls().mass_ratio_to_200m,
@@ -363,7 +364,12 @@ def test_errors_name_the_class_called():
         model.fsigma(1.0, z=0.0, m=1e12)
     with pytest.raises(UnitBoundaryError, match=r"^Tinker10\.modify_dndm\(\)"):
         fits.Tinker10().modify_dndm(
-            1e12, 1 * dndm_unit, z=0.0, ngtm=1 * number_density_unit, H0=70 * H0_unit
+            1e12,
+            1 * dndm_unit,
+            z=0.0,
+            ngtm=1 * number_density_unit,
+            H0=70 * H0_unit,
+            omega_m0=0.3,
         )
     with pytest.raises(UnitBoundaryError, match=r"^Transfer\.transfer_function\(\)"):
         _TRANSFER.transfer_function(0.1)

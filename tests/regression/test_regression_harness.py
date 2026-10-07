@@ -164,6 +164,36 @@ def test_tolerance_override(tolerances):
     assert tols.get("sigma", tophat).rtol == tolerances.quantities["sigma"].rtol
 
 
+def test_tolerance_override_on_a_range_of_lnk(tolerances):
+    """An override with an lnk_range applies to that part of the k axis only."""
+    override = {
+        "quantity": "transfer",
+        "transfer": "CAMB",
+        "lnk_range": [0.0, None],
+        "rtol": 1e-3,
+        "justification": "x",
+    }
+    tols = rh.Tolerances(tolerances.quantities, (override,), tolerances.floor)
+    camb = rh.Case("transfer", "k", transfer="CAMB", axes=("lnk",))
+    eh = rh.Case("transfer", "k", transfer="EH", axes=("lnk",))
+    assert tols.get("transfer", camb).rtol == tolerances.quantities["transfer"].rtol
+    assert tols.lnk_ranges("transfer", camb) == [(0.0, np.inf, 1e-3)]
+    assert tols.lnk_ranges("transfer", eh) == []
+
+    lnk = np.array([-2.0, -1.0, 0.0, 1.0])
+    ref = np.ones(4)
+    off = ref * np.array([1, 1, 1 + 5e-4, 1 + 5e-4])
+    ok = rh.compare("transfer", off, ref, case=camb, context={"lnk": lnk}, tolerances=tols)
+    assert ok.passed
+    with pytest.raises(rh.RegressionMismatchError):
+        rh.compare("transfer", off, ref, case=eh, context={"lnk": lnk}, tolerances=tols)
+    low = ref * np.array([1 + 5e-4, 1, 1, 1])
+    with pytest.raises(rh.RegressionMismatchError):
+        rh.compare("transfer", low, ref, case=camb, context={"lnk": lnk}, tolerances=tols)
+    with pytest.raises(ValueError, match="lnk_range"):
+        rh.compare("transfer", off, ref, case=camb, tolerances=tols)
+
+
 def test_reference_cosmology_round_trips(reference):
     """The cosmologies rebuilt from the metadata are the ones v3 used."""
     from astropy.cosmology import Planck18

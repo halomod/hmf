@@ -27,7 +27,7 @@ from scipy.special import gamma
 from hmf.core.accuracy import KAccuracy, MassAccuracy
 from hmf.core.domain import DomainError
 from hmf.core.filters import SharpK, SmoothK, TopHat
-from hmf.core.mass_variance import RESOLUTION_RTOL, MassVariance
+from hmf.core.mass_variance import RESOLUTION_RTOL, MassVariance, n_eff_kernel
 from hmf.core.power_source import TabulatedPower
 from hmf.core.units import Mpc_h, Msun_h, UnitBoundaryError, h_Mpc, power_unit, rho_unit
 from hmf.exceptions import HMFExtrapolationWarning
@@ -99,6 +99,27 @@ def test_power_law_tophat_closed_form(n, k_accuracy, rtol_d):
     np.testing.assert_allclose(mv.sigma(m), sigma, rtol=1e-6)
     np.testing.assert_allclose(mv.dlnsigma_dlnm(m), slope, rtol=rtol_d)
     np.testing.assert_allclose(slope, -(n + 3) / 6, rtol=1e-3)
+
+
+@pytest.mark.parametrize("n", [-2.9, -2.0, -1.0, 0.5, 2.0])
+def test_n_eff_of_a_power_law_slope_is_its_index(n):
+    """For P ~ k^n, sigma ~ m^-(n+3)/6 with any filter, which n_eff maps back to n."""
+    slope = np.full(3, -(n + 3) / 6)
+    np.testing.assert_allclose(n_eff_kernel(slope), n, rtol=0, atol=1e-15)
+    assert n_eff_kernel(-0.5) == 0.0  # sigma ~ m^-1/2: white noise, n = 0
+
+
+@pytest.mark.parametrize("n", [-1.0, 1.0])
+@pytest.mark.parametrize("flt", ["SharpK", SmoothK(beta=4.8)])
+def test_n_eff_of_a_power_law_spectrum_is_its_index(n, flt):
+    """n_eff from MassVariance's slope recovers the index of a power-law spectrum.
+
+    With n >= -1 the part of the integral below the grid's k_min, which bends sigma
+    at the largest masses, is below round-off, so n_eff = n to round-off.
+    """
+    mv = _mv(AnalyticPower(PowerLaw(n)), flt)
+    _, slope = mv.ln_sigma_and_slope_kernel(np.logspace(6, 14, 33))
+    np.testing.assert_allclose(n_eff_kernel(slope), n, rtol=0, atol=1e-12)
 
 
 def test_shallow_power_law_with_tophat_raises():
@@ -330,7 +351,7 @@ def test_radius_mass_round_trip(flt):
     r = mv.radius_from_m(m)
     assert r.unit is Mpc_h
     # m = 4 pi / 3 rho (c R)^3
-    rho = EH._rho_mean0
+    rho = EH.rho_mean0
     np.testing.assert_allclose(
         4 * math.pi / 3 * rho * (flt.mass_assignment * r.value) ** 3, m.value, rtol=1e-14
     )
@@ -593,3 +614,16 @@ def test_m_from_sigma_with_off_lattice_range():
 def test_non_positive_power_raises():
     with pytest.raises(ValueError, match="finite and > 0"):
         _mv(AnalyticPower(lambda k: np.where(k > 1e3, 0.0, k**-1.0))).sigma(1e12 * Msun_h)
+
+
+@pytest.mark.parametrize("flt", FILTERS)
+def test_kernel_entry_point_matches_the_public_methods(flt):
+    """ln_sigma_and_slope_kernel takes plain Msun/h and gives sigma's ln and slope."""
+    mv = _mv(EH, flt)
+    m = np.logspace(8, 15, 12).reshape(3, 4)
+    ln_sigma, slope = mv.ln_sigma_and_slope_kernel(m)
+    assert ln_sigma.shape == slope.shape == (3, 4)
+    np.testing.assert_array_equal(np.exp(ln_sigma), mv.sigma(m * Msun_h))
+    np.testing.assert_array_equal(slope, mv.dlnsigma_dlnm(m * Msun_h))
+    with pytest.raises(DomainError):
+        mv.ln_sigma_and_slope_kernel(np.array([-1.0]))

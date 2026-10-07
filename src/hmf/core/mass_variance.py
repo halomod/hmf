@@ -70,6 +70,7 @@ from typing import Any, NamedTuple
 
 import attrs
 import numpy as np
+import numpy.typing as npt
 from numpy.typing import NDArray
 
 from ._fields import field
@@ -84,7 +85,7 @@ from .power_source import PowerSource
 from .stage import Stage
 from .units import Mpc_h, Msun_h, UnitContext, unit_boundary
 
-__all__ = ["MassVariance"]
+__all__ = ["MassVariance", "n_eff_kernel"]
 
 FloatArray = NDArray[np.float64]
 IntArray = NDArray[np.int64]
@@ -168,7 +169,7 @@ def _is_power_source(instance: Any, attribute: attrs.Attribute[Any], value: Any)
     if not isinstance(value, PowerSource):
         raise TypeError(
             f"MassVariance.power must implement hmf.core.power_source.PowerSource "
-            f"(e.g. a TabulatedPower), not {type(value).__name__}."
+            f"(e.g. Transfer.power_kernel() or a TabulatedPower), not {type(value).__name__}."
         )
 
 
@@ -236,7 +237,7 @@ class MassVariance(Stage):
 
     @cached_property
     def _rho_mean(self) -> float:
-        return float(self.power._rho_mean0)
+        return float(self.power.rho_mean0)
 
     @cached_property
     def _step(self) -> float:
@@ -274,10 +275,9 @@ class MassVariance(Stage):
         )
 
     def _power_at(self, k: FloatArray) -> FloatArray:
-        """The source's power at k, checked to be finite and positive."""
-        return check_finite_positive(
-            "the power spectrum", self.power._power(k), where="MassVariance"
-        )
+        """The source's power at k (h/Mpc), checked to be finite and positive."""
+        p = np.exp(self.power.ln_power_kernel(np.log(k)))
+        return check_finite_positive("the power spectrum", p, where="MassVariance")
 
     @cached_property
     def _sharpk_cumulative(self) -> FloatArray:
@@ -373,10 +373,10 @@ class MassVariance(Stage):
             h = _DLN_K_SLOPE
             p_up = self._power_at(k_cut * math.exp(h))
             p_dn = self._power_at(k_cut * math.exp(-h))
-            n_eff = (np.log(p_up) - np.log(p_dn)) / (2 * h)
+            dln_p_dln_k_cut = (np.log(p_up) - np.log(p_dn)) / (2 * h)
         else:
-            n_eff = np.zeros_like(p_cut)
-        ln_sigma, d_r, d2_r = kern.sharpk_ln_variance(s, k_cut**3 * p_cut, n_eff, second)
+            dln_p_dln_k_cut = np.zeros_like(p_cut)
+        ln_sigma, d_r, d2_r = kern.sharpk_ln_variance(s, k_cut**3 * p_cut, dln_p_dln_k_cut, second)
         # Beyond the cut-off the window is 0; below the grid, W = 1 and W' = 0.
         x_lo = np.exp(ln_r) * grid.k[0]
         t0 = kern.tail_integral(grid.k3p[0], grid.slope_lo, x_lo, ((1.0, 0.0),), high=False)
@@ -490,8 +490,29 @@ class MassVariance(Stage):
         """log10 of masses in Msun/h, checked to be finite and positive."""
         return np.log10(check_finite_positive("masses", m, where="MassVariance", error=DomainError))
 
-    def _ln_sigma_and_slope(self, m: FloatArray) -> tuple[FloatArray, FloatArray]:
-        """Kernel-level ln(sigma) and dln(sigma)/dln(m) at masses m in Msun/h (any shape)."""
+    def ln_sigma_and_slope_kernel(self, m: npt.ArrayLike) -> tuple[FloatArray, FloatArray]:
+        """ln(sigma) and dln(sigma)/dln(m) at masses in Msun/h, at kernel level.
+
+        The values of :meth:`sigma` (as its ln) and :meth:`dlnsigma_dlnm`, from one
+        lookup of the lattice, on plain arrays in canonical units, for library code
+        (see :mod:`hmf.core._kernels`). Results do not depend on the batch size, or on
+        the order of requests.
+
+        Parameters
+        ----------
+        m
+            Masses in Msun/h: a plain array, of any shape.
+
+        Returns
+        -------
+        ln_sigma, dlnsigma_dlnm : numpy.ndarray
+            Dimensionless, with the shape of ``m``.
+
+        Raises
+        ------
+        DomainError
+            As for :meth:`sigma`.
+        """
         m = np.asarray(m, dtype=float)
         ln_sigma, slope = self._interpolate(self._log10_mass(m).ravel())
         return ln_sigma.reshape(m.shape), slope.reshape(m.shape)
@@ -521,7 +542,7 @@ class MassVariance(Stage):
             ``extension='raise'``), can't be resolved by the k grid, or sigma is not
             finite there.
         """
-        return np.exp(self._ln_sigma_and_slope(m)[0])
+        return np.exp(self.ln_sigma_and_slope_kernel(m)[0])
 
     @unit_boundary(m=Msun_h)
     def dlnsigma_dlnm(self, m: Any) -> FloatArray:
@@ -543,7 +564,7 @@ class MassVariance(Stage):
         DomainError
             As for :meth:`sigma`.
         """
-        return self._ln_sigma_and_slope(m)[1]
+        return self.ln_sigma_and_slope_kernel(m)[1]
 
     @unit_boundary(returns=Msun_h)
     def m_from_sigma(self, sigma: Any) -> FloatArray:
@@ -644,3 +665,29 @@ class MassVariance(Stage):
             Radii, in Mpc/h.
         """
         return kern.lagrangian_radius(m, self._rho_mean, self.filter.mass_assignment)
+
+
+def n_eff_kernel(dlnsigma_dlnm: npt.ArrayLike) -> FloatArray:
+    r"""The effective spectral index at a mass, from the slope of sigma(m).
+
+    .. math:: n_{\rm eff} = -3\left(2\frac{d\ln\sigma}{d\ln m} + 1\right),
+
+    the index n of the power law :math:`P \propto k^n` that has the same slope of
+    sigma at this mass: for a power law, :math:`\sigma \propto m^{-(n+3)/6}`, so
+    :math:`n_{\rm eff} = n` exactly. It is the ``n_eff`` input of the fits in
+    :mod:`hmf.core.fits`. A pure, elementwise kernel on plain arrays (see
+    :mod:`hmf.core._kernels`).
+
+    Parameters
+    ----------
+    dlnsigma_dlnm
+        :math:`d\ln\sigma/d\ln m`, dimensionless (e.g. the second result of
+        :meth:`MassVariance.ln_sigma_and_slope_kernel`).
+
+    Returns
+    -------
+    numpy.ndarray
+        :math:`n_{\rm eff}`, dimensionless, with the shape of ``dlnsigma_dlnm``.
+    """
+    out: FloatArray = -3.0 * (2.0 * np.asarray(dlnsigma_dlnm, dtype=np.float64) + 1.0)
+    return out

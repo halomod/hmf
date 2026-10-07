@@ -47,7 +47,7 @@ from ._boltzmann import BoltzmannRun
 from ._cosmology_models import _BoltzmannBacked, _CosmologyModel
 from ._fields import field
 from ._kernels import growth as kg
-from ._species import MATTER_SPECIES, check_species
+from ._species import MATTER_SPECIES, check_species, omega_m
 from ._validators import check_finite_positive, check_in_range, check_table, less_than, positive
 from .accuracy import KAccuracy
 from .cache import DiskCache
@@ -124,8 +124,8 @@ def background(cosmology: FLRW, ln_a: Array) -> tuple[Array, Array, Array]:
         ``nu_relative_density`` N, whose derivative is taken by central finite
         difference in ln(1+z).
     omega_m_a : numpy.ndarray
-        :math:`\Omega_m(a) = \Omega_{m,0} a^{-3}/E^2`, of the matter that clusters
-        (astropy's ``Om0``: CDM + baryons).
+        :math:`\Omega_m(a) = \Omega_{m,0} a^{-3}/E^2` of the matter that clusters,
+        CDM + baryons (:func:`~hmf.core._species.omega_m` of species ``"cb"``).
     """
     a = np.exp(ln_a)
     z = np.expm1(-ln_a)
@@ -148,7 +148,7 @@ def background(cosmology: FLRW, ln_a: Array) -> tuple[Array, Array, Array]:
         - 3 * (1 + c.w(z)) * c.Ode0 * c.de_density_scale(z)
     )
     efunc = np.sqrt(1 / inv_e2)
-    return efunc, 0.5 * d_e2 * inv_e2, c.Om0 * a**-3 * inv_e2
+    return efunc, 0.5 * d_e2 * inv_e2, omega_m(c, z, "cb")
 
 
 @attrs.frozen(kw_only=True)

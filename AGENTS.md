@@ -101,6 +101,11 @@ from v3 code: `import hmf` must not import `hmf.core`. In it:
   raise `UnitBoundaryError`. Never enable `cu.with_H0` globally. Budget: ≤ 2 µs/call.
 - **Kernels** (`hmf.core._kernels`): pure, unit-free, vectorised, no input mutation,
   batch-size-independent. Library code calls kernels, not decorated methods.
+- **Kernel entry points:** a stage's or model's plain-array entry point for library
+  code is public and named `…_kernel` (e.g. `MassVariance.ln_sigma_and_slope_kernel`),
+  takes and returns canonical units, states each argument's unit in its docstring,
+  and follows the kernel rules. No private-method access or `hasattr` dispatch
+  between stages.
 - **Models:** `@attrs.frozen(kw_only=True)` subclasses of a kind
   (`class X(Model, kind=True)`); register with `alias=...`; look up via `Kind.get()`.
 - **Stages:** `@attrs.frozen(kw_only=True)` `Stage`s; change via `evolve()`; cache

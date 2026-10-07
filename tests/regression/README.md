@@ -87,15 +87,31 @@ the tolerances meaningful: the reference itself is accurate to well within them.
 
 | Quantity | Provider | Status |
 |---|---|---|
-| `fsigma` | `v4_providers.fsigma`: each `hmf.core.fits` fit on the reference's own σ(M, z) and n_eff, so the fit alone is compared | all 174 cases agree with v3.7.2 to ~1e-14 |
-| `transfer`, `power`, `growth`, `sigma`, `dlnsdlnm` | — | the stages exist; providers to come |
+| `fsigma` | `v4_providers.fsigma`: each `hmf.core.fits` fit on the reference's own σ(M, z) and n_eff, so the fit alone is compared | all 174 cases agree with v3.7.2 to ~3e-14 |
+| `transfer` | `v4_providers.transfer`: the `Transfer` stage, CAMB run to v3's k_max and normalised as v3 | all 15 cases pass (see below) |
+| `growth` | `v4_providers.growth`: the `Growth` stage with the ODE model | all 5 cases agree to ≤ 1.0e-6 |
+| `power`, `sigma`, `dlnsdlnm` | — | the stages exist; providers to come |
 | `dndm`, `ngtm` | — | need the mass-function stage |
 
 The `fsigma` provider gives each fit the inputs v3.7.2 gave it, and undoes v4's
 intentional changes of a default: Manera's p (0.248 in v4, 0.289 in v3), Watson's
 mass definition (SO-mean(178) in v4, virial in v3), and Bocquet 200c/500c's mass
 ratio M_Δ/M200m, which v4 keeps out of f(σ) (`mass_ratio_to_200m`). These are listed
-in `V3_PARAMETERS` and `V3_MASS_DEFINITIONS` in `v4_providers.py`.
+in `V3_PARAMETERS` and `V3_MASS_DEFINITIONS` in `v4_providers.py`. The mass ratio is
+v4's `modify_dndm_kernel` of those fits, which every fit has; the provider applies it
+to f(σ) (dn/dM ∝ f(σ) at fixed M), except for Behroozi's, which v3 too applies to
+dn/dM only (`V3_DNDM_ONLY`).
+
+The `transfer` provider compares CAMB's T(k) like for like: v3.7.2 ran CAMB to
+CAMBparams' default k_max (0.9/Mpc) and extrapolated beyond it with EH98's shape, so
+the provider runs v4's CAMB to the same k_max; and v3 normalised T to 1 at CAMB's
+smallest k (where T = 1 − 5.6e-5), v4 as k → 0, so the provider divides by T there.
+EH agrees exactly. For CAMB, `tolerances.json` has three overrides on ranges of ln k,
+each justified there: v3's spline of CAMB's sparse low-k table (≤ 3.6e-5 below
+ln k = −5), its join to EH98 in the e-fold below k_max (≤ 5.3e-4), and the EH98
+extrapolation above it (≤ 5.7e-3), where neither code is CAMB. In between
+(−5 ≤ ln k < −0.5), they agree to 2e-6. An override with an `"lnk_range"` applies
+to that part of the k axis only.
 
 ## Adding a v4 provider
 

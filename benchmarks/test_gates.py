@@ -31,9 +31,8 @@ from hmf import MassFunction
 from hmf.core import _boltzmann
 from hmf.core.growth import Growth
 from hmf.core.mass_variance import MassVariance
-from hmf.core.power_source import TabulatedPower
 from hmf.core.transfer import Transfer
-from hmf.core.units import h_Mpc, power_unit
+from hmf.core.units import h_Mpc
 
 # ---------------------------------------------------------------------------------
 # The units boundary
@@ -172,18 +171,12 @@ def boltzmann_runs():
 
 @pytest.fixture(scope="module")
 def power_source():
-    """Unnormalised EH power (Planck18) as a table: no Boltzmann run needed.
+    """Unnormalised EH power (Planck18), from the Transfer stage: no Boltzmann run needed.
 
-    It spans MassVariance's default k grid, so it is never extrapolated (which warns).
+    It is a fitting formula, defined at every k, so it is never extrapolated (which
+    would warn).
     """
-    k = np.logspace(-9, 7, 4801) * h_Mpc
-    return TabulatedPower(
-        k=k,
-        # In arbitrary units: sigma's amplitude does not matter here.
-        pk=Transfer(model="EH").unnormalised_power(k) * power_unit,
-        mean_density=(Planck18.Om0 * Planck18.critical_density0).to(u.Msun / u.Mpc**3),
-        H0=Planck18.H0,
-    )
+    return Transfer(cosmology=Planck18, model="EH").power_kernel("cb")
 
 
 @pytest.mark.parametrize("name", list(CAMB_RUNS_PER_INPUT))

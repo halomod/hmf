@@ -46,5 +46,36 @@
    "justification": "n(>M) integrates dn/dm above M, so its relative error is the dn/dm tolerance averaged over M' > M with weight dn/dln M'. The average is taken over the stored grid, with the part above the top mass weighted by n(>M_top)."
   }
  },
- "overrides": []
+ "overrides": [
+  {
+   "quantity": "transfer",
+   "transfer": "CAMB",
+   "lnk_range": [
+    null,
+    -5.0
+   ],
+   "rtol": 5e-05,
+   "justification": "Below k = 7e-3 h/Mpc v3.7.2 interpolates CAMB's own sparse table (k_per_logint = 0) with a cubic spline in ln T, joined below to its low-k extrapolation. Against a CAMB run with 40 points per e-fold, v3's interpolant is off by up to 3e-5 next to that join (-9 < ln k < -8.5, wCDM and w0waCDM) and 1.5e-5 at ln k = -6, v4's (relative to EH98) by under 7e-6. v4 and v3 differ by at most 3.6e-5 there, and by under 2e-6 for -5 <= ln k < -0.5, where the default 1e-5 applies."
+  },
+  {
+   "quantity": "transfer",
+   "transfer": "CAMB",
+   "lnk_range": [
+    -0.5,
+    0.2853
+   ],
+   "rtol": 0.001,
+   "justification": "The last e-fold below the k_max of v3.7.2's CAMB run (CAMBparams' default 0.9/Mpc, 1.33 h/Mpc; ln k = 0.2853), which the v4 provider uses too. v3 fits one cubic spline through CAMB's table and a point of EH98 an e-fold above k_max, matched to CAMB in value only, which bends T below k_max; v4 interpolates the table relative to EH98, joined in value and slope at k_max. They differ by up to 5.3e-4 there."
+  },
+  {
+   "quantity": "transfer",
+   "transfer": "CAMB",
+   "lnk_range": [
+    0.2853,
+    null
+   ],
+   "rtol": 0.01,
+   "justification": "Above the k_max of v3.7.2's CAMB run (0.9/Mpc), T is not CAMB's in either: both extrapolate it with EH98's shape, v3 matched to CAMB in value at k_max, v4 in value and slope. They differ by up to 5.7e-3 (at k = 160 h/Mpc). Both are approximations there: v4's default runs CAMB to 20 h/Mpc, against which v3's extrapolated T is 2.5% off at the top of the grid."
+  }
+ ]
 }
