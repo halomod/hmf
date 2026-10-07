@@ -317,6 +317,45 @@ class Model(Documented, abc.ABC):
         return cls._check_model(found, name)
 
     @classmethod
+    def coerce(cls, value: object) -> Self:
+        """Convert a value to a model of this kind: the converter of a model field.
+
+        Parameters
+        ----------
+        value
+            An instance of ``cls``, which is returned as it is; or a name, import path
+            or class that :meth:`get` accepts, which is looked up and instantiated
+            with its default parameters.
+
+        Returns
+        -------
+        Model
+            An instance of ``cls``.
+
+        Raises
+        ------
+        ModelNotFoundError
+            If ``value`` is a name that no model of this kind is known by.
+        TypeError
+            If ``value`` is of any other type, or names a class that is not a concrete
+            subclass of ``cls``.
+
+        Examples
+        --------
+        >>> from hmf.core.filters import Filter, TopHat
+        >>> Filter.coerce("TopHat") == TopHat()
+        True
+        """
+        if isinstance(value, cls):
+            return value
+        if isinstance(value, (str, type)):
+            return cls.get(value)()
+        raise TypeError(
+            f"Expected a {cls.__name__}: an instance, a model class or a registered name, "
+            f"not {type(value).__name__}."
+        )
+
+    @classmethod
     def _lookup(cls, name: str) -> type[Model] | None:
         """Find ``name`` among this kind's aliases and qualified names."""
         qualname = cls._aliases.get(name, name)

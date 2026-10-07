@@ -1,8 +1,8 @@
 """The :class:`Transfer` stage: the transfer function and unnormalised P(k) at z = 0.
 
-The stage holds a cosmology, a transfer model and the wavenumber accuracy. It solves
-the model once (one Boltzmann run, for a CAMB or CLASS model) and gives, for each
-matter species (``"cb"``, CDM + baryons; ``"tot"``, total matter):
+The stage holds a cosmology, a transfer model and the wavenumber accuracy
+(``k_accuracy``). It solves the model once (one Boltzmann run, for a CAMB or CLASS
+model) and gives, for each matter species (``"cb"``, CDM + baryons; ``"tot"``, total matter):
 
 * :meth:`Transfer.transfer_function`: T(k), normalised to 1 as k -> 0;
 * :meth:`Transfer.unnormalised_power`: :math:`k^{n_s} T(k)^2`, the shape of the
@@ -36,33 +36,20 @@ import astropy.units as u
 import attrs
 import numpy as np
 import numpy.typing as npt
-from astropy.cosmology import FLRW, Planck18
 
 from ._boltzmann import BoltzmannRun
 from ._fields import field
-from ._serialise import cosmology_key
 from ._species import check_species
 from .accuracy import KAccuracy
-from .cache import DiskCache, to_disk_cache
+from .cache import DiskCache
 from .domain import warn_once
-from .stage import Stage
+from .stage import CosmologyStage, _check_model_cosmology, _disk_cache_field
 from .transfer_models import CAMB, TransferModel, TransferSolution
-from .units import UnitContext, h_Mpc, unit_boundary
+from .units import h_Mpc, unit_boundary
 
 __all__ = ["Transfer", "UnnormalisedPower"]
 
 Array = npt.NDArray[np.float64]
-
-
-def _to_transfer_model(value: Any) -> TransferModel:
-    """Convert the ``model`` field: a model, a model class, or a name to look up."""
-    if isinstance(value, TransferModel):
-        return value
-    if isinstance(value, (str, type)):
-        return TransferModel.get(value)()
-    raise TypeError(
-        f"model must be a TransferModel, a class or a name, not {type(value).__name__}."
-    )
 
 
 @attrs.frozen(eq=False)
@@ -96,7 +83,7 @@ class UnnormalisedPower:
 
 
 @attrs.frozen(kw_only=True)
-class Transfer(Stage):
+class Transfer(CosmologyStage):
     """The transfer function and the shape of the linear power spectrum at z = 0.
 
     See the module documentation.
@@ -110,18 +97,10 @@ class Transfer(Stage):
     1.0
     """
 
-    cosmology: FLRW = field(
-        default=Planck18,
-        validator=attrs.validators.instance_of(FLRW),
-        eq=cosmology_key,
-        doc=(
-            "The cosmology, an astropy FLRW. It is compared by its class and parameter "
-            "values (not its name or metadata)."
-        ),
-    )
     model: TransferModel = field(
         factory=CAMB,
-        converter=_to_transfer_model,
+        converter=TransferModel.coerce,
+        validator=_check_model_cosmology,
         doc="The transfer model: an instance, a class or a registered name (e.g. 'EH').",
     )
     n_s: float = field(
@@ -129,15 +108,12 @@ class Transfer(Stage):
         converter=float,
         doc="The spectral index of the primordial power spectrum (default: Planck18).",
     )
-    accuracy: KAccuracy = field(
+    k_accuracy: KAccuracy = field(
         factory=KAccuracy,
         validator=attrs.validators.instance_of(KAccuracy),
         doc="The wavenumber accuracy; it sets the sampling of the Boltzmann codes.",
     )
-    disk_cache: DiskCache | None = field(
-        default=None,
-        converter=to_disk_cache,
-        eq=False,
+    disk_cache: DiskCache | None = _disk_cache_field(
         doc=(
             "Where to cache the Boltzmann code's output on disk: a DiskCache, True (the "
             "default directory), a directory, or None (no disk cache). It does not change "
@@ -145,20 +121,10 @@ class Transfer(Stage):
         ),
     )
 
-    @model.validator
-    def _check_model(self, attribute: attrs.Attribute[TransferModel], value: TransferModel) -> None:
-        """Check that the model applies to the cosmology."""
-        value.check_cosmology(self.cosmology)
-
-    @cached_property
-    def _unit_context(self) -> UnitContext:
-        """Units context with this stage's H0, to convert physical 1/Mpc to h/Mpc."""
-        return UnitContext(self.cosmology.H0)
-
     @cached_property
     def solution(self) -> TransferSolution:
         """The kernel-level transfer function of every species (one model solve)."""
-        return self.model.solve(self.cosmology, self.accuracy, disk_cache=self.disk_cache)
+        return self.model.solve(self.cosmology, self.k_accuracy, disk_cache=self.disk_cache)
 
     @property
     def boltzmann_run(self) -> BoltzmannRun | None:

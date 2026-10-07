@@ -1817,6 +1817,11 @@ class Bhattacharya(FittingFunction, alias="Bhattacharya"):
 _TINKER_DELTAS = (200, 300, 400, 600, 800, 1200, 1600, 2400, 3200)
 
 
+def _delta_table(fit: Tinker08 | Tinker10, name: str) -> FloatArray:
+    """A parameter of a Tinker fit at each tabulated overdensity (its ``{name}_{delta}`` fields)."""
+    return np.array([getattr(fit, f"{name}_{d}") for d in fit.delta_tab], dtype=np.float64)
+
+
 @attrs.frozen(kw_only=True)
 class Tinker08(FittingFunction, alias="Tinker08"):
     r"""The Tinker et al. (2008) spherical-overdensity mass function.
@@ -1976,9 +1981,6 @@ class Tinker08(FittingFunction, alias="Tinker08"):
     A_exp: float = _p(0.14, "A(z) = A (1+z)^-A_exp.")
     a_exp: float = _p(0.06, "a(z) = a (1+z)^-a_exp.")
 
-    def _table(self, name: str) -> FloatArray:
-        return np.array([getattr(self, f"{name}_{d}") for d in self.delta_tab], dtype=np.float64)
-
     @unit_boundary(returns=(None, None, None, None))
     def parameters(
         self, delta_halo: npt.ArrayLike, z: npt.ArrayLike
@@ -2012,7 +2014,7 @@ class Tinker08(FittingFunction, alias="Tinker08"):
         delta = np.asarray(delta_halo, dtype=np.float64)
         zp1 = 1.0 + np.asarray(z, dtype=np.float64)
         A0, a0, b0, c0 = (
-            _k.log10_delta_spline(self.delta_tab, self._table(n), delta) for n in "Aabc"
+            _k.log10_delta_spline(self.delta_tab, _delta_table(self, n), delta) for n in "Aabc"
         )
         A = A0 * zp1**-self.A_exp
         a = a0 * zp1**-self.a_exp
@@ -2229,9 +2231,6 @@ class Tinker10(FittingFunction, alias="Tinker10"):
     gamma_exp: float = _p(-0.01, "gamma(z) = gamma (1+z)^gamma_exp.")
     max_z: float = _p(3.0, "The redshift above which the parameters stop evolving.")
 
-    def _table(self, name: str) -> FloatArray:
-        return np.array([getattr(self, f"{name}_{d}") for d in self.delta_tab], dtype=np.float64)
-
     @unit_boundary(returns=(None, None, None, None, None))
     def parameters(
         self, delta_halo: npt.ArrayLike, z: npt.ArrayLike
@@ -2265,7 +2264,7 @@ class Tinker10(FittingFunction, alias="Tinker10"):
         z = np.asarray(z, dtype=np.float64)
         zp1 = 1.0 + np.minimum(z, self.max_z)
         beta0, gamma0, phi0, eta0 = (
-            _k.log10_delta_spline(self.delta_tab, self._table(n), delta)
+            _k.log10_delta_spline(self.delta_tab, _delta_table(self, n), delta)
             for n in ("beta", "gamma", "phi", "eta")
         )
         beta = beta0 * zp1**self.beta_exp
@@ -2281,7 +2280,7 @@ class Tinker10(FittingFunction, alias="Tinker10"):
         )
         tabulated = (z == 0) & np.isin(delta, self.delta_tab)
         # np.interp is exact at the nodes, where it is used.
-        alpha_tab = np.interp(delta, self.delta_tab, self._table("alpha"))
+        alpha_tab = np.interp(delta, self.delta_tab, _delta_table(self, "alpha"))
         alpha = np.where(tabulated, alpha_tab, _k.tinker10_norm(beta, gamma, phi, eta))
         return alpha, beta, gamma, phi, eta
 

@@ -214,6 +214,8 @@ extend-immutable-calls = [
     "hmf.core._fields.field",
     "hmf.core.field",
     "hmf.core.units.quantity_field",
+    "hmf.core.stage._cosmology_field",
+    "hmf.core.stage._disk_cache_field",
 ]
 
 [tool.ruff.lint.mccabe]

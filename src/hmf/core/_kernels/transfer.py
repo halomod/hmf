@@ -20,10 +20,10 @@ from typing import NamedTuple
 import attrs
 import numpy as np
 import numpy.typing as npt
-from scipy.interpolate import CubicSpline, PPoly
 
 from .._validators import check_finite_positive, check_increasing, check_table
 from .arrays import read_only
+from .interpolation import FrozenSpline
 
 __all__ = [
     "EH98Scales",
@@ -328,8 +328,8 @@ class TabulatedTransfer:
     slope_high: float
     #: The e-folding scale of the decay of the tilt correction above the table.
     decay_ln_k: float
-    #: The spline of the residual, as piecewise-polynomial coefficients.
-    _coefficients: Array
+    #: The spline of the residual (NaN outside the table, where it is not used).
+    spline: FrozenSpline
 
     @property
     def k_min(self) -> float:
@@ -345,9 +345,7 @@ class TabulatedTransfer:
         """The residual R(ln k) from the EH98 no-wiggle fit (see the class docs)."""
         ln_k = np.asarray(ln_k, dtype=float)
         x0, xj = self.ln_k[0], self.ln_k[-1]
-        inside = PPoly.construct_fast(self._coefficients, self.ln_k, extrapolate=False)(
-            np.clip(ln_k, x0, xj)
-        )
+        inside = self.spline(np.clip(ln_k, x0, xj))
         el = self.decay_ln_k
         above = self.residual[-1] + self.slope_high * el * -np.expm1(
             -np.maximum(ln_k - xj, 0.0) / el
@@ -410,13 +408,15 @@ def tabulate_transfer(
     residual = residual - residual[0]
 
     slope_high = float(np.polyfit(ln_k[-n_slope:], residual[-n_slope:], 1)[0])
-    spline = CubicSpline(ln_k, residual, bc_type=((1, 0.0), (1, slope_high)))
+    spline = FrozenSpline.fit(
+        ln_k, residual, bc_type=((1, 0.0), (1, slope_high)), extrapolate=False
+    )
 
     return TabulatedTransfer(
-        ln_k=read_only(ln_k),
+        ln_k=spline.x,
         residual=read_only(residual),
         scales=scales,
         slope_high=slope_high,
         decay_ln_k=float(decay_ln_k),
-        coefficients=read_only(spline.c),
+        spline=spline,
     )

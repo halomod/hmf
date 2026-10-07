@@ -42,10 +42,10 @@ from ._arrays import dimensionless_floats
 from ._boltzmann import (
     BoltzmannRun,
     camb_cosmology_input,
-    check_boltzmann_cosmology,
     class_cosmology_input,
     get_run,
 )
+from ._cosmology_models import _BoltzmannBacked, _CosmologyModel
 from ._fields import field
 from ._kernels import transfer as kt
 from ._species import CAMB_COLUMNS, MATTER_SPECIES, Species, check_species
@@ -140,14 +140,12 @@ def _pairs(
 
 
 @attrs.frozen(kw_only=True)
-class TransferModel(Model, kind=True):
+class TransferModel(_CosmologyModel, Model, kind=True):
     """The kind of transfer-function models.
 
-    Subclasses implement :meth:`solve`.
+    Subclasses implement :meth:`solve`, and may check that they apply to a cosmology
+    in :meth:`check_cosmology`.
     """
-
-    #: The Boltzmann code that computes the model (``"camb"`` or ``"class"``), if any.
-    backend: ClassVar[str | None] = None
 
     #: Where the model can be evaluated: any k > 0. The
     #: :class:`~hmf.core.transfer.Transfer` stage checks k against the model's class's
@@ -156,27 +154,14 @@ class TransferModel(Model, kind=True):
         {"k": (0 * h_Mpc, None, "(]")}, source="T(k) is defined for k > 0."
     )
 
-    #: Where the model was calibrated, if that is stated by its source.
-    calibration_domain: ClassVar[Domain | None] = None
-
     #: Whether the model's table was supplied by the user, so that extrapolating it
     #: (beyond :attr:`TransferSolution.k_min_table` and ``k_max_table``) warns. The
     #: Boltzmann codes' tables are extrapolated by design, without a warning.
     _user_table: ClassVar[bool] = False
 
-    def check_cosmology(self, cosmology: FLRW) -> None:
-        """Raise if the model does not apply to ``cosmology`` (by default it does).
-
-        Raises
-        ------
-        ValueError
-            If it does not apply: a model that does not apply to a cosmology is a
-            configuration error.
-        """
-
     @abc.abstractmethod
     def solve(
-        self, cosmology: FLRW, accuracy: KAccuracy, *, disk_cache: DiskCache | None = None
+        self, cosmology: FLRW, k_accuracy: KAccuracy, *, disk_cache: DiskCache | None = None
     ) -> TransferSolution:
         """Compute the transfer function of every species for a cosmology.
 
@@ -184,7 +169,7 @@ class TransferModel(Model, kind=True):
         ----------
         cosmology
             The cosmology.
-        accuracy
+        k_accuracy
             The wavenumber accuracy; it sets the sampling of the Boltzmann codes.
         disk_cache
             Where to cache Boltzmann-code output on disk, if anywhere.
@@ -226,7 +211,7 @@ class EH_BAO(TransferModel, alias="EH_BAO"):
             raise ValueError(f"{type(self).__name__} needs a cosmology with baryons (Ob0 > 0).")
 
     def solve(
-        self, cosmology: FLRW, accuracy: KAccuracy, *, disk_cache: DiskCache | None = None
+        self, cosmology: FLRW, k_accuracy: KAccuracy, *, disk_cache: DiskCache | None = None
     ) -> TransferSolution:
         """Compute the transfer function (see :meth:`TransferModel.solve`)."""
         self.check_cosmology(cosmology)
@@ -252,7 +237,7 @@ class EH_NoBAO(TransferModel, alias="EH_NoBAO"):
     parameter_source: ClassVar[str] = "Eisenstein & Hu 1998, ApJ 496, 605, Eqs. 26-31"
 
     def solve(
-        self, cosmology: FLRW, accuracy: KAccuracy, *, disk_cache: DiskCache | None = None
+        self, cosmology: FLRW, k_accuracy: KAccuracy, *, disk_cache: DiskCache | None = None
     ) -> TransferSolution:
         """Compute the transfer function (see :meth:`TransferModel.solve`)."""
         return TransferSolution(
@@ -307,7 +292,7 @@ class BBKS(TransferModel, alias="BBKS"):
         return float(gamma)
 
     def solve(
-        self, cosmology: FLRW, accuracy: KAccuracy, *, disk_cache: DiskCache | None = None
+        self, cosmology: FLRW, k_accuracy: KAccuracy, *, disk_cache: DiskCache | None = None
     ) -> TransferSolution:
         """Compute the transfer function (see :meth:`TransferModel.solve`)."""
         fn = functools.partial(
@@ -343,7 +328,7 @@ class BondEfs(TransferModel, alias="BondEfs"):
     nu: float = field(default=1.13, converter=float, doc="The exponent nu.")
 
     def solve(
-        self, cosmology: FLRW, accuracy: KAccuracy, *, disk_cache: DiskCache | None = None
+        self, cosmology: FLRW, k_accuracy: KAccuracy, *, disk_cache: DiskCache | None = None
     ) -> TransferSolution:
         """Compute the transfer function (see :meth:`TransferModel.solve`)."""
         fn = functools.partial(
@@ -392,15 +377,15 @@ class _Tabulated(TransferModel, abstract=True):
 
     @abc.abstractmethod
     def _table(
-        self, cosmology: FLRW, accuracy: KAccuracy, disk_cache: DiskCache | None
+        self, cosmology: FLRW, k_accuracy: KAccuracy, disk_cache: DiskCache | None
     ) -> tuple[Array, Mapping[str, Array], BoltzmannRun | None]:
         """The table: k (h/Mpc), T of each species, and the run it came from."""
 
     def solve(
-        self, cosmology: FLRW, accuracy: KAccuracy, *, disk_cache: DiskCache | None = None
+        self, cosmology: FLRW, k_accuracy: KAccuracy, *, disk_cache: DiskCache | None = None
     ) -> TransferSolution:
         """Compute the transfer function (see :meth:`TransferModel.solve`)."""
-        k, transfers, run = self._table(cosmology, accuracy, disk_cache)
+        k, transfers, run = self._table(cosmology, k_accuracy, disk_cache)
         scales = _eh98_scales(cosmology)
         tables = {}
         for species, t in transfers.items():
@@ -469,7 +454,7 @@ class FromArray(_Tabulated, alias="FromArray"):
             )
 
     def _table(
-        self, cosmology: FLRW, accuracy: KAccuracy, disk_cache: DiskCache | None
+        self, cosmology: FLRW, k_accuracy: KAccuracy, disk_cache: DiskCache | None
     ) -> tuple[Array, Mapping[str, Array], BoltzmannRun | None]:
         t = np.array(self.t)
         return (
@@ -495,7 +480,7 @@ class FromFile(_Tabulated, alias="FromFile"):
     fname: Path = field(converter=Path, doc="The file to read.")
 
     def _table(
-        self, cosmology: FLRW, accuracy: KAccuracy, disk_cache: DiskCache | None
+        self, cosmology: FLRW, k_accuracy: KAccuracy, disk_cache: DiskCache | None
     ) -> tuple[Array, Mapping[str, Array], BoltzmannRun | None]:
         data = np.atleast_2d(np.genfromtxt(self.fname))
         k = data[:, 0]
@@ -512,7 +497,7 @@ class FromFile(_Tabulated, alias="FromFile"):
 
 
 @attrs.frozen(kw_only=True)
-class _Boltzmann(_Tabulated, abstract=True):
+class _Boltzmann(_BoltzmannBacked, _Tabulated, abstract=True):
     """A transfer model computed by a Boltzmann code."""
 
     k_max: u.Quantity = quantity_field(
@@ -526,7 +511,7 @@ class _Boltzmann(_Tabulated, abstract=True):
             "extrapolated smoothly (see tail_decay_ln_k)."
         ),
     )
-    z_max_growth: float = field(
+    z_max: float = field(
         default=20.0,
         converter=float,
         validator=positive,
@@ -542,14 +527,14 @@ class _Boltzmann(_Tabulated, abstract=True):
         return float(self.k_max.value)
 
     @abc.abstractmethod
-    def run_input(self, cosmology: FLRW, accuracy: KAccuracy) -> dict[str, Any]:
+    def run_input(self, cosmology: FLRW, k_accuracy: KAccuracy) -> dict[str, Any]:
         """The input of the Boltzmann code: plain values that fully define its run.
 
         Parameters
         ----------
         cosmology
             The cosmology.
-        accuracy
+        k_accuracy
             The wavenumber accuracy.
 
         Returns
@@ -557,12 +542,8 @@ class _Boltzmann(_Tabulated, abstract=True):
         dict
         """
 
-    def check_cosmology(self, cosmology: FLRW) -> None:
-        """Raise if the Boltzmann code can't compute ``cosmology``."""
-        check_boltzmann_cosmology(cosmology, type(self).__name__)
-
     def run(
-        self, cosmology: FLRW, accuracy: KAccuracy, *, disk_cache: DiskCache | None = None
+        self, cosmology: FLRW, k_accuracy: KAccuracy, *, disk_cache: DiskCache | None = None
     ) -> BoltzmannRun:
         """The output of the Boltzmann code for a cosmology: every species, one run.
 
@@ -571,12 +552,12 @@ class _Boltzmann(_Tabulated, abstract=True):
         """
         self.check_cosmology(cosmology)
         assert self.backend is not None
-        return get_run(self.backend, self.run_input(cosmology, accuracy), disk_cache=disk_cache)
+        return get_run(self.backend, self.run_input(cosmology, k_accuracy), disk_cache=disk_cache)
 
     def _table(
-        self, cosmology: FLRW, accuracy: KAccuracy, disk_cache: DiskCache | None
+        self, cosmology: FLRW, k_accuracy: KAccuracy, disk_cache: DiskCache | None
     ) -> tuple[Array, Mapping[str, Array], BoltzmannRun | None]:
-        run = self.run(cosmology, accuracy, disk_cache=disk_cache)
+        run = self.run(cosmology, k_accuracy, disk_cache=disk_cache)
         return run.k, run.transfer, run
 
 
@@ -584,17 +565,31 @@ class _Boltzmann(_Tabulated, abstract=True):
 _CAMB_GROWTH_N_Z = 201
 
 
-def _camb_k_per_logint(accuracy: KAccuracy) -> int:
+#: The ``KAccuracy.dln_k`` below which CAMB samples k more finely than its own default
+#: (see :func:`_camb_k_per_logint`) and runs with ``high_precision``. At or above it,
+#: CAMB runs with its own sampling. It is a constant of its own, so that the
+#: ``KAccuracy`` defaults can change without changing CAMB's precision.
+_CAMB_FINE_K_BELOW_DLN_K = 0.02
+
+#: The ``KAccuracy.dln_k`` below which CLASS samples k more finely than its own
+#: default (see :func:`_class_k_per_decade`). At or above it, CLASS uses its own
+#: ``k_per_decade_for_pk``. Fixed for the same reason as
+#: ``_CAMB_FINE_K_BELOW_DLN_K``.
+_CLASS_FINE_K_BELOW_DLN_K = 0.02
+
+
+def _camb_k_per_logint(k_accuracy: KAccuracy) -> int:
     """CAMB's ``Transfer.k_per_logint`` for a wavenumber accuracy.
 
-    0 (CAMB's own choice, about 0.05 in ln k at high k and coarser at low k) at the
-    default and fast accuracies; otherwise a fifth of 1 / dln_k per e-fold, since T(k)
-    is interpolated relative to EH98 (see :class:`TabulatedTransfer`) and needs far
-    fewer nodes than the grid of the mass variance.
+    0 (CAMB's own choice, about 0.05 in ln k at high k and coarser at low k) for
+    ``dln_k >= _CAMB_FINE_K_BELOW_DLN_K`` (the default and fast accuracies);
+    otherwise a fifth of 1 / dln_k per e-fold, since T(k) is interpolated relative to
+    EH98 (see :class:`TabulatedTransfer`) and needs far fewer nodes than the grid of
+    the mass variance.
     """
-    if accuracy.dln_k >= KAccuracy().dln_k:
+    if k_accuracy.dln_k >= _CAMB_FINE_K_BELOW_DLN_K:
         return 0
-    return math.ceil(0.2 / accuracy.dln_k)
+    return math.ceil(0.2 / k_accuracy.dln_k)
 
 
 @attrs.frozen(kw_only=True)
@@ -626,18 +621,18 @@ class CAMB(_Boltzmann, alias="CAMB"):
         ),
     )
 
-    def run_input(self, cosmology: FLRW, accuracy: KAccuracy) -> dict[str, Any]:
+    def run_input(self, cosmology: FLRW, k_accuracy: KAccuracy) -> dict[str, Any]:
         """The CAMB input (see :meth:`_Boltzmann.run_input`)."""
         return {
             "cosmology": camb_cosmology_input(cosmology),
             "dark_energy_model": self.dark_energy_model,
             "transfer": {
                 "kmax_mpc": self._k_max * float(cosmology.h),
-                "k_per_logint": _camb_k_per_logint(accuracy),
-                "high_precision": accuracy.dln_k < KAccuracy().dln_k,
+                "k_per_logint": _camb_k_per_logint(k_accuracy),
+                "high_precision": k_accuracy.dln_k < _CAMB_FINE_K_BELOW_DLN_K,
             },
             "growth": {
-                "z_max": self.z_max_growth,
+                "z_max": self.z_max,
                 "n_z": _CAMB_GROWTH_N_Z,
                 "k_ref_mpc": BOLTZMANN_GROWTH_K_REF,
             },
@@ -657,11 +652,15 @@ _CLASS_FIXED_PARAMS = frozenset(
 )  # fmt: skip
 
 
-def _class_k_per_decade(accuracy: KAccuracy) -> int | None:
-    """CLASS's ``k_per_decade_for_pk`` for a wavenumber accuracy (None: CLASS's default)."""
-    if accuracy.dln_k >= KAccuracy().dln_k:
+def _class_k_per_decade(k_accuracy: KAccuracy) -> int | None:
+    """CLASS's ``k_per_decade_for_pk`` for a wavenumber accuracy.
+
+    None (CLASS's own default) for ``dln_k >= _CLASS_FINE_K_BELOW_DLN_K``;
+    otherwise a fifth of 1 / dln_k per e-fold, as for CAMB.
+    """
+    if k_accuracy.dln_k >= _CLASS_FINE_K_BELOW_DLN_K:
         return None
-    return math.ceil(0.2 * math.log(10) / accuracy.dln_k)
+    return math.ceil(0.2 * math.log(10) / k_accuracy.dln_k)
 
 
 @attrs.frozen(kw_only=True)
@@ -701,10 +700,10 @@ class CLASS(_Boltzmann, alias="CLASS"):
                 "model's fields."
             )
 
-    def run_input(self, cosmology: FLRW, accuracy: KAccuracy) -> dict[str, Any]:
+    def run_input(self, cosmology: FLRW, k_accuracy: KAccuracy) -> dict[str, Any]:
         """The CLASS input (see :meth:`_Boltzmann.run_input`)."""
         params: dict[str, Any] = dict(self.class_params)
-        k_per_decade = _class_k_per_decade(accuracy)
+        k_per_decade = _class_k_per_decade(k_accuracy)
         if k_per_decade is not None and "k_per_decade_for_pk" not in params:
             params["k_per_decade_for_pk"] = k_per_decade
         params.update(class_cosmology_input(cosmology))
@@ -712,7 +711,7 @@ class CLASS(_Boltzmann, alias="CLASS"):
             {
                 "output": "mTk,mPk",
                 "P_k_max_h/Mpc": self._k_max,
-                "z_max_pk": self.z_max_growth,
+                "z_max_pk": self.z_max,
                 "gauge": "synchronous",
             }
         )

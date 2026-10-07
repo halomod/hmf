@@ -29,10 +29,10 @@ import astropy.units as u
 import attrs
 import numpy as np
 from numpy.typing import NDArray
-from scipy.interpolate import CubicSpline
 
 from ._fields import field
 from ._kernels.arrays import read_only
+from ._kernels.interpolation import FrozenSpline, extrapolate_power_law
 from ._serialise import quantity_key
 from ._validators import check_finite_positive, check_in_range, check_increasing, check_table
 from .accuracy import Extension
@@ -192,9 +192,9 @@ class TabulatedPower(Stage):
             return np.log(k), np.log(p)
 
     @cached_property
-    def _spline(self) -> CubicSpline:
+    def _spline(self) -> FrozenSpline:
         """The spline of ln P against ln k."""
-        return CubicSpline(*self._table)
+        return FrozenSpline.fit(*self._table)
 
     @cached_property
     def _rho_mean0(self) -> float:
@@ -234,13 +234,7 @@ class TabulatedPower(Stage):
                 message + " are extrapolated as a power law. Give a wider table to avoid "
                 "this, or extension='raise' to make it an error.",
             )
-        spline = self._spline
-        inside = np.clip(ln_k, lo, hi)
-        ln_p = spline(inside)
-        slope_lo, slope_hi = spline(lo, 1), spline(hi, 1)
-        ln_p = np.where(below, ln_p + slope_lo * (ln_k - lo), ln_p)
-        ln_p = np.where(above, ln_p + slope_hi * (ln_k - hi), ln_p)
-        return np.asarray(np.exp(ln_p), dtype=float)
+        return np.asarray(np.exp(extrapolate_power_law(self._spline, ln_k)), dtype=float)
 
     @unit_boundary(k=h_Mpc, returns=power_unit)
     def power(self, k: Any) -> NDArray[np.float64]:

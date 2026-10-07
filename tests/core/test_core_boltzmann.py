@@ -64,7 +64,7 @@ def test_stages_with_the_same_run_input_share_one_run(fresh):
     # A new cosmology, model setting or accuracy does.
     t.evolve(cosmology=COSMO.clone(H0=70)).transfer_function(1 * h_Mpc)
     t.evolve(model=CAMB(k_max=10 * h_Mpc)).transfer_function(1 * h_Mpc)
-    t.evolve(accuracy=KAccuracy.high()).transfer_function(1 * h_Mpc)
+    t.evolve(k_accuracy=KAccuracy.high()).transfer_function(1 * h_Mpc)
     assert fresh() == 4
 
 
@@ -86,7 +86,7 @@ def test_growth_without_a_transfer_stage_shares_a_default_one(fresh):
 
 
 def test_growth_needing_higher_z_than_the_run_makes_its_own(fresh):
-    t = Transfer(cosmology=COSMO, model=CAMB(z_max_growth=5.0))
+    t = Transfer(cosmology=COSMO, model=CAMB(z_max=5.0))
     g = Growth.from_transfer(t, model="CAMB")
     assert g.growth_factor(15.0) < 1
     t.transfer_function(1 * h_Mpc)
@@ -230,9 +230,9 @@ def test_corrupt_cache_entry_is_a_miss(fresh, tmp_path):
     assert cache.load(key) is not None  # overwritten with a good entry
 
 
-def _key(model=None, cosmo=COSMO, accuracy=None):
+def _key(model=None, cosmo=COSMO, k_accuracy=None):
     model = model or CAMB()
-    return _boltzmann.run_key("camb", model.run_input(cosmo, accuracy or KAccuracy()))
+    return _boltzmann.run_key("camb", model.run_input(cosmo, k_accuracy or KAccuracy()))
 
 
 def test_cache_key_changes_with_every_input():
@@ -241,10 +241,10 @@ def test_cache_key_changes_with_every_input():
         _key(cosmo=COSMO.clone(Ob0=0.049)),
         _key(cosmo=COSMO.clone(m_nu=[0, 0.03, 0.03] * u.eV)),
         _key(model=CAMB(k_max=30 * h_Mpc)),
-        _key(model=CAMB(z_max_growth=10)),
+        _key(model=CAMB(z_max=10)),
         _key(model=CAMB(dark_energy_model="ppf")),
         _key(model=CAMB(settings={"Accuracy.AccuracyBoost": 2})),
-        _key(accuracy=KAccuracy.high()),
+        _key(k_accuracy=KAccuracy.high()),
     }
     assert len(keys) == 8
     # ...but not with fields the run doesn't depend on, or the cosmology's name.

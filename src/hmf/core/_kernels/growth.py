@@ -14,10 +14,10 @@ import attrs
 import numpy as np
 import numpy.typing as npt
 from scipy.integrate import cumulative_simpson
-from scipy.interpolate import CubicSpline, PPoly
 from scipy.special import ellipeinc, ellipkinc
 
 from .arrays import read_only
+from .interpolation import FrozenSpline
 from .lattice import lattice, lattice_index
 
 __all__ = [
@@ -355,8 +355,10 @@ class GrowthTable:
     ln_d: Array
     #: The growth rate at the nodes.
     f: Array
-    _ln_d_coefficients: Array
-    _f_coefficients: Array
+    #: The spline of ln D in ln a.
+    ln_d_spline: FrozenSpline
+    #: The spline of f in ln a.
+    f_spline: FrozenSpline
 
     @property
     def z_max(self) -> float:
@@ -366,13 +368,13 @@ class GrowthTable:
     def growth_factor(self, z: Array) -> Array:
         """The normalised growth factor at redshifts ``z`` (within the table)."""
         ln_a = -np.log1p(np.asarray(z, dtype=float))
-        out: Array = np.exp(PPoly.construct_fast(self._ln_d_coefficients, self.ln_a)(ln_a))
+        out: Array = np.exp(self.ln_d_spline(ln_a))
         return out
 
     def growth_rate(self, z: Array) -> Array:
         """The growth rate at redshifts ``z`` (within the table)."""
         ln_a = -np.log1p(np.asarray(z, dtype=float))
-        out: Array = PPoly.construct_fast(self._f_coefficients, self.ln_a)(ln_a)
+        out: Array = self.f_spline(ln_a)
         return out
 
 
@@ -396,13 +398,13 @@ def tabulate_growth(ln_a: Array, d: Array, f: Array | None = None) -> GrowthTabl
     ln_a = np.array(ln_a, dtype=float)
     ln_d = np.log(np.asarray(d, dtype=float))
     ln_d = ln_d - ln_d[-1]
-    ln_d_spline = CubicSpline(ln_a, ln_d)
+    ln_d_spline = FrozenSpline.fit(ln_a, ln_d)
     f = ln_d_spline(ln_a, 1) if f is None else np.array(f, dtype=float)
-    f_spline = CubicSpline(ln_a, f)
+    f_spline = FrozenSpline.fit(ln_a, f)
     return GrowthTable(
-        ln_a=read_only(ln_a),
+        ln_a=ln_d_spline.x,
         ln_d=read_only(ln_d),
         f=read_only(f),
-        ln_d_coefficients=read_only(ln_d_spline.c),
-        f_coefficients=read_only(f_spline.c),
+        ln_d_spline=ln_d_spline,
+        f_spline=f_spline,
     )

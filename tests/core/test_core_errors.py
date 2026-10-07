@@ -69,7 +69,7 @@ SITES = [
     ("mv-mass-nan", lambda: _mv().dlnsigma_dlnm(np.nan * Msun_h), "domain"),
     (
         "mv-outside-lattice",
-        lambda: _mv(accuracy=MassAccuracy(extension="raise")).sigma(1e18 * Msun_h),
+        lambda: _mv(mass_accuracy=MassAccuracy(extension="raise")).sigma(1e18 * Msun_h),
         "domain",
     ),
     ("mv-low-mass-end", lambda: _mv().sigma(1e-12 * Msun_h), "domain"),
@@ -77,7 +77,7 @@ SITES = [
         "mv-unresolved",
         lambda: MassVariance(
             power=AnalyticPower(lambda k: np.ones_like(k)),
-            accuracy=MassAccuracy(second_derivative=False),
+            mass_accuracy=MassAccuracy(second_derivative=False),
         ).sigma(1e12 * Msun_h),
         "domain",
     ),
