@@ -58,6 +58,30 @@ def test_contains_nan_is_outside(domain):
     assert domain.contains(z=np.nan) is False
 
 
+@pytest.mark.parametrize("lower", [None, -np.inf])
+@pytest.mark.parametrize("closed", [False, True])
+def test_unbounded_ends_exclude_infinity(lower, closed):
+    """An unbounded end is open even if declared closed: +-inf is never inside."""
+    interval = Interval(lower, None, lower_open=not closed, upper_open=not closed)
+    assert interval.lower_open
+    assert interval.upper_open
+    assert interval.contains(np.inf) is False
+    assert interval.contains(-np.inf) is False
+    np.testing.assert_array_equal(
+        interval.contains(np.array([-np.inf, -1e308, 0.0, 1e308, np.inf])),
+        [False, True, True, True, False],
+    )
+    assert interval.describe("z") == "any z"
+
+
+def test_domain_rejects_infinity_at_unbounded_ends(domain):
+    assert domain.contains(sigma=np.inf) is False
+    assert domain.contains(sigma=1e300) is True
+    assert Domain({"k": (0 * Msun_h, None, "(]")}).contains(k=np.inf * Msun_h) is False
+    with pytest.raises(DomainError, match="out of range: sigma"):
+        domain.check({"sigma": np.array([1.0, np.inf])}, where="Here")
+
+
 def test_contains_broadcasts(domain):
     z = np.array([0.5, 3.0])[:, None]
     sigma = np.array([0.1, 0.5, 1.0])[None, :]

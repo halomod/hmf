@@ -13,6 +13,7 @@ from hmf.core._validators import (
     check_table,
     finite,
     less_than,
+    one_of,
     positive,
 )
 
@@ -22,6 +23,7 @@ class _Settings:
     x: float = attrs.field(default=1.0, validator=positive)
     y: float = attrs.field(default=0.0, validator=finite)
     p: float = attrs.field(default=0.3, validator=less_than(0.5))
+    kind: str = attrs.field(default="a", validator=one_of(("a", "b")))
 
 
 @pytest.mark.parametrize("value", [0.0, -1.0, math.inf, math.nan])
@@ -40,6 +42,15 @@ def test_finite(value):
 def test_less_than(value):
     with pytest.raises(ValueError, match=r"_Settings\.p must be < 0\.5"):
         _Settings(p=value)
+
+
+@pytest.mark.parametrize("value", ["c", None, "A"])
+def test_one_of(value):
+    with pytest.raises(
+        ValueError, match=rf"_Settings\.kind must be one of 'a', 'b'; got {value!r}"
+    ):
+        _Settings(kind=value)
+    assert _Settings(kind="b").kind == "b"
 
 
 def test_valid_values_pass():
@@ -74,7 +85,7 @@ def test_check_in_range():
     np.testing.assert_array_equal(
         check_in_range("z", [0.0, 1.0], where="W", low=0.0, high=1.0), [0, 1]
     )
-    with pytest.raises(ValueError, match="W: z must be > 0, but 1 of 2 value"):
+    with pytest.raises(ValueError, match="W: z must be finite and > 0, but 1 of 2 value"):
         check_in_range("z", [0.0, 1.0], where="W", low=0.0, low_open=True)
     with pytest.raises(_CustomError, match="z must be >= 0 and < 1"):
         check_in_range(
@@ -88,8 +99,14 @@ def test_check_in_range():
         )
     with pytest.raises(ValueError, match="out of range or NaN"):
         check_in_range("z", [np.nan], where="W")
-    # Infinite values are in an unbounded range.
-    assert check_in_range("k", np.inf, where="W", low=0.0, low_open=True) == np.inf
+    # An unbounded end is open: infinite values are out of range.
+    with pytest.raises(ValueError, match="k must be finite and > 0, but 1 of 2"):
+        check_in_range("k", [1.0, np.inf], where="W", low=0.0, low_open=True)
+    with pytest.raises(ValueError, match="z must be finite and <= 1, but 1 of 2"):
+        check_in_range("z", [0.5, -np.inf], where="W", high=1.0)
+    with pytest.raises(ValueError, match="z must be finite, but 2 of 3"):
+        check_in_range("z", [0.0, np.inf, -np.inf], where="W")
+    assert check_in_range("z", 1e300, where="W", low=0.0) == 1e300
 
 
 @pytest.mark.parametrize("bad", [[1.0, 1.0, 2.0], [2.0, 1.0, 3.0], [1.0, np.nan, 3.0]])

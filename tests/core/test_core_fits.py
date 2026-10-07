@@ -169,6 +169,11 @@ def test_measured_mass_definitions():
         MeasuredMassDefinition(kind="so_critical")
     with pytest.raises(ValueError, match="preferred"):
         MeasuredMassDefinition(kind="so_any")
+    with pytest.raises(
+        ValueError,
+        match=r"MeasuredMassDefinition\.kind must be one of 'fof', 'so_mean'.*; got 'bogus'",
+    ):
+        MeasuredMassDefinition(kind="bogus")
 
 
 def test_parameters_are_documented_fields():
