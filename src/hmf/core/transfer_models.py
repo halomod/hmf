@@ -42,6 +42,7 @@ from ._arrays import dimensionless_floats
 from ._boltzmann import (
     BoltzmannRun,
     camb_cosmology_input,
+    check_camb_settings,
     class_cosmology_input,
     get_run,
 )
@@ -49,7 +50,7 @@ from ._cosmology_models import _BoltzmannBacked, _CosmologyModel
 from ._fields import field
 from ._kernels import transfer as kt
 from ._species import CAMB_COLUMNS, MATTER_SPECIES, Species, check_species
-from ._validators import check_finite_positive, positive
+from ._validators import check_finite_positive, check_increasing, check_table, positive
 from .accuracy import KAccuracy
 from .cache import DiskCache
 from .domain import Domain
@@ -347,17 +348,9 @@ class BondEfs(TransferModel, alias="BondEfs"):
 # ---------------------------------------------------------------------------------
 
 
-def _trim_low_k(k: Array, t: Array) -> tuple[Array, Array]:
-    """Drop the nodes below a spurious low-k turn-up in a table, if there is one.
-
-    Some versions of CAMB produce a transfer function that turns up at low k. The
-    table is cut at the first node where ``|d ln T / d ln k| < 1e-4`` (the plateau),
-    if any node is.
-    """
-    slope = np.abs(np.diff(np.log(t)) / np.diff(np.log(k)))
-    flat = np.flatnonzero(slope < 1e-4)
-    start = int(flat[0]) if flat.size else 0
-    return k[start:], t[start:]
+#: The least number of nodes of a transfer table (see
+#: :func:`~hmf.core._kernels.transfer.tabulate_transfer`).
+_MIN_TABLE_SIZE = 4
 
 
 @attrs.frozen(kw_only=True)
@@ -389,8 +382,12 @@ class _Tabulated(TransferModel, abstract=True):
         scales = _eh98_scales(cosmology)
         tables = {}
         for species, t in transfers.items():
-            kk, tt = _trim_low_k(np.asarray(k, dtype=float), np.abs(np.asarray(t, dtype=float)))
-            tables[species] = kt.tabulate_transfer(kk, tt, scales, decay_ln_k=self.tail_decay_ln_k)
+            tables[species] = kt.tabulate_transfer(
+                np.asarray(k, dtype=float),
+                np.abs(np.asarray(t, dtype=float)),
+                scales,
+                decay_ln_k=self.tail_decay_ln_k,
+            )
         return TransferSolution(
             MappingProxyType({s: tab.ln_t for s, tab in tables.items()}),
             run=run,
@@ -405,7 +402,10 @@ class FromArray(_Tabulated, alias="FromArray"):
 
     ``t`` is the transfer function of the CDM + baryon field; ``t_tot``, if given,
     that of total matter (else the same as ``t``). Neither needs to be normalised.
-    Beyond the table, T(k) is extrapolated as for every table (see
+    The table has at least 4 nodes, at finite, positive, strictly increasing k, and
+    finite, positive T; it is checked when the model is built (a :class:`ValueError`
+    otherwise), and used as given, every node included. Beyond the table, T(k) is
+    extrapolated as for every table (see
     :class:`~hmf.core._kernels.transfer.TabulatedTransfer`), and the
     :class:`~hmf.core.transfer.Transfer` stage emits an
     :class:`~hmf.exceptions.HMFExtrapolationWarning` (once per stage instance).
@@ -417,8 +417,8 @@ class FromArray(_Tabulated, alias="FromArray"):
         h_Mpc,
         ndim=1,
         doc=(
-            "Wavenumbers, increasing: a Quantity in h-units (e.g. k * hmf.core.units.h_Mpc), "
-            "stored in h/Mpc."
+            "Wavenumbers (at least 4), positive and strictly increasing: a Quantity in "
+            "h-units (e.g. k * hmf.core.units.h_Mpc), stored in h/Mpc."
         ),
     )
     t: tuple[float, ...] = field(
@@ -435,23 +435,26 @@ class FromArray(_Tabulated, alias="FromArray"):
         """The wavenumbers, as plain floats in h/Mpc."""
         return np.asarray(self.k.value)
 
+    @k.validator
+    def _check_k(self, attribute: attrs.Attribute[u.Quantity], value: u.Quantity) -> None:
+        (k,) = check_table({"k": value.value}, where="FromArray", min_size=_MIN_TABLE_SIZE)
+        check_finite_positive("k", k, where="FromArray")
+        check_increasing("k", k, where="FromArray")
+
     @t.validator
     def _check_t(
         self, attribute: attrs.Attribute[tuple[float, ...]], value: tuple[float, ...]
     ) -> None:
-        if len(value) != len(self.k):
-            raise ValueError(
-                f"FromArray: k and t must have the same length ({len(self.k)}, {len(value)})."
-            )
+        _, t = check_table({"k": self.k.value, "t": value}, where="FromArray")
+        check_finite_positive("t", t, where="FromArray")
 
     @t_tot.validator
     def _check_t_tot(
         self, attribute: attrs.Attribute[Any], value: tuple[float, ...] | None
     ) -> None:
-        if value is not None and len(value) != len(self.k):
-            raise ValueError(
-                f"FromArray: k and t_tot must have the same length ({len(self.k)}, {len(value)})."
-            )
+        if value is not None:
+            _, t_tot = check_table({"k": self.k.value, "t_tot": value}, where="FromArray")
+            check_finite_positive("t_tot", t_tot, where="FromArray")
 
     def _table(
         self, cosmology: FLRW, k_accuracy: KAccuracy, disk_cache: DiskCache | None
@@ -557,8 +560,17 @@ class _Boltzmann(_BoltzmannBacked, _Tabulated, abstract=True):
     def _table(
         self, cosmology: FLRW, k_accuracy: KAccuracy, disk_cache: DiskCache | None
     ) -> tuple[Array, Mapping[str, Array], BoltzmannRun | None]:
+        """The run's table, without a spurious low-k turn-up of any species.
+
+        The table is cut, for every species, above the highest turn-up of any (see
+        :func:`~hmf.core._kernels.transfer.low_k_turn_up_end`).
+        """
         run = self.run(cosmology, k_accuracy, disk_cache=disk_cache)
-        return run.k, run.transfer, run
+        k = np.asarray(run.k, dtype=float)
+        transfers = {s: np.abs(np.asarray(t, dtype=float)) for s, t in run.transfer.items()}
+        scales = _eh98_scales(cosmology)
+        start = max(kt.low_k_turn_up_end(k, t, scales) for t in transfers.values())
+        return k[start:], {s: t[start:] for s, t in transfers.items()}, run
 
 
 #: How many redshifts the CAMB run computes the growth factor at.
@@ -617,9 +629,18 @@ class CAMB(_Boltzmann, alias="CAMB"):
         converter=_pairs,
         doc=(
             "Further CAMBparams settings, as a mapping from attribute path to value, e.g. "
-            "{'Accuracy.AccuracyBoost': 2}. They are applied last."
+            "{'Accuracy.AccuracyBoost': 2}. They are applied last. Each path must be a "
+            "setting of CAMBparams (checked when the model is built, which imports CAMB "
+            "if there are settings): a ValueError otherwise."
         ),
     )
+
+    @settings.validator
+    def _check_settings(
+        self, attribute: attrs.Attribute[Any], value: tuple[tuple[str, Any], ...]
+    ) -> None:
+        if value:
+            check_camb_settings(name for name, _ in value)
 
     def run_input(self, cosmology: FLRW, k_accuracy: KAccuracy) -> dict[str, Any]:
         """The CAMB input (see :meth:`_Boltzmann.run_input`)."""

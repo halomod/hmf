@@ -18,7 +18,8 @@ per object.
 Bounds are given in the canonical units of :data:`hmf.core.units.CANONICAL_UNITS`.
 A bound on a dimensional variable is a :class:`~astropy.units.Quantity`; the values
 checked against it must then be Quantities too. Each bound is closed (``>=``,
-``<=``) or open (``>``, ``<``).
+``<=``) or open (``>``, ``<``). An unbounded end is open, so ``inf`` and ``-inf`` are
+outside every domain.
 
 Errors
 ------
@@ -124,7 +125,8 @@ class Interval:
         is dimensionless.
     lower_open, upper_open
         Whether each bound is excluded (``>`` and ``<``) rather than included (``>=``
-        and ``<=``, the default).
+        and ``<=``, the default). An unbounded end is always open: ``-inf`` and
+        ``inf`` are never in the interval.
 
     Examples
     --------
@@ -152,7 +154,11 @@ class Interval:
             )
 
     def __attrs_post_init__(self) -> None:
-        """Check that the interval is not empty."""
+        """Make unbounded ends open, and check that the interval is not empty."""
+        if np.isinf(self.lower):
+            object.__setattr__(self, "lower_open", True)
+        if np.isinf(self.upper):
+            object.__setattr__(self, "upper_open", True)
         if self.lower == self.upper and (self.lower_open or self.upper_open):
             raise ValueError(
                 f"The interval with equal bounds {self.lower} and an open end is empty."
@@ -199,7 +205,7 @@ class Interval:
         Returns
         -------
         bool or numpy.ndarray of bool
-            False for NaN.
+            False for NaN, and for an infinite value at an unbounded end.
 
         Raises
         ------

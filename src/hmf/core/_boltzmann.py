@@ -26,7 +26,7 @@ from __future__ import annotations
 import importlib.metadata
 import threading
 from collections import Counter, OrderedDict
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from types import MappingProxyType
 from typing import Any
 
@@ -46,6 +46,7 @@ __all__ = [
     "BoltzmannRun",
     "camb_cosmology_input",
     "check_boltzmann_cosmology",
+    "check_camb_settings",
     "class_cosmology_input",
     "clear_memo",
     "get_run",
@@ -262,14 +263,48 @@ def _import_classy() -> Any:
     return classy
 
 
-def _set_attribute(obj: Any, dotted: str, value: Any) -> None:
-    """``setattr`` through a dotted path, e.g. ``"Accuracy.AccuracyBoost"``."""
+def _resolve_setting(obj: Any, dotted: str) -> tuple[Any, str]:
+    """The object and attribute name a dotted CAMBparams setting path refers to.
+
+    Raises
+    ------
+    ValueError
+        If ``obj`` has no such setting.
+    """
     *parents, name = dotted.split(".")
     for p in parents:
-        obj = getattr(obj, p)
-    if not hasattr(obj, name):
-        raise AttributeError(f"CAMBparams has no setting {dotted!r}.")
-    setattr(obj, name, value)
+        obj = getattr(obj, p, None)
+        if obj is None:
+            break
+    if obj is None or not hasattr(obj, name):
+        raise ValueError(f"CAMBparams has no setting {dotted!r}.")
+    return obj, name
+
+
+def _set_attribute(obj: Any, dotted: str, value: Any) -> None:
+    """``setattr`` through a dotted path, e.g. ``"Accuracy.AccuracyBoost"``."""
+    target, name = _resolve_setting(obj, dotted)
+    setattr(target, name, value)
+
+
+def check_camb_settings(names: Iterable[str]) -> None:
+    """Check that each name is the dotted path of a setting of ``camb.CAMBparams``.
+
+    Imports CAMB.
+
+    Parameters
+    ----------
+    names
+        The settings' paths, e.g. ``"Accuracy.AccuracyBoost"``.
+
+    Raises
+    ------
+    ValueError
+        For a path that is not a setting of a default ``CAMBparams``.
+    """
+    params = _import_camb().CAMBparams()
+    for name in names:
+        _resolve_setting(params, name)
 
 
 def _camb_params(inputs: Mapping[str, Any]) -> Any:
