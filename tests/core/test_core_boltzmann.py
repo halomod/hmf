@@ -1,7 +1,8 @@
 """Tests of the Boltzmann runs behind the transfer and growth stages.
 
 * One run per distinct (model, cosmology, accuracy) input, exposing every species,
-  shared by the transfer and growth stages (call counters).
+  shared by the transfer and growth stages (call counters), at the stages' one
+  ``KAccuracy``.
 * Massive neutrinos: P_cb and P_tot from one run, and the small-scale suppression of
   the total-matter power against bounds around the -8 f_nu rule (Hu, Eisenstein &
   Tegmark 1998).
@@ -83,6 +84,28 @@ def test_growth_without_a_transfer_stage_shares_a_default_one(fresh):
     Growth(cosmology=COSMO, model="CAMB").growth_factor(1.0)
     Transfer(cosmology=COSMO, model="CAMB").transfer_function(1 * h_Mpc)
     assert fresh() == 1
+
+
+def test_growth_runs_at_its_own_k_accuracy(fresh):
+    """KAccuracy.high() refines a growth model's own run too, as it does the transfer's.
+
+    The growth's own run at high accuracy is the run of a high-accuracy transfer
+    stage (one run for both), not the default one; a growth stage whose accuracy
+    differs from its transfer stage's does not take that stage's run.
+    """
+    high = KAccuracy.high()
+    growth = Growth(cosmology=COSMO, model="CAMB", k_accuracy=high)
+    growth.growth_factor(1.0)
+    transfer_high = Transfer(cosmology=COSMO, model="CAMB", k_accuracy=high)
+    transfer_high.transfer_function(1 * h_Mpc)
+    assert fresh() == 1
+    assert growth.solution.run is transfer_high.boltzmann_run
+
+    transfer = Transfer(cosmology=COSMO, model="CAMB")
+    mixed = Growth(cosmology=COSMO, model="CAMB", transfer=transfer, k_accuracy=high)
+    assert mixed.solution.run is transfer_high.boltzmann_run
+    assert fresh() == 1  # the default transfer's run is not needed
+    assert Growth.from_transfer(transfer_high, model="CAMB").k_accuracy == high
 
 
 def test_growth_needing_higher_z_than_the_run_makes_its_own(fresh):

@@ -11,8 +11,10 @@ If the growth model is backed by the same Boltzmann code as the transfer stage's
 model (:class:`~hmf.core.growth_models.CambGrowth` with
 :class:`~hmf.core.transfer_models.CAMB`, or
 :class:`~hmf.core.growth_models.ClassGrowth` with
-:class:`~hmf.core.transfer_models.CLASS`), the growth comes from the transfer's run:
-one run for both.
+:class:`~hmf.core.transfer_models.CLASS`), and both stages have the same
+``k_accuracy``, the growth comes from the transfer's run: one run for both.
+Otherwise such a model makes its own run, at the growth stage's ``k_accuracy``
+(see :mod:`hmf.core.accuracy`).
 
 Library code working in plain arrays (see :mod:`hmf.core._kernels`) calls the
 kernel-level entry points :meth:`Growth.growth_factor_kernel` and
@@ -35,6 +37,7 @@ from astropy.cosmology import FLRW
 import hmf.core.transfer
 
 from ._fields import field
+from .accuracy import KAccuracy
 from .cache import DiskCache
 from .domain import Domain, Interval, check_extent
 from .growth_models import GrowthModel, GrowthSolution, ODEGrowth
@@ -77,6 +80,15 @@ class Growth(CosmologyStage):
             "Boltzmann code as the growth model, the growth comes from its run."
         ),
     )
+    k_accuracy: KAccuracy = field(
+        factory=KAccuracy,
+        validator=attrs.validators.instance_of(KAccuracy),
+        doc=(
+            "The wavenumber accuracy; it sets the precision of a Boltzmann run the growth "
+            "model makes itself (CambGrowth, ClassGrowth). Give the transfer stage's "
+            "(from_transfer does), so that the run is shared."
+        ),
+    )
     disk_cache: DiskCache | None = _disk_cache_field(
         doc=(
             "Where to cache Boltzmann-code output on disk (see Transfer.disk_cache), for "
@@ -97,20 +109,22 @@ class Growth(CosmologyStage):
 
     @classmethod
     def from_transfer(cls, transfer: hmf.core.transfer.Transfer, **kwargs: Any) -> Growth:
-        """The growth stage of a transfer stage, with its cosmology and disk cache.
+        """The growth stage of a transfer stage, with its cosmology, accuracy and disk cache.
 
         Parameters
         ----------
         transfer
             The transfer stage.
         **kwargs
-            Other fields (``model``, ...).
+            Other fields (``model``, ...). ``k_accuracy`` and ``disk_cache`` default to
+            the transfer stage's.
 
         Returns
         -------
         Growth
         """
         kwargs.setdefault("disk_cache", transfer.disk_cache)
+        kwargs.setdefault("k_accuracy", transfer.k_accuracy)
         return cls(cosmology=transfer.cosmology, transfer=transfer, **kwargs)
 
     @cached_property
@@ -125,9 +139,12 @@ class Growth(CosmologyStage):
             self.transfer is not None
             and self.model.backend is not None
             and self.transfer.model.backend == self.model.backend
+            and self.transfer.k_accuracy == self.k_accuracy
         ):
             run = self.transfer.boltzmann_run
-        return self.model.solve(self.cosmology, run=run, disk_cache=self.disk_cache)
+        return self.model.solve(
+            self.cosmology, run=run, disk_cache=self.disk_cache, k_accuracy=self.k_accuracy
+        )
 
     @cached_property
     def _table_domain(self) -> Domain:

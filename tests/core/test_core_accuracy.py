@@ -1,11 +1,14 @@
-"""Tests of hmf.core.accuracy: defaults, presets and validation."""
+"""Tests of hmf.core.accuracy: defaults, presets, validation and one KAccuracy for k-space."""
 
 import math
 
 import attrs
 import pytest
 
-from hmf.core.accuracy import KAccuracy, MassAccuracy
+from hmf.core.accuracy import KAccuracy, MassAccuracy, check_consistent
+from hmf.core.growth import Growth
+from hmf.core.mass_variance import MassVariance
+from hmf.core.transfer import Transfer
 
 
 def test_mass_defaults():
@@ -95,3 +98,42 @@ def test_fields_info_and_docstring():
     assert names == ["dlog10_m", "log10_m_min", "log10_m_max", "extension", "second_derivative"]
     assert all(f.doc for f in KAccuracy.fields_info())
     assert "dln_k : float, default 0.02" in KAccuracy.__doc__
+
+
+# ---------------------------------------------------------------------------------
+# One KAccuracy for the k-space calculation
+# ---------------------------------------------------------------------------------
+
+
+def _stages(k_accuracy=None, *, growth=None, mass_variance=None):
+    """A Transfer, Growth and MassVariance, with the given k accuracies."""
+    transfer = Transfer(model="EH", **({} if k_accuracy is None else {"k_accuracy": k_accuracy}))
+    g = Growth.from_transfer(transfer, **({} if growth is None else {"k_accuracy": growth}))
+    mv = MassVariance(
+        power=transfer.power_kernel(),
+        **({} if mass_variance is None else {"k_accuracy": mass_variance}),
+    )
+    return transfer, g, mv
+
+
+def test_stages_default_to_one_k_accuracy():
+    assert check_consistent(*_stages()) == KAccuracy()
+    assert Growth().k_accuracy == KAccuracy()
+
+
+def test_check_consistent_returns_the_shared_k_accuracy():
+    high = KAccuracy.high()
+    transfer, growth, mv = _stages(high, mass_variance=KAccuracy.high())
+    # Growth.from_transfer takes the transfer's; equal settings count as one.
+    assert growth.k_accuracy is high
+    assert check_consistent(transfer, growth, mv) == high
+    assert check_consistent(mv) == high
+
+
+@pytest.mark.parametrize("which", ["growth", "mass_variance"])
+def test_check_consistent_raises_on_a_mismatch(which):
+    stages = _stages(KAccuracy.high(), **{which: KAccuracy.fast()})
+    with pytest.raises(
+        ValueError, match=r"must share one KAccuracy.*Transfer: KAccuracy\(dln_k=0.005"
+    ):
+        check_consistent(*stages)

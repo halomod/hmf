@@ -134,6 +134,7 @@ def test_field_order_and_names():
         "cosmology",
         "model",
         "transfer",
+        "k_accuracy",
         "disk_cache",
     ]
     assert [f.name for f in MassVariance.fields_info()] == [
