@@ -9,7 +9,8 @@ For the conventions these modules follow, see :doc:`core`.
 
 Conventions
 -----------
-The building blocks that every stage and model uses.
+The building blocks that every stage and model uses, and the matter species they
+describe.
 
 .. autosummary::
    :toctree: _autosummary
@@ -20,6 +21,7 @@ The building blocks that every stage and model uses.
    stage
    accuracy
    domain
+   species
 
 Stages
 ------
@@ -62,17 +64,6 @@ Utilities
    :template: core-module.rst
 
    cache
-
-Shared helpers (internal)
--------------------------
-The matter species, and their mean densities and density parameters, for library
-code.
-
-.. autosummary::
-   :toctree: _autosummary
-   :template: core-module.rst
-
-   _species
 
 Kernels (internal)
 ------------------

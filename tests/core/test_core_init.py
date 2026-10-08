@@ -3,8 +3,6 @@
 import subprocess
 import sys
 
-import pytest
-
 
 def _run(code: str) -> subprocess.CompletedProcess:
     """Run ``code`` in a fresh interpreter, with every warning shown."""
@@ -56,15 +54,21 @@ def test_core_warning_reexported():
     assert hmf.core.HMFCoreExperimentalWarning is HMFCoreExperimentalWarning
 
 
-@pytest.mark.parametrize("name", ["accuracy", "domain", "model", "stage", "units"])
-def test_submodules_available(name):
-    import hmf.core
+def test_every_public_module_is_imported_and_listed():
+    """``import hmf.core`` alone gives every public module, e.g. ``hmf.core.transfer``.
 
-    assert getattr(hmf.core, name).__name__ == f"hmf.core.{name}"
-
-
-@pytest.mark.parametrize("name", ["filters", "mass_variance", "power_source"])
-def test_mass_variance_submodules_available(name):
-    import hmf.core
-
-    assert getattr(hmf.core, name).__name__ == f"hmf.core.{name}"
+    In a fresh interpreter, so that no other test has imported the submodules.
+    """
+    code = """
+import pkgutil, sys
+import hmf.core
+names = sorted(m.name for m in pkgutil.iter_modules(hmf.core.__path__) if m.name[0] != "_")
+print(" ".join(names))
+print(all(n in hmf.core.__all__ and sys.modules["hmf.core." + n] is getattr(hmf.core, n)
+          for n in names))
+"""
+    names, ok = _run(code).stdout.splitlines()
+    assert {"transfer", "growth", "transfer_models", "growth_models", "species"} <= set(
+        names.split()
+    )
+    assert ok == "True"

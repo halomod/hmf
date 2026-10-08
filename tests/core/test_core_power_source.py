@@ -7,10 +7,10 @@ import numpy as np
 import pytest
 from power_models import RHO_CRIT0, AnalyticPower, EisensteinHuNoWiggle
 
-from hmf.core._species import rho_mean0
 from hmf.core.domain import DomainError
 from hmf.core.mass_variance import MassVariance
 from hmf.core.power_source import PowerSource, TabulatedPower
+from hmf.core.species import rho_mean0
 from hmf.core.transfer import Transfer, UnnormalisedPower
 from hmf.core.units import H0_unit, UnitBoundaryError, h_Mpc, power_unit, rho_unit
 from hmf.exceptions import HMFExtrapolationWarning
@@ -184,14 +184,14 @@ def test_h0_validated():
 
 
 # ---------------------------------------------------------------------------------
-# Transfer.power_kernel as a PowerSource
+# Transfer.power_source
 # ---------------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("species", ["cb", "tot"])
-def test_transfer_power_kernel_is_a_power_source(species):
+def test_transfer_power_source_is_a_power_source(species):
     transfer = Transfer(model="EH")
-    source = transfer.power_kernel(species)
+    source = transfer.power_source(species)
     assert isinstance(source, UnnormalisedPower)
     assert isinstance(source, PowerSource)
     assert source.rho_mean0 == rho_mean0(transfer.cosmology, species)
@@ -205,21 +205,21 @@ def test_transfer_power_kernel_is_a_power_source(species):
     )
 
 
-def test_transfer_power_kernel_compares_by_value():
+def test_transfer_power_source_compares_by_value():
     """Equal stages give equal (and equally hashed) sources, so equal MassVariance stages."""
-    a, b = Transfer(model="EH").power_kernel("cb"), Transfer(model="EH").power_kernel("cb")
+    a, b = Transfer(model="EH").power_source("cb"), Transfer(model="EH").power_source("cb")
     assert a == b
     assert hash(a) == hash(b)
-    assert a != Transfer(model="EH").power_kernel("tot")
-    assert a != Transfer(model="EH", n_s=0.9).power_kernel("cb")
+    assert a != Transfer(model="EH").power_source("tot")
+    assert a != Transfer(model="EH", n_s=0.9).power_source("cb")
     assert MassVariance(power=a) == MassVariance(power=b)
     with pytest.raises(ValueError, match="species"):
-        Transfer(model="EH").power_kernel("nope")
+        Transfer(model="EH").power_source("nope")
 
 
 @pytest.mark.parametrize("flt", ["TopHat", "SharpK", "SmoothK"])
 def test_mass_variance_of_transfer_matches_its_table(flt):
-    """MassVariance gives the same sigma from Transfer.power_kernel as from its table.
+    """MassVariance gives the same sigma from Transfer.power_source as from its table.
 
     The table spans the MassVariance k grid (so it is not extrapolated), every 0.004
     in ln k, and has the mean density and H0 of the transfer's cosmology. The only
@@ -228,7 +228,7 @@ def test_mass_variance_of_transfer_matches_its_table(flt):
     error at this spacing is about 1e-10 in sigma and 2e-8 in its slope.
     """
     transfer = Transfer(model="EH")
-    kernel = transfer.power_kernel("cb")
+    kernel = transfer.power_source("cb")
     k = np.exp(np.arange(-20.0, 17.0, 0.004))
     table = TabulatedPower(
         k=k * h_Mpc,

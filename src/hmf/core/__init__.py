@@ -20,6 +20,7 @@ documentation; the "hmf.core (experimental)" page describes the conventions they
 follow.
 """
 
+import sys
 import warnings
 
 from ..exceptions import HMFCoreExperimentalWarning
@@ -32,15 +33,26 @@ warnings.warn(
     stacklevel=2,
 )
 
+# Bind hmf.core on hmf now, not when this module finishes: modules annotated with
+# qualified names (e.g. hmf.core.transfer.Transfer, in hmf.core.growth) resolve them
+# as their classes are created, which is while this module imports them.
+sys.modules["hmf"].core = sys.modules[__name__]  # type: ignore[attr-defined]
+
 from . import (  # noqa: E402
     accuracy,
+    cache,
     domain,
     filters,
     fits,
+    growth,
+    growth_models,
     mass_variance,
     model,
     power_source,
+    species,
     stage,
+    transfer,
+    transfer_models,
     units,
 )
 from ._fields import FieldInfo, field  # noqa: E402
@@ -49,13 +61,19 @@ __all__ = [
     "FieldInfo",
     "HMFCoreExperimentalWarning",
     "accuracy",
+    "cache",
     "domain",
     "field",
     "filters",
     "fits",
+    "growth",
+    "growth_models",
     "mass_variance",
     "model",
     "power_source",
+    "species",
     "stage",
+    "transfer",
+    "transfer_models",
     "units",
 ]

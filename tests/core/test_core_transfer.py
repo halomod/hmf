@@ -168,6 +168,25 @@ def test_bbks_sugiyama_forms_agree_at_h_one_half():
     )
 
 
+def test_bbks_shape_parameter():
+    """Gamma = Omega_m0 h in h/Mpc without the baryon correction, and smaller with it.
+
+    With baryons both Sugiyama forms reduce Gamma by exp(-Omega_b (...)) < 1, and
+    they coincide at h = 0.5.
+    """
+    cosmo = FlatLambdaCDM(H0=50.0, Om0=0.3, Ob0=0.05)
+    gamma = tm.BBKS(baryons="none").shape_parameter(cosmo)
+    assert gamma.unit is h_Mpc
+    assert gamma.isscalar
+    assert gamma.value == pytest.approx(0.3 * 0.5, rel=1e-15)
+    published = tm.BBKS().shape_parameter(cosmo)
+    preprint = tm.BBKS(baryons="sugiyama95_preprint").shape_parameter(cosmo)
+    assert 0 < published.value < gamma.value
+    assert published.value == pytest.approx(preprint.value, rel=1e-15)
+    # The published form: Gamma = Omega_m0 h exp(-Omega_b (1 + sqrt(2h) / Omega_m0)).
+    assert published.value == pytest.approx(0.15 * np.exp(-0.05 * (1 + 1 / 0.3)), rel=1e-15)
+
+
 def test_bbks_matches_eh_zero_baryon_shape():
     cosmo = FlatLambdaCDM(H0=70.0, Om0=0.3, Ob0=1e-6, Tcmb0=2.7255)
     k = np.logspace(-3, 1, 40)
@@ -459,14 +478,14 @@ def test_unnormalised_power_is_k_ns_t_squared():
     np.testing.assert_allclose(
         t.unnormalised_power(k * h_Mpc), k**0.95 * t.transfer_function(k * h_Mpc) ** 2, rtol=1e-14
     )
-    kernel = t.power_kernel("tot")
+    kernel = t.power_source("tot")
     np.testing.assert_allclose(
         np.exp(kernel.ln_power_kernel(np.log(k))), kernel.power_kernel(k), rtol=1e-13
     )
 
 
 def test_power_kernel_is_batch_size_independent():
-    kernel = Transfer(model="CAMB").power_kernel()
+    kernel = Transfer(model="CAMB").power_source()
     k = np.logspace(-4, 3, 101)
     full = kernel.power_kernel(k)
     assert np.array_equal(full[17:40], kernel.power_kernel(k[17:40]))

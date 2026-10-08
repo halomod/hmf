@@ -40,7 +40,7 @@ def test_window_at_zero_is_one(flt):
 @pytest.mark.parametrize("order", [0, 1, 2])
 def test_tophat_against_50_digits(order):
     """Both branches (series below x = 0.1, closed form above) to 1e-9, for W, W' and W''."""
-    got = TopHat().window_derivatives(X_TEST, order=2)[order]
+    got = TopHat().window_derivatives_kernel(X_TEST, order=2)[order]
     want = np.array([float(_log_derivative(_tophat_mp, x, order)) for x in X_TEST])
     np.testing.assert_allclose(got, want, rtol=1e-9, atol=0)
 
@@ -48,7 +48,7 @@ def test_tophat_against_50_digits(order):
 def test_tophat_small_kr_limit():
     """dW/dln(kR) -> -(kR)^2 / 5 and d2W/dln(kR)^2 -> -2 (kR)^2 / 5 as kR -> 0."""
     x = np.logspace(-6, -3, 10)
-    _, dw, d2w = TopHat().window_derivatives(x)
+    _, dw, d2w = TopHat().window_derivatives_kernel(x)
     np.testing.assert_allclose(dw / (-(x**2) / 5), 1, rtol=1e-6)
     np.testing.assert_allclose(d2w / (-2 * x**2 / 5), 1, rtol=1e-6)
 
@@ -60,7 +60,7 @@ def test_smoothk_derivatives_against_50_digits(beta, order):
         return 1 / (1 + x**beta)
 
     x = np.logspace(-3, 2, 23)
-    got = SmoothK(beta=beta).window_derivatives(x)[order]
+    got = SmoothK(beta=beta).window_derivatives_kernel(x)[order]
     want = np.array([float(_log_derivative(window, xx, order)) for xx in x])
     np.testing.assert_allclose(got, want, rtol=1e-9, atol=1e-300)
 
@@ -101,13 +101,13 @@ def test_tail_bounds_bound_the_window(flt):
 
     tb = flt.tail_bounds()
     x = np.logspace(np.log10(2.0), 4, 20001)
-    w, dw = flt.window_derivatives(x, order=1)
+    w, dw = flt.window_derivatives_kernel(x, order=1)
     slack = 1 + 1e-12  # the SmoothK bounds are tight to rounding at large x
     assert np.all(w**2 <= slack * (total(tb.high_w2, x) + total(tb.high_w2_oscillating, x)))
     bound = total(tb.high_wdw, x) + total(tb.high_wdw_oscillating, x)
     assert np.all(np.abs(w * dw) <= slack * bound)
     x = np.logspace(-8, -1, 100)
-    w, dw = flt.window_derivatives(x, order=1)
+    w, dw = flt.window_derivatives_kernel(x, order=1)
     assert np.all(w**2 <= slack * total(tb.low_w2, x))
     assert np.all(np.abs(w * dw) <= slack * total(tb.low_wdw, x))
 
@@ -115,7 +115,7 @@ def test_tail_bounds_bound_the_window(flt):
 def test_tophat_tail_decomposition_is_exact():
     """The top-hat bounds come from an exact split of W^2 and W W' into mean + oscillation."""
     x = np.logspace(0.5, 3, 1000)
-    w, dw = TopHat().window_derivatives(x, order=1)
+    w, dw = TopHat().window_derivatives_kernel(x, order=1)
     c, s = np.cos(2 * x), np.sin(2 * x)
     w2 = 4.5 / x**6 * ((1 + x**2) + (x**2 - 1) * c - 2 * x * s)
     wdw = -9 * (x**2 + 1.5) / x**6 + 4.5 / x**6 * ((3 - 4 * x**2) * c + (6 * x - x**3) * s)

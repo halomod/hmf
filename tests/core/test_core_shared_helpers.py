@@ -1,7 +1,7 @@
-"""Tests of the private helpers shared across hmf.core.
+"""Tests of the helpers shared across hmf.core.
 
 Arrays (``_arrays``, ``_kernels.arrays``), lattices (``_kernels.lattice``), the matter
-species (``_species``), citations (``_references``), the ``Documented`` mixin and the
+species (``species``), citations (``_references``), the ``Documented`` mixin and the
 critical density.
 """
 
@@ -16,7 +16,7 @@ import pytest
 from astropy.cosmology import FlatLambdaCDM, LambdaCDM, Planck18
 
 import hmf.core
-from hmf.core import _boltzmann, _references, _species, transfer_models
+from hmf.core import _boltzmann, _references, species, transfer_models
 from hmf.core._arrays import dimensionless_floats, float_array, optional_float_array, read_only
 from hmf.core._fields import Documented
 from hmf.core._kernels import growth as kg
@@ -123,19 +123,23 @@ def test_ln_a_grids_share_their_nodes_and_end_at_zero():
 
 
 def test_species_are_defined_once():
-    assert _species.MATTER_SPECIES == ("cb", "tot")
-    assert transfer_models.MATTER_SPECIES is _species.MATTER_SPECIES
-    assert _boltzmann.MATTER_SPECIES is _species.MATTER_SPECIES
-    assert transfer_models.Species is _species.Species
-    assert transfer_models.check_species is _species.check_species
-    assert _species.check_species("tot") == "tot"
+    assert species.MATTER_SPECIES == ("cb", "tot")
+    assert transfer_models.MATTER_SPECIES is species.MATTER_SPECIES
+    assert _boltzmann.MATTER_SPECIES is species.MATTER_SPECIES
+    assert transfer_models.check_species is species.check_species
+    # species is their one public home: the modules that use them don't re-export them.
+    for module in (transfer_models, _boltzmann):
+        assert not {"MATTER_SPECIES", "Species", "CAMB_COLUMNS", "check_species"} & set(
+            module.__all__
+        )
+    assert species.check_species("tot") == "tot"
     with pytest.raises(ValueError, match="species must be one of"):
-        _species.check_species("nu")
+        species.check_species("nu")
 
 
 def test_camb_columns_are_those_of_a_camb_transfer_file():
     # CAMB's columns: k, CDM, baryons, photons, massless nu, massive nu, total, no-nu.
-    assert dict(_species.CAMB_COLUMNS) == {"tot": 6, "cb": 7}
+    assert dict(species.CAMB_COLUMNS) == {"tot": 6, "cb": 7}
 
 
 #: Planck18's other parameters, for cosmologies that differ in their neutrinos.
@@ -157,9 +161,9 @@ def test_tot_adds_the_massive_neutrino_density(m_nu):
     """
     cosmo = FlatLambdaCDM(**_P18, m_nu=m_nu * u.eV)
     expected = sum(m_nu) / 93.14 / cosmo.h**2 * RHO_CRIT0_H2.to_value(rho_unit)
-    diff = _species.rho_mean0(cosmo, "tot") - _species.rho_mean0(cosmo, "cb")
+    diff = species.rho_mean0(cosmo, "tot") - species.rho_mean0(cosmo, "cb")
     assert diff == pytest.approx(expected, rel=1e-2)
-    assert _species.rho_mean0(cosmo, "cb") == pytest.approx(
+    assert species.rho_mean0(cosmo, "cb") == pytest.approx(
         (cosmo.Om0 * cosmo.critical_density0 / cosmo.h**2).to_value(u.Msun / u.Mpc**3), rel=1e-12
     )
 
@@ -167,28 +171,26 @@ def test_tot_adds_the_massive_neutrino_density(m_nu):
 @pytest.mark.parametrize("tcmb0", [Planck18.Tcmb0, 0 * u.K], ids=["massless", "no-neutrinos"])
 def test_cb_is_tot_without_massive_neutrinos(tcmb0):
     cosmo = FlatLambdaCDM(**{**_P18, "Tcmb0": tcmb0}, m_nu=0 * u.eV)
-    assert _species.rho_mean0(cosmo, "tot") == _species.rho_mean0(cosmo, "cb")
+    assert species.rho_mean0(cosmo, "tot") == species.rho_mean0(cosmo, "cb")
     z = np.array([0.0, 1.0, 100.0])
-    np.testing.assert_array_equal(
-        _species.omega_m(cosmo, z, "tot"), _species.omega_m(cosmo, z, "cb")
-    )
+    np.testing.assert_array_equal(species.omega_m(cosmo, z, "tot"), species.omega_m(cosmo, z, "cb"))
 
 
 def test_omega_m_of_cb_is_astropys():
     z = np.linspace(0, 10, 11)
-    np.testing.assert_array_equal(_species.omega_m(Planck18, z), Planck18.Om(z))
-    assert _species.omega_m(Planck18, 0.0, "tot") == pytest.approx(
-        _species.omega_m0(Planck18, "tot"), rel=1e-15
+    np.testing.assert_array_equal(species.omega_m(Planck18, z), Planck18.Om(z))
+    assert species.omega_m(Planck18, 0.0, "tot") == pytest.approx(
+        species.omega_m0(Planck18, "tot"), rel=1e-15
     )
     with pytest.raises(ValueError, match="species"):
-        _species.omega_m(Planck18, 0.0, "nu")
+        species.omega_m(Planck18, 0.0, "nu")
 
 
 def test_omega_m_is_one_in_einstein_de_sitter():
     cosmo = FlatLambdaCDM(H0=70, Om0=1.0, Tcmb0=0)
     z = np.array([0.0, 0.5, 3.0, 1e3])
-    for species in ("cb", "tot"):
-        np.testing.assert_allclose(_species.omega_m(cosmo, z, species), 1.0, rtol=1e-14)
+    for s in ("cb", "tot"):
+        np.testing.assert_allclose(species.omega_m(cosmo, z, s), 1.0, rtol=1e-14)
 
 
 def test_omega_m_tends_to_one_at_high_z_in_flat_lcdm():
@@ -198,17 +200,17 @@ def test_omega_m_tends_to_one_at_high_z_in_flat_lcdm():
     """
     cosmo = FlatLambdaCDM(H0=70, Om0=0.3, Tcmb0=0)
     z = np.array([0.0, 1.0, 10.0, 100.0, 1e4])
-    om = _species.omega_m(cosmo, z)
+    om = species.omega_m(cosmo, z)
     assert np.all(np.diff(om) > 0)
     assert np.all(om < 1)
     assert 1 - om[-1] < 1e-11
     # With radiation, matter dominates only in between: Omega_m < 1, falling at high z.
-    om = _species.omega_m(Planck18, np.array([10.0, 1e3, 1e5]), "tot")
+    om = species.omega_m(Planck18, np.array([10.0, 1e3, 1e5]), "tot")
     assert np.all((om > 0) & (om < 1))
     assert om[-1] < 0.1
     # A curved universe without dark energy too (Omega_k > 0 fades as (1 + z)^-1).
     open_cosmo = LambdaCDM(H0=70, Om0=0.3, Ode0=0.0, Tcmb0=0)
-    assert 1 - _species.omega_m(open_cosmo, 1e6) < 1e-5
+    assert 1 - species.omega_m(open_cosmo, 1e6) < 1e-5
 
 
 # ---------------------------------------------------------------------------------

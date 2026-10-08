@@ -1,13 +1,28 @@
 r"""The matter species of the transfer and growth models, and their mean densities.
 
-Every transfer and growth model gives each matter species: ``"cb"`` (CDM + baryons)
-and ``"tot"`` (total matter, including massive neutrinos).
+Every transfer and growth model gives each matter species (:data:`Species`):
+``"cb"`` (CDM + baryons) and ``"tot"`` (total matter, including massive neutrinos).
+:data:`MATTER_SPECIES` lists them, and :func:`check_species` validates one.
 
-The mean density of a species today (:func:`rho_mean0`) and its density parameter
-at z (:func:`omega_m`) come from the astropy cosmology. Astropy's ``Om0`` is CDM +
-baryons only: it counts massive neutrinos in ``Onu0``, with the massless ones. So
-``"cb"`` is ``Om0``, and ``"tot"`` adds the density of the massive neutrinos today,
+The density parameter of a species today (:func:`omega_m0`) and at z
+(:func:`omega_m`), and its mean comoving density today (:func:`rho_mean0`), come
+from the astropy cosmology. Astropy's ``Om0`` is CDM + baryons only: it counts
+massive neutrinos in ``Onu0``, with the massless ones. So ``"cb"`` is ``Om0``, and
+``"tot"`` adds the density of the massive neutrinos today,
 :math:`\Omega_{\nu,0}h^2 \approx \sum m_\nu / 93.14\,{\rm eV}`.
+
+The functions take and return plain floats and arrays: :func:`rho_mean0` is in the
+canonical density unit (:data:`~hmf.core.units.rho_unit`), and the density
+parameters are dimensionless.
+
+Examples
+--------
+>>> from astropy.cosmology import Planck18
+>>> from hmf.core import species
+>>> species.MATTER_SPECIES
+('cb', 'tot')
+>>> species.omega_m0(Planck18, "tot") > species.omega_m0(Planck18, "cb")
+True
 """
 
 from __future__ import annotations

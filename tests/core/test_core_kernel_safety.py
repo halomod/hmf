@@ -158,8 +158,8 @@ def test_growth_splines_are_bit_identical_inside_the_table():
 # One mechanism for extrapolation warnings
 # ---------------------------------------------------------------------------------
 def test_mass_variance_on_a_user_transfer_table_warns_exactly_once():
-    """The path MassFunction will use: Transfer(FromArray).power_kernel() in MassVariance."""
-    mv = MassVariance(power=Transfer(model=_eh_transfer_table()).power_kernel())
+    """The path MassFunction will use: Transfer(FromArray).power_source() in MassVariance."""
+    mv = MassVariance(power=Transfer(model=_eh_transfer_table()).power_source())
 
     def calls():
         mv.sigma(1e12 * Msun_h)
@@ -173,9 +173,9 @@ def test_mass_variance_on_a_user_transfer_table_warns_exactly_once():
     assert "with the shape of EH98" in messages[0]
 
 
-def test_the_transfer_stage_and_its_power_kernel_warn_through_the_same_table_range():
+def test_the_transfer_stage_and_its_power_source_warn_through_the_same_table_range():
     t = Transfer(model=_eh_transfer_table())
-    power = t.power_kernel()
+    power = t.power_source()
     assert power.table_range is t._table_range
     table = power.table_range
     assert table is not None
@@ -195,10 +195,10 @@ def test_the_transfer_stage_and_its_power_kernel_warn_through_the_same_table_ran
 def test_default_transfer_and_mass_variance_are_silent(model):
     """Designed extrapolation (a Boltzmann tail, a fitting formula) never warns."""
     t = Transfer(model=model)
-    assert t.power_kernel().table_range is None
+    assert t.power_source().table_range is None
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        mv = MassVariance(power=t.power_kernel())
+        mv = MassVariance(power=t.power_source())
         mv.sigma(np.geomspace(1e2, 1e17, 50) * Msun_h)
         mv.dlnsigma_dlnm(1e12 * Msun_h)
 
@@ -349,7 +349,7 @@ def _mass_ratio(**bad):
 
 
 def _ups(model="EH"):
-    return Transfer(model=model).power_kernel()
+    return Transfer(model=model).power_source()
 
 
 #: One out-of-domain call for each public kernel: (its qualified name, the call).
@@ -401,11 +401,6 @@ def test_tabulated_power_kernel_with_extension_raise():
         source.ln_power_kernel(np.log([1.0, 20.0]))
 
 
-#: Kernels whose argument is not a domain value: Transfer.power_kernel takes a species
-#: (a bad one is a ValueError) and returns a PowerSource.
-_FACTORIES = {"Transfer.power_kernel"}
-
-
 def _public_kernels():
     """The qualified names of every public *_kernel of the stage and model modules."""
     names = set()
@@ -426,7 +421,7 @@ def _public_kernels():
 
 def test_every_public_kernel_has_an_out_of_domain_case():
     covered = {name.split(" ")[0] for name, _ in KERNEL_CASES}
-    kernels = _public_kernels() - _FACTORIES
+    kernels = _public_kernels()
     # The PowerSource protocol only declares the method.
     kernels.discard("PowerSource.ln_power_kernel")
     # Overrides are covered through the checking method of their base class.
