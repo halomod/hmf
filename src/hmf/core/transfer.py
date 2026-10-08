@@ -12,7 +12,8 @@ model) and gives, for each matter species (``"cb"``, CDM + baryons; ``"tot"``, t
 * :meth:`Transfer.power_kernel`: the same at kernel level, for later stages: an
   :class:`UnnormalisedPower`, a :class:`~hmf.core.power_source.PowerSource` whose
   methods are pure functions of plain arrays in canonical units, with the mean
-  density of the species (see :mod:`hmf.core._kernels`).
+  density of CDM + baryons, which sets the mass of a filter radius whatever the
+  species (see :mod:`hmf.core._kernels`).
 
 Every species comes from the same solution, so asking for the power spectrum of one
 species and normalising with another never runs the Boltzmann code twice. Runs are
@@ -227,7 +228,7 @@ class Transfer(CosmologyStage):
         -------
         UnnormalisedPower
             :math:`k^{n_s} T(k)^2` of ``species`` on plain arrays (k in h/Mpc), with
-            the mean density of the same species and this stage's units context.
+            the mean density of CDM + baryons and this stage's units context.
 
         Raises
         ------
@@ -315,8 +316,13 @@ class UnnormalisedPower:
 
     @cached_property
     def rho_mean0(self) -> float:
-        """The mean comoving density today of the species, in Msun h^2 / Mpc^3."""
-        return rho_mean0(self.transfer.cosmology, self.species)
+        """The mean comoving density today of CDM + baryons, in Msun h^2 / Mpc^3.
+
+        For either species: it sets the mass of a filter radius (see
+        :class:`~hmf.core.power_source.PowerSource`), and haloes are made of CDM and
+        baryons.
+        """
+        return rho_mean0(self.transfer.cosmology, "cb")
 
     @property
     def table_range(self) -> TableRange | None:
