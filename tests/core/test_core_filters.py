@@ -6,6 +6,7 @@ import mpmath
 import numpy as np
 import pytest
 
+from hmf.core.domain import DomainError
 from hmf.core.filters import Filter, SharpK, SmoothK, TopHat
 
 mpmath.mp.dps = 50
@@ -122,3 +123,30 @@ def test_tophat_tail_decomposition_is_exact():
     # Relative to the envelope of each (the functions themselves cross zero).
     assert np.all(np.abs(w**2 - w2) <= 1e-12 * 9 / x**4)
     assert np.all(np.abs(w * dw - wdw) <= 1e-12 * 9 / x**3)
+
+
+@pytest.mark.parametrize("bad", [-1e-300, -0.5, np.nan, np.inf])
+@pytest.mark.parametrize("flt", [TopHat(), SharpK(), SmoothK()])
+def test_window_derivatives_kernel_raises_outside_x_ge_0(flt, bad):
+    """The kernel takes x = kR >= 0 and finite: one bad value in a batch raises."""
+    x = np.array([0.0, 1.0, bad])
+    with pytest.raises(
+        DomainError, match=r"window_derivatives_kernel: x (in .*\(x >= 0\)|must be finite)"
+    ):
+        flt.window_derivatives_kernel(x, order=0)
+
+
+def test_sharpk_kernel_checks_the_domain_before_the_order():
+    with pytest.raises(DomainError):
+        SharpK().window_derivatives_kernel(np.array([-1.0]), order=1)
+    with pytest.raises(ValueError, match="Dirac delta"):
+        SharpK().window_derivatives_kernel(np.array([0.5]), order=1)
+
+
+@pytest.mark.parametrize("flt", [TopHat(), SharpK(), SmoothK()])
+def test_window_derivatives_kernel_agrees_with_window(flt):
+    """At x = 0 every window is 1, and the kernel gives what window() gives everywhere."""
+    x = np.concatenate([[0.0], X_TEST])
+    (w,) = flt.window_derivatives_kernel(x, order=0)
+    assert w[0] == 1.0
+    np.testing.assert_array_equal(w, flt.window(x))

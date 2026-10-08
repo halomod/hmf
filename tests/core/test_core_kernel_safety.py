@@ -17,6 +17,7 @@ import numpy as np
 import pytest
 from power_models import RHO_CRIT0, AnalyticPower, EisensteinHuNoWiggle
 
+import hmf.core.filters
 import hmf.core.fits
 import hmf.core.growth
 import hmf.core.mass_variance
@@ -26,6 +27,7 @@ from hmf.core import fits, growth_models, transfer_models
 from hmf.core._kernels import growth as kg
 from hmf.core.accuracy import KAccuracy
 from hmf.core.domain import Domain, DomainError, Interval, check_extent, warn_once
+from hmf.core.filters import TopHat
 from hmf.core.fits import FitInputs, evaluate_fsigma
 from hmf.core.growth import Growth
 from hmf.core.mass_variance import MassVariance, n_eff_kernel
@@ -369,6 +371,10 @@ KERNEL_CASES = [
     ("UnnormalisedPower.power_kernel", lambda: _ups().power_kernel(np.array([1.0, 0.0]))),
     ("FittingFunction.fsigma_kernel", _fsigma_kernel),
     (
+        "Filter.window_derivatives_kernel",
+        lambda: TopHat().window_derivatives_kernel(np.array([1.0, -0.5])),
+    ),
+    (
         "MeasuredMassDefinition.delta_halo_mean_kernel",
         lambda: fits.Tinker08.measured_mass_definition.delta_halo_mean_kernel([0.3, -0.1]),
     ),
@@ -404,7 +410,13 @@ def test_tabulated_power_kernel_with_extension_raise():
 def _public_kernels():
     """The qualified names of every public *_kernel of the stage and model modules."""
     names = set()
-    modules = (hmf.core.fits, hmf.core.growth, hmf.core.mass_variance, hmf.core.power_source)
+    modules = (
+        hmf.core.filters,
+        hmf.core.fits,
+        hmf.core.growth,
+        hmf.core.mass_variance,
+        hmf.core.power_source,
+    )
     for module in (*modules, hmf.core.transfer):
         for obj_name, obj in vars(module).items():
             if obj_name.startswith("_"):
