@@ -26,6 +26,8 @@ class AnalyticPower:
     function: Callable[[np.ndarray], np.ndarray]
     rho_mean0: float = 0.3 * RHO_CRIT0
     H0: float = 70.0
+    #: No user table: an analytic function is never extrapolated.
+    table_range = None
 
     def ln_power_kernel(self, ln_k):
         # A non-positive power has no log: it gives -inf or NaN, which MassVariance rejects.

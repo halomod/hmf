@@ -1,19 +1,25 @@
 r"""Sources of the linear matter power spectrum at z = 0.
 
-:class:`~hmf.core.mass_variance.MassVariance` needs only three things from the
-power spectrum, which make up the :class:`PowerSource` protocol. The first two are
+:class:`~hmf.core.mass_variance.MassVariance` needs only four things from the
+power spectrum, which make up the :class:`PowerSource` protocol. The first three are
 kernel-level (see :mod:`hmf.core._kernels`): plain floats and arrays in canonical
 units, for library code.
 
 * ``ln_power_kernel(ln_k)``: the natural log of the linear power spectrum of one
   matter species at z = 0, with k in h/Mpc. Its amplitude is arbitrary: the
-  normalisation to sigma_8 is applied later, as a scalar, by the ``LinearPower``
-  stage, so only the shape matters and it has no fixed unit. A
+  normalisation to sigma_8 is a scalar applied later, by a stage built on
+  MassVariance (a ``LinearPower`` stage, which does not exist yet), so only the
+  shape matters and it has no fixed unit. A
   :class:`TabulatedPower` gives its table in (Mpc/h)³, while
   :meth:`Transfer.power_kernel <hmf.core.transfer.Transfer.power_kernel>`'s
   :math:`k^{n_s} T(k)^2` is dimensionless;
 * ``rho_mean0``: the mean comoving density today of the *same* matter species, in
   M☉ h² / Mpc³ (:data:`~hmf.core.units.rho_unit`);
+* ``table_range``: the :class:`TableRange` of a table the user supplied, beyond
+  which ``ln_power_kernel`` extrapolates, or ``None`` if it extrapolates no user
+  table (a fitting formula, a Boltzmann code's table, or a table that is not
+  extrapolated). ``ln_power_kernel`` does not warn: the stage that evaluates it
+  warns, with :meth:`TableRange.warn_outside`;
 * ``_unit_context``: the :class:`~hmf.core.units.UnitContext` (with its H0) used by
   the units boundary of the stages built on it (see
   :class:`~hmf.core.units.HasUnitContext`).
@@ -21,6 +27,18 @@ units, for library code.
 :meth:`Transfer.power_kernel <hmf.core.transfer.Transfer.power_kernel>` implements it
 for the power of a :class:`~hmf.core.transfer.Transfer` stage, and
 :class:`TabulatedPower` for a power spectrum given as a table.
+
+Extrapolation warnings
+----------------------
+Every path that evaluates a user-supplied table outside its range warns through
+one mechanism, :meth:`TableRange.warn_outside`: an
+:class:`~hmf.exceptions.HMFExtrapolationWarning` once per owner (with
+:func:`~hmf.core.domain.warn_once`) and end of the table. The owner is the object
+the table belongs to: the :class:`~hmf.core.transfer.Transfer` stage for its public
+methods, and the power source for :class:`~hmf.core.mass_variance.MassVariance`
+(which checks the extent of its k grid once) and for
+:meth:`TabulatedPower.power`. Extrapolation by design (a Boltzmann code's tail, the
+lazy extension of the mass lattice) has no :class:`TableRange`, so it never warns.
 """
 
 from __future__ import annotations
@@ -40,7 +58,7 @@ from ._kernels.interpolation import FrozenSpline, extrapolate_power_law
 from ._serialise import quantity_key
 from ._validators import check_finite_positive, check_in_range, check_increasing, check_table
 from .accuracy import Extension
-from .domain import DomainError, warn_once
+from .domain import DomainError, check_extent, warn_once
 from .stage import Stage
 from .units import (
     HasUnitContext,
@@ -53,7 +71,69 @@ from .units import (
     unit_boundary,
 )
 
-__all__ = ["PowerSource", "TabulatedPower"]
+__all__ = ["PowerSource", "TableRange", "TabulatedPower"]
+
+
+@attrs.frozen
+class TableRange:
+    """The k range of a table the user supplied, beyond which it is extrapolated.
+
+    The one mechanism for extrapolation warnings of user tables (see the module
+    documentation). A :class:`PowerSource` exposes it as ``table_range``.
+    """
+
+    #: The smallest wavenumber of the table, in h/Mpc.
+    k_min: float = attrs.field(converter=float)
+    #: The largest wavenumber of the table, in h/Mpc.
+    k_max: float = attrs.field(converter=float)
+    #: Whose table it is, for the message (e.g. ``"Transfer (FromArray)"``).
+    where: str
+    #: How it is extrapolated, for the message (e.g. ``"as a power law"``).
+    how: str
+    #: Advice appended to the message, if any.
+    advice: str = ""
+
+    def warn_outside(
+        self, owner: object, k_lo: float, k_hi: float, *, rtol: float = 0.0, stacklevel: int = 2
+    ) -> None:
+        """Warn, once per owner and end of the table, if [k_lo, k_hi] extends beyond it.
+
+        Both ends in one call give one warning, which names both.
+
+        Parameters
+        ----------
+        owner
+            The object the warning is about (see :func:`~hmf.core.domain.warn_once`).
+        k_lo, k_hi
+            The smallest and largest wavenumber evaluated, in h/Mpc.
+        rtol
+            How far beyond an end, relative to it, k may reach without a warning: e.g.
+            the rounding of a lattice's ends outwards onto its nodes.
+        stacklevel
+            As for :func:`warnings.warn`, from the caller of this method.
+
+        Warns
+        -----
+        HMFExtrapolationWarning
+            If ``[k_lo, k_hi]`` extends beyond an end of the table that has not
+            warned yet for ``owner``.
+        """
+        below = k_lo < self.k_min * (1 - rtol)
+        above = k_hi > self.k_max * (1 + rtol)
+        parts = []
+        if below:
+            parts.append(f"k below the table's smallest wavenumber, {self.k_min:.4g} h/Mpc,")
+        if above:
+            parts.append(f"k above the table's largest wavenumber, {self.k_max:.4g} h/Mpc,")
+        if not parts:
+            return
+        keys = (("k below the table",) if below else ()) + (("k above the table",) if above else ())
+        warn_once(
+            owner,
+            keys,
+            f"{self.where}: {' and '.join(parts)} is extrapolated {self.how}.{self.advice}",
+            stacklevel=stacklevel + 1,
+        )
 
 
 @runtime_checkable
@@ -70,6 +150,10 @@ class PowerSource(HasUnitContext, Protocol):
     def ln_power_kernel(self, ln_k: NDArray[np.float64]) -> NDArray[np.float64]:
         """The ln of the power at z = 0 (arbitrary amplitude), at ln(k / (h/Mpc)).
 
+        A kernel-level entry point: it raises a
+        :class:`~hmf.core.domain.DomainError` for ln k outside the source's domain
+        (e.g. not finite), and does not warn (see ``table_range``).
+
         Parameters
         ----------
         ln_k
@@ -85,6 +169,11 @@ class PowerSource(HasUnitContext, Protocol):
     @property
     def rho_mean0(self) -> float:
         """The mean comoving density today of the species, in Msun h^2 / Mpc^3."""
+        ...
+
+    @property
+    def table_range(self) -> TableRange | None:
+        """The range of the user's table that ``ln_power_kernel`` extrapolates, if any."""
         ...
 
 
@@ -216,8 +305,28 @@ class TabulatedPower(Stage):
         """``mean_density`` in Msun h^2 / Mpc^3, as a plain float (kernel level)."""
         return float(self._canonical(self.mean_density, rho_unit, "mean_density"))
 
+    @cached_property
+    def table_range(self) -> TableRange | None:
+        """The table's range, beyond which it is extrapolated (:class:`PowerSource`).
+
+        ``None`` with ``extension="raise"``, which never extrapolates it.
+        """
+        if self.extension == "raise":
+            return None
+        k = self._canonical(self.k, h_Mpc, "k")
+        return TableRange(
+            k_min=k[0],
+            k_max=k[-1],
+            where="TabulatedPower",
+            how="as a power law",
+            advice=" Give a wider table to avoid this, or extension='raise' to make it an error.",
+        )
+
     def ln_power_kernel(self, ln_k: NDArray[np.float64]) -> NDArray[np.float64]:
         """The ln of the power, in (Mpc/h)³, at ln(k / (h/Mpc)) (:class:`PowerSource`).
+
+        Beyond the table it is extrapolated as a power law, without a warning: the
+        caller warns, with :attr:`table_range` (see the module documentation).
 
         Parameters
         ----------
@@ -232,33 +341,21 @@ class TabulatedPower(Stage):
         Raises
         ------
         DomainError
-            If ``ln_k`` is outside the table and ``extension`` is ``"raise"``.
-
-        Warns
-        -----
-        HMFExtrapolationWarning
-            If ``ln_k`` is outside the table and ``extension`` is ``"auto"``: once per
-            instance for each end of the table.
+            If a ln k is not finite, or is outside the table and ``extension`` is
+            ``"raise"``.
         """
-        ln_k = np.asarray(ln_k, dtype=float)
-        table_k = self._table[0]
-        lo, hi = table_k[0], table_k[-1]
-        below, above = ln_k < lo, ln_k > hi
-        for side, outside in (("below", below), ("above", above)):
-            if not np.any(outside):
-                continue
-            message = (
-                f"TabulatedPower: {np.count_nonzero(outside)} value(s) of k {side} the table "
-                f"[{math.exp(lo):.4g}, {math.exp(hi):.4g}] h/Mpc"
-            )
-            if self.extension == "raise":
-                raise DomainError(message + ", with extension='raise'.")
-            warn_once(
-                self,
-                f"k {side} the table",
-                message + " are extrapolated as a power law. Give a wider table to avoid "
-                "this, or extension='raise' to make it an error.",
-            )
+        ln_k = check_extent("ln_k", ln_k, where="TabulatedPower.ln_power_kernel")
+        if self.extension == "raise" and ln_k.size:
+            table_k = self._table[0]
+            lo, hi = table_k[0], table_k[-1]
+            for side, outside in (("below", ln_k.min() < lo), ("above", ln_k.max() > hi)):
+                if outside:
+                    n_out = np.count_nonzero(ln_k < lo if side == "below" else ln_k > hi)
+                    raise DomainError(
+                        f"TabulatedPower: {n_out} value(s) of k {side} the table "
+                        f"[{math.exp(lo):.4g}, {math.exp(hi):.4g}] h/Mpc, with "
+                        "extension='raise'."
+                    )
         return np.asarray(extrapolate_power_law(self._spline, ln_k), dtype=float)
 
     @unit_boundary(k=h_Mpc, returns=power_unit)
@@ -279,6 +376,17 @@ class TabulatedPower(Stage):
         ------
         DomainError
             If a k is not > 0, or is outside the table with ``extension="raise"``.
+
+        Warns
+        -----
+        HMFExtrapolationWarning
+            If a k is outside the table and ``extension`` is ``"auto"``: once per
+            instance for each end of the table.
         """
         check_in_range("k", k, where="TabulatedPower", low=0.0, low_open=True, error=DomainError)
-        return np.exp(self.ln_power_kernel(np.log(np.asarray(k, dtype=float))))
+        k = np.asarray(k, dtype=float)
+        out = np.exp(self.ln_power_kernel(np.log(k)))
+        table = self.table_range
+        if table is not None and k.size:
+            table.warn_outside(self, float(k.min()), float(k.max()), stacklevel=3)
+        return out

@@ -21,6 +21,7 @@ from .interpolation import FrozenSpline
 from .lattice import lattice, lattice_index
 
 __all__ = [
+    "LN_A_ATOL",
     "GrowthTable",
     "carroll92_growth",
     "eisenstein97_growth",
@@ -341,12 +342,21 @@ def carroll92_growth(a: Array, omega_m_a: Array, omega_l_a: Array) -> tuple[Arra
 # ---------------------------------------------------------------------------------
 
 
+#: How far below the first node of a :class:`GrowthTable`, in ln a, a redshift still
+#: counts as on it. The growth stage accepts z up to z_max (1 + 1e-12), which is at
+#: most 1e-12 below the node in ln a.
+LN_A_ATOL = 1e-12
+
+
 @attrs.frozen(eq=False)
 class GrowthTable:
     """A growth factor and rate tabulated in ln a, normalised to D = 1 at a = 1.
 
     Both are interpolated with cubic splines (ln D and f in ln a). Build it with
-    :func:`tabulate_growth`.
+    :func:`tabulate_growth`. Neither is extrapolated: outside the table (z < 0 or
+    z > :attr:`z_max`) both are NaN. A redshift that maps to within
+    :data:`LN_A_ATOL` below the first node, from round-off in ln a = -ln(1 + z), is
+    evaluated at that node.
     """
 
     #: The nodes, in ln a (increasing, ending at 0).
@@ -365,16 +375,21 @@ class GrowthTable:
         """The largest redshift of the table."""
         return float(np.expm1(-self.ln_a[0]))
 
-    def growth_factor(self, z: Array) -> Array:
-        """The normalised growth factor at redshifts ``z`` (within the table)."""
+    def _ln_a(self, z: Array) -> Array:
+        """Ln a at redshifts ``z``, with round-off below the first node snapped onto it."""
         ln_a = -np.log1p(np.asarray(z, dtype=float))
-        out: Array = np.exp(self.ln_d_spline(ln_a))
+        first = self.ln_a[0]
+        out: Array = np.where((ln_a < first) & (ln_a >= first - LN_A_ATOL), first, ln_a)
+        return out
+
+    def growth_factor(self, z: Array) -> Array:
+        """The normalised growth factor at redshifts ``z`` (NaN outside the table)."""
+        out: Array = np.exp(self.ln_d_spline(self._ln_a(z)))
         return out
 
     def growth_rate(self, z: Array) -> Array:
-        """The growth rate at redshifts ``z`` (within the table)."""
-        ln_a = -np.log1p(np.asarray(z, dtype=float))
-        out: Array = self.f_spline(ln_a)
+        """The growth rate at redshifts ``z`` (NaN outside the table)."""
+        out: Array = self.f_spline(self._ln_a(z))
         return out
 
 
@@ -398,9 +413,9 @@ def tabulate_growth(ln_a: Array, d: Array, f: Array | None = None) -> GrowthTabl
     ln_a = np.array(ln_a, dtype=float)
     ln_d = np.log(np.asarray(d, dtype=float))
     ln_d = ln_d - ln_d[-1]
-    ln_d_spline = FrozenSpline.fit(ln_a, ln_d)
+    ln_d_spline = FrozenSpline.fit(ln_a, ln_d, extrapolate=False)
     f = ln_d_spline(ln_a, 1) if f is None else np.array(f, dtype=float)
-    f_spline = FrozenSpline.fit(ln_a, f)
+    f_spline = FrozenSpline.fit(ln_a, f, extrapolate=False)
     return GrowthTable(
         ln_a=ln_d_spline.x,
         ln_d=read_only(ln_d),

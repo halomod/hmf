@@ -42,7 +42,21 @@ def test_power_law_is_reproduced_and_extrapolated_exactly():
     src = _power_law_table()
     k = np.logspace(-8, 5, 40)
     with pytest.warns(HMFExtrapolationWarning, match="extrapolated as a power law"):
+        np.testing.assert_allclose(src.power(k * h_Mpc).value, 3.0 * k**-1.5, rtol=1e-12)
+
+
+def test_kernel_extrapolates_without_warning_and_exposes_the_table_range():
+    """The kernel is silent: its caller warns, from table_range (one mechanism)."""
+    src = _power_law_table()
+    k = np.logspace(-8, 5, 40)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
         np.testing.assert_allclose(_kernel_power(src, k), 3.0 * k**-1.5, rtol=1e-12)
+    table = src.table_range
+    assert table is not None
+    assert table.k_min == pytest.approx(1e-3, rel=1e-15)
+    assert table.k_max == pytest.approx(10.0, rel=1e-15)
+    assert _power_law_table(extension="raise").table_range is None
 
 
 def test_spline_is_accurate_for_a_smooth_spectrum():
@@ -74,17 +88,18 @@ def test_extrapolation_warns_once_per_instance_and_end():
     src = _power_law_table()
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        _kernel_power(src, np.array([1.0]))  # inside: no warning
+        src.power(1.0 * h_Mpc)  # inside: no warning
+        _kernel_power(src, np.array([1e-6, 100.0]))  # the kernel never warns
         src.power(np.array([20.0, 30.0]) * h_Mpc)
         src.power(40.0 * h_Mpc)
-        _kernel_power(src, np.array([1e-5]))
-        _kernel_power(src, np.array([1e-6, 100.0]))
+        src.power(1e-5 * h_Mpc)
+        src.power(np.array([1e-6, 100.0]) * h_Mpc)
         _power_law_table().power(20.0 * h_Mpc)
     messages = [str(w.message) for w in caught]
     assert all(w.category is HMFExtrapolationWarning for w in caught)
     assert len(messages) == 3, messages
-    assert "2 value(s) of k above the table [0.001, 10] h/Mpc" in messages[0]
-    assert "below the table" in messages[1]
+    assert "k above the table's largest wavenumber, 10 h/Mpc" in messages[0]
+    assert "below the table's smallest wavenumber, 0.001 h/Mpc" in messages[1]
     assert "above the table" in messages[2]
 
 

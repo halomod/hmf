@@ -343,8 +343,7 @@ def test_tabulated_power_matches_a_direct_cubic_spline():
     ln_p = spline(np.clip(ln_k, lo, hi))
     ln_p = np.where(ln_k < lo, ln_p + spline(lo, 1) * (ln_k - lo), ln_p)
     ln_p = np.where(ln_k > hi, ln_p + spline(hi, 1) * (ln_k - hi), ln_p)
-    with pytest.warns(Warning, match="extrapolated as a power law"):
-        got = np.exp(source.ln_power_kernel(np.log(k)))
+    got = np.exp(source.ln_power_kernel(np.log(k)))
     np.testing.assert_array_equal(got, np.exp(ln_p))
 
 

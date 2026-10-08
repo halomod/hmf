@@ -43,6 +43,13 @@ The k grid is a lattice too: :math:`\ln k = i\,\delta` for integer :math:`i`, wi
 by the settings, so it does not change when the mass lattice extends, which keeps
 extension bit-for-bit deterministic.
 
+If the power source extrapolates a table the user supplied (its ``table_range``,
+see :mod:`hmf.core.power_source`), and that table does not cover the grid's range
+from ``ln_k_min`` to :math:`k_{\max}`, the stage warns once per power source and
+end of the table. The ends of the grid are rounded outwards onto lattice nodes, by
+less than one step: a table that reaches the unrounded ends (to
+:data:`~hmf.core._kernels.lattice.LATTICE_RTOL` steps) covers the grid.
+
 Masses the grid can't resolve
 -----------------------------
 Every node carries a bound on the error that the truncation of the k integrals at
@@ -76,10 +83,10 @@ from numpy.typing import NDArray
 from ._fields import field
 from ._kernels import interpolation as interp
 from ._kernels import mass_variance as kern
-from ._kernels.lattice import lattice, lattice_index
+from ._kernels.lattice import LATTICE_RTOL, lattice, lattice_index
 from ._validators import check_finite_positive, positive
 from .accuracy import KAccuracy, MassAccuracy
-from .domain import DomainError
+from .domain import DomainError, check_extent
 from .filters import Filter, TopHat
 from .power_source import PowerSource
 from .stage import Stage
@@ -254,11 +261,22 @@ class MassVariance(Stage):
                 10.0**self.mass_accuracy.log10_m_min, self._rho_mean, self.filter.mass_assignment
             )
         )
+        ln_k_max = math.log(ka.k_max_r_min / r_min)
         i_min = lattice_index(ka.ln_k_min, dln_k, up=False)
-        i_max = lattice_index(math.log(ka.k_max_r_min / r_min), dln_k, up=True)
+        i_max = lattice_index(ln_k_max, dln_k, up=True)
         if (i_max - i_min) % 2:
             i_max += 1  # an odd number of points, for Simpson's rule
         ln_k = lattice(i_min, i_max, dln_k)
+        table = self.power.table_range
+        if table is not None:
+            # The unrounded ends: rounding them onto the lattice is not extrapolation.
+            table.warn_outside(
+                self.power,
+                math.exp(ka.ln_k_min),
+                math.exp(ln_k_max),
+                rtol=LATTICE_RTOL * dln_k,
+                stacklevel=2,
+            )
         k = np.exp(ln_k)
         p = self._power_at(k)
         ln_p = np.log(p)
@@ -688,6 +706,12 @@ def n_eff_kernel(dlnsigma_dlnm: npt.ArrayLike) -> FloatArray:
     -------
     numpy.ndarray
         :math:`n_{\rm eff}`, dimensionless, with the shape of ``dlnsigma_dlnm``.
+
+    Raises
+    ------
+    DomainError
+        If a value is not finite.
     """
-    out: FloatArray = -3.0 * (2.0 * np.asarray(dlnsigma_dlnm, dtype=np.float64) + 1.0)
+    slope = check_extent("dlnsigma_dlnm", dlnsigma_dlnm, where="n_eff_kernel")
+    out: FloatArray = -3.0 * (2.0 * slope + 1.0)
     return out

@@ -62,9 +62,19 @@ Kernels (:mod:`hmf.core._kernels`)
     as *kernel-level entry points*: public methods or functions whose names end in
     ``_kernel``, which take and return plain arrays in canonical units, state the
     unit of each argument in their docstrings, and follow the same rules. Library
-    code calls these, never the unit-checked public methods. Read-only data holders
-    (``Transfer.solution``, ``Growth.solution``, a power source's ``rho_mean0``)
-    keep plain names, under the same rules.
+    code calls these, never the unit-checked public methods.
+
+    Every kernel-level entry point checks its input against its owner's domain and
+    raises a :class:`~hmf.core.domain.DomainError` outside it (NaN and infinities
+    included), so its caller never gets a silent extrapolation. The check is cheap:
+    it compares only the smallest and largest value with the bounds
+    (:func:`~hmf.core.domain.check_extent`). The pure functions inside
+    :mod:`hmf.core._kernels` do not check: the entry points that call them do.
+
+    Read-only data holders (``Transfer.solution``, ``Growth.solution``, a power
+    source's ``rho_mean0``) keep plain names and do not check their input:
+    ``Growth.solution`` is NaN beyond its table. Library code goes through the
+    entry points (e.g. ``Growth.growth_factor_kernel``).
 
 Models (:mod:`hmf.core.model`)
     A model (a fitting function, a transfer function, ...) is a frozen,
@@ -139,8 +149,17 @@ Extrapolation warnings
     Extrapolating beyond a table *you* supplied (a
     :class:`~hmf.core.power_source.TabulatedPower`, or a ``FromArray`` or
     ``FromFile`` transfer model) emits an
-    :class:`~hmf.exceptions.HMFExtrapolationWarning`, once per stage instance
-    (:func:`~hmf.core.domain.warn_once`). Extrapolation by design is silent: the
+    :class:`~hmf.exceptions.HMFExtrapolationWarning`, once per owner and end of the
+    table (:func:`~hmf.core.domain.warn_once`). Every path warns through one
+    mechanism, :meth:`TableRange.warn_outside
+    <hmf.core.power_source.TableRange.warn_outside>`: the public methods of a
+    :class:`~hmf.core.transfer.Transfer` stage or a
+    :class:`~hmf.core.power_source.TabulatedPower` warn for k outside the table, and
+    a :class:`~hmf.core.mass_variance.MassVariance` warns once if its k grid
+    reaches beyond its power source's table (its ``table_range``). The ends of the k
+    grid are rounded outwards onto the lattice, so a table that reaches the
+    unrounded ends (e.g. from exactly 10⁻⁸ h/Mpc) does not warn. A power source's
+    ``ln_power_kernel`` itself does not warn. Extrapolation by design is silent: the
     tail of T(k) beyond a Boltzmann code's ``k_max``, or the lazy extension of the
     mass lattice. So the default configurations emit no warnings. Growth tables are
     never extrapolated: z beyond them raises.
@@ -228,12 +247,24 @@ either end, or aliased) raise rather than return a wrong value.
 Composing stages
 ----------------
 The mass function will be built from these stages and the fits, through their
-kernel-level entry points only:
+kernel-level entry points only. Each one checks its input and raises a
+:class:`~hmf.core.domain.DomainError` rather than extrapolate silently.
 
-* σ(m) and dlnσ/dlnm from
+* σ(m, z) = D(z) · √A · σ_raw(m), where σ_raw is the σ of
+  :class:`~hmf.core.mass_variance.MassVariance`, the mass variance of the
+  *unnormalised* power, and A is the amplitude that fixes the power to σ8. A
+  ``LinearPower`` stage will fix A; it does not exist yet. MassVariance keeps the
+  unnormalised power, so changing σ8 changes only the scalar A, and recomputes no
+  lattice nodes;
+* ln σ_raw(m) and dlnσ/dlnm (which A and D do not change) from
   :meth:`MassVariance.ln_sigma_and_slope_kernel
   <hmf.core.mass_variance.MassVariance.ln_sigma_and_slope_kernel>`, and ``n_eff``
   from them with :func:`~hmf.core.mass_variance.n_eff_kernel`;
+* the growth factor D(z) from :meth:`Growth.growth_factor_kernel
+  <hmf.core.growth.Growth.growth_factor_kernel>` (and the growth rate from
+  :meth:`Growth.growth_rate_kernel <hmf.core.growth.Growth.growth_rate_kernel>`),
+  which raise beyond the growth model's table, not ``Growth.solution``, which is NaN
+  there;
 * the mean density from the power source's ``rho_mean0``, and Ω_m(z) of CDM +
   baryons from :func:`hmf.core._species.omega_m` (``"cb"``);
 * the overdensity of a fit's mass definition from
@@ -241,7 +272,8 @@ kernel-level entry points only:
   <hmf.core.fits.MeasuredMassDefinition.delta_halo_mean_kernel>`;
 * f(σ) from :meth:`FittingFunction.fsigma_kernel
   <hmf.core.fits.FittingFunction.fsigma_kernel>` (or
-  :func:`~hmf.core.fits.evaluate_fsigma`, with a domain policy), and the fit's mass
+  :func:`~hmf.core.fits.evaluate_fsigma`, with a domain policy, whose ``"warn"``
+  policy warns once per ``owner``: the mass-function stage), and the fit's mass
   function from :meth:`FittingFunction.modify_dndm_kernel
   <hmf.core.fits.FittingFunction.modify_dndm_kernel>`, which every fit has.
 

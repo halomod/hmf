@@ -78,8 +78,12 @@ Array = npt.NDArray[np.float64]
 class GrowthSolution:
     """The growth factor and rate of every matter species, from one model evaluation.
 
-    The kernel-level result of :meth:`GrowthModel.solve`: plain arrays of redshift in,
-    plain arrays out. Valid for ``0 <= z <= z_max``; the stage checks that.
+    The result of :meth:`GrowthModel.solve`, a read-only data holder: plain arrays of
+    redshift in, plain arrays out. It is valid for ``0 <= z <= z_max`` and does not
+    check its input: outside that range its methods return NaN. Library code calls
+    the checked kernel-level entry points,
+    :meth:`Growth.growth_factor_kernel <hmf.core.growth.Growth.growth_factor_kernel>`
+    and :meth:`Growth.growth_rate_kernel <hmf.core.growth.Growth.growth_rate_kernel>`.
     """
 
     #: The tabulated growth of each species.
@@ -90,11 +94,11 @@ class GrowthSolution:
     run: BoltzmannRun | None = None
 
     def growth_factor(self, z: Array, species: str = "cb") -> Array:
-        """D(z)/D(0) of ``species``."""
+        """D(z)/D(0) of ``species`` (NaN outside ``0 <= z <= z_max``)."""
         return self.tables[check_species(species)].growth_factor(z)
 
     def growth_rate(self, z: Array, species: str = "cb") -> Array:
-        """The growth rate d ln D / d ln a of ``species``."""
+        """The growth rate d ln D / d ln a of ``species`` (NaN outside the table)."""
         return self.tables[check_species(species)].growth_rate(z)
 
 

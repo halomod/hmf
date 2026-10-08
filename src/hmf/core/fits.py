@@ -114,7 +114,14 @@ from ._arrays import float_array, optional_float_array
 from ._fields import field
 from ._kernels import fits as _k
 from ._validators import check_finite_positive, less_than, one_of, positive
-from .domain import Domain, DomainError, DomainPolicy, apply_domain_policy
+from .domain import (
+    Domain,
+    DomainError,
+    DomainPolicy,
+    Interval,
+    apply_domain_policy,
+    check_extent,
+)
 from .model import Model
 from .units import (
     RHO_CRIT0_H2,
@@ -178,6 +185,11 @@ INPUTS: tuple[str, ...] = ("z", "omega_m_z", "delta_halo", "delta_c", "n_eff", "
 
 #: The bounds of a variable that must be > 0 (e.g. sigma, in every fit's valid domain).
 _POSITIVE = (0, None, "(]")
+
+#: The domains of the inputs of the kernel-level entry points (see
+#: :mod:`hmf.core._kernels`): masses, h and density parameters are > 0, z >= 0.
+_POSITIVE_INTERVAL = Interval(0, None, lower_open=True)
+_Z_INTERVAL = Interval(0, None)
 
 
 # ---------------------------------------------------------------------------------
@@ -261,13 +273,20 @@ class MeasuredMassDefinition:
 
         Raises
         ------
+        DomainError
+            If an :math:`\Omega_m(z)` is not finite and > 0.
         ValueError
             For ``"self_bound"``, which has no overdensity.
         """
         if self.kind == "so_any":
             assert self.preferred is not None
             return self.preferred.delta_halo_mean_kernel(omega_m_z)
-        om = np.asarray(omega_m_z, dtype=np.float64)
+        om = check_extent(
+            "omega_m_z",
+            omega_m_z,
+            _POSITIVE_INTERVAL,
+            where=f"MeasuredMassDefinition.delta_halo_mean_kernel ({self})",
+        )
         if self.kind == "so_mean":
             assert self.overdensity is not None
             return np.full_like(om, self.overdensity)
@@ -878,10 +897,14 @@ class FittingFunction(Model, kind=True):
         h: npt.ArrayLike,
         omega_m0: npt.ArrayLike,
     ) -> FloatArray:
-        """:meth:`modify_dndm` at kernel level, on plain arrays (the identity here).
+        """:meth:`modify_dndm` at kernel level, on plain arrays.
 
-        A pure kernel in canonical units (see :mod:`hmf.core._kernels`), which a fit
-        that sets :attr:`modifies_dndm` overrides. All arguments broadcast.
+        A pure kernel in canonical units (see :mod:`hmf.core._kernels`): the identity,
+        unless the fit sets :attr:`modifies_dndm` (its class documentation describes
+        the correction). All arguments broadcast. It checks the arguments that say
+        where the mass function is evaluated (``m``, ``z``, ``h``, ``omega_m0``),
+        from their extent; ``dndm`` and ``ngtm`` are values it maps, and may be NaN
+        (e.g. masked by a domain policy).
 
         Parameters
         ----------
@@ -902,6 +925,36 @@ class FittingFunction(Model, kind=True):
         -------
         numpy.ndarray
             The fit's mass function, in h^4 / (Msun Mpc^3).
+
+        Raises
+        ------
+        DomainError
+            If an ``m``, ``h`` or ``omega_m0`` is not finite and > 0, or a ``z`` is
+            not finite and >= 0.
+        """
+        where = f"{type(self).__name__}.modify_dndm_kernel"
+        return self._modify_dndm(
+            check_extent("m", m, _POSITIVE_INTERVAL, where=where),
+            dndm,
+            z=check_extent("z", z, _Z_INTERVAL, where=where),
+            ngtm=ngtm,
+            h=check_extent("h", h, _POSITIVE_INTERVAL, where=where),
+            omega_m0=check_extent("omega_m0", omega_m0, _POSITIVE_INTERVAL, where=where),
+        )
+
+    def _modify_dndm(
+        self,
+        m: FloatArray,
+        dndm: npt.ArrayLike,
+        *,
+        z: FloatArray,
+        ngtm: npt.ArrayLike,
+        h: FloatArray,
+        omega_m0: FloatArray,
+    ) -> FloatArray:
+        """:meth:`modify_dndm_kernel` on checked arguments (the identity here).
+
+        A fit that sets :attr:`modifies_dndm` overrides it.
         """
         return np.asarray(dndm, dtype=np.float64)
 
@@ -943,7 +996,11 @@ class FSigmaResult:
 
 
 def evaluate_fsigma(
-    model: FittingFunction, inputs: FitInputs, *, policy: DomainPolicy = "ignore"
+    model: FittingFunction,
+    inputs: FitInputs,
+    *,
+    policy: DomainPolicy = "ignore",
+    owner: object | None = None,
 ) -> FSigmaResult:
     r"""Evaluate a fit, applying a domain policy to its calibration domain.
 
@@ -959,8 +1016,8 @@ def evaluate_fsigma(
         return :math:`f(\sigma)` everywhere;
     ``"warn"``
         also emit an :class:`~hmf.exceptions.HMFExtrapolationWarning` if any value is
-        outside. It is emitted on each call: a :class:`~hmf.core.stage.Stage` that
-        wants it once per instance calls this once and caches the result;
+        outside: once per ``owner`` (see :func:`~hmf.core.domain.warn_once`), e.g.
+        the :class:`~hmf.core.stage.Stage` that evaluates the fit;
     ``"mask"``
         return NaN outside;
     ``"raise"``
@@ -975,6 +1032,10 @@ def evaluate_fsigma(
         :meth:`FittingFunction.domain_inputs`) must be given.
     policy
         What to do outside the calibration domain.
+    owner
+        The object the ``"warn"`` policy warns once for (see
+        :func:`~hmf.core.domain.apply_domain_policy`). If ``None``, the fit
+        ``model``.
 
     Returns
     -------
@@ -1006,6 +1067,7 @@ def evaluate_fsigma(
         policy,
         description=f"{type(model).__name__}'s calibration domain "
         f"({'none' if calibration is None else calibration.describe()})",
+        owner=model if owner is None else owner,
     )
     return FSigmaResult(np.asarray(out, dtype=np.float64), np.array(inside, dtype=bool))
 
@@ -2211,15 +2273,15 @@ class Behroozi(Tinker08, alias="Behroozi"):
     )
     modifies_dndm: ClassVar[bool] = True
 
-    def modify_dndm_kernel(
+    def _modify_dndm(
         self,
-        m: npt.ArrayLike,
+        m: FloatArray,
         dndm: npt.ArrayLike,
         *,
-        z: npt.ArrayLike,
+        z: FloatArray,
         ngtm: npt.ArrayLike,
-        h: npt.ArrayLike,
-        omega_m0: npt.ArrayLike,
+        h: FloatArray,
+        omega_m0: FloatArray,
     ) -> FloatArray:
         """Apply the App. G correction to the Tinker (2008) mass function (kernel level).
 
@@ -2243,8 +2305,7 @@ class Behroozi(Tinker08, alias="Behroozi"):
         numpy.ndarray
             The corrected mass function, in h^4 / (Msun Mpc^3).
         """
-        h = np.asarray(h, dtype=np.float64)
-        return _k.behroozi_modify_dndm(np.asarray(m, dtype=np.float64) / h, dndm, z, ngtm, h)
+        return _k.behroozi_modify_dndm(m / h, dndm, z, ngtm, h)
 
 
 @attrs.frozen(kw_only=True)
@@ -2635,20 +2696,38 @@ class Bocquet200mDMOnly(FittingFunction, alias="Bocquet200mDMOnly"):
     ) -> FloatArray:
         """:meth:`mass_ratio_to_200m` at kernel level: ``m`` a plain array in Msun/h.
 
-        1 for the 200m fits. A pure kernel (see :mod:`hmf.core._kernels`): ``z``,
-        ``omega_m0`` and ``h`` (dimensionless) broadcast with ``m``.
-        """
-        return np.ones(np.broadcast(np.asarray(m), np.asarray(z)).shape)
+        A pure kernel (see :mod:`hmf.core._kernels`): ``z``, ``omega_m0`` and ``h``
+        (dimensionless) broadcast with ``m``. It checks them from their extent.
 
-    def modify_dndm_kernel(
+        Raises
+        ------
+        DomainError
+            If an ``m``, ``omega_m0`` or ``h`` is not finite and > 0, or a ``z`` is
+            not finite and >= 0.
+        """
+        where = f"{type(self).__name__}.mass_ratio_to_200m_kernel"
+        return self._mass_ratio_to_200m(
+            check_extent("m", m, _POSITIVE_INTERVAL, where=where),
+            z=check_extent("z", z, _Z_INTERVAL, where=where),
+            omega_m0=check_extent("omega_m0", omega_m0, _POSITIVE_INTERVAL, where=where),
+            h=check_extent("h", h, _POSITIVE_INTERVAL, where=where),
+        )
+
+    def _mass_ratio_to_200m(
+        self, m: FloatArray, *, z: FloatArray, omega_m0: FloatArray, h: FloatArray
+    ) -> FloatArray:
+        """:meth:`mass_ratio_to_200m_kernel` on checked arguments: 1 for the 200m fits."""
+        return np.ones(np.broadcast(m, z).shape)
+
+    def _modify_dndm(
         self,
-        m: npt.ArrayLike,
+        m: FloatArray,
         dndm: npt.ArrayLike,
         *,
-        z: npt.ArrayLike,
+        z: FloatArray,
         ngtm: npt.ArrayLike,
-        h: npt.ArrayLike,
-        omega_m0: npt.ArrayLike,
+        h: FloatArray,
+        omega_m0: FloatArray,
     ) -> FloatArray:
         """The mass function times :meth:`mass_ratio_to_200m_kernel` (eq. 5; kernel level).
 
@@ -2672,7 +2751,7 @@ class Bocquet200mDMOnly(FittingFunction, alias="Bocquet200mDMOnly"):
         numpy.ndarray
             The mass function in the fit's definition, in h^4 / (Msun Mpc^3).
         """
-        ratio = self.mass_ratio_to_200m_kernel(m, z=z, omega_m0=omega_m0, h=h)
+        ratio = self._mass_ratio_to_200m(m, z=z, omega_m0=omega_m0, h=h)
         out: FloatArray = np.asarray(dndm, dtype=np.float64) * ratio
         return out
 
@@ -2756,16 +2835,15 @@ class Bocquet200cDMOnly(Bocquet200mDMOnly, alias="Bocquet200cDMOnly"):
 
     modifies_dndm: ClassVar[bool] = True
 
-    def mass_ratio_to_200m_kernel(
-        self, m: npt.ArrayLike, *, z: npt.ArrayLike, omega_m0: npt.ArrayLike, h: npt.ArrayLike
+    def _mass_ratio_to_200m(
+        self, m: FloatArray, *, z: FloatArray, omega_m0: FloatArray, h: FloatArray
     ) -> FloatArray:
         r""":math:`M_{200c}/M_{200m}`, Bocquet et al. (2016) eq. A2.
 
         Calibrated for 0 < z < 2, 1e13 < M200c / Msun < 2e16 and
         0.15 < Omega_m < 0.5 (App. A). ``m`` is a plain array in Msun/h.
         """
-        m_msun = np.asarray(m, dtype=np.float64) / np.asarray(h, dtype=np.float64)
-        return _k.bocquet16_mass_ratio_200c(m_msun, z, omega_m0)
+        return _k.bocquet16_mass_ratio_200c(m / h, z, omega_m0)
 
 
 @attrs.frozen(kw_only=True)
@@ -2818,16 +2896,15 @@ class Bocquet500cDMOnly(Bocquet200mDMOnly, alias="Bocquet500cDMOnly"):
 
     modifies_dndm: ClassVar[bool] = True
 
-    def mass_ratio_to_200m_kernel(
-        self, m: npt.ArrayLike, *, z: npt.ArrayLike, omega_m0: npt.ArrayLike, h: npt.ArrayLike
+    def _mass_ratio_to_200m(
+        self, m: FloatArray, *, z: FloatArray, omega_m0: FloatArray, h: FloatArray
     ) -> FloatArray:
         r""":math:`M_{500c}/M_{200m}`, Bocquet et al. (2016) eq. 6.
 
         Calibrated for 0 < z < 2, 1e13 < M500c / Msun < 1e16 and 0.1 < Omega_m < 0.5
         (Sec. 3.2.2). ``m`` is a plain array in Msun/h.
         """
-        m_msun = np.asarray(m, dtype=np.float64) / np.asarray(h, dtype=np.float64)
-        return _k.bocquet16_mass_ratio_500c(m_msun, z, omega_m0)
+        return _k.bocquet16_mass_ratio_500c(m / h, z, omega_m0)
 
 
 @attrs.frozen(kw_only=True)
