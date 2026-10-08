@@ -5,10 +5,11 @@ shared CI runner. Timings in general cannot (they are tracked, not gated: see
 ``README.md``), but two kinds of check can:
 
 * **The units boundary of hmf.core** (``test_unit_boundary_overhead_gate``): the fixed
-  cost of :func:`hmf.core.units.unit_boundary` is at most 2 µs per call (#389). It is
-  measured with the kernel replaced by the identity, as the difference of the median
-  times of a decorated and an undecorated call, over many interleaved repeats, and
-  re-measured once before failing.
+  cost of :func:`hmf.core.units.unit_boundary` is at most 2 µs per call (#389), for a
+  method with one dimensional argument and for one with two, which go through
+  different wrappers. It is measured with the kernel replaced by the identity, as the
+  difference of the median times of a decorated and an undecorated call, over many
+  interleaved repeats, and re-measured once before failing.
 * **Call counters** (the other tests): how many CAMB runs, or sigma(R) evaluations, a
   workload makes. These count calls and time nothing, so they are exact.
 
@@ -32,7 +33,7 @@ from hmf.core import _boltzmann
 from hmf.core.growth import Growth
 from hmf.core.mass_variance import MassVariance
 from hmf.core.transfer import Transfer
-from hmf.core.units import h_Mpc
+from hmf.core.units import Mpc_h, h_Mpc
 
 # ---------------------------------------------------------------------------------
 # The units boundary
@@ -44,41 +45,65 @@ UNIT_BOUNDARY_BUDGET = 2e-6
 _CALLS, _REPEATS = 1000, 101
 
 
-def _unit_boundary_overhead() -> float:
+#: Two dimensional arguments, for the wrapper of methods with several of them.
+_R = np.linspace(1.0, 10.0, M.size)
+
+
+def _one_argument(toy):
+    """A decorated and an undecorated call with one dimensional argument."""
+    m = M * Msun_h
+    return lambda: toy.decorated(m, z=0.5), lambda: toy.undecorated(M, z=0.5)
+
+
+def _two_arguments(toy):
+    """A decorated and an undecorated call with two dimensional arguments."""
+    m, r = M * Msun_h, _R * Mpc_h
+    return lambda: toy.decorated_two(m, r, z=0.5), lambda: toy.undecorated_two(M, _R, z=0.5)
+
+
+def _unit_boundary_overhead(calls) -> float:
     """The boundary's cost per call: median(decorated) - median(undecorated) [s].
 
     Each repeat times ``_CALLS`` calls of each method, alternately, so that a slow
     patch of the runner affects both; the median discards the outliers.
     """
-    toy = Toy()
-    m = M * Msun_h
+    decorated_call, raw_call = calls
     decorated, raw = [], []
     for _ in range(_REPEATS):
-        decorated.append(timeit.timeit(lambda: toy.decorated(m, z=0.5), number=_CALLS))
-        raw.append(timeit.timeit(lambda: toy.undecorated(M, z=0.5), number=_CALLS))
+        decorated.append(timeit.timeit(decorated_call, number=_CALLS))
+        raw.append(timeit.timeit(raw_call, number=_CALLS))
     return (statistics.median(decorated) - statistics.median(raw)) / _CALLS
 
 
-def test_unit_boundary_overhead_gate():
-    """The units boundary costs at most 2 µs per call (one retry before failing)."""
-    toy = Toy()
-    for _ in range(100):  # warm up
-        toy.decorated(M * Msun_h, z=0.5)
+@pytest.mark.parametrize(
+    ("label", "make_calls"),
+    [("one argument", _one_argument), ("two arguments", _two_arguments)],
+    ids=["one-argument", "two-arguments"],
+)
+def test_unit_boundary_overhead_gate(label, make_calls):
+    """The units boundary costs at most 2 µs per call (one retry before failing).
 
-    overheads = [_unit_boundary_overhead()]
+    Methods with one dimensional argument and with two go through different
+    wrappers, so each is gated.
+    """
+    calls = make_calls(Toy())
+    for _ in range(100):  # warm up
+        calls[0]()
+
+    overheads = [_unit_boundary_overhead(calls)]
     if overheads[0] > UNIT_BOUNDARY_BUDGET:
-        overheads.append(_unit_boundary_overhead())
+        overheads.append(_unit_boundary_overhead(calls))
 
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         with open(summary, "a") as f:  # noqa: PTH123
             f.write(
-                "\n**Units-boundary gate:** "
+                f"\n**Units-boundary gate ({label}):** "
                 + ", then ".join(f"{o * 1e6:.2f} µs" for o in overheads)
                 + f" per call (budget {UNIT_BOUNDARY_BUDGET * 1e6:.0f} µs).\n"
             )
     assert overheads[-1] <= UNIT_BOUNDARY_BUDGET, (
-        f"unit_boundary costs {overheads[-1] * 1e6:.2f} µs per call (measured "
+        f"unit_boundary ({label}) costs {overheads[-1] * 1e6:.2f} µs per call (measured "
         f"{[f'{o * 1e6:.2f}' for o in overheads]} µs), over its "
         f"{UNIT_BOUNDARY_BUDGET * 1e6:.0f} µs budget"
     )

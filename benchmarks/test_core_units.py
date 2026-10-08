@@ -17,7 +17,7 @@ from hmf.exceptions import HMFCoreExperimentalWarning
 
 with warnings.catch_warnings():
     warnings.simplefilter("ignore", HMFCoreExperimentalWarning)
-    from hmf.core.units import H0_unit, Msun_h, UnitContext, unit_boundary
+    from hmf.core.units import H0_unit, Mpc_h, Msun_h, UnitContext, unit_boundary
 
 N_CALLS = 10_000
 M = np.logspace(10, 15, 500)
@@ -34,6 +34,15 @@ class Toy:
         return m
 
     def undecorated(self, m, z=0.0):
+        """Return ``m``."""
+        return m
+
+    @unit_boundary(m=Msun_h, r=Mpc_h, returns=Msun_h)
+    def decorated_two(self, m, r, z=0.0):
+        """Return ``m``, through a boundary with two dimensional arguments."""
+        return m
+
+    def undecorated_two(self, m, r, z=0.0):
         """Return ``m``."""
         return m
 

@@ -787,27 +787,48 @@ def _wrap_many(
     specs: list[tuple[str, int | None, u.UnitBase]],
     returns: Any,
 ) -> Callable[..., Any]:
-    """The boundary wrapper of a method with any number of dimensional arguments."""
+    """The boundary wrapper of a method with any number of dimensional arguments.
+
+    As :func:`_wrap_one`, each argument that is a plain Quantity in exactly its
+    canonical unit is viewed as an ndarray, and a plain ndarray output is finished
+    inline; anything else goes through :func:`_convert_argument` and :func:`_finish`.
+    """
     # The arguments that may be passed by position, as (name, position, unit).
     positional = tuple((n, p, unit) for n, p, unit in specs if p is not None)
+    keywords = tuple((n, unit) for n, _, unit in specs)
+    single_return = isinstance(returns, u.UnitBase)
     method, impl = fn.__name__, fn.__qualname__
 
     @functools.wraps(fn)
     def wrapper(self: Any, /, *args: Any, **kwargs: Any) -> Any:
         if args:
-            new_args = None
+            args_list = list(args)
+            n_args = len(args_list)
             for name, position, unit in positional:
-                if position < len(args):
-                    if new_args is None:
-                        new_args = list(args)
-                    new_args[position] = _convert_argument(self, method, name, args[position], unit)
-            if new_args is not None:
-                args = tuple(new_args)
+                if position < n_args:
+                    x = args_list[position]
+                    if type(x) is _Quantity and x._unit is unit:
+                        args_list[position] = _view(x, np.ndarray)
+                    else:
+                        args_list[position] = _convert_argument(self, method, name, x, unit)
+            args = tuple(args_list)
         if kwargs:
-            for name, _, unit in specs:
+            for name, unit in keywords:
                 if name in kwargs:
-                    kwargs[name] = _convert_argument(self, method, name, kwargs[name], unit)
-        return _finish(fn(self, *args, **kwargs), returns, impl)
+                    x = kwargs[name]
+                    if type(x) is _Quantity and x._unit is unit:
+                        kwargs[name] = _view(x, np.ndarray)
+                    else:
+                        kwargs[name] = _convert_argument(self, method, name, x, unit)
+        out = fn(self, *args, **kwargs)
+        if type(out) is np.ndarray:
+            if single_return:
+                q = _view(out, _Quantity)
+                q._unit = returns
+                return q
+            if returns is None:
+                return out if out.ndim else out[()]
+        return _finish(out, returns, impl)
 
     return wrapper
 

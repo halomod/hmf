@@ -50,6 +50,17 @@ class Toy(Stage):
     def both(self, r, *, k):
         return r, k
 
+    @unit_boundary(m=Msun_h, r=Mpc_h, returns=Msun_h)
+    def mass_and_radius(self, m, r, z=0.0):
+        """Return m, checking that both arrive without units."""
+        assert not isinstance(m, u.Quantity)
+        assert not isinstance(r, u.Quantity)
+        return m
+
+    @unit_boundary(m=Msun_h, r=Mpc_h)
+    def ratio(self, m, r):
+        return m / r
+
     @unit_boundary(m=Msun_h, returns=dndm_unit)
     def sqrt_like(self, m):
         # np.sqrt of a 0-d array is a numpy scalar, not an array.
@@ -389,3 +400,25 @@ def test_dimensional_argument_after_others():
     assert (z, scale) == (0.5, 2.0)
     assert type(out) is np.ndarray
     np.testing.assert_array_equal(out, m)
+
+
+def test_two_dimensional_arguments_canonical_fast_path(toy):
+    """With two dimensional arguments, canonical inputs are viewed, not copied."""
+    m = np.logspace(10, 15, 5) * Msun_h
+    r = np.linspace(1, 5, 5) * Mpc_h
+    for out in (toy.mass_and_radius(m, r), toy.mass_and_radius(m, r=r, z=1.0)):
+        assert type(out) is u.Quantity
+        assert out.unit is Msun_h
+        assert np.shares_memory(out, m)
+
+
+def test_two_dimensional_arguments_convert_and_follow_the_scalar_rule(toy):
+    out = toy.mass_and_radius(1e12 * u.Msun, 1.0 * u.Mpc)
+    assert out.unit is Msun_h
+    np.testing.assert_allclose(out.value, 1e12 * LITTLE_H, rtol=1e-14)
+    ratio = toy.ratio(1e12 * Msun_h, r=2.0 * u.Mpc)
+    assert type(ratio) is np.float64
+    np.testing.assert_allclose(ratio, 1e12 / (2.0 * LITTLE_H), rtol=1e-14)
+    assert toy.ratio(np.ones(3) * Msun_h, np.ones(3) * Mpc_h).shape == (3,)
+    with pytest.raises(UnitBoundaryError):
+        toy.mass_and_radius(1e12 * Msun_h, 1.0)
