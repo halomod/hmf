@@ -49,13 +49,13 @@ from ._boltzmann import (
 from ._cosmology_models import _BoltzmannBacked, _CosmologyModel
 from ._fields import field
 from ._kernels import transfer as kt
-from ._species import CAMB_COLUMNS, MATTER_SPECIES, Species, check_species
 from ._validators import check_finite_positive, check_increasing, check_table, positive
 from .accuracy import KAccuracy
 from .cache import DiskCache
 from .domain import Domain
 from .model import Model
-from .units import h_Mpc, quantity_field
+from .species import CAMB_COLUMNS, MATTER_SPECIES, check_species
+from .units import h_Mpc, quantity_field, unit_boundary
 
 __all__ = [
     "BBKS",
@@ -63,12 +63,10 @@ __all__ = [
     "CLASS",
     "EH",
     "EH_BAO",
-    "MATTER_SPECIES",
     "BondEfs",
     "EH_NoBAO",
     "FromArray",
     "FromFile",
-    "Species",
     "TransferModel",
     "TransferSolution",
 ]
@@ -282,8 +280,24 @@ class BBKS(TransferModel, alias="BBKS"):
         doc="The baryon correction to the shape parameter (see above).",
     )
 
-    def shape_parameter(self, cosmology: FLRW) -> float:
-        """The shape parameter Gamma, in h/Mpc, including the baryon correction."""
+    @unit_boundary(returns=h_Mpc)
+    def shape_parameter(self, cosmology: FLRW) -> Any:
+        r"""The shape parameter Gamma, including the baryon correction.
+
+        Parameters
+        ----------
+        cosmology
+            The cosmology.
+
+        Returns
+        -------
+        astropy.units.Quantity
+            :math:`\Gamma`, a scalar Quantity in h/Mpc.
+        """
+        return self._shape_parameter(cosmology)
+
+    def _shape_parameter(self, cosmology: FLRW) -> float:
+        """:meth:`shape_parameter` as a float in h/Mpc, for :meth:`solve`."""
         om, ob, h = cosmology.Om0, cosmology.Ob0 or 0.0, cosmology.h
         gamma = om * h
         if self.baryons == "sugiyama95":
@@ -298,7 +312,7 @@ class BBKS(TransferModel, alias="BBKS"):
         """Compute the transfer function (see :meth:`TransferModel.solve`)."""
         fn = functools.partial(
             kt.ln_t_bbks,
-            gamma=self.shape_parameter(cosmology),
+            gamma=self._shape_parameter(cosmology),
             a=self.a,
             b=self.b,
             c=self.c,

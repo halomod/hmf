@@ -47,12 +47,12 @@ from ._boltzmann import BoltzmannRun
 from ._cosmology_models import _BoltzmannBacked, _CosmologyModel
 from ._fields import field
 from ._kernels import growth as kg
-from ._species import MATTER_SPECIES, check_species, omega_m
 from ._validators import check_finite_positive, check_in_range, check_table, less_than, positive
 from .accuracy import KAccuracy
 from .cache import DiskCache
 from .domain import Domain
 from .model import Model
+from .species import MATTER_SPECIES, check_species, omega_m
 from .transfer_models import CAMB, CLASS
 
 __all__ = [
@@ -129,7 +129,7 @@ def background(cosmology: FLRW, ln_a: Array) -> tuple[Array, Array, Array]:
         difference in ln(1+z).
     omega_m_a : numpy.ndarray
         :math:`\Omega_m(a) = \Omega_{m,0} a^{-3}/E^2` of the matter that clusters,
-        CDM + baryons (:func:`~hmf.core._species.omega_m` of species ``"cb"``).
+        CDM + baryons (:func:`~hmf.core.species.omega_m` of species ``"cb"``).
     """
     a = np.exp(ln_a)
     z = np.expm1(-ln_a)

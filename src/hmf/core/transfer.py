@@ -9,7 +9,7 @@ model) and gives, for each matter species (``"cb"``, CDM + baryons; ``"tot"``, t
   linear power spectrum at z = 0. It is a plain (dimensionless) array, with k in
   h/Mpc and an arbitrary amplitude: normalising it, e.g. to sigma_8, and giving it
   the units of a power spectrum, is the job of a later stage;
-* :meth:`Transfer.power_kernel`: the same at kernel level, for later stages: an
+* :meth:`Transfer.power_source`: the same at kernel level, for later stages: an
   :class:`UnnormalisedPower`, a :class:`~hmf.core.power_source.PowerSource` whose
   methods are pure functions of plain arrays in canonical units, with the mean
   density of the species (see :mod:`hmf.core._kernels`).
@@ -41,11 +41,11 @@ import numpy.typing as npt
 
 from ._boltzmann import BoltzmannRun
 from ._fields import field
-from ._species import check_species, rho_mean0
 from .accuracy import KAccuracy
 from .cache import DiskCache
 from .domain import check_extent
 from .power_source import TableRange
+from .species import check_species, rho_mean0
 from .stage import CosmologyStage, _check_model_cosmology, _disk_cache_field
 from .transfer_models import CAMB, TransferModel, TransferSolution
 from .units import UnitContext, h_Mpc, unit_boundary
@@ -210,9 +210,9 @@ class Transfer(CosmologyStage):
             As for :meth:`transfer_function`.
         """
         self._check_k(k)
-        return self.power_kernel(species).power_kernel(k)
+        return self.power_source(species).power_kernel(k)
 
-    def power_kernel(self, species: str = "cb") -> UnnormalisedPower:
+    def power_source(self, species: str = "cb") -> UnnormalisedPower:
         """The kernel-level shape of the power spectrum of ``species``, a PowerSource.
 
         For library code working in canonical units (see :mod:`hmf.core._kernels`),
@@ -243,7 +243,7 @@ class UnnormalisedPower:
 
     :math:`P(k) \propto k^{n_s} T(k)^2`, with k in h/Mpc, on plain arrays: a
     :class:`~hmf.core.power_source.PowerSource`, made by
-    :meth:`Transfer.power_kernel`. Its amplitude is arbitrary: the normalisation to
+    :meth:`Transfer.power_source`. Its amplitude is arbitrary: the normalisation to
     sigma_8 is applied later, as a scalar. Its methods are pure; it compares and
     hashes by its transfer stage and species. They check k against the transfer
     model's valid domain, and do not warn when they extrapolate a user's table: a

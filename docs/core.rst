@@ -188,8 +188,8 @@ Transfer and growth
 T(k) and the unnormalised power spectrum :math:`k^{n_s} T^2` at z = 0 (a plain,
 dimensionless array with an arbitrary amplitude, which a later stage normalises), and
 :class:`~hmf.core.growth.Growth` (a function of z) the growth factor and growth rate,
-for each matter species: ``"cb"`` (CDM + baryons) and ``"tot"`` (total matter,
-including massive neutrinos). Their models are in
+for each matter species (:mod:`~hmf.core.species`): ``"cb"`` (CDM + baryons) and
+``"tot"`` (total matter, including massive neutrinos). Their models are in
 :mod:`~hmf.core.transfer_models` (CAMB, CLASS, EH, BBKS, BondEfs, tables) and
 :mod:`~hmf.core.growth_models` (the growth ODE, the integral form and its closed
 forms, GenMF, Carroll et al., CAMB, CLASS)::
@@ -223,7 +223,7 @@ variance σ(M) of the *unnormalised* linear power at z = 0, and its slope
 dlnσ/dlnM, for a smoothing filter (:mod:`hmf.core.filters`: ``TopHat``, ``SharpK``,
 ``SmoothK``). The power comes from any :class:`~hmf.core.power_source.PowerSource`:
 the power of one species of a :class:`~hmf.core.transfer.Transfer` stage
-(:meth:`~hmf.core.transfer.Transfer.power_kernel`, which carries the mean density
+(:meth:`~hmf.core.transfer.Transfer.power_source`, which carries the mean density
 of the same species), or a :class:`~hmf.core.power_source.TabulatedPower`::
 
     from hmf.core.mass_variance import MassVariance
@@ -231,7 +231,7 @@ of the same species), or a :class:`~hmf.core.power_source.TabulatedPower`::
     from hmf.core.transfer import Transfer
     from hmf.core.units import Msun_h, h_Mpc, power_unit, rho_unit
 
-    mv = MassVariance(power=Transfer(model="EH").power_kernel("cb"), filter="SharpK")
+    mv = MassVariance(power=Transfer(model="EH").power_source("cb"), filter="SharpK")
     mv.sigma(m * Msun_h), mv.dlnsigma_dlnm(m * Msun_h), mv.m_from_sigma(0.5)
 
     source = TabulatedPower(k=k * h_Mpc, pk=pk * power_unit, mean_density=rho * rho_unit)
@@ -266,7 +266,7 @@ kernel-level entry points only. Each one checks its input and raises a
   which raise beyond the growth model's table, not ``Growth.solution``, which is NaN
   there;
 * the mean density from the power source's ``rho_mean0``, and Ω_m(z) of CDM +
-  baryons from :func:`hmf.core._species.omega_m` (``"cb"``);
+  baryons from :func:`hmf.core.species.omega_m` (``"cb"``);
 * the overdensity of a fit's mass definition from
   :meth:`MeasuredMassDefinition.delta_halo_mean_kernel
   <hmf.core.fits.MeasuredMassDefinition.delta_halo_mean_kernel>`;

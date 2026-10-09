@@ -1004,12 +1004,12 @@ def test_so_critical_overdensity_is_the_same_halo_density():
     """Delta_c rho_c(z) = Delta_m rho_m(z), with rho_m(z) = Omega_m0 rho_c0 (1 + z)^3.
 
     The halo density is computed both ways from astropy's densities (rho_c(z) from
-    H(z), rho_m(z) from today's), with Omega_m(z) from hmf.core._species. In
+    H(z), rho_m(z) from today's), with Omega_m(z) from hmf.core.species. In
     Einstein-de Sitter (Omega_m = 1) the two definitions coincide.
     """
     from astropy.cosmology import Planck18
 
-    from hmf.core._species import omega_m
+    from hmf.core.species import omega_m
 
     mdef = MeasuredMassDefinition(kind="so_critical", overdensity=500)
     z = np.array([0.0, 0.5, 2.0, 6.0])
@@ -1028,7 +1028,7 @@ def test_bryan_norman_virial_overdensity():
     """18 pi^2 for Omega_m = 1; ~330 times the mean density for Planck18 today."""
     from astropy.cosmology import Planck18
 
-    from hmf.core._species import omega_m
+    from hmf.core.species import omega_m
 
     mdef = MeasuredMassDefinition(kind="so_virial")
     assert mdef.delta_halo_mean_kernel(1.0) == pytest.approx(18 * np.pi**2, rel=1e-15)

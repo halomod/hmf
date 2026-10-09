@@ -38,11 +38,10 @@ from scipy.interpolate import CubicSpline
 
 from ._arrays import read_only
 from ._serialise import content_hash
-from ._species import CAMB_COLUMNS, MATTER_SPECIES
 from .cache import DiskCache
+from .species import CAMB_COLUMNS, MATTER_SPECIES
 
 __all__ = [
-    "MATTER_SPECIES",
     "BoltzmannRun",
     "camb_cosmology_input",
     "check_boltzmann_cosmology",

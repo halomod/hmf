@@ -31,7 +31,7 @@ broadcast against each other.
 
 :math:`\Omega_m` (``omega_m_z``, and ``omega_m0`` of :meth:`FittingFunction.modify_dndm`)
 is that of CDM + baryons, the matter species ``"cb"``
-(:func:`hmf.core._species.omega_m`), as is the mean density of the mass function:
+(:func:`hmf.core.species.omega_m`), as is the mean density of the mass function:
 the fits are universal in the CDM + baryon field when neutrinos are massive (Costanzi
 et al. 2013; Castorina et al. 2014), and none was calibrated with massive neutrinos.
 The overdensity of a fit's own mass definition follows from it with
@@ -1821,7 +1821,7 @@ class Watson(FittingFunction, alias="Watson"):
     def _parameters(
         self, z: npt.ArrayLike, omega_m_z: npt.ArrayLike
     ) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray]:
-        """:meth:`parameters`, for library code (no units boundary)."""
+        """:meth:`parameters` on plain arrays, for this fit's own ``_fsigma``."""
         z = np.asarray(z, dtype=np.float64)
         om = np.asarray(omega_m_z, dtype=np.float64)
         zp1 = 1.0 + z
@@ -2197,7 +2197,7 @@ class Tinker08(FittingFunction, alias="Tinker08"):
     def _parameters(
         self, delta_halo: npt.ArrayLike, z: npt.ArrayLike
     ) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray]:
-        """:meth:`parameters`, for library code (no units boundary)."""
+        """:meth:`parameters` on plain arrays, for this fit's own ``_fsigma``."""
         delta = np.asarray(delta_halo, dtype=np.float64)
         zp1 = 1.0 + np.asarray(z, dtype=np.float64)
         A0, a0, b0, c0 = (
@@ -2448,7 +2448,7 @@ class Tinker10(FittingFunction, alias="Tinker10"):
     def _parameters(
         self, delta_halo: npt.ArrayLike, z: npt.ArrayLike
     ) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray, FloatArray]:
-        """:meth:`parameters`, for library code (no units boundary)."""
+        """:meth:`parameters` on plain arrays, for this fit's own ``_fsigma``."""
         delta = np.asarray(delta_halo, dtype=np.float64)
         z = np.asarray(z, dtype=np.float64)
         zp1 = 1.0 + np.minimum(z, self.max_z)
@@ -2645,7 +2645,7 @@ class Bocquet200mDMOnly(FittingFunction, alias="Bocquet200mDMOnly"):
     def _parameters(
         self, z: npt.ArrayLike
     ) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray]:
-        """:meth:`parameters`, for library code (no units boundary)."""
+        """:meth:`parameters` on plain arrays, for this fit's own ``_fsigma``."""
         zp1 = 1.0 + np.asarray(z, dtype=np.float64)
         return (
             self.A * zp1**self.A_z,
@@ -3077,7 +3077,7 @@ class Yung24(FittingFunction, alias="Yung24"):
     def _parameters(
         self, z: npt.ArrayLike
     ) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray]:
-        """:meth:`parameters`, for library code (no units boundary)."""
+        """:meth:`parameters` on plain arrays, for this fit's own ``_fsigma``."""
         z = np.asarray(z, dtype=np.float64)
         return (
             self.A_0 + self.A_1 * z + self.A_2 * z**2,

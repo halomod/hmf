@@ -17,6 +17,7 @@ import numpy as np
 import pytest
 from power_models import RHO_CRIT0, AnalyticPower, EisensteinHuNoWiggle
 
+import hmf.core.filters
 import hmf.core.fits
 import hmf.core.growth
 import hmf.core.mass_variance
@@ -26,6 +27,7 @@ from hmf.core import fits, growth_models, transfer_models
 from hmf.core._kernels import growth as kg
 from hmf.core.accuracy import KAccuracy
 from hmf.core.domain import Domain, DomainError, Interval, check_extent, warn_once
+from hmf.core.filters import TopHat
 from hmf.core.fits import FitInputs, evaluate_fsigma
 from hmf.core.growth import Growth
 from hmf.core.mass_variance import MassVariance, n_eff_kernel
@@ -158,8 +160,8 @@ def test_growth_splines_are_bit_identical_inside_the_table():
 # One mechanism for extrapolation warnings
 # ---------------------------------------------------------------------------------
 def test_mass_variance_on_a_user_transfer_table_warns_exactly_once():
-    """The path MassFunction will use: Transfer(FromArray).power_kernel() in MassVariance."""
-    mv = MassVariance(power=Transfer(model=_eh_transfer_table()).power_kernel())
+    """The path MassFunction will use: Transfer(FromArray).power_source() in MassVariance."""
+    mv = MassVariance(power=Transfer(model=_eh_transfer_table()).power_source())
 
     def calls():
         mv.sigma(1e12 * Msun_h)
@@ -173,9 +175,9 @@ def test_mass_variance_on_a_user_transfer_table_warns_exactly_once():
     assert "with the shape of EH98" in messages[0]
 
 
-def test_the_transfer_stage_and_its_power_kernel_warn_through_the_same_table_range():
+def test_the_transfer_stage_and_its_power_source_warn_through_the_same_table_range():
     t = Transfer(model=_eh_transfer_table())
-    power = t.power_kernel()
+    power = t.power_source()
     assert power.table_range is t._table_range
     table = power.table_range
     assert table is not None
@@ -195,10 +197,10 @@ def test_the_transfer_stage_and_its_power_kernel_warn_through_the_same_table_ran
 def test_default_transfer_and_mass_variance_are_silent(model):
     """Designed extrapolation (a Boltzmann tail, a fitting formula) never warns."""
     t = Transfer(model=model)
-    assert t.power_kernel().table_range is None
+    assert t.power_source().table_range is None
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        mv = MassVariance(power=t.power_kernel())
+        mv = MassVariance(power=t.power_source())
         mv.sigma(np.geomspace(1e2, 1e17, 50) * Msun_h)
         mv.dlnsigma_dlnm(1e12 * Msun_h)
 
@@ -349,7 +351,7 @@ def _mass_ratio(**bad):
 
 
 def _ups(model="EH"):
-    return Transfer(model=model).power_kernel()
+    return Transfer(model=model).power_source()
 
 
 #: One out-of-domain call for each public kernel: (its qualified name, the call).
@@ -368,6 +370,10 @@ KERNEL_CASES = [
     ("UnnormalisedPower.ln_power_kernel", lambda: _ups().ln_power_kernel(np.array([np.inf]))),
     ("UnnormalisedPower.power_kernel", lambda: _ups().power_kernel(np.array([1.0, 0.0]))),
     ("FittingFunction.fsigma_kernel", _fsigma_kernel),
+    (
+        "Filter.window_derivatives_kernel",
+        lambda: TopHat().window_derivatives_kernel(np.array([1.0, -0.5])),
+    ),
     (
         "MeasuredMassDefinition.delta_halo_mean_kernel",
         lambda: fits.Tinker08.measured_mass_definition.delta_halo_mean_kernel([0.3, -0.1]),
@@ -401,15 +407,16 @@ def test_tabulated_power_kernel_with_extension_raise():
         source.ln_power_kernel(np.log([1.0, 20.0]))
 
 
-#: Kernels whose argument is not a domain value: Transfer.power_kernel takes a species
-#: (a bad one is a ValueError) and returns a PowerSource.
-_FACTORIES = {"Transfer.power_kernel"}
-
-
 def _public_kernels():
     """The qualified names of every public *_kernel of the stage and model modules."""
     names = set()
-    modules = (hmf.core.fits, hmf.core.growth, hmf.core.mass_variance, hmf.core.power_source)
+    modules = (
+        hmf.core.filters,
+        hmf.core.fits,
+        hmf.core.growth,
+        hmf.core.mass_variance,
+        hmf.core.power_source,
+    )
     for module in (*modules, hmf.core.transfer):
         for obj_name, obj in vars(module).items():
             if obj_name.startswith("_"):
@@ -426,7 +433,7 @@ def _public_kernels():
 
 def test_every_public_kernel_has_an_out_of_domain_case():
     covered = {name.split(" ")[0] for name, _ in KERNEL_CASES}
-    kernels = _public_kernels() - _FACTORIES
+    kernels = _public_kernels()
     # The PowerSource protocol only declares the method.
     kernels.discard("PowerSource.ln_power_kernel")
     # Overrides are covered through the checking method of their base class.
