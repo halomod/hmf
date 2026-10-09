@@ -201,7 +201,7 @@ def power_source():
     It is a fitting formula, defined at every k, so it is never extrapolated (which
     would warn).
     """
-    return Transfer(cosmology=Planck18, model="EH").power_kernel("cb")
+    return Transfer(cosmology=Planck18, model="EH").power_source("cb")
 
 
 @pytest.mark.parametrize("name", list(CAMB_RUNS_PER_INPUT))

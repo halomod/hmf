@@ -11,7 +11,7 @@ units, for library code.
   MassVariance (a ``LinearPower`` stage, which does not exist yet), so only the
   shape matters and it has no fixed unit. A
   :class:`TabulatedPower` gives its table in (Mpc/h)³, while
-  :meth:`Transfer.power_kernel <hmf.core.transfer.Transfer.power_kernel>`'s
+  :meth:`Transfer.power_source <hmf.core.transfer.Transfer.power_source>`'s
   :math:`k^{n_s} T(k)^2` is dimensionless;
 * ``rho_mean0``: the mean comoving density today of **CDM + baryons**, in
   M☉ h² / Mpc³ (:data:`~hmf.core.units.rho_unit`), whatever the species of the
@@ -28,7 +28,7 @@ units, for library code.
   the units boundary of the stages built on it (see
   :class:`~hmf.core.units.HasUnitContext`).
 
-:meth:`Transfer.power_kernel <hmf.core.transfer.Transfer.power_kernel>` implements it
+:meth:`Transfer.power_source <hmf.core.transfer.Transfer.power_source>` implements it
 for the power of a :class:`~hmf.core.transfer.Transfer` stage, and
 :class:`TabulatedPower` for a power spectrum given as a table.
 

@@ -212,8 +212,8 @@ Transfer and growth
 T(k) and the unnormalised power spectrum :math:`k^{n_s} T^2` at z = 0 (a plain,
 dimensionless array with an arbitrary amplitude, which a later stage normalises), and
 :class:`~hmf.core.growth.Growth` (a function of z) the growth factor and growth rate,
-for each matter species: ``"cb"`` (CDM + baryons) and ``"tot"`` (total matter,
-including massive neutrinos). Their models are in
+for each matter species (:mod:`~hmf.core.species`): ``"cb"`` (CDM + baryons) and
+``"tot"`` (total matter, including massive neutrinos). Their models are in
 :mod:`~hmf.core.transfer_models` (CAMB, CLASS, EH, BBKS, BondEfs, tables) and
 :mod:`~hmf.core.growth_models` (the growth ODE, the integral form and its closed
 forms, GenMF, Carroll et al., CAMB, CLASS)::
@@ -247,7 +247,7 @@ variance σ(M) of the *unnormalised* linear power at z = 0, and its slope
 dlnσ/dlnM, for a smoothing filter (:mod:`hmf.core.filters`: ``TopHat``, ``SharpK``,
 ``SmoothK``). The power comes from any :class:`~hmf.core.power_source.PowerSource`:
 the power of one species of a :class:`~hmf.core.transfer.Transfer` stage
-(:meth:`~hmf.core.transfer.Transfer.power_kernel`), or a
+(:meth:`~hmf.core.transfer.Transfer.power_source`), or a
 :class:`~hmf.core.power_source.TabulatedPower`. A power source also carries the mean
 density of CDM + baryons, :math:`\bar\rho_{\rm cb}`, whatever its species: it sets
 the mass of a filter radius, :math:`M = \tfrac{4\pi}{3}\bar\rho_{\rm cb}(cR)^3`,
@@ -259,7 +259,7 @@ CDM + baryon power give the same R(M)::
     from hmf.core.transfer import Transfer
     from hmf.core.units import Msun_h, h_Mpc, power_unit, rho_unit
 
-    mv = MassVariance(power=Transfer(model="EH").power_kernel("cb"), filter="SharpK")
+    mv = MassVariance(power=Transfer(model="EH").power_source("cb"), filter="SharpK")
     mv.sigma(m * Msun_h), mv.dlnsigma_dlnm(m * Msun_h), mv.m_from_sigma(0.5)
 
     source = TabulatedPower(k=k * h_Mpc, pk=pk * power_unit, mean_density=rho * rho_unit)
@@ -310,7 +310,7 @@ stage's domain can be inspected (a model's or stage's ``valid_domain``).
   there;
 * the mean density of CDM + baryons from the power source's ``rho_mean0`` (the same
   for every species), and Ω_m(z) of CDM + baryons from
-  :func:`hmf.core._species.omega_m` (``"cb"``);
+  :func:`hmf.core.species.omega_m` (``"cb"``);
 * one :class:`~hmf.core.accuracy.KAccuracy` for the Transfer, Growth and
   MassVariance stages, checked with :func:`~hmf.core.accuracy.check_consistent`;
 * the overdensity of a fit's mass definition from

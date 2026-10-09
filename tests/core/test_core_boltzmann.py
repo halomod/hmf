@@ -51,7 +51,7 @@ def test_every_species_comes_from_one_run(fresh):
     for species in ("cb", "tot"):
         t.transfer_function(k, species)
         t.unnormalised_power(k, species)
-        t.power_kernel(species).power_kernel(np.array([0.1]))
+        t.power_source(species).power_kernel(np.array([0.1]))
     assert fresh() == 1
 
 

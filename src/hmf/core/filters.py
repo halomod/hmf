@@ -27,7 +27,7 @@ from . import _references as refs
 from ._fields import field
 from ._kernels import filters as kernels
 from ._validators import positive
-from .domain import Domain
+from .domain import Domain, check_extent
 from .model import Model
 from .units import unit_boundary
 
@@ -73,7 +73,7 @@ class Filter(Model, kind=True):
     * the window :math:`W(x)` of :math:`x = kR` (:meth:`window`), with
       :math:`W(0) = 1`;
     * its derivatives :math:`W' = dW/d\ln x` and :math:`W'' = d^2W/d(\ln x)^2`
-      (:meth:`window_derivatives`);
+      (:meth:`window_derivatives_kernel`);
     * the mass-assignment constant :math:`c` (:attr:`mass_assignment`), in
       :math:`m = \frac{4\pi}{3} \bar\rho\, (cR)^3`;
     * envelopes bounding :math:`W^2` and :math:`|W W'|` far beyond the ends of the
@@ -99,8 +99,9 @@ class Filter(Model, kind=True):
         r"""The constant :math:`c` of the mass assignment :math:`m \propto (cR)^3`."""
         return 1.0
 
-    @abc.abstractmethod
-    def window_derivatives(self, x: ArrayLike, order: int = 2) -> tuple[NDArray[np.float64], ...]:
+    def window_derivatives_kernel(
+        self, x: ArrayLike, order: int = 2
+    ) -> tuple[NDArray[np.float64], ...]:
         r"""The window and its logarithmic derivatives at :math:`x = kR`.
 
         This is the kernel-level method, which library code (e.g.
@@ -119,7 +120,28 @@ class Filter(Model, kind=True):
         -------
         tuple of ndarray
             :math:`(W,)`, :math:`(W, W')` or :math:`(W, W', W'')`.
+
+        Raises
+        ------
+        DomainError
+            If an ``x`` is outside :attr:`valid_domain` (negative or not finite).
+        ValueError
+            If the filter has no pointwise derivative of that order (``SharpK``, for
+            ``order > 0``).
         """
+        x = check_extent(
+            "x",
+            x,
+            type(self).valid_domain,
+            where=f"{type(self).__name__}.window_derivatives_kernel",
+        )
+        return self._window_derivatives(x, order)
+
+    @abc.abstractmethod
+    def _window_derivatives(
+        self, x: NDArray[np.float64], order: int
+    ) -> tuple[NDArray[np.float64], ...]:
+        """:meth:`window_derivatives_kernel`, for ``x`` already checked."""
 
     @unit_boundary()
     def window(self, x: ArrayLike) -> NDArray[np.float64]:
@@ -141,7 +163,7 @@ class Filter(Model, kind=True):
             If an ``x`` is outside :attr:`valid_domain` (negative or NaN).
         """
         type(self).valid_domain.check({"x": x}, where=f"{type(self).__name__}.window()")
-        return self.window_derivatives(x, order=0)[0]
+        return self._window_derivatives(np.asarray(x, dtype=np.float64), 0)[0]
 
     @unit_boundary()
     def dwindow_dlnx(self, x: ArrayLike) -> NDArray[np.float64]:
@@ -165,7 +187,7 @@ class Filter(Model, kind=True):
             For a filter whose derivative can't be evaluated pointwise (``SharpK``).
         """
         type(self).valid_domain.check({"x": x}, where=f"{type(self).__name__}.dwindow_dlnx()")
-        return self.window_derivatives(x, order=1)[1]
+        return self._window_derivatives(np.asarray(x, dtype=np.float64), 1)[1]
 
     @abc.abstractmethod
     def tail_bounds(self) -> TailBounds:
@@ -192,8 +214,10 @@ class TopHat(Filter, alias="TopHat"):
     is truncated at high k (e.g. warm dark matter); see hmf 3.7.2.
     """
 
-    def window_derivatives(self, x: ArrayLike, order: int = 2) -> tuple[NDArray[np.float64], ...]:
-        """See :meth:`Filter.window_derivatives`."""
+    def _window_derivatives(
+        self, x: NDArray[np.float64], order: int
+    ) -> tuple[NDArray[np.float64], ...]:
+        """See :meth:`Filter.window_derivatives_kernel`."""
         return kernels.tophat_window_derivatives(x, order)
 
     def tail_bounds(self) -> TailBounds:
@@ -274,8 +298,10 @@ class SharpK(Filter, alias="SharpK"):
         """See :attr:`Filter.mass_assignment`: the parameter ``c``."""
         return self.c
 
-    def window_derivatives(self, x: ArrayLike, order: int = 2) -> tuple[NDArray[np.float64], ...]:
-        """See :meth:`Filter.window_derivatives`; only ``order=0`` exists.
+    def _window_derivatives(
+        self, x: NDArray[np.float64], order: int
+    ) -> tuple[NDArray[np.float64], ...]:
+        """See :meth:`Filter.window_derivatives_kernel`; only ``order=0`` exists.
 
         Raises
         ------
@@ -327,8 +353,10 @@ class SmoothK(Filter, alias="SmoothK"):
         """See :attr:`Filter.mass_assignment`: the parameter ``c``."""
         return self.c
 
-    def window_derivatives(self, x: ArrayLike, order: int = 2) -> tuple[NDArray[np.float64], ...]:
-        """See :meth:`Filter.window_derivatives`."""
+    def _window_derivatives(
+        self, x: NDArray[np.float64], order: int
+    ) -> tuple[NDArray[np.float64], ...]:
+        """See :meth:`Filter.window_derivatives_kernel`."""
         return kernels.smoothk_window_derivatives(x, self.beta, order)
 
     def tail_bounds(self) -> TailBounds:

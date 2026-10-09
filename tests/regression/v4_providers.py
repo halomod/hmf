@@ -40,10 +40,10 @@ ngtm       2b + 2c     n(>M) on ``reference.m`` x ``case.z``
 import numpy as np
 from regression_harness import Case, Reference, register_provider
 
-from hmf.core._species import omega_m, omega_m0
 from hmf.core.fits import FittingFunction, MeasuredMassDefinition
 from hmf.core.growth import Growth
 from hmf.core.mass_variance import n_eff_kernel
+from hmf.core.species import omega_m, omega_m0
 from hmf.core.transfer import Transfer
 from hmf.core.transfer_models import CAMB
 from hmf.core.units import Msun_h, h_Mpc

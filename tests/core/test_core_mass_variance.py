@@ -667,8 +667,8 @@ def test_mass_radius_uses_cdm_plus_baryons_for_every_species(flt):
     made of CDM and baryons, whichever species' power sets sigma.
     """
     transfer = Transfer(cosmology=MASSIVE_NU, model="EH")
-    tot = MassVariance(power=transfer.power_kernel("tot"), filter=flt)
-    cb = MassVariance(power=transfer.power_kernel("cb"), filter=flt)
+    tot = MassVariance(power=transfer.power_source("tot"), filter=flt)
+    cb = MassVariance(power=transfer.power_source("cb"), filter=flt)
     m = np.logspace(0, 18, 37)
     r_tot, r_cb = tot.radius_from_m_kernel(m), cb.radius_from_m_kernel(m)
     np.testing.assert_array_equal(r_tot, r_cb)

@@ -208,7 +208,7 @@ def _is_power_source(instance: Any, attribute: attrs.Attribute[Any], value: Any)
     if not isinstance(value, PowerSource):
         raise TypeError(
             f"MassVariance.power must implement hmf.core.power_source.PowerSource "
-            f"(e.g. Transfer.power_kernel() or a TabulatedPower), not {type(value).__name__}."
+            f"(e.g. Transfer.power_source() or a TabulatedPower), not {type(value).__name__}."
         )
 
 
@@ -423,7 +423,9 @@ class MassVariance(Stage):
         grid = self._k_grid
         second = self.mass_accuracy.second_derivative
         r = np.exp(ln_r)
-        derivs = self.filter.window_derivatives(r[:, None] * grid.k, order=2 if second else 1)
+        derivs = self.filter.window_derivatives_kernel(
+            r[:, None] * grid.k, order=2 if second else 1
+        )
         ln_sigma, d_r, d2_r, err_grid = kern.window_ln_variance(
             derivs[0], derivs[1], derivs[2] if second else None, grid.k3p, grid.dln_k
         )

@@ -110,7 +110,7 @@ def _stages(k_accuracy=None, *, growth=None, mass_variance=None):
     transfer = Transfer(model="EH", **({} if k_accuracy is None else {"k_accuracy": k_accuracy}))
     g = Growth.from_transfer(transfer, **({} if growth is None else {"k_accuracy": growth}))
     mv = MassVariance(
-        power=transfer.power_kernel(),
+        power=transfer.power_source(),
         **({} if mass_variance is None else {"k_accuracy": mass_variance}),
     )
     return transfer, g, mv
