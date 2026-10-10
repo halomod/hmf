@@ -301,7 +301,7 @@ def _quiet_extrapolation(fn):
 def power(case: Case, reference: Reference) -> np.ndarray:
     """P(k, z = 0) of the v4 LinearPower stage, on the reference's k grid."""
     lp = _linear_power(reference, case.cosmology, case.transfer)
-    return np.asarray(lp.power_kernel(np.exp(reference.lnk), 0.0))
+    return np.asarray(lp.power_kernel(k=np.exp(reference.lnk), z=0.0))
 
 
 @register_provider("sigma")
@@ -310,7 +310,7 @@ def sigma(case: Case, reference: Reference) -> np.ndarray:
     """sigma(M, z) of the v4 MassFunction stage."""
     mf = _mass_function(reference, case.cosmology, case.transfer, case.filter)
     z = np.asarray(case.z or (), dtype=float)
-    return np.exp(mf.ln_sigma_and_slope_kernel(reference.m[None, :], z[:, None])[0])
+    return np.exp(mf.ln_sigma_and_slope_kernel(m=reference.m[None, :], z=z[:, None])[0])
 
 
 @register_provider("dlnsdlnm")
@@ -318,7 +318,7 @@ def sigma(case: Case, reference: Reference) -> np.ndarray:
 def dlnsdlnm(case: Case, reference: Reference) -> np.ndarray:
     """Dln sigma/dln M of the v4 MassFunction stage (the same at every z)."""
     mf = _mass_function(reference, case.cosmology, case.transfer, case.filter)
-    return np.asarray(mf.ln_sigma_and_slope_kernel(reference.m, 0.0)[1])
+    return np.asarray(mf.ln_sigma_and_slope_kernel(m=reference.m, z=0.0)[1])
 
 
 def _fit_case(case: Case, reference: Reference) -> tuple[MassFunction, np.ndarray]:
@@ -331,7 +331,7 @@ def _fit_case(case: Case, reference: Reference) -> tuple[MassFunction, np.ndarra
 def dndm(case: Case, reference: Reference) -> np.ndarray:
     """dn/dM of the v4 MassFunction stage, each fit in its v3 mass definition."""
     mf, z = _fit_case(case, reference)
-    return mf.dndm_kernel(reference.m[None, :], z[:, None])
+    return mf.dndm_kernel(m=reference.m[None, :], z=z[:, None])
 
 
 @register_provider("ngtm")
@@ -339,4 +339,4 @@ def dndm(case: Case, reference: Reference) -> np.ndarray:
 def ngtm(case: Case, reference: Reference) -> np.ndarray:
     """n(>M) of the v4 MassFunction stage, integrated on its mass lattice to 10^17.5."""
     mf, z = _fit_case(case, reference)
-    return mf.ngtm_kernel(reference.m[None, :], z[:, None])
+    return mf.ngtm_kernel(m=reference.m[None, :], z=z[:, None])

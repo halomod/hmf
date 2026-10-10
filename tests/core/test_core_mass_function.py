@@ -85,8 +85,8 @@ def _all_fits() -> list[str]:
 
 def test_sigma_8_is_recovered(mf):
     """sigma(R = 8 Mpc/h, z = 0) is sigma_8 (the lattice against the direct evaluation)."""
-    m8 = mf.m_from_radius(8.0 * Mpc_h)
-    assert mf.sigma(m8, 0.0) == pytest.approx(mf.linear_power.sigma_8, rel=INTERPOLATION_RTOL)
+    m8 = mf.m_from_radius(r=8.0 * Mpc_h)
+    assert mf.sigma(m=m8, z=0.0) == pytest.approx(mf.linear_power.sigma_8, rel=INTERPOLATION_RTOL)
 
 
 def test_sigma_8_is_recovered_for_each_species():
@@ -101,10 +101,10 @@ def test_sigma_8_is_recovered_for_each_species():
         mf = MassFunction.build(
             cosmology=cosmo, species=species, sigma_8_species=species, sigma_8=0.8
         )
-        m8 = mf.m_from_radius(8.0 * Mpc_h)
-        assert mf.sigma(m8, 0.0) == pytest.approx(0.8, rel=INTERPOLATION_RTOL)
+        m8 = mf.m_from_radius(r=8.0 * Mpc_h)
+        assert mf.sigma(m=m8, z=0.0) == pytest.approx(0.8, rel=INTERPOLATION_RTOL)
     default = MassFunction.build(cosmology=cosmo, sigma_8=0.8)
-    s = default.sigma(default.m_from_radius(8.0 * Mpc_h), 0.0)
+    s = default.sigma(m=default.m_from_radius(r=8.0 * Mpc_h), z=0.0)
     assert 0.8 < s < 0.8 * 1.05
 
 
@@ -112,7 +112,7 @@ def test_growth_in_einstein_de_sitter():
     """In Einstein-de Sitter, D = a, so sigma(m, z) = sigma(m, 0) / (1 + z)."""
     eds = FlatLambdaCDM(H0=70.0, Om0=1.0, Ob0=0.05, Tcmb0=0.0)
     mf = MassFunction.build(cosmology=eds, transfer_model="EH", sigma_8=0.8, n_s=0.96)
-    s = mf.sigma(M[None, :] * Msun_h, Z[:, None])
+    s = mf.sigma(m=M[None, :] * Msun_h, z=Z[:, None])
     expected = s[0] / (1 + Z[:, None])
     np.testing.assert_allclose(s, expected, rtol=1e-6)
 
@@ -133,9 +133,11 @@ def test_press_schechter_with_a_power_law(n):
     slope = -(n + 3) / 6
     expected = math.sqrt(2 / math.pi) * _rho_cb(Planck18) / m**2 * nu * np.exp(-(nu**2) / 2)
     expected *= abs(slope)
-    np.testing.assert_allclose(mf.sigma(m * Msun_h, 0.0), sigma, rtol=1e-5)
-    np.testing.assert_allclose(mf.dlnsigma_dlnm(m * Msun_h, 0.0), slope, rtol=1e-4)
-    np.testing.assert_allclose(mf.dndm(m * Msun_h, 0.0).to_value(dndm_unit), expected, rtol=1e-4)
+    np.testing.assert_allclose(mf.sigma(m=m * Msun_h, z=0.0), sigma, rtol=1e-5)
+    np.testing.assert_allclose(mf.dlnsigma_dlnm(m=m * Msun_h, z=0.0), slope, rtol=1e-4)
+    np.testing.assert_allclose(
+        mf.dndm(m=m * Msun_h, z=0.0).to_value(dndm_unit), expected, rtol=1e-4
+    )
 
 
 def _ps_fraction_above(nu):
@@ -179,10 +181,12 @@ def test_mass_conservation(fit, fraction, rtol):
     rho = _rho_cb(Planck18)
     nu, nu_top = (1.686 / _power_law_sigma(x, n, sigma_8) for x in (m, mf.m_top))
     expected = rho * (fraction(nu) - fraction(nu_top))
-    np.testing.assert_allclose(mf.rho_gtm(m * Msun_h, 0.0).to_value(rho_unit), expected, rtol=rtol)
+    np.testing.assert_allclose(
+        mf.rho_gtm(m=m * Msun_h, z=0.0).to_value(rho_unit), expected, rtol=rtol
+    )
     below = 1 - fraction(nu[0])
     assert below < (0.01 if fit == "PS" else 0.1)
-    total = mf.rho_gtm(m[0] * Msun_h, 0.0).to_value(rho_unit) / rho
+    total = mf.rho_gtm(m=m[0] * Msun_h, z=0.0).to_value(rho_unit) / rho
     assert total == pytest.approx(1 - below, rel=rtol)
     assert fraction(nu_top) < 1e-6
 
@@ -190,14 +194,14 @@ def test_mass_conservation(fit, fraction, rtol):
 def test_ngtm_is_monotonic_and_its_derivative_is_dndm(mf):
     """n(>m) decreases, and -dn(>m)/dm = dn/dm, to the interpolation tolerance."""
     m = np.logspace(6, 16, 201)
-    n = mf.ngtm_kernel(m[None, :], Z[:, None])
+    n = mf.ngtm_kernel(m=m[None, :], z=Z[:, None])
     assert np.all(np.diff(n, axis=1) < 0)
     eps = 1e-4
-    up = mf.ngtm_kernel(m[None, :] * math.exp(eps), Z[:, None])
-    down = mf.ngtm_kernel(m[None, :] * math.exp(-eps), Z[:, None])
+    up = mf.ngtm_kernel(m=m[None, :] * math.exp(eps), z=Z[:, None])
+    down = mf.ngtm_kernel(m=m[None, :] * math.exp(-eps), z=Z[:, None])
     derivative = -(up - down) / (2 * eps) / m
-    dndm = mf.dndm_kernel(m[None, :], Z[:, None])
-    nu = mf.ln_sigma_and_slope_kernel(m[None, :], Z[:, None])[0]
+    dndm = mf.dndm_kernel(m=m[None, :], z=Z[:, None])
+    nu = mf.ln_sigma_and_slope_kernel(m=m[None, :], z=Z[:, None])[0]
     nu = 1.686 / np.exp(nu)
     ok = nu < 5
     np.testing.assert_allclose(derivative[ok], dndm[ok], rtol=1e-4)
@@ -206,7 +210,7 @@ def test_ngtm_is_monotonic_and_its_derivative_is_dndm(mf):
 def test_ngtm_is_continuous_across_nodes(mf):
     """n(>m) is continuous where the panel of m changes (at the lattice nodes)."""
     node = 10 ** (600 * 0.02)  # a node of the default lattice
-    below, above = mf.ngtm_kernel(np.array([node * (1 - 1e-12), node * (1 + 1e-12)]), 0.0)
+    below, above = mf.ngtm_kernel(m=np.array([node * (1 - 1e-12), node * (1 + 1e-12)]), z=0.0)
     assert below == pytest.approx(above, rel=1e-10)
 
 
@@ -216,44 +220,50 @@ def test_ngtm_truncation_at_the_top_is_negligible():
     wider = MassFunction.build(transfer_model="EH", mass_accuracy=MassAccuracy(log10_m_max=18.5))
     m = np.logspace(8, 16, 9)
     for z in (0.0, 2.0):
-        np.testing.assert_allclose(base.ngtm_kernel(m, z), wider.ngtm_kernel(m, z), rtol=1e-12)
-    assert base.ngtm_kernel(base.m_top, 0.0) == pytest.approx(0.0, abs=1e-300)
+        np.testing.assert_allclose(
+            base.ngtm_kernel(m=m, z=z), wider.ngtm_kernel(m=m, z=z), rtol=1e-12
+        )
+    assert base.ngtm_kernel(m=base.m_top, z=0.0) == pytest.approx(0.0, abs=1e-300)
 
 
 def test_peak_height_times_sigma_is_delta_c(mf):
     m = M[None, :] * Msun_h
-    product = mf.peak_height(m, Z[:, None]) * mf.sigma(m, Z[:, None])
+    product = mf.peak_height(m=m, z=Z[:, None]) * mf.sigma(m=m, z=Z[:, None])
     np.testing.assert_allclose(product, mf.delta_c, rtol=2e-16)
-    assert mf.evolve(delta_c=1.5).peak_height(m, 0.0)[0] == pytest.approx(
-        1.5 / mf.sigma(m, 0.0)[0], rel=2e-16
+    assert mf.evolve(delta_c=1.5).peak_height(m=m, z=0.0)[0] == pytest.approx(
+        1.5 / mf.sigma(m=m, z=0.0)[0], rel=2e-16
     )
 
 
 def test_converters_round_trip(mf):
     m = M * Msun_h
     for z in (0.0, 1.5):
-        np.testing.assert_allclose(mf.m_from_sigma(mf.sigma(m, z), z), m, rtol=1e-10)
-        np.testing.assert_allclose(mf.m_from_peak_height(mf.peak_height(m, z), z), m, rtol=1e-10)
+        np.testing.assert_allclose(mf.m_from_sigma(sigma=mf.sigma(m=m, z=z), z=z), m, rtol=1e-10)
+        np.testing.assert_allclose(
+            mf.m_from_peak_height(peak_height=mf.peak_height(m=m, z=z), z=z), m, rtol=1e-10
+        )
     r = mf.variance.radius_from_m(m)
-    np.testing.assert_allclose(mf.m_from_radius(r), m, rtol=1e-12)
+    np.testing.assert_allclose(mf.m_from_radius(r=r), m, rtol=1e-12)
     # Broadcasting: sigma against z.
-    assert mf.m_from_sigma(np.array([1.0, 2.0])[None, :], Z[:, None]).shape == (4, 2)
+    assert mf.m_from_sigma(sigma=np.array([1.0, 2.0])[None, :], z=Z[:, None]).shape == (4, 2)
 
 
 def test_dndm_variants(mf):
     m = M * Msun_h
-    dndm = mf.dndm(m, 1.0)
-    np.testing.assert_allclose(mf.dndlnm(m, 1.0).value, M * dndm.value, rtol=1e-15)
+    dndm = mf.dndm(m=m, z=1.0)
+    np.testing.assert_allclose(mf.dndlnm(m=m, z=1.0).value, M * dndm.value, rtol=1e-15)
     np.testing.assert_allclose(
-        mf.dndlog10m(m, 1.0).value, math.log(10) * M * dndm.value, rtol=1e-15
+        mf.dndlog10m(m=m, z=1.0).value, math.log(10) * M * dndm.value, rtol=1e-15
     )
 
 
 def test_dndm_is_fsigma_times_its_factor(mf):
     """dn/dm = f(sigma) rho_cb / m^2 |dln sigma/dln m| for a fit that does not modify it."""
     m = M * Msun_h
-    expected = mf.fsigma(m, 0.5) * _rho_cb(Planck18) / M**2 * np.abs(mf.dlnsigma_dlnm(m, 0.5))
-    np.testing.assert_allclose(mf.dndm(m, 0.5).value, expected, rtol=1e-12)
+    expected = (
+        mf.fsigma(m=m, z=0.5) * _rho_cb(Planck18) / M**2 * np.abs(mf.dlnsigma_dlnm(m=m, z=0.5))
+    )
+    np.testing.assert_allclose(mf.dndm(m=m, z=0.5).value, expected, rtol=1e-12)
 
 
 # ---------------------------------------------------------------------------------
@@ -278,9 +288,9 @@ _UNITS = {
 def test_units_and_scalar_rule(mf, name):
     method = getattr(mf, name)
     unit = _UNITS[name]
-    scalar = method(1e12 * Msun_h, 0.5)
-    array = method(M * Msun_h, 0.5)
-    physical = method(M / Planck18.h * u.Msun, 0.5)
+    scalar = method(m=1e12 * Msun_h, z=0.5)
+    array = method(m=M * Msun_h, z=0.5)
+    physical = method(m=M / Planck18.h * u.Msun, z=0.5)
     if unit is None:
         assert np.isscalar(scalar)
         assert isinstance(array, np.ndarray)
@@ -292,15 +302,15 @@ def test_units_and_scalar_rule(mf, name):
         np.testing.assert_allclose(physical.value, array.value, rtol=1e-12)
     assert np.shape(array) == M.shape
     with pytest.raises(UnitBoundaryError):
-        method(1e12, 0.5)
+        method(m=1e12, z=0.5)
 
 
 def test_converter_units(mf):
-    assert mf.m_from_sigma(1.0, 0.0).unit == Msun_h
-    assert mf.m_from_peak_height(1.0, 0.0).shape == ()
-    assert mf.m_from_radius(8 * Mpc_h).unit == Msun_h
-    assert mf.m_from_radius(8 / Planck18.h * u.Mpc).value == pytest.approx(
-        mf.m_from_radius(8 * Mpc_h).value, rel=1e-12
+    assert mf.m_from_sigma(sigma=1.0, z=0.0).unit == Msun_h
+    assert mf.m_from_peak_height(peak_height=1.0, z=0.0).shape == ()
+    assert mf.m_from_radius(r=8 * Mpc_h).unit == Msun_h
+    assert mf.m_from_radius(r=8 / Planck18.h * u.Mpc).value == pytest.approx(
+        mf.m_from_radius(r=8 * Mpc_h).value, rel=1e-12
     )
 
 
@@ -308,39 +318,41 @@ def test_converter_units(mf):
 def test_broadcasting_and_batch_independence(mf, name):
     """f(m[None, :], z[:, None]) is (nz, nm), and each row equals the call at that z alone."""
     method = getattr(mf, name)
-    grid = method(M[None, :] * Msun_h, Z[:, None])
+    grid = method(m=M[None, :] * Msun_h, z=Z[:, None])
     assert np.shape(grid) == (Z.size, M.size)
     for i, z in enumerate(Z):
-        assert np.array_equal(np.asarray(method(M * Msun_h, z)), np.asarray(grid[i]))
+        assert np.array_equal(np.asarray(method(m=M * Msun_h, z=z)), np.asarray(grid[i]))
     # The same (m, z) in another arrangement.
-    assert np.array_equal(np.asarray(method(M[:, None] * Msun_h, Z[None, :])), np.asarray(grid).T)
+    assert np.array_equal(
+        np.asarray(method(m=M[:, None] * Msun_h, z=Z[None, :])), np.asarray(grid).T
+    )
 
 
 def test_view_matches_the_methods(mf):
     m = M * Msun_h
-    view = mf.at(1.0, m)
+    view = mf.at(z=1.0, m=m)
     assert isinstance(view, MassFunctionView)
     assert view.z == 1.0
     np.testing.assert_array_equal(view.m, m)
     for name in _UNITS:
-        expected = getattr(mf, name)(m, 1.0)
+        expected = getattr(mf, name)(m=m, z=1.0)
         assert np.array_equal(np.asarray(getattr(view, name)), np.asarray(expected)), name
         if hasattr(expected, "unit"):
             assert getattr(view, name).unit == expected.unit
 
 
 def test_view_default_masses_are_the_lattice(mf):
-    view = mf.at(0.0)
+    view = mf.at(z=0.0)
     acc = mf.variance.mass_accuracy
     np.testing.assert_allclose(np.log10(view.m.value[[0, -1]]), [acc.log10_m_min, 17.5], atol=1e-12)
     np.testing.assert_allclose(np.diff(np.log10(view.m.value)), acc.dlog10_m, rtol=1e-9)
     assert view.ngtm[-1].value == pytest.approx(0.0, abs=1e-300)
     with pytest.raises(ValueError, match="scalar"):
-        mf.at(Z)
+        mf.at(z=Z)
     with pytest.raises(ValueError, match="1D"):
-        mf.at(0.0, M[None, :] * Msun_h)
+        mf.at(z=0.0, m=M[None, :] * Msun_h)
     with pytest.raises(UnitBoundaryError):
-        mf.at(0.0, M)
+        mf.at(z=0.0, m=M)
 
 
 # ---------------------------------------------------------------------------------
@@ -352,32 +364,32 @@ def test_invalid_inputs_raise(mf):
     m = M * Msun_h
     for method in (mf.sigma, mf.dndm, mf.ngtm):
         with pytest.raises(DomainError):
-            method(-1.0 * Msun_h, 0.0)
+            method(m=-1.0 * Msun_h, z=0.0)
         with pytest.raises(DomainError):
-            method(m, -1.0)
+            method(m=m, z=-1.0)
         with pytest.raises(DomainError):
-            method(m, np.nan)
+            method(m=m, z=np.nan)
     with pytest.raises(DomainError, match="m_integral"):
-        mf.ngtm(1e18 * Msun_h, 0.0)
+        mf.ngtm(m=1e18 * Msun_h, z=0.0)
     with pytest.raises(DomainError):
-        mf.ngtm_kernel(np.array([1e12, 1e18]), 0.0)
+        mf.ngtm_kernel(m=np.array([1e12, 1e18]), z=0.0)
     with pytest.raises(DomainError):
-        mf.m_from_sigma(-1.0, 0.0)
+        mf.m_from_sigma(sigma=-1.0, z=0.0)
     with pytest.raises(DomainError):
-        mf.m_from_peak_height(0.0, 0.0)
+        mf.m_from_peak_height(peak_height=0.0, z=0.0)
     with pytest.raises(DomainError):
-        mf.m_from_radius(0.0 * Mpc_h)
+        mf.m_from_radius(r=0.0 * Mpc_h)
     with pytest.raises(DomainError):
-        mf.dndm_kernel(np.array([1e12, np.inf]), 0.0)
+        mf.dndm_kernel(m=np.array([1e12, np.inf]), z=0.0)
 
 
 def test_extension_raise_bounds_the_masses():
     mf = MassFunction.build(
         transfer_model="EH", mass_accuracy=MassAccuracy(log10_m_min=8.0, extension="raise")
     )
-    assert mf.ngtm(1e8 * Msun_h, 0.0).value > 0
+    assert mf.ngtm(m=1e8 * Msun_h, z=0.0).value > 0
     with pytest.raises(DomainError):
-        mf.dndm(1e7 * Msun_h, 0.0)
+        mf.dndm(m=1e7 * Msun_h, z=0.0)
 
 
 def test_valid_domain_always_raises(mf):
@@ -385,43 +397,45 @@ def test_valid_domain_always_raises(mf):
     for policy in ("ignore", "warn", "mask", "raise"):
         stage = mf.evolve(fit="Yung24", domain_policy=policy)
         with pytest.raises(DomainError, match="valid domain"):
-            stage.dndm(1e10 * Msun_h, 1.0)
-    assert mf.evolve(fit="Yung24").dndm(1e10 * Msun_h, 7.0).value > 0
+            stage.dndm(m=1e10 * Msun_h, z=1.0)
+    assert mf.evolve(fit="Yung24").dndm(m=1e10 * Msun_h, z=7.0).value > 0
 
 
 def test_domain_policy(mf):
     """Outside Tinker08's calibration domain (z <= 2.5, 0.4 <= sigma <= 4) the policy applies."""
     m, z = M[None, :] * Msun_h, np.array([0.0, 3.0])[:, None]
-    inside = mf.in_calibration_domain(m, z)
+    inside = mf.in_calibration_domain(m=m, z=z)
     assert inside.any()
     assert not inside.all()
-    reference = {name: getattr(mf, name)(m, z) for name in ("fsigma", "dndm", "ngtm", "rho_gtm")}
+    reference = {
+        name: getattr(mf, name)(m=m, z=z) for name in ("fsigma", "dndm", "ngtm", "rho_gtm")
+    }
 
     ignore = mf.evolve(domain_policy="ignore")
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         for name, value in reference.items():
-            assert np.array_equal(np.asarray(getattr(ignore, name)(m, z)), np.asarray(value))
+            assert np.array_equal(np.asarray(getattr(ignore, name)(m=m, z=z)), np.asarray(value))
 
     masked = mf.evolve(domain_policy="mask")
     for name, value in reference.items():
-        out = np.asarray(getattr(masked, name)(m, z))
+        out = np.asarray(getattr(masked, name)(m=m, z=z))
         assert np.all(np.isnan(out[~inside]))
         assert np.array_equal(out[inside], np.asarray(value)[inside])
 
     warn = mf.evolve(domain_policy="warn")
     with pytest.warns(HMFExtrapolationWarning, match="calibration domain"):
-        warn.dndm(m, z)
+        warn.dndm(m=m, z=z)
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        assert np.array_equal(warn.ngtm(m, z).value, reference["ngtm"].value)  # once per stage
+        assert np.array_equal(warn.ngtm(m=m, z=z).value, reference["ngtm"].value)  # once per stage
 
     raising = mf.evolve(domain_policy="raise")
     for name in reference:
         with pytest.raises(DomainError, match="calibration domain"):
-            getattr(raising, name)(m, z)
+            getattr(raising, name)(m=m, z=z)
     inside_m = 1e13 * Msun_h
-    assert raising.dndm(inside_m, 0.0) == mf.dndm(inside_m, 0.0)
+    assert raising.dndm(m=inside_m, z=0.0) == mf.dndm(m=inside_m, z=0.0)
     with pytest.raises(ValueError):
         mf.evolve(domain_policy="clip")
 
@@ -432,8 +446,8 @@ def test_every_fit_runs(mf, name):
     z = 7.0 if name == "Yung24" else 0.5
     stage = mf.evolve(fit=name)
     m = np.logspace(10, 14, 9)
-    dndm = stage.dndm_kernel(m, z)
-    ngtm = stage.ngtm_kernel(m, z)
+    dndm = stage.dndm_kernel(m=m, z=z)
+    ngtm = stage.ngtm_kernel(m=m, z=z)
     assert np.all(np.isfinite(dndm) & (dndm > 0))
     assert np.all(np.isfinite(ngtm) & (ngtm > 0))
     assert np.all(np.diff(ngtm) < 0)
@@ -456,7 +470,7 @@ def test_behroozi_uses_the_tinker_ngtm(mf):
     # Tinker08 at Behroozi's (virial) overdensity: the same f(sigma) as Behroozi's raw one.
     virial = tinker.evolve(fit=fits.Behroozi())
     n_t08 = virial._integral(m, z, raw=True, moment=0)
-    np.testing.assert_allclose(behroozi.ngtm_kernel(m, z), theta * n_t08, rtol=1e-4)
+    np.testing.assert_allclose(behroozi.ngtm_kernel(m=m, z=z), theta * n_t08, rtol=1e-4)
 
 
 # ---------------------------------------------------------------------------------
@@ -538,14 +552,14 @@ def test_evolve_shares_the_variance(mf):
 
 def test_evolve_is_atomic(mf):
     m = M * Msun_h
-    before = mf.dndm(m, 0.0)
+    before = mf.dndm(m=m, z=0.0)
     fields = {f.name: getattr(mf, f.name) for f in mf.fields_info()}
     bad = MassVariance(power=Transfer(model="EH", n_s=0.9).power_source("cb"))
     for changes in ({"variance": bad}, {"delta_c": -1.0}, {"fit": "NotAFit"}):
         with pytest.raises((ValueError, LookupError)):
             mf.evolve(**changes)
     assert {f.name: getattr(mf, f.name) for f in mf.fields_info()} == fields
-    assert np.array_equal(mf.dndm(m, 0.0), before)
+    assert np.array_equal(mf.dndm(m=m, z=0.0), before)
 
 
 def _rebuilt(mf: MassFunction, **changes) -> MassFunction:
@@ -574,10 +588,10 @@ def test_no_stale_results(mf):
     """
     m = M * Msun_h
     stage = mf.evolve(fit="PS")
-    first = stage.dndm(m, 1.0)
+    first = stage.dndm(m=m, z=1.0)
 
     stage = stage.evolve(fit="Watson")  # reads omega_m(z) and delta_halo
-    second = stage.dndm(m, 1.0)
+    second = stage.dndm(m=m, z=1.0)
     assert not np.allclose(second, first, rtol=1e-6, atol=0)
 
     cosmo = Planck18.clone(Om0=0.28)
@@ -586,11 +600,11 @@ def test_no_stale_results(mf):
         transfer=transfer, growth=Growth.from_transfer(transfer), cosmology=cosmo
     )
     stage = stage.evolve(linear_power=lp, variance=stage.variance.evolve(power=lp.power_source))
-    third = stage.dndm(m, 1.0)
+    third = stage.dndm(m=m, z=1.0)
     assert not np.allclose(third, second, rtol=1e-6, atol=0)
     fresh = _rebuilt(stage, cosmology=cosmo)
-    assert np.array_equal(third, fresh.dndm(m, 1.0))
-    assert np.array_equal(stage.ngtm(m, 1.0), fresh.ngtm(m, 1.0))
+    assert np.array_equal(third, fresh.dndm(m=m, z=1.0))
+    assert np.array_equal(stage.ngtm(m=m, z=1.0), fresh.ngtm(m=m, z=1.0))
 
     # Each other field changes what depends on it. Watson's f does not depend on
     # delta_c: delta_c changes the peak height, and the mass function of PS.
@@ -601,17 +615,17 @@ def test_no_stale_results(mf):
         (stage, stage.evolve(delta_c=1.6), "peak_height"),
         (ps, ps.evolve(delta_c=1.6), "dndm"),
     ):
-        old, new = getattr(before, name)(m, 1.0), getattr(changed, name)(m, 1.0)
+        old, new = getattr(before, name)(m=m, z=1.0), getattr(changed, name)(m=m, z=1.0)
         assert not np.allclose(new, old, rtol=1e-6, atol=0)
 
 
 def test_pickle_and_deepcopy(mf):
     m = M * Msun_h
-    expected = mf.ngtm(m, 0.5)
+    expected = mf.ngtm(m=m, z=0.5)
     for other in (pickle.loads(pickle.dumps(mf)), copy.deepcopy(mf)):
         assert other == mf
-        assert np.array_equal(other.ngtm(m, 0.5), expected)
-        assert np.array_equal(other.dndm(m, 0.5), mf.dndm(m, 0.5))
+        assert np.array_equal(other.ngtm(m=m, z=0.5), expected)
+        assert np.array_equal(other.dndm(m=m, z=0.5), mf.dndm(m=m, z=0.5))
 
 
 # ---------------------------------------------------------------------------------
@@ -633,23 +647,23 @@ def test_ngtm_is_bit_identical_under_extension(filt):
         return MassFunction.build(transfer_model="EH", filter=filt, fit="ST")
 
     narrow_first = build()
-    n1 = narrow_first.ngtm_kernel(narrow, 1.0)
-    w1 = narrow_first.ngtm_kernel(wide, 1.0)
+    n1 = narrow_first.ngtm_kernel(m=narrow, z=1.0)
+    w1 = narrow_first.ngtm_kernel(m=wide, z=1.0)
 
     wide_first = build()
-    w2 = wide_first.ngtm_kernel(wide, 1.0)
-    n2 = wide_first.ngtm_kernel(narrow, 1.0)
+    w2 = wide_first.ngtm_kernel(m=wide, z=1.0)
+    n2 = wide_first.ngtm_kernel(m=narrow, z=1.0)
 
     assert np.array_equal(n1, n2)
     assert np.array_equal(w1, w2)
     one_by_one = build()
-    alone = np.array([one_by_one.ngtm_kernel(x, 1.0) for x in narrow[::-1]])[::-1]
+    alone = np.array([one_by_one.ngtm_kernel(m=x, z=1.0) for x in narrow[::-1]])[::-1]
     assert np.array_equal(alone, n1)
     # With several redshifts at once.
-    grid = build().ngtm_kernel(narrow[None, :], np.array([0.0, 1.0, 3.0])[:, None])
+    grid = build().ngtm_kernel(m=narrow[None, :], z=np.array([0.0, 1.0, 3.0])[:, None])
     assert np.array_equal(grid[1], n1)
     assert np.array_equal(
-        narrow_first.rho_gtm_kernel(narrow, 1.0), wide_first.rho_gtm_kernel(narrow, 1.0)
+        narrow_first.rho_gtm_kernel(m=narrow, z=1.0), wide_first.rho_gtm_kernel(m=narrow, z=1.0)
     )
 
 
@@ -708,6 +722,20 @@ def test_tinker_interpolants_are_cached_and_unchanged():
 
 @pytest.mark.parametrize("name", list(_UNITS))
 def test_empty_masses_give_empty_results(mf, name):
-    out = getattr(mf, name)(np.zeros(0) * Msun_h, 0.5)
+    out = getattr(mf, name)(m=np.zeros(0) * Msun_h, z=0.5)
     assert np.shape(out) == (0,)
-    assert np.shape(getattr(mf, name)(np.zeros((0, 3)) * Msun_h, np.zeros(3))) == (0, 3)
+    assert np.shape(getattr(mf, name)(m=np.zeros((0, 3)) * Msun_h, z=np.zeros(3))) == (0, 3)
+
+
+@pytest.mark.parametrize("name", [*_UNITS, "m_from_sigma", "m_from_peak_height", "at"])
+def test_arguments_are_keyword_only(mf, name):
+    """(m, z) are passed by keyword, so a call says which is which."""
+    first = 1.0 if name.startswith("m_from") else 1e12 * Msun_h
+    if name == "at":
+        with pytest.raises(TypeError):
+            mf.at(0.0)
+        return
+    with pytest.raises(TypeError):
+        getattr(mf, name)(first, 0.0)
+    with pytest.raises(TypeError):
+        mf.m_from_radius(8.0 * Mpc_h)

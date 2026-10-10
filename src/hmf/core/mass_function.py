@@ -2,13 +2,14 @@ r"""The :class:`MassFunction` stage: the halo mass function as a function of (m,
 
 The stage tree
 --------------
-A mass function is built from three stages and a fit::
+A mass function is built from three stages and a fit, each stage holding the stages
+it is computed from as fields (the *stage tree*)::
 
     MassFunction
     ├── linear_power: LinearPower       (sigma_8, the amplitude A, D(z))
     │   ├── transfer: Transfer          (the shape of the power, one Boltzmann run)
     │   └── growth: Growth              (D(z))
-    ├── variance: MassVariance          (sigma(m) of the unnormalised power: the lattice)
+    ├── variance: MassVariance          (sigma(m) of the power before normalisation)
     └── fit: FittingFunction            (f(sigma))
 
 with the critical overdensity ``delta_c`` and the calibration-domain policy
@@ -16,19 +17,22 @@ with the critical overdensity ``delta_c`` and the calibration-domain policy
 keyword arguments, with hmf 3.x-like defaults.
 
 The variance is a field of its own, not built inside the linear-power stage, because
-it does not depend on sigma_8: its power is :attr:`LinearPower.power_source
-<hmf.core.linear_power.LinearPower.power_source>`, the *unnormalised* power. So
-``mf.evolve(linear_power=mf.linear_power.evolve(sigma_8=0.75))`` shares ``mf.variance``,
-the same object, with the lattice nodes it has computed. Changing z, the fit,
-``delta_c`` or the policy shares the variance and the linear-power stage too: no
-lattice node is recomputed and no Boltzmann code runs again. A stage is immutable,
+it does not depend on sigma_8 or z: its power is :attr:`LinearPower.power_source
+<hmf.core.linear_power.LinearPower.power_source>`, the power before it is normalised,
+and sigma_8 and z only multiply sigma(m). So
+``mf.evolve(linear_power=mf.linear_power.evolve(sigma_8=0.75))`` keeps ``mf.variance``,
+the same object, with every value of sigma(m) it has already computed. Changing z, the
+fit, ``delta_c`` or the policy keeps the variance and the linear-power stage too:
+sigma(m) is not computed again, and no Boltzmann code runs again. A stage is immutable,
 and the constructor validates every combination of fields, so a cached result can
 never be stale (see :mod:`hmf.core.stage`).
 
 Quantities
 ----------
 Every quantity is a function of the mass m and the redshift z, which broadcast like
-numpy: ``mf.dndm(m[None, :], z[:, None])`` has the shape ``(nz, nm)``. With
+numpy: ``mf.dndm(m=m[None, :], z=z[:, None])`` has the shape ``(nz, nm)``. They take
+their arguments by keyword only, so a call always says which is the mass and which the
+redshift. With
 :math:`\sigma_{\rm raw}(m)` the mass variance of the unnormalised power
 (:class:`~hmf.core.mass_variance.MassVariance`):
 
@@ -195,7 +199,7 @@ class MassFunction(Stage):
     >>> from hmf.core.units import Msun_h
     >>> mf = MassFunction.build(transfer_model="EH")
     >>> m = np.logspace(10, 15, 6) * Msun_h
-    >>> mf.dndm(m[None, :], np.array([0.0, 1.0])[:, None]).shape
+    >>> mf.dndm(m=m[None, :], z=np.array([0.0, 1.0])[:, None]).shape
     (2, 6)
     >>> mf2 = mf.evolve(linear_power=mf.linear_power.evolve(sigma_8=0.75))
     >>> mf2.variance is mf.variance
@@ -460,7 +464,7 @@ class MassFunction(Stage):
     # ---------------------------------------------------------------------------------
 
     def ln_sigma_and_slope_kernel(
-        self, m: npt.ArrayLike, z: npt.ArrayLike
+        self, *, m: npt.ArrayLike, z: npt.ArrayLike
     ) -> tuple[FloatArray, FloatArray]:
         """Ln sigma(m, z) and dln(sigma)/dln(m), at kernel level.
 
@@ -660,7 +664,7 @@ class MassFunction(Stage):
             return np.where(inside, values, np.nan)
         return values
 
-    def fsigma_kernel(self, m: npt.ArrayLike, z: npt.ArrayLike) -> FloatArray:
+    def fsigma_kernel(self, *, m: npt.ArrayLike, z: npt.ArrayLike) -> FloatArray:
         """f(sigma) at (m, z), with the domain policy, at kernel level: see :meth:`fsigma`.
 
         Parameters
@@ -688,7 +692,7 @@ class MassFunction(Stage):
         out: FloatArray = evaluate_fsigma(self.fit, x, policy=self.domain_policy, owner=self).fsigma
         return out
 
-    def dndm_kernel(self, m: npt.ArrayLike, z: npt.ArrayLike) -> FloatArray:
+    def dndm_kernel(self, *, m: npt.ArrayLike, z: npt.ArrayLike) -> FloatArray:
         """The mass function dn/dm at (m, z), at kernel level: see :meth:`dndm`.
 
         Parameters
@@ -711,7 +715,7 @@ class MassFunction(Stage):
         """
         return self._dndm(m, z, policy=True)
 
-    def ngtm_kernel(self, m: npt.ArrayLike, z: npt.ArrayLike) -> FloatArray:
+    def ngtm_kernel(self, *, m: npt.ArrayLike, z: npt.ArrayLike) -> FloatArray:
         """The cumulative mass function n(>m) at (m, z), at kernel level: see :meth:`ngtm`.
 
         Parameters
@@ -734,7 +738,7 @@ class MassFunction(Stage):
         out = self._integral(m, z, raw=False, moment=0)
         return self._apply_policy(out, np.asarray(m, dtype=float), z)
 
-    def rho_gtm_kernel(self, m: npt.ArrayLike, z: npt.ArrayLike) -> FloatArray:
+    def rho_gtm_kernel(self, *, m: npt.ArrayLike, z: npt.ArrayLike) -> FloatArray:
         """The mass density in haloes above m at z, at kernel level: see :meth:`rho_gtm`.
 
         Parameters
@@ -757,7 +761,7 @@ class MassFunction(Stage):
         out = self._integral(m, z, raw=False, moment=1)
         return self._apply_policy(out, np.asarray(m, dtype=float), z)
 
-    def in_calibration_domain_kernel(self, m: npt.ArrayLike, z: npt.ArrayLike) -> BoolArray:
+    def in_calibration_domain_kernel(self, *, m: npt.ArrayLike, z: npt.ArrayLike) -> BoolArray:
         """Whether (m, z) is in the fit's calibration domain, at kernel level.
 
         Parameters
@@ -781,7 +785,7 @@ class MassFunction(Stage):
         shape = np.broadcast_shapes(np.shape(x.sigma), np.shape(m), np.shape(z))
         return np.array(np.broadcast_to(self.fit.in_calibration_domain(x), shape))
 
-    def m_from_sigma_kernel(self, sigma: npt.ArrayLike, z: npt.ArrayLike) -> FloatArray:
+    def m_from_sigma_kernel(self, *, sigma: npt.ArrayLike, z: npt.ArrayLike) -> FloatArray:
         """The mass at which sigma(m, z) takes the given values, at kernel level.
 
         Parameters
@@ -813,7 +817,7 @@ class MassFunction(Stage):
     # ---------------------------------------------------------------------------------
 
     @unit_boundary(m=Msun_h)
-    def sigma(self, m: Any, z: Any) -> FloatArray:
+    def sigma(self, *, m: Any, z: Any) -> FloatArray:
         """The mass variance sigma(m, z) of the linear power, normalised to sigma_8.
 
         Parameters
@@ -835,10 +839,10 @@ class MassFunction(Stage):
             table), or a mass can't be resolved by the variance's k grid.
         """
         self._check("sigma", m=m, z=z)
-        return np.exp(self.ln_sigma_and_slope_kernel(m, z)[0])
+        return np.exp(self.ln_sigma_and_slope_kernel(m=m, z=z)[0])
 
     @unit_boundary(m=Msun_h)
-    def dlnsigma_dlnm(self, m: Any, z: Any) -> FloatArray:
+    def dlnsigma_dlnm(self, *, m: Any, z: Any) -> FloatArray:
         """The slope dln(sigma)/dln(m), the same at every z.
 
         Parameters
@@ -859,10 +863,10 @@ class MassFunction(Stage):
             As :meth:`sigma`.
         """
         self._check("dlnsigma_dlnm", m=m, z=z)
-        return self.ln_sigma_and_slope_kernel(m, z)[1]
+        return self.ln_sigma_and_slope_kernel(m=m, z=z)[1]
 
     @unit_boundary(m=Msun_h)
-    def peak_height(self, m: Any, z: Any) -> FloatArray:
+    def peak_height(self, *, m: Any, z: Any) -> FloatArray:
         """The peak height, nu = delta_c / sigma(m, z).
 
         Parameters
@@ -883,11 +887,11 @@ class MassFunction(Stage):
             As :meth:`sigma`.
         """
         self._check("peak_height", m=m, z=z)
-        sigma = np.exp(self.ln_sigma_and_slope_kernel(m, z)[0])
+        sigma = np.exp(self.ln_sigma_and_slope_kernel(m=m, z=z)[0])
         return fit_kernels.peak_height(sigma, self.delta_c)
 
     @unit_boundary(m=Msun_h)
-    def fsigma(self, m: Any, z: Any) -> FloatArray:
+    def fsigma(self, *, m: Any, z: Any) -> FloatArray:
         """The fit's multiplicity function f(sigma) at (m, z).
 
         Parameters
@@ -916,10 +920,10 @@ class MassFunction(Stage):
             stage).
         """
         self._check("fsigma", m=m, z=z)
-        return self.fsigma_kernel(m, z)
+        return self.fsigma_kernel(m=m, z=z)
 
     @unit_boundary(m=Msun_h, returns=dndm_unit)
-    def dndm(self, m: Any, z: Any) -> FloatArray:
+    def dndm(self, *, m: Any, z: Any) -> FloatArray:
         """The mass function dn/dm at (m, z).
 
         Parameters
@@ -945,10 +949,10 @@ class MassFunction(Stage):
             As :meth:`fsigma`.
         """
         self._check("dndm", m=m, z=z)
-        return self.dndm_kernel(m, z)
+        return self.dndm_kernel(m=m, z=z)
 
     @unit_boundary(m=Msun_h, returns=number_density_unit)
-    def dndlnm(self, m: Any, z: Any) -> FloatArray:
+    def dndlnm(self, *, m: Any, z: Any) -> FloatArray:
         """The mass function per unit ln m, m dn/dm.
 
         Parameters
@@ -974,11 +978,11 @@ class MassFunction(Stage):
             As :meth:`fsigma`.
         """
         self._check("dndlnm", m=m, z=z)
-        out: FloatArray = m * self.dndm_kernel(m, z)
+        out: FloatArray = m * self.dndm_kernel(m=m, z=z)
         return out
 
     @unit_boundary(m=Msun_h, returns=number_density_unit)
-    def dndlog10m(self, m: Any, z: Any) -> FloatArray:
+    def dndlog10m(self, *, m: Any, z: Any) -> FloatArray:
         """The mass function per unit log10 m, ln(10) m dn/dm.
 
         Parameters
@@ -1004,11 +1008,11 @@ class MassFunction(Stage):
             As :meth:`fsigma`.
         """
         self._check("dndlog10m", m=m, z=z)
-        out: FloatArray = _LN10 * m * self.dndm_kernel(m, z)
+        out: FloatArray = _LN10 * m * self.dndm_kernel(m=m, z=z)
         return out
 
     @unit_boundary(m=Msun_h, returns=number_density_unit)
-    def ngtm(self, m: Any, z: Any) -> FloatArray:
+    def ngtm(self, *, m: Any, z: Any) -> FloatArray:
         """The cumulative mass function: the number density of haloes above m.
 
         Integrated on the mass lattice up to :attr:`m_top` (see "The cumulative mass
@@ -1040,10 +1044,10 @@ class MassFunction(Stage):
             As :meth:`fsigma`.
         """
         self._check("ngtm", m_integral=m, z=z)
-        return self.ngtm_kernel(m, z)
+        return self.ngtm_kernel(m=m, z=z)
 
     @unit_boundary(m=Msun_h, returns=rho_unit)
-    def rho_gtm(self, m: Any, z: Any) -> FloatArray:
+    def rho_gtm(self, *, m: Any, z: Any) -> FloatArray:
         """The mass density in haloes above m (comoving).
 
         Integrated as :meth:`ngtm`.
@@ -1071,10 +1075,10 @@ class MassFunction(Stage):
             As :meth:`fsigma`.
         """
         self._check("rho_gtm", m_integral=m, z=z)
-        return self.rho_gtm_kernel(m, z)
+        return self.rho_gtm_kernel(m=m, z=z)
 
     @unit_boundary(m=Msun_h)
-    def in_calibration_domain(self, m: Any, z: Any) -> BoolArray:
+    def in_calibration_domain(self, *, m: Any, z: Any) -> BoolArray:
         """Whether each (m, z) is inside the fit's calibration domain.
 
         Parameters
@@ -1096,16 +1100,16 @@ class MassFunction(Stage):
             As :meth:`sigma`.
         """
         self._check("in_calibration_domain", m=m, z=z)
-        return self.in_calibration_domain_kernel(m, z)
+        return self.in_calibration_domain_kernel(m=m, z=z)
 
     @unit_boundary(returns=Msun_h)
-    def m_from_sigma(self, sigma: Any, z: Any) -> FloatArray:
+    def m_from_sigma(self, *, sigma: Any, z: Any) -> FloatArray:
         """The mass at which sigma(m, z) takes the given values: the inverse of :meth:`sigma`.
 
         sigma(m, z) / (sqrt(A) D(z)) is inverted on the variance's lattice (see
         :meth:`MassVariance.m_from_sigma
         <hmf.core.mass_variance.MassVariance.m_from_sigma>`), so
-        ``m_from_sigma(sigma(m, z), z)`` returns m to about 1e-12.
+        ``m_from_sigma(sigma=sigma(m=m, z=z), z=z)`` returns m to about 1e-12.
 
         Parameters
         ----------
@@ -1126,10 +1130,10 @@ class MassFunction(Stage):
             the variance's default lattice range, or sigma is not monotonic there.
         """
         self._check("m_from_sigma", sigma=sigma, z=z)
-        return self.m_from_sigma_kernel(sigma, z)
+        return self.m_from_sigma_kernel(sigma=sigma, z=z)
 
     @unit_boundary(returns=Msun_h)
-    def m_from_peak_height(self, peak_height: Any, z: Any) -> FloatArray:
+    def m_from_peak_height(self, *, peak_height: Any, z: Any) -> FloatArray:
         """The mass of a peak height nu at z: the inverse of :meth:`peak_height`.
 
         Parameters
@@ -1152,10 +1156,10 @@ class MassFunction(Stage):
         """
         self._check("m_from_peak_height", peak_height=peak_height, z=z)
         sigma = fit_kernels.peak_height(peak_height, self.delta_c)  # delta_c / nu
-        return self.m_from_sigma_kernel(sigma, z)
+        return self.m_from_sigma_kernel(sigma=sigma, z=z)
 
     @unit_boundary(r=Mpc_h, returns=Msun_h)
-    def m_from_radius(self, r: Any) -> FloatArray:
+    def m_from_radius(self, *, r: Any) -> FloatArray:
         """The mass of a filter radius, m = (4π/3) rho_cb (cR)³, with the filter's c.
 
         See :meth:`MassVariance.m_from_radius
@@ -1179,7 +1183,7 @@ class MassFunction(Stage):
         self._check("m_from_radius", r=r)
         return self.variance.m_from_radius_kernel(r)
 
-    def at(self, z: float, m: u.Quantity | None = None) -> MassFunctionView:
+    def at(self, *, z: float, m: u.Quantity | None = None) -> MassFunctionView:
         """The quantities of the mass function at one redshift and fixed masses.
 
         Parameters
@@ -1251,7 +1255,7 @@ class MassFunctionView:
 
     @cached_property
     def _ln_sigma_and_slope(self) -> tuple[FloatArray, FloatArray]:
-        return self.mass_function.ln_sigma_and_slope_kernel(self.masses, self.z)
+        return self.mass_function.ln_sigma_and_slope_kernel(m=self.masses, z=self.z)
 
     @cached_property
     def sigma(self) -> FloatArray:
@@ -1271,12 +1275,12 @@ class MassFunctionView:
     @cached_property
     def fsigma(self) -> FloatArray:
         """f(sigma), with the stage's domain policy."""
-        return self.mass_function.fsigma_kernel(self.masses, self.z)
+        return self.mass_function.fsigma_kernel(m=self.masses, z=self.z)
 
     @cached_property
     def dndm(self) -> u.Quantity:
         """dn/dm, in h^4 / (Msun Mpc^3)."""
-        return self.mass_function.dndm_kernel(self.masses, self.z) << dndm_unit
+        return self.mass_function.dndm_kernel(m=self.masses, z=self.z) << dndm_unit
 
     @cached_property
     def dndlnm(self) -> u.Quantity:
@@ -1291,14 +1295,14 @@ class MassFunctionView:
     @cached_property
     def ngtm(self) -> u.Quantity:
         """n(>m), in h^3 / Mpc^3."""
-        return self.mass_function.ngtm_kernel(self.masses, self.z) << number_density_unit
+        return self.mass_function.ngtm_kernel(m=self.masses, z=self.z) << number_density_unit
 
     @cached_property
     def rho_gtm(self) -> u.Quantity:
         """rho(>m), in Msun h^2 / Mpc^3."""
-        return self.mass_function.rho_gtm_kernel(self.masses, self.z) << rho_unit
+        return self.mass_function.rho_gtm_kernel(m=self.masses, z=self.z) << rho_unit
 
     @cached_property
     def in_calibration_domain(self) -> BoolArray:
         """Whether each mass is in the fit's calibration domain at z."""
-        return self.mass_function.in_calibration_domain_kernel(self.masses, self.z)
+        return self.mass_function.in_calibration_domain_kernel(m=self.masses, z=self.z)

@@ -32,10 +32,10 @@ def mf():
     """The default (CAMB) v4 mass function, with every cache the scans use warm."""
     mf = MassFunction.build()
     for z in (0.0, *ZS):
-        mf.dndm_kernel(M, z)
-        mf.ngtm_kernel(M, z)
+        mf.dndm_kernel(m=M, z=z)
+        mf.ngtm_kernel(m=M, z=z)
     for name, z in FITS.items():
-        mf.evolve(fit=name).dndm_kernel(M, z)
+        mf.evolve(fit=name).dndm_kernel(m=M, z=z)
     return mf
 
 
@@ -52,7 +52,7 @@ def test_v4_sigma8_scan_dndm(bench, mf, no_boltzmann_run):
 
     def scan():
         for sigma_8 in SIGMA8S:
-            mf.evolve(linear_power=mf.linear_power.evolve(sigma_8=sigma_8)).dndm_kernel(M, 0.0)
+            mf.evolve(linear_power=mf.linear_power.evolve(sigma_8=sigma_8)).dndm_kernel(m=M, z=0.0)
 
     bench(scan, rounds=10, warmup_rounds=1, n_items=SIGMA8S.size)
 
@@ -62,7 +62,7 @@ def test_v4_z_loop_dndm(bench, mf, no_boltzmann_run):
 
     def scan():
         for z in ZS:
-            mf.dndm_kernel(M, z)
+            mf.dndm_kernel(m=M, z=z)
 
     bench(scan, rounds=10, warmup_rounds=1, n_items=ZS.size)
 
@@ -72,14 +72,14 @@ def test_v4_z_loop_ngtm(bench, mf, no_boltzmann_run):
 
     def scan():
         for z in ZS:
-            mf.ngtm_kernel(M, z)
+            mf.ngtm_kernel(m=M, z=z)
 
     bench(scan, rounds=10, warmup_rounds=1, n_items=ZS.size)
 
 
 def test_v4_z_vectorised_dndm(bench, mf, no_boltzmann_run):
     """``dndm`` at 20 redshifts in one call, (20, 501) (#247)."""
-    bench(lambda: mf.dndm_kernel(M[None, :], ZS[:, None]), rounds=10, n_items=ZS.size)
+    bench(lambda: mf.dndm_kernel(m=M[None, :], z=ZS[:, None]), rounds=10, n_items=ZS.size)
 
 
 def test_v4_fit_scan_dndm(bench, mf, no_boltzmann_run):
@@ -87,6 +87,6 @@ def test_v4_fit_scan_dndm(bench, mf, no_boltzmann_run):
 
     def scan():
         for name, z in FITS.items():
-            mf.evolve(fit=name).dndm_kernel(M, z)
+            mf.evolve(fit=name).dndm_kernel(m=M, z=z)
 
     bench(scan, rounds=5, warmup_rounds=1, n_items=len(FITS))

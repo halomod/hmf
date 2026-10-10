@@ -101,7 +101,7 @@ class LinearPower(CosmologyStage):
     >>> from hmf.core.units import Mpc_h, h_Mpc
     >>> transfer = Transfer(model="EH")
     >>> lp = LinearPower(transfer=transfer, growth=Growth.from_transfer(transfer), sigma_8=0.8)
-    >>> p = lp.power([0.01, 0.1, 1.0] * h_Mpc, 0.0)
+    >>> p = lp.power(k=[0.01, 0.1, 1.0] * h_Mpc, z=0.0)
     >>> p.unit == (Mpc_h**3)
     True
     """
@@ -267,7 +267,7 @@ class LinearPower(CosmologyStage):
         )
         return out
 
-    def power_kernel(self, k: npt.ArrayLike, z: npt.ArrayLike) -> FloatArray:
+    def power_kernel(self, *, k: npt.ArrayLike, z: npt.ArrayLike) -> FloatArray:
         r"""The linear power :math:`A D^2(z) P_{\rm raw}(k)`, at kernel level.
 
         For library code working in plain arrays (see :mod:`hmf.core._kernels`). It
@@ -302,7 +302,7 @@ class LinearPower(CosmologyStage):
         return out
 
     @unit_boundary(k=h_Mpc, returns=power_unit)
-    def power(self, k: Any, z: Any) -> FloatArray:
+    def power(self, *, k: Any, z: Any) -> FloatArray:
         """The linear power spectrum P(k, z), normalised to sigma_8.
 
         Parameters
@@ -311,7 +311,7 @@ class LinearPower(CosmologyStage):
             Wavenumbers, in h/Mpc (or 1/Mpc, converted with the cosmology's H0).
         z : float or array_like
             Redshift(s), dimensionless; broadcast with ``k`` like numpy, so
-            ``power(k[None, :], z[:, None])`` has the shape ``(nz, nk)``.
+            ``power(k=k[None, :], z=z[:, None])`` has the shape ``(nz, nk)``.
 
         Returns
         -------
@@ -336,4 +336,4 @@ class LinearPower(CosmologyStage):
         table = self.power_source.table_range
         if table is not None and np.size(k):
             table.warn_outside(self, float(np.min(k)), float(np.max(k)), stacklevel=3)
-        return self.power_kernel(k, z)
+        return self.power_kernel(k=k, z=z)

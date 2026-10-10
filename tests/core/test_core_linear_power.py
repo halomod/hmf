@@ -58,7 +58,7 @@ def test_power_has_the_sigma_8_it_is_normalised_to(eh, sigma_8):
     """
     stage = _linear_power(eh, sigma_8=sigma_8)
     k = np.exp(np.arange(np.log(1e-6), np.log(1e3), 0.002))
-    pk = stage.power(k * h_Mpc, 0.0).to_value(power_unit)
+    pk = stage.power(k=k * h_Mpc, z=0.0).to_value(power_unit)
     assert _tophat_sigma(k, pk, SIGMA_8_RADIUS) == pytest.approx(sigma_8, rel=1e-5)
 
 
@@ -67,14 +67,14 @@ def test_amplitude_scales_as_sigma_8_squared(lp):
     doubled = lp.evolve(sigma_8=2 * lp.sigma_8)
     assert doubled.amplitude == pytest.approx(4 * lp.amplitude, rel=1e-15)
     k = [0.01, 0.1, 1.0] * h_Mpc
-    np.testing.assert_allclose(doubled.power(k, 0.5), 4 * lp.power(k, 0.5), rtol=1e-14)
+    np.testing.assert_allclose(doubled.power(k=k, z=0.5), 4 * lp.power(k=k, z=0.5), rtol=1e-14)
 
 
 def test_power_grows_as_the_growth_factor_squared(lp):
     """P(k, z) = D(z)^2 P(k, 0), the scale-independent growth of the default."""
     k = np.logspace(-3, 1, 9) * h_Mpc
     z = np.array([0.5, 1.0, 3.0])
-    ratio = lp.power(k[None, :], z[:, None]) / lp.power(k, 0.0)[None, :]
+    ratio = lp.power(k=k[None, :], z=z[:, None]) / lp.power(k=k, z=0.0)[None, :]
     d = lp.growth.growth_factor(z)
     np.testing.assert_allclose(ratio, np.broadcast_to(d[:, None] ** 2, ratio.shape), rtol=1e-14)
 
@@ -84,7 +84,7 @@ def test_power_law_shape():
     transfer = Transfer(model=UnitTransfer(), n_s=-2.0)
     stage = _linear_power(transfer, sigma_8=0.8)
     k = np.logspace(-3, 2, 6)
-    p = stage.power_kernel(k, 0.0)
+    p = stage.power_kernel(k=k, z=0.0)
     np.testing.assert_allclose(np.diff(np.log(p)) / np.diff(np.log(k)), -2.0, rtol=1e-12)
 
 
@@ -101,12 +101,14 @@ def test_sigma_8_species_with_massive_neutrinos():
     cb = _linear_power(transfer, sigma_8=0.8, species="cb", sigma_8_species="tot")
     assert cb.unnormalised_sigma_8 == tot.unnormalised_sigma_8  # both normalise to tot
     k = np.exp(np.arange(np.log(1e-6), np.log(1e3), 0.002))
-    s_tot = _tophat_sigma(k, tot.power_kernel(k, 0.0), SIGMA_8_RADIUS)
-    s_cb = _tophat_sigma(k, cb.power_kernel(k, 0.0), SIGMA_8_RADIUS)
+    s_tot = _tophat_sigma(k, tot.power_kernel(k=k, z=0.0), SIGMA_8_RADIUS)
+    s_cb = _tophat_sigma(k, cb.power_kernel(k=k, z=0.0), SIGMA_8_RADIUS)
     assert s_tot == pytest.approx(0.8, rel=1e-5)
     assert 0.8 < s_cb < 0.8 * 1.05
     # On large scales neutrinos cluster like CDM: the powers agree there.
-    assert cb.power_kernel(1e-4, 0.0) == pytest.approx(tot.power_kernel(1e-4, 0.0), rel=1e-3)
+    assert cb.power_kernel(k=1e-4, z=0.0) == pytest.approx(
+        tot.power_kernel(k=1e-4, z=0.0), rel=1e-3
+    )
 
 
 # ---------------------------------------------------------------------------------
@@ -124,30 +126,30 @@ def test_defaults_come_from_the_transfer_stage(eh):
 
 
 def test_units_and_scalar_rule(lp):
-    p = lp.power(0.1 * h_Mpc, 0.0)
+    p = lp.power(k=0.1 * h_Mpc, z=0.0)
     assert p.unit == power_unit
     assert p.shape == ()
-    p_phys = lp.power(0.1 * Planck18.h / u.Mpc, 0.0)
+    p_phys = lp.power(k=0.1 * Planck18.h / u.Mpc, z=0.0)
     assert p_phys.to_value(power_unit) == pytest.approx(p.to_value(power_unit), rel=1e-14)
-    assert lp.power([0.1, 1.0] * h_Mpc, 0.0).shape == (2,)
+    assert lp.power(k=[0.1, 1.0] * h_Mpc, z=0.0).shape == (2,)
     with pytest.raises(UnitBoundaryError):
-        lp.power(0.1, 0.0)
+        lp.power(k=0.1, z=0.0)
     assert np.ndim(lp.sigma_scale_kernel(0.5)) == 0
     assert lp.sigma_scale_kernel(0.0) == pytest.approx(math.sqrt(lp.amplitude), rel=1e-14)
 
 
 def test_kernel_equals_method(lp):
     k = np.logspace(-3, 1, 7)
-    np.testing.assert_array_equal(lp.power(k * h_Mpc, 1.0).value, lp.power_kernel(k, 1.0))
+    np.testing.assert_array_equal(lp.power(k=k * h_Mpc, z=1.0).value, lp.power_kernel(k=k, z=1.0))
 
 
 def test_domains_raise(lp):
     with pytest.raises(DomainError):
-        lp.power(-1.0 * h_Mpc, 0.0)
+        lp.power(k=-1.0 * h_Mpc, z=0.0)
     with pytest.raises(DomainError):
-        lp.power(0.1 * h_Mpc, -0.5)
+        lp.power(k=0.1 * h_Mpc, z=-0.5)
     with pytest.raises(DomainError):
-        lp.power_kernel(np.array([0.1, np.nan]), 0.0)
+        lp.power_kernel(k=np.array([0.1, np.nan]), z=0.0)
     with pytest.raises(DomainError):
         lp.sigma_scale_kernel(np.inf)
 
@@ -194,13 +196,13 @@ def test_evolve_shares_the_unnormalised_sigma_8(monkeypatch, eh):
 
 
 def test_evolve_is_atomic(lp):
-    before = lp.power(0.1 * h_Mpc, 0.0)
+    before = lp.power(k=0.1 * h_Mpc, z=0.0)
     with pytest.raises(ValueError):
         lp.evolve(sigma_8=-1.0)
     with pytest.raises(TypeError, match="no field"):
         lp.evolve(sigma8=0.7)
     assert lp.sigma_8 == 0.8
-    assert lp.power(0.1 * h_Mpc, 0.0) == before
+    assert lp.power(k=0.1 * h_Mpc, z=0.0) == before
 
 
 def test_pickle_and_copy(lp):
@@ -210,7 +212,7 @@ def test_pickle_and_copy(lp):
     for other in (pickle.loads(pickle.dumps(lp)), copy.deepcopy(lp)):
         assert other == lp
         assert other.amplitude == lp.amplitude
-        assert other.power(0.3 * h_Mpc, 1.0) == lp.power(0.3 * h_Mpc, 1.0)
+        assert other.power(k=0.3 * h_Mpc, z=1.0) == lp.power(k=0.3 * h_Mpc, z=1.0)
 
 
 def test_user_table_warns_once():
@@ -222,13 +224,20 @@ def test_user_table_warns_once():
         stage = _linear_power(transfer, sigma_8=0.8)
         _ = stage.amplitude
     with pytest.warns(HMFExtrapolationWarning, match="above the table"):
-        stage.power([0.1, 100.0] * h_Mpc, 0.0)
+        stage.power(k=[0.1, 100.0] * h_Mpc, z=0.0)
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        stage.power([0.1, 100.0] * h_Mpc, 0.0)  # once per stage
+        stage.power(k=[0.1, 100.0] * h_Mpc, z=0.0)  # once per stage
 
 
 def test_sigma_8_radius_is_8_mpc_h():
     assert SIGMA_8_RADIUS == 8.0
     assert lp_module.__all__ == ["SIGMA_8_RADIUS", "LinearPower"]
     assert (SIGMA_8_RADIUS * Mpc_h).unit == Mpc_h
+
+
+def test_power_arguments_are_keyword_only(lp):
+    with pytest.raises(TypeError):
+        lp.power(0.1 * h_Mpc, 0.0)
+    with pytest.raises(TypeError):
+        lp.power_kernel(np.array([0.1]), 0.0)

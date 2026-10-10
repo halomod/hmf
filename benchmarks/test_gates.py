@@ -321,10 +321,10 @@ def computed_nodes(monkeypatch):
 def _evaluate(mf):
     """Every quantity of a MassFunction on _M_MF at _Z_MF (n(>m) and rho(>m) included)."""
     z = np.array(_Z_MF)[:, None]
-    mf.dndm_kernel(_M_MF, z)
-    mf.ngtm_kernel(_M_MF, z)
-    mf.rho_gtm_kernel(_M_MF, z)
-    mf.at(1.0, _M_MF * Msun_h).dndm
+    mf.dndm_kernel(m=_M_MF, z=z)
+    mf.ngtm_kernel(m=_M_MF, z=z)
+    mf.rho_gtm_kernel(m=_M_MF, z=z)
+    mf.at(z=1.0, m=_M_MF * Msun_h).dndm
 
 
 def test_v4_sigma_8_change_recomputes_no_lattice_node(computed_nodes):
@@ -359,8 +359,8 @@ def test_v4_z_or_fit_change_recomputes_nothing_expensive(boltzmann_runs, compute
     before = computed_nodes().size
     m = _M_MF * Msun_h
     for z in (0.25, 2.0, 4.0):
-        mf.dndm(m, z)
-        mf.ngtm(m, z)
+        mf.dndm(m=m, z=z)
+        mf.ngtm(m=m, z=z)
     for changes in ({"fit": "ST"}, {"fit": "Watson"}, {"delta_c": 1.7}, {"domain_policy": "mask"}):
         _evaluate(mf.evolve(**changes))
     assert computed_nodes().size == before
@@ -381,5 +381,5 @@ def test_v4_build_runs_one_boltzmann_code(boltzmann_runs, growth_model):
     """
     mf = MassFunction.build(growth_model=growth_model)
     _evaluate(mf)
-    mf.linear_power.power(np.logspace(-3, 1, 5) * h_Mpc, np.array([0.0, 2.0])[:, None])
+    mf.linear_power.power(k=np.logspace(-3, 1, 5) * h_Mpc, z=np.array([0.0, 2.0])[:, None])
     assert boltzmann_runs() == 1
