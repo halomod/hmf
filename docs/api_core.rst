@@ -35,6 +35,8 @@ The steps of a calculation, each a function of its natural variables.
    growth
    power_source
    mass_variance
+   linear_power
+   mass_function
 
 Models
 ------
@@ -79,6 +81,7 @@ contributors; they are not part of the public API.
    _kernels.growth
    _kernels.filters
    _kernels.mass_variance
+   _kernels.mass_function
    _kernels.interpolation
    _kernels.lattice
    _kernels.arrays

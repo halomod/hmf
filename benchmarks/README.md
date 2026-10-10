@@ -67,6 +67,9 @@ CI (issue #394):
 | `test_v4_boltzmann_runs_per_input[...]` | the v4 `Transfer` and `Growth` (CAMB) stages run CAMB once per input, for both species, the transfer function, the power, the growth factor and rate, and an `n_s` change, for each of the five cosmologies (w ≠ −1 included); a new input runs it once more |
 | `test_v4_sigma_recomputations[...]` | a v4 `MassVariance` computes each node of its mass lattice at most once, through repeated, contained, wider and inverse (`m_from_sigma`) calls, for TopHat, SharpK and SmoothK |
 | `test_v4_lattice_determinism[...]` | lattice values are bit-identical under lazy extension in either order, and alone or in a batch (#384) |
+| `test_v4_sigma_8_change_recomputes_no_lattice_node` | a v4 `MassFunction` whose σ8 changes (`evolve(linear_power=...evolve(sigma_8=...))`) shares its `MassVariance` and computes no lattice node, for dn/dm, n(>m), ρ(>m) and `at()`: the v4 counterpart of `test_no_sigma_recompute_without_power_change` |
+| `test_v4_z_or_fit_change_recomputes_nothing_expensive` | changing z, the fit, δc or the domain policy of a CAMB `MassFunction` runs no Boltzmann code and computes no lattice node twice (none at all, except the one extra node Behroozi's n(>m) needs) |
+| `test_v4_build_runs_one_boltzmann_code[...]` | `MassFunction.build()` (CAMB, with the ODE or the CAMB growth) runs CAMB once for every quantity, both species included |
 
 The units-boundary gate times an identity method, decorated and not, alternately,
 101 times 1,000 calls each, and compares the medians, so that a slow patch of the
@@ -128,6 +131,17 @@ that removes it should lower them.
 | 14 | `test_unit_boundary_overhead[undecorated]` | 10,000 calls of an identity method on 500 masses |
 | 14 | `test_unit_boundary_overhead[canonical]` | the same method behind `hmf.core.units.unit_boundary`, masses in `Msun_h` |
 | 14 | `test_unit_boundary_overhead[physical]` | the same, masses in `u.Msun` (cached H0 conversion, plus one array multiply) |
+| 15 | `test_v4_sigma8_scan_dndm` | v4 `MassFunction` (CAMB): 20 × `evolve` of σ8 + `dndm_kernel` on v3's 501 masses |
+| 15 | `test_v4_z_loop_dndm` | the same: `dndm_kernel` at each of 20 redshifts |
+| 15 | `test_v4_z_loop_ngtm` | the same: `ngtm_kernel` at each of 20 redshifts |
+| 15 | `test_v4_z_vectorised_dndm` | the same: `dndm_kernel` at 20 redshifts in one call |
+| 15 | `test_v4_fit_scan_dndm` | the same: `evolve(fit=...)` + `dndm_kernel` for each of the 28 fits |
+
+Workload 15 (`test_core_scans.py`) is the v4 counterpart of workloads 3-7, on the
+`hmf.core` stages with every cache warm (the lattice, the Boltzmann run, the
+unnormalised σ8), so a round times the scan alone; a round that runs a Boltzmann code
+fails. The design target is under 0.5 ms per step for dn/dm (#382). `baseline.json`
+predates it.
 
 Workload 14 measures the fixed cost of the `hmf.core` units boundary: the
 *per item* time of `[canonical]` minus that of `[undecorated]` is the overhead per

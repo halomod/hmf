@@ -1120,3 +1120,27 @@ def test_which_fits_modify_dndm():
         "Bocquet500cDMOnly",
         "Bocquet500cHydro",
     }
+
+
+def test_which_fits_need_ngtm_to_modify_dndm():
+    """Only Behroozi's modification uses n(>m); the others give the same with any ngtm."""
+    needs = {
+        cls.__name__ for cls in FittingFunction.get_models().values() if cls.modify_dndm_needs_ngtm
+    }
+    assert needs == {"Behroozi"}
+    m = np.logspace(10, 15, 6)
+    dndm = 1e-20 * (m / 1e12) ** -1.9
+    for cls in FittingFunction.get_models().values():
+        if not cls.modifies_dndm:
+            assert not cls.modify_dndm_needs_ngtm
+            continue
+        fit = cls()
+        out = [
+            fit.modify_dndm_kernel(m, dndm, z=1.0, ngtm=ngtm, h=0.7, omega_m0=0.3)
+            for ngtm in (np.full_like(m, np.nan), 1e-3 * (m / 1e12) ** -0.9)
+        ]
+        if cls.modify_dndm_needs_ngtm:
+            assert np.all(np.isnan(out[0]))
+            assert np.all(np.isfinite(out[1]))
+        else:
+            np.testing.assert_array_equal(out[0], out[1])

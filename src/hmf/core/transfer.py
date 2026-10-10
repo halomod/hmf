@@ -8,7 +8,8 @@ model) and gives, for each matter species (``"cb"``, CDM + baryons; ``"tot"``, t
 * :meth:`Transfer.unnormalised_power`: :math:`k^{n_s} T(k)^2`, the shape of the
   linear power spectrum at z = 0. It is a plain (dimensionless) array, with k in
   h/Mpc and an arbitrary amplitude: normalising it, e.g. to sigma_8, and giving it
-  the units of a power spectrum, is the job of a later stage;
+  the units of a power spectrum, is the job of
+  :class:`~hmf.core.linear_power.LinearPower`;
 * :meth:`Transfer.power_source`: the same at kernel level, for later stages: an
   :class:`UnnormalisedPower`, a :class:`~hmf.core.power_source.PowerSource` whose
   methods are pure functions of plain arrays in canonical units, with the mean
@@ -197,8 +198,9 @@ class Transfer(CosmologyStage):
         numpy.float64 or numpy.ndarray
             A plain, dimensionless array (not a Quantity), with the shape of ``k`` (a
             scalar for a scalar ``k``): :math:`k^{n_s} T(k)^2` with k in h/Mpc, so its
-            amplitude is arbitrary. A later stage normalises it (e.g. to sigma_8) and
-            gives it the units of a power spectrum, (Mpc/h)³.
+            amplitude is arbitrary. :class:`~hmf.core.linear_power.LinearPower`
+            normalises it (to sigma_8) and gives it the units of a power spectrum,
+            (Mpc/h)³.
 
         Raises
         ------

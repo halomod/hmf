@@ -13,6 +13,8 @@ formulas and their sources are documented on the models.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import numpy as np
 import numpy.typing as npt
 import scipy.special as sp
@@ -29,6 +31,7 @@ __all__ = [
     "bocquet16_mass_ratio_500c",
     "jenkins",
     "ln_sigma_inv",
+    "log10_delta_interpolant",
     "log10_delta_spline",
     "peacock",
     "peak_height",
@@ -219,13 +222,42 @@ def watson_gamma(
     return C * x**d * np.exp(float_array(p) * (1.0 - x) / float_array(sigma) ** float_array(q))
 
 
+def log10_delta_interpolant(
+    delta_tab: npt.ArrayLike, values: npt.ArrayLike
+) -> Callable[[npt.ArrayLike], FloatArray]:
+    r"""The interpolant of a parameter tabulated at overdensities ``delta_tab``.
+
+    A natural cubic spline in :math:`\log_{10}\Delta`, as Tinker et al. (2008), App. B,
+    recommend. At the tabulated overdensities it returns the tabulated values. Building
+    it is the expensive part, so a fit builds it once and keeps it.
+
+    Parameters
+    ----------
+    delta_tab
+        The tabulated overdensities, increasing, shape ``(n,)``.
+    values
+        The parameter values at them, shape ``(n,)``.
+
+    Returns
+    -------
+    callable
+        A pure function of the overdensities ``delta_halo``, returning the interpolated
+        values with the shape of ``delta_halo``.
+    """
+    spline = CubicSpline(np.log10(float_array(delta_tab)), float_array(values), bc_type="natural")
+
+    def interpolant(delta_halo: npt.ArrayLike) -> FloatArray:
+        return float_array(spline(np.log10(float_array(delta_halo))))
+
+    return interpolant
+
+
 def log10_delta_spline(
     delta_tab: npt.ArrayLike, values: npt.ArrayLike, delta_halo: npt.ArrayLike
 ) -> FloatArray:
     r"""Interpolate parameters tabulated at overdensities ``delta_tab``.
 
-    A natural cubic spline in :math:`\log_{10}\Delta`, as Tinker et al. (2008), App. B,
-    recommend. At the tabulated overdensities it returns the tabulated values.
+    :func:`log10_delta_interpolant`, built and evaluated at once.
 
     Parameters
     ----------
@@ -241,8 +273,7 @@ def log10_delta_spline(
     numpy.ndarray
         The interpolated values, with the shape of ``delta_halo``.
     """
-    spline = CubicSpline(np.log10(float_array(delta_tab)), float_array(values), bc_type="natural")
-    return float_array(spline(np.log10(float_array(delta_halo))))
+    return log10_delta_interpolant(delta_tab, values)(delta_halo)
 
 
 def tinker08_b_exponent(delta_halo: npt.ArrayLike) -> FloatArray:

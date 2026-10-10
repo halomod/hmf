@@ -5,7 +5,9 @@ The mass variance of the *unnormalised* linear power at z = 0,
 .. math:: \sigma^2(M) = \frac{1}{2\pi^2} \int k^3 P(k)\, W^2(kR)\, d\ln k,
 
 and its logarithmic slope :math:`d\ln\sigma/d\ln M`, as functions of mass. sigma8
-normalisation, redshift and peak height come later, in the stages built on this one.
+normalisation and redshift enter in the stages built on this one
+(:class:`~hmf.core.linear_power.LinearPower` and
+:class:`~hmf.core.mass_function.MassFunction`).
 
 The mass lattice
 ----------------
@@ -95,6 +97,7 @@ dln(sigma)/dln(m) only converges conditionally).
 from __future__ import annotations
 
 import math
+from collections import OrderedDict
 from collections.abc import Callable
 from functools import cached_property
 from typing import Any, NamedTuple
@@ -107,6 +110,7 @@ from numpy.typing import NDArray
 from ._fields import field
 from ._kernels import interpolation as interp
 from ._kernels import mass_variance as kern
+from ._kernels.arrays import read_only
 from ._kernels.lattice import LATTICE_RTOL, lattice, lattice_index
 from ._validators import check_finite_positive, positive
 from .accuracy import KAccuracy, MassAccuracy
@@ -146,6 +150,11 @@ _POSITIVE_MASSES = Domain({"m": Interval(0, None, Msun_h, lower_open=True)})
 #: Nodes are computed in chunks of this many, to bound the memory of the
 #: (nodes, k) arrays. Nodes are independent, so the chunking does not change results.
 _CHUNK = 64
+
+#: How many of the latest arrays of masses :meth:`MassVariance.ln_sigma_and_slope_kernel`
+#: remembers, with their results: a stage built on it asks for the same masses at every
+#: z, sigma_8 or fit of a scan.
+_LOOKUPS = 16
 
 #: The step in ln k of the central difference for d ln P / d ln k (sharp-k only).
 _DLN_K_SLOPE = 1e-3
@@ -377,6 +386,11 @@ class MassVariance(Stage):
         """The memo of lattice nodes (not part of the stage's value)."""
         return _NodeCache()
 
+    @cached_property
+    def _lookups(self) -> OrderedDict[tuple[tuple[int, ...], bytes], tuple[FloatArray, FloatArray]]:
+        """The memo of the latest masses looked up, and their results (not part of the value)."""
+        return OrderedDict()
+
     # ---------------------------------------------------------------------------------
     # Nodes
     # ---------------------------------------------------------------------------------
@@ -582,7 +596,9 @@ class MassVariance(Stage):
         The values of :meth:`sigma` (as its ln) and :meth:`dlnsigma_dlnm`, from one
         lookup of the lattice, on plain arrays in canonical units, for library code
         (see :mod:`hmf.core._kernels`). Results do not depend on the batch size, or on
-        the order of requests.
+        the order of requests. The results for the latest few arrays of masses are
+        remembered (not as part of the stage's value), and returned again, read-only,
+        for the same masses.
 
         Parameters
         ----------
@@ -592,7 +608,7 @@ class MassVariance(Stage):
         Returns
         -------
         ln_sigma, dlnsigma_dlnm : numpy.ndarray
-            Dimensionless, with the shape of ``m``.
+            Dimensionless, with the shape of ``m``; read-only.
 
         Raises
         ------
@@ -603,8 +619,20 @@ class MassVariance(Stage):
         m = check_extent(
             "m", m, self.valid_domain, where=self._where("ln_sigma_and_slope_kernel", "m")
         )
+        if m.size == 0:
+            return np.zeros(m.shape), np.zeros(m.shape)
+        memo = self._lookups
+        key = (m.shape, m.tobytes())
+        found = memo.get(key)
+        if found is not None:
+            memo.move_to_end(key)
+            return found
         ln_sigma, slope = self._interpolate(np.log10(m).ravel())
-        return ln_sigma.reshape(m.shape), slope.reshape(m.shape)
+        out = (read_only(ln_sigma.reshape(m.shape)), read_only(slope.reshape(m.shape)))
+        memo[key] = out
+        if len(memo) > _LOOKUPS:
+            memo.popitem(last=False)
+        return out
 
     def ln_sigma_at_radius_kernel(self, r: npt.ArrayLike) -> FloatArray:
         """ln(sigma) at filter radii in Mpc/h, evaluated directly, at kernel level.
@@ -807,7 +835,7 @@ class MassVariance(Stage):
             As for :meth:`sigma`.
         """
         self._check_masses(m, "dlnsigma_dlnm")
-        return self.ln_sigma_and_slope_kernel(m)[1]
+        return self.ln_sigma_and_slope_kernel(m)[1].copy()
 
     @unit_boundary(returns=Msun_h)
     def m_from_sigma(self, sigma: Any) -> FloatArray:

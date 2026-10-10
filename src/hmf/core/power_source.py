@@ -7,8 +7,9 @@ units, for library code.
 
 * ``ln_power_kernel(ln_k)``: the natural log of the linear power spectrum of one
   matter species at z = 0, with k in h/Mpc. Its amplitude is arbitrary: the
-  normalisation to sigma_8 is a scalar applied later, by a stage built on
-  MassVariance (a ``LinearPower`` stage, which does not exist yet), so only the
+  normalisation to sigma_8 is a scalar applied later, by
+  :class:`~hmf.core.linear_power.LinearPower` (the amplitude of the
+  :class:`~hmf.core.mass_function.MassFunction` built on MassVariance), so only the
   shape matters and it has no fixed unit. A
   :class:`TabulatedPower` gives its table in (Mpc/h)³, while
   :meth:`Transfer.power_source <hmf.core.transfer.Transfer.power_source>`'s

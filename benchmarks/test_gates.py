@@ -14,8 +14,10 @@ shared CI runner. Timings in general cannot (they are tracked, not gated: see
   workload makes. These count calls and time nothing, so they are exact.
 
 The v4 gates are at the end of this file: Boltzmann runs per input of the v4
-Transfer and Growth stages, no recomputation of a MassVariance lattice node, and the
-lattice's determinism under lazy extension (#384).
+Transfer and Growth stages, no recomputation of a MassVariance lattice node, the
+lattice's determinism under lazy extension (#384), and what a change of a v4
+MassFunction recomputes: no lattice node for sigma_8, z, the fit, delta_c or the
+policy, no Boltzmann run for any of them, and one run for a whole tree.
 """
 
 import os
@@ -28,9 +30,10 @@ import pytest
 from astropy.cosmology import FlatLambdaCDM, Flatw0waCDM, FlatwCDM, Planck18
 from test_core_units import M, Msun_h, Toy
 
-from hmf import MassFunction
+from hmf import MassFunction as MassFunctionV3
 from hmf.core import _boltzmann
 from hmf.core.growth import Growth
+from hmf.core.mass_function import MassFunction
 from hmf.core.mass_variance import MassVariance
 from hmf.core.transfer import Transfer
 from hmf.core.units import Mpc_h, h_Mpc
@@ -149,7 +152,7 @@ def test_one_camb_run_per_input(calls, name):
     total matter field while computing the CDM+baryon one must not run it twice.
     """
     cosmo, runs = CAMB_RUNS_PER_INPUT[name]
-    mf = MassFunction(cosmo_model=cosmo, transfer_params={"extrapolate_with_eh": True})
+    mf = MassFunctionV3(cosmo_model=cosmo, transfer_params={"extrapolate_with_eh": True})
     for params in NO_CAMB_UPDATES:
         mf.update(**params)
         mf.dndm
@@ -166,7 +169,7 @@ def test_one_camb_run_per_input(calls, name):
 
 def test_no_sigma_recompute_without_power_change(calls):
     """Changing only z, the fit or delta_c leaves sigma(R) at z = 0 cached."""
-    mf = MassFunction(transfer_model="EH")
+    mf = MassFunctionV3(transfer_model="EH")
     mf.dndm
     calls.clear()
     for params in ({"z": 1.0}, {"hmf_model": "Tinker08"}, {"delta_c": 1.7}, {"z": 3.0}):
@@ -290,3 +293,93 @@ def test_v4_lattice_determinism(power_source, flt):
     one_by_one = MassVariance(power=power_source, filter=flt)
     alone = np.array([one_by_one.sigma(m) for m in _M_NARROW[::-10]])
     assert np.array_equal(alone, s1[::-10])
+
+
+# ---------------------------------------------------------------------------------
+# v4 MassFunction: what each change recomputes
+# ---------------------------------------------------------------------------------
+
+#: The masses of the MassFunction gates (v3's default grid), and redshifts.
+_M_MF = np.logspace(10, 15, 501)
+_Z_MF = (0.0, 0.5, 1.0, 3.0)
+
+
+@pytest.fixture
+def computed_nodes(monkeypatch):
+    """The MassVariance lattice nodes computed from here on (a function returning them)."""
+    computed: list[np.ndarray] = []
+    real = MassVariance._compute_nodes
+
+    def counting(self, j):
+        computed.append(np.array(j))
+        return real(self, j)
+
+    monkeypatch.setattr(MassVariance, "_compute_nodes", counting)
+    return lambda: np.concatenate(computed) if computed else np.zeros(0, dtype=np.int64)
+
+
+def _evaluate(mf):
+    """Every quantity of a MassFunction on _M_MF at _Z_MF (n(>m) and rho(>m) included)."""
+    z = np.array(_Z_MF)[:, None]
+    mf.dndm_kernel(m=_M_MF, z=z)
+    mf.ngtm_kernel(m=_M_MF, z=z)
+    mf.rho_gtm_kernel(m=_M_MF, z=z)
+    mf.at(z=1.0, m=_M_MF * Msun_h).dndm
+
+
+def test_v4_sigma_8_change_recomputes_no_lattice_node(computed_nodes):
+    """Changing sigma_8 computes no MassVariance node: the variance is shared (#382).
+
+    The v4 counterpart of ``test_no_sigma_recompute_without_power_change``: sigma_8
+    enters only the scalar amplitude of LinearPower, and the variance is of the
+    unnormalised power.
+    """
+    mf = MassFunction.build(transfer_model="EH")
+    _evaluate(mf)
+    before = computed_nodes().size
+    assert before > 0
+    for sigma_8 in (0.7, 0.75, 0.85, 0.9):
+        changed = mf.evolve(linear_power=mf.linear_power.evolve(sigma_8=sigma_8))
+        assert changed.variance is mf.variance
+        _evaluate(changed)
+    assert computed_nodes().size == before
+
+
+def test_v4_z_or_fit_change_recomputes_nothing_expensive(boltzmann_runs, computed_nodes):
+    """Changing z, the fit, delta_c or the policy runs no Boltzmann code and recomputes no node.
+
+    With CAMB: one run for the whole tree, then none. No lattice node is ever computed
+    twice, and a change that needs no new mass computes no node at all. (Behroozi's
+    correction needs n(>m) of Tinker08 at the lowest node of the integrals, one node
+    below what the others use: it computes that one node.)
+    """
+    mf = MassFunction.build(transfer_model="CAMB", growth_model="CAMB")
+    _evaluate(mf)
+    assert boltzmann_runs() == 1
+    before = computed_nodes().size
+    m = _M_MF * Msun_h
+    for z in (0.25, 2.0, 4.0):
+        mf.dndm(m=m, z=z)
+        mf.ngtm(m=m, z=z)
+    for changes in ({"fit": "ST"}, {"fit": "Watson"}, {"delta_c": 1.7}, {"domain_policy": "mask"}):
+        _evaluate(mf.evolve(**changes))
+    assert computed_nodes().size == before
+    _evaluate(mf.evolve(fit="Behroozi"))
+    nodes = computed_nodes()
+    assert nodes.size <= before + 1
+    assert np.unique(nodes).size == nodes.size, "a lattice node was computed twice"
+    assert boltzmann_runs() == 1
+
+
+@pytest.mark.parametrize("growth_model", ["ODE", "CAMB"])
+def test_v4_build_runs_one_boltzmann_code(boltzmann_runs, growth_model):
+    """MassFunction.build() with CAMB runs CAMB once, for every species and quantity.
+
+    The transfer of both species (sigma_8 is normalised with "tot", the power is "cb"),
+    the growth (with CambGrowth, from the transfer's run, at the shared KAccuracy) and
+    every quantity of the mass function come from one run.
+    """
+    mf = MassFunction.build(growth_model=growth_model)
+    _evaluate(mf)
+    mf.linear_power.power(k=np.logspace(-3, 1, 5) * h_Mpc, z=np.array([0.0, 2.0])[:, None])
+    assert boltzmann_runs() == 1

@@ -71,7 +71,9 @@ fit has it, with the same arguments; it is the identity unless the class sets
   :math:`M_\Delta/M_{200m}` of their eq. 5, which needs :math:`\Omega_{m,0}` and h.
 
 So a mass function calls ``modify_dndm_kernel`` for every fit, and can skip it, and
-computing n(>m) for it, when ``modifies_dndm`` is False.
+computing n(>m) for it, when ``modifies_dndm`` is False. It needs to compute n(>m)
+only when :attr:`FittingFunction.modify_dndm_needs_ngtm` is True (Behroozi); the
+others ignore their ``ngtm`` argument.
 
 Domains
 -------
@@ -100,7 +102,9 @@ between mass definitions is not part of this module (issue #392).
 from __future__ import annotations
 
 import abc
+import functools
 from collections.abc import Callable, Mapping
+from functools import cached_property
 from types import MappingProxyType
 from typing import Any, ClassVar, Literal, get_args
 
@@ -630,6 +634,10 @@ class FittingFunction(Model, kind=True):
     #: "Post-processing the mass function" in the :mod:`module documentation
     #: <hmf.core.fits>`); if False, it is the identity.
     modifies_dndm: ClassVar[bool] = False
+
+    #: Whether :meth:`modify_dndm_kernel` uses its ``ngtm`` argument, the cumulative mass
+    #: function from :meth:`fsigma`; if False, it ignores it (any value will do, e.g. NaN).
+    modify_dndm_needs_ngtm: ClassVar[bool] = False
 
     #: Whether the fit is normalised by construction (see :attr:`normalized`).
     _normalized: ClassVar[bool] = False
@@ -2009,6 +2017,24 @@ def _delta_table(fit: Tinker08 | Tinker10, name: str) -> FloatArray:
     return np.array([getattr(fit, f"{name}_{d}") for d in fit.delta_tab], dtype=np.float64)
 
 
+@functools.lru_cache(maxsize=64)
+def _cached_delta_interpolant(
+    delta_tab: tuple[float, ...], values: tuple[float, ...]
+) -> Callable[[npt.ArrayLike], FloatArray]:
+    """The spline of a Tinker table, built once per table (fits with equal tables share it)."""
+    return _k.log10_delta_interpolant(delta_tab, values)
+
+
+def _delta_interpolants(
+    fit: Tinker08 | Tinker10, names: tuple[str, ...]
+) -> tuple[Callable[[npt.ArrayLike], FloatArray], ...]:
+    """The splines in log10 Delta of the parameters ``names`` of a Tinker fit."""
+    tab = tuple(float(d) for d in fit.delta_tab)
+    return tuple(
+        _cached_delta_interpolant(tab, tuple(_delta_table(fit, n).tolist())) for n in names
+    )
+
+
 @attrs.frozen(kw_only=True)
 class Tinker08(FittingFunction, alias="Tinker08"):
     r"""The Tinker et al. (2008) spherical-overdensity mass function.
@@ -2194,15 +2220,18 @@ class Tinker08(FittingFunction, alias="Tinker08"):
         """
         return self._parameters(delta_halo, z)
 
+    @cached_property
+    def _delta_interpolants(self) -> tuple[Callable[[npt.ArrayLike], FloatArray], ...]:
+        """The splines of A, a, b and c in log10 Delta (built once per table)."""
+        return _delta_interpolants(self, ("A", "a", "b", "c"))
+
     def _parameters(
         self, delta_halo: npt.ArrayLike, z: npt.ArrayLike
     ) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray]:
         """:meth:`parameters` on plain arrays, for this fit's own ``_fsigma``."""
         delta = np.asarray(delta_halo, dtype=np.float64)
         zp1 = 1.0 + np.asarray(z, dtype=np.float64)
-        A0, a0, b0, c0 = (
-            _k.log10_delta_spline(self.delta_tab, _delta_table(self, n), delta) for n in "Aabc"
-        )
+        A0, a0, b0, c0 = (interpolant(delta) for interpolant in self._delta_interpolants)
         A = A0 * zp1**-self.A_exp
         a = a0 * zp1**-self.a_exp
         b = b0 * zp1 ** -_k.tinker08_b_exponent(delta)
@@ -2272,6 +2301,7 @@ class Behroozi(Tinker08, alias="Behroozi"):
         source="Behroozi et al. 2013 (arXiv v2), Sec. 4 and App. G.",
     )
     modifies_dndm: ClassVar[bool] = True
+    modify_dndm_needs_ngtm: ClassVar[bool] = True
 
     def _modify_dndm(
         self,
@@ -2445,6 +2475,11 @@ class Tinker10(FittingFunction, alias="Tinker10"):
         """
         return self._parameters(delta_halo, z)
 
+    @cached_property
+    def _delta_interpolants(self) -> tuple[Callable[[npt.ArrayLike], FloatArray], ...]:
+        """The splines of beta, gamma, phi and eta in log10 Delta (built once per table)."""
+        return _delta_interpolants(self, ("beta", "gamma", "phi", "eta"))
+
     def _parameters(
         self, delta_halo: npt.ArrayLike, z: npt.ArrayLike
     ) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray, FloatArray]:
@@ -2452,10 +2487,7 @@ class Tinker10(FittingFunction, alias="Tinker10"):
         delta = np.asarray(delta_halo, dtype=np.float64)
         z = np.asarray(z, dtype=np.float64)
         zp1 = 1.0 + np.minimum(z, self.max_z)
-        beta0, gamma0, phi0, eta0 = (
-            _k.log10_delta_spline(self.delta_tab, _delta_table(self, n), delta)
-            for n in ("beta", "gamma", "phi", "eta")
-        )
+        beta0, gamma0, phi0, eta0 = (interpolant(delta) for interpolant in self._delta_interpolants)
         beta = beta0 * zp1**self.beta_exp
         gamma = gamma0 * zp1**self.gamma_exp
         phi = phi0 * zp1**self.phi_exp

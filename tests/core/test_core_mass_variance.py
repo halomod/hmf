@@ -827,3 +827,11 @@ def test_public_methods_check_the_domain(call, where):
     """The public methods raise Domain.check's DomainError: count, domain and variable."""
     with pytest.raises(DomainError, match=rf"^{where}: 1 of \d value\(s\) are outside the domain"):
         call(_mv())
+
+
+def test_empty_masses_give_empty_results():
+    from hmf.core.transfer import Transfer
+
+    mv = MassVariance(power=Transfer(model="EH").power_source("cb"))
+    assert mv.sigma(np.zeros(0) * Msun_h).shape == (0,)
+    assert mv.dlnsigma_dlnm(np.zeros((2, 0)) * Msun_h).shape == (2, 0)

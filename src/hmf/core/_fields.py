@@ -109,6 +109,10 @@ def _type_name(tp: Any) -> str:
     if isinstance(tp, str):
         return tp
     if isinstance(tp, type):
+        # hmf's own classes by their full path: v3 and the v4 core share names
+        # (Transfer, MassFunction, ...), which the docs could not tell apart.
+        if tp.__module__.startswith("hmf."):
+            return f"{tp.__module__}.{tp.__qualname__}"
         return tp.__qualname__
     return str(tp).replace("typing.", "")
 

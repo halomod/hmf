@@ -194,6 +194,40 @@ def test_tolerance_override_on_a_range_of_lnk(tolerances):
         rh.compare("transfer", off, ref, case=camb, tolerances=tols)
 
 
+def test_tolerance_override_on_a_range_of_log10m(tolerances, reference):
+    """An override with a log10m_range applies to that part of the mass axis only."""
+    override = {
+        "quantity": "dlnsdlnm",
+        "filter": "TopHat",
+        "log10m_range": [13.0, None],
+        "rtol": 1e-4,
+        "justification": "x",
+    }
+    tols = rh.Tolerances(tolerances.quantities, (override,), tolerances.floor)
+    tophat = rh.Case("dlnsdlnm", "k", filter="TopHat", axes=("log10m",))
+    sharpk = rh.Case("dlnsdlnm", "k", filter="SharpK", axes=("log10m",))
+    assert tols.get("dlnsdlnm", tophat).rtol == tolerances.quantities["dlnsdlnm"].rtol
+    assert tols.axis_ranges("dlnsdlnm", tophat, "log10m") == [(13.0, np.inf, 1e-4)]
+    assert tols.axis_ranges("dlnsdlnm", tophat, "lnk") == []
+    assert tols.axis_ranges("dlnsdlnm", sharpk, "log10m") == []
+
+    log10m = np.array([11.0, 12.0, 13.0, 14.0])
+    ref = -0.3 * np.ones(4)
+    high = ref * np.array([1, 1, 1 + 5e-5, 1 + 5e-5])
+    context = {"log10m": log10m}
+    assert rh.compare("dlnsdlnm", high, ref, case=tophat, context=context, tolerances=tols).passed
+    with pytest.raises(rh.RegressionMismatchError):
+        rh.compare("dlnsdlnm", high, ref, case=sharpk, context=context, tolerances=tols)
+    low = ref * np.array([1 + 5e-5, 1, 1, 1])
+    with pytest.raises(rh.RegressionMismatchError):
+        rh.compare("dlnsdlnm", low, ref, case=tophat, context=context, tolerances=tols)
+    with pytest.raises(ValueError, match="log10m_range"):
+        rh.compare("dlnsdlnm", high, ref, case=tophat, tolerances=tols)
+    # The reference gives the masses of a sigma or slope case as its context.
+    case = reference.find("dlnsdlnm", cosmology="planck18", transfer="EH", filter="TopHat")
+    np.testing.assert_array_equal(reference.context(case)["log10m"], reference.log10m)
+
+
 def test_reference_cosmology_round_trips(reference):
     """The cosmologies rebuilt from the metadata are the ones v3 used."""
     from astropy.cosmology import Planck18
