@@ -90,8 +90,9 @@ the tolerances meaningful: the reference itself is accurate to well within them.
 | `fsigma` | `v4_providers.fsigma`: each `hmf.core.fits` fit on the reference's own σ(M, z) and n_eff, so the fit alone is compared | all 174 cases agree with v3.7.2 to ~3e-14 |
 | `transfer` | `v4_providers.transfer`: the `Transfer` stage, CAMB run to v3's k_max and normalised as v3 | all 15 cases pass (see below) |
 | `growth` | `v4_providers.growth`: the `Growth` stage with the ODE model | all 5 cases agree to ≤ 1.0e-6 |
-| `power`, `sigma`, `dlnsdlnm` | — | the stages exist; providers to come |
-| `dndm`, `ngtm` | — | need the mass-function stage |
+| `power` | `v4_providers.power`: the `LinearPower` stage (P_cb normalised by σ8 of total matter) | all 10 cases agree to ≤ 3.6e-6 |
+| `sigma`, `dlnsdlnm` | `v4_providers.sigma`, `.dlnsdlnm`: the `MassFunction` stage | σ: all 30 cases to ≤ 2.3e-6; slope: see below |
+| `dndm`, `ngtm` | `v4_providers.dndm`, `.ngtm`: the `MassFunction` stage, each fit in its v3 mass definition | all 174 cases of each pass (at most 0.32 and 0.22 of the tolerance) |
 
 The `fsigma` provider gives each fit the inputs v3.7.2 gave it, and undoes v4's
 intentional changes of a default: Manera's p (0.248 in v4, 0.289 in v3), Watson's
@@ -112,6 +113,24 @@ ln k = −5), its join to EH98 in the e-fold below k_max (≤ 5.3e-4), and the E
 extrapolation above it (≤ 5.7e-3), where neither code is CAMB. In between
 (−5 ≤ ln k < −0.5), they agree to 2e-6. An override with an `"lnk_range"` applies
 to that part of the k axis only.
+
+The `power`, `sigma`, `dlnsdlnm`, `dndm` and `ngtm` providers build a `LinearPower`
+and a `MassFunction` stage at the default accuracy, with v3.7.2's settings (σ8, n, δc,
+the ODE growth, P_cb normalised by the σ8 of total matter). For CAMB they use v3's
+own T(k), as stored in the reference, through a `FromArray` model: the `transfer`
+provider already compares CAMB's T(k), and above the k_max of v3's CAMB run the two
+extrapolate T differently (by up to 5.7e-3), which would change σ at 10⁶ M☉/h by
+1.4e-3 and hide the stages behind it. The fits are those of the `fsigma` provider
+(Watson as a subclass measured in the virial definition, `WatsonVirial`). n(>M) is
+integrated up to 10^17.5 M☉/h, v3's to 10^18: the difference is negligible.
+
+dlnσ/dlnM has two overrides, on ranges of mass (`"log10m_range"`, like
+`"lnk_range"`), each justified in `tolerances.json`: the top-hat at M ≥ 10¹² M☉/h
+(rtol 1e-4), where v4's default k grid (dln k = 0.02) limits the slope to 7e-5 at
+10¹⁶ (with `KAccuracy.high()` it agrees to 1.4e-6), and the sharp-k filter on CAMB
+for 10¹¹–10¹⁵ (3e-5), which reads P at its cut-off and so the interpolation of the
+stored T(k) table across v3's join to EH98 and the BAO. Everywhere else the slope
+agrees to ≤ 1.1e-6.
 
 ## Adding a v4 provider
 

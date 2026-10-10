@@ -9,10 +9,13 @@ from __future__ import annotations
 import math
 from collections.abc import Callable
 from functools import cached_property
+from types import MappingProxyType
 
 import attrs
 import numpy as np
 
+from hmf.core.species import MATTER_SPECIES
+from hmf.core.transfer_models import TransferModel, TransferSolution
 from hmf.core.units import H0_unit, UnitContext
 
 #: The critical density today, in Msun h^2 / Mpc^3.
@@ -103,3 +106,19 @@ class WDMTruncated:
 
     def __call__(self, k):
         return self.smooth(k) * (1 + (self.alpha * k) ** (2 * self.nu)) ** (-10 / self.nu)
+
+
+@attrs.frozen(kw_only=True)
+class UnitTransfer(TransferModel, abstract=True):
+    """T(k) = 1 for every species, so a Transfer stage's unnormalised power is k**n_s.
+
+    A pure power law, for closed-form tests of the stages built on Transfer. It is not
+    registered (``abstract=True``), so the registries other tests check are unchanged;
+    stages take it as an instance.
+    """
+
+    def solve(self, cosmology, k_accuracy, *, disk_cache=None):
+        def ln_t(k):
+            return np.zeros_like(np.asarray(k, dtype=float))
+
+        return TransferSolution(MappingProxyType(dict.fromkeys(MATTER_SPECIES, ln_t)))

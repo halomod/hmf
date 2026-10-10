@@ -114,8 +114,8 @@ Accuracy (:mod:`hmf.core.accuracy`)
     * :class:`~hmf.core.mass_variance.MassVariance`: ``dln_k``, ``ln_k_min`` and
       ``k_max_r_min``, the k grid of the σ integrals.
 
-    A stage composed of these passes one ``KAccuracy`` to all of them (the coming
-    ``LinearPower`` stage will own it), and checks it with
+    A stage composed of these passes one ``KAccuracy`` to all of them
+    (:class:`~hmf.core.linear_power.LinearPower` owns it), and checks it with
     :func:`~hmf.core.accuracy.check_consistent`.
     :meth:`Growth.from_transfer <hmf.core.growth.Growth.from_transfer>` takes the
     transfer stage's, and a growth stage shares its transfer stage's Boltzmann run
@@ -210,7 +210,8 @@ Transfer and growth
 -------------------
 :class:`~hmf.core.transfer.Transfer` (a function of k) gives the transfer function
 T(k) and the unnormalised power spectrum :math:`k^{n_s} T^2` at z = 0 (a plain,
-dimensionless array with an arbitrary amplitude, which a later stage normalises), and
+dimensionless array with an arbitrary amplitude, which
+:class:`~hmf.core.linear_power.LinearPower` normalises), and
 :class:`~hmf.core.growth.Growth` (a function of z) the growth factor and growth rate,
 for each matter species (:mod:`~hmf.core.species`): ``"cb"`` (CDM + baryons) and
 ``"tot"`` (total matter, including massive neutrinos). Their models are in
@@ -278,53 +279,56 @@ and agrees with the lattice to
 
 Composing stages
 ----------------
-The mass function will be built from these stages and the fits, through their
-kernel-level entry points only. Each one checks its input and raises a
-:class:`~hmf.core.domain.DomainError` rather than extrapolate silently, and each
-stage's domain can be inspected (a model's or stage's ``valid_domain``).
+:class:`~hmf.core.mass_function.MassFunction` composes these stages and a fit into the
+halo mass function, as a function of mass and redshift.
+:meth:`MassFunction.build <hmf.core.mass_function.MassFunction.build>` builds the
+whole tree, with hmf 3.x-like defaults (Planck18, CAMB, the growth ODE, σ8 and n_s
+from the cosmology, Tinker08, a top-hat filter, the CDM + baryon power normalised by
+the σ8 of total matter)::
 
-* σ(m, z) = D(z) · √A · σ_raw(m), where σ_raw is the σ of
-  :class:`~hmf.core.mass_variance.MassVariance`, the mass variance of the
-  *unnormalised* power, and A is the amplitude that fixes the power to σ8. A
-  ``LinearPower`` stage will fix A; it does not exist yet. MassVariance keeps the
-  unnormalised power, so changing σ8 changes only the scalar A, and recomputes no
-  lattice nodes;
-* σ8 of the unnormalised power from :meth:`MassVariance.ln_sigma_at_radius_kernel
-  <hmf.core.mass_variance.MassVariance.ln_sigma_at_radius_kernel>` at R = 8 Mpc/h,
-  on a :class:`~hmf.core.filters.TopHat` ``MassVariance`` of the normalisation
-  species' power (a direct evaluation, without the lattice);
-* ln σ_raw(m) and dlnσ/dlnm (which A and D do not change) from
-  :meth:`MassVariance.ln_sigma_and_slope_kernel
-  <hmf.core.mass_variance.MassVariance.ln_sigma_and_slope_kernel>`, and ``n_eff``
-  from them with :func:`~hmf.core.mass_variance.n_eff_kernel`; the mass at a σ_raw
-  from :meth:`MassVariance.m_from_sigma_kernel
-  <hmf.core.mass_variance.MassVariance.m_from_sigma_kernel>`, and the conversions
-  between mass and filter radius from :meth:`MassVariance.m_from_radius_kernel
-  <hmf.core.mass_variance.MassVariance.m_from_radius_kernel>` and
-  :meth:`MassVariance.radius_from_m_kernel
-  <hmf.core.mass_variance.MassVariance.radius_from_m_kernel>`;
-* the growth factor D(z) from :meth:`Growth.growth_factor_kernel
-  <hmf.core.growth.Growth.growth_factor_kernel>` (and the growth rate from
-  :meth:`Growth.growth_rate_kernel <hmf.core.growth.Growth.growth_rate_kernel>`),
-  which raise beyond the growth model's table, not ``Growth.solution``, which is NaN
-  there;
-* the mean density of CDM + baryons from the power source's ``rho_mean0`` (the same
-  for every species), and Ω_m(z) of CDM + baryons from
-  :func:`hmf.core.species.omega_m` (``"cb"``);
-* one :class:`~hmf.core.accuracy.KAccuracy` for the Transfer, Growth and
-  MassVariance stages, checked with :func:`~hmf.core.accuracy.check_consistent`;
-* the overdensity of a fit's mass definition from
-  :meth:`MeasuredMassDefinition.delta_halo_mean_kernel
-  <hmf.core.fits.MeasuredMassDefinition.delta_halo_mean_kernel>`;
-* f(σ) from :meth:`FittingFunction.fsigma_kernel
-  <hmf.core.fits.FittingFunction.fsigma_kernel>` (or
-  :func:`~hmf.core.fits.evaluate_fsigma`, with a domain policy, whose ``"warn"``
-  policy warns once per ``owner``: the mass-function stage), and the fit's mass
-  function from :meth:`FittingFunction.modify_dndm_kernel
-  <hmf.core.fits.FittingFunction.modify_dndm_kernel>`, which every fit has.
+    import numpy as np
+    from hmf.core.mass_function import MassFunction
+    from hmf.core.units import Msun_h
 
-The critical overdensity δc is an open input: it will be a field of the
-mass-function stage.
+    mf = MassFunction.build(fit="Tinker08")
+    m = np.logspace(10, 15, 51) * Msun_h
+    z = np.array([0.0, 0.5, 1.0])
+    dndm = mf.dndm(m[None, :], z[:, None])  # shape (3, 51), in h^4 / (Msun Mpc^3)
+    ngtm = mf.ngtm(m, 0.0)
+    m_star = mf.m_from_peak_height(1.0, 0.0)
+
+    lower = mf.evolve(linear_power=mf.linear_power.evolve(sigma_8=0.75))
+    lower.variance is mf.variance  # True: sigma_8 recomputes no lattice node
+
+    view = mf.at(1.0, m)  # cached arrays at z = 1: view.dndm, view.ngtm, ...
+
+The tree is ``MassFunction(linear_power=LinearPower(transfer, growth), variance,
+fit)``, with ``delta_c`` and ``domain_policy`` as fields:
+
+* :class:`~hmf.core.linear_power.LinearPower` holds the σ8 normalisation: the scalar
+  amplitude A = (σ8/σ8,raw)², with σ8,raw a direct top-hat evaluation of the
+  unnormalised power of ``sigma_8_species`` at 8 Mpc/h, and P(k, z) = A D²(z) P_raw(k).
+  It owns the one :class:`~hmf.core.accuracy.KAccuracy` of the tree, and checks that
+  the transfer and growth stages share it and the cosmology.
+* The :class:`~hmf.core.mass_variance.MassVariance` is of the *unnormalised* power
+  (``linear_power.power_source``), so σ(m, z) = √A D(z) σ_raw(m), and changing σ8,
+  z, the fit, δc or the policy shares it, with every lattice node it has computed,
+  and runs no Boltzmann code.
+* The fit is evaluated in its own measured mass definition, with the inputs of
+  :mod:`hmf.core.fits` from the kernel-level entry points of these stages; masses
+  are not converted between definitions.
+* n(>m) and ρ(>m) are integrated on the variance's mass lattice from its fixed top
+  (10^17.5 M☉/h by default) down, so they are bit-for-bit the same however they are
+  asked for.
+* Outside the fit's valid domain every method raises; outside its calibration
+  domain, ``domain_policy`` (``"ignore"``, ``"warn"``, ``"mask"`` or ``"raise"``)
+  applies to each (m, z) asked for.
+
+``evolve`` changes a stage's own fields, and is atomic. A change deeper in the tree
+goes through the nested stage's ``evolve``; when it changes the power (``n_s``, the
+cosmology, ``species``), the variance is rebuilt on the new
+``linear_power.power_source``, and the constructor rejects a tree whose variance is
+not of its linear power.
 
 API
 ---

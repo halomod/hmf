@@ -76,6 +76,27 @@
    ],
    "rtol": 0.01,
    "justification": "Above the k_max of v3.7.2's CAMB run (0.9/Mpc), T is not CAMB's in either: both extrapolate it with EH98's shape, v3 matched to CAMB in value at k_max, v4 in value and slope. They differ by up to 5.7e-3 (at k = 160 h/Mpc). Both are approximations there: v4's default runs CAMB to 20 h/Mpc, against which v3's extrapolated T is 2.5% off at the top of the grid."
+  },
+  {
+   "quantity": "dlnsdlnm",
+   "filter": "TopHat",
+   "log10m_range": [
+    12.0,
+    null
+   ],
+   "rtol": 1e-4,
+   "justification": "The resolution of v4's default k grid (dln_k = 0.02, against the reference's 0.005): at large R the top-hat window oscillates over many points of the grid, and the slope integral is the most sensitive to it. v4 differs from the reference by 1e-5 at 10^12 Msun/h, rising to 2e-5 at 10^15 and 7e-5 at 10^16; with KAccuracy.high() (dln_k = 0.005) by 1.4e-6 at 10^16, so their numerics agree. 1e-4 is the dn/dm budget, and the dndm and ngtm cases, which include this slope, pass at their own tolerances. Below 10^12, where v4 is within 7e-6, the default 1e-5 applies."
+  },
+  {
+   "quantity": "dlnsdlnm",
+   "transfer": "CAMB",
+   "filter": "SharpK",
+   "log10m_range": [
+    11.0,
+    15.0
+   ],
+   "rtol": 3e-5,
+   "justification": "The sharp-k slope is proportional to P at the cut-off k = 1/R, so it carries the interpolation error of the T(k) it is computed from. The v4 provider uses v3.7.2's CAMB T(k) as stored in the reference, every 0.02 in ln k (v3 used 0.005), which has a kink where v3 joins CAMB to EH98, an e-fold above its k_max (ln k = 1.285, near 10^11.2 Msun/h: up to 2.1e-5), and the BAO (near 10^13.5: 1.1e-5). Elsewhere they agree to 1e-6, and with EH (no table) everywhere to 1.1e-6."
   }
  ]
 }
