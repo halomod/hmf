@@ -782,32 +782,108 @@ def _wrap_one(
     return wrapper
 
 
+#: The default of the positional-only parameters of :func:`_wrap_two`'s wrapper: the
+#: argument was not passed by position.
+_NOT_GIVEN: Any = object()
+
+
+def _wrap_two(
+    fn: Callable[..., Any],
+    specs: list[tuple[str, int | None, u.UnitBase]],
+    returns: Any,
+) -> Callable[..., Any]:
+    """The boundary wrapper of a method with two dimensional arguments.
+
+    For the usual signature, ``f(self, a, b, ...)``, the wrapper takes ``a`` and ``b``
+    as positional-only parameters, so a call with both by position is not repacked,
+    and inlines the common case as :func:`_wrap_one` does: each a plain Quantity in
+    exactly its canonical unit, and a plain ndarray out. Any other call, and any
+    other signature, goes through :func:`_wrap_many`.
+    """
+    general = _wrap_many(fn, specs, returns)
+    # By position, whatever the order in which the decorator names them.
+    (name_a, position_a, unit_a), (name_b, position_b, unit_b) = sorted(
+        specs, key=lambda spec: sys.maxsize if spec[1] is None else spec[1]
+    )
+    if (position_a, position_b) != (0, 1):
+        return general
+    single_return = isinstance(returns, u.UnitBase)
+    method, impl = fn.__name__, fn.__qualname__
+
+    @functools.wraps(fn)
+    def wrapper(
+        self: Any, a: Any = _NOT_GIVEN, b: Any = _NOT_GIVEN, /, *args: Any, **kwargs: Any
+    ) -> Any:
+        if b is _NOT_GIVEN:  # not both by position
+            return general(self, *(() if a is _NOT_GIVEN else (a,)), *args, **kwargs)
+        if type(a) is _Quantity and a._unit is unit_a:
+            a = _view(a, np.ndarray)
+        else:
+            a = _convert_argument(self, method, name_a, a, unit_a)
+        if type(b) is _Quantity and b._unit is unit_b:
+            b = _view(b, np.ndarray)
+        else:
+            b = _convert_argument(self, method, name_b, b, unit_b)
+        out = fn(self, a, b, *args, **kwargs)
+        if type(out) is np.ndarray:
+            if single_return:
+                q = _view(out, _Quantity)
+                q._unit = returns
+                return q
+            if returns is None:
+                return out if out.ndim else out[()]
+        return _finish(out, returns, impl)
+
+    return wrapper
+
+
 def _wrap_many(
     fn: Callable[..., Any],
     specs: list[tuple[str, int | None, u.UnitBase]],
     returns: Any,
 ) -> Callable[..., Any]:
-    """The boundary wrapper of a method with any number of dimensional arguments."""
+    """The boundary wrapper of a method with any number of dimensional arguments.
+
+    As :func:`_wrap_one`, each argument that is a plain Quantity in exactly its
+    canonical unit is viewed as an ndarray, and a plain ndarray output is finished
+    inline; anything else goes through :func:`_convert_argument` and :func:`_finish`.
+    """
     # The arguments that may be passed by position, as (name, position, unit).
     positional = tuple((n, p, unit) for n, p, unit in specs if p is not None)
+    keywords = tuple((n, unit) for n, _, unit in specs)
+    single_return = isinstance(returns, u.UnitBase)
     method, impl = fn.__name__, fn.__qualname__
 
     @functools.wraps(fn)
     def wrapper(self: Any, /, *args: Any, **kwargs: Any) -> Any:
         if args:
-            new_args = None
+            args_list = list(args)
+            n_args = len(args_list)
             for name, position, unit in positional:
-                if position < len(args):
-                    if new_args is None:
-                        new_args = list(args)
-                    new_args[position] = _convert_argument(self, method, name, args[position], unit)
-            if new_args is not None:
-                args = tuple(new_args)
+                if position < n_args:
+                    x = args_list[position]
+                    if type(x) is _Quantity and x._unit is unit:
+                        args_list[position] = _view(x, np.ndarray)
+                    else:
+                        args_list[position] = _convert_argument(self, method, name, x, unit)
+            args = tuple(args_list)
         if kwargs:
-            for name, _, unit in specs:
+            for name, unit in keywords:
                 if name in kwargs:
-                    kwargs[name] = _convert_argument(self, method, name, kwargs[name], unit)
-        return _finish(fn(self, *args, **kwargs), returns, impl)
+                    x = kwargs[name]
+                    if type(x) is _Quantity and x._unit is unit:
+                        kwargs[name] = _view(x, np.ndarray)
+                    else:
+                        kwargs[name] = _convert_argument(self, method, name, x, unit)
+        out = fn(self, *args, **kwargs)
+        if type(out) is np.ndarray:
+            if single_return:
+                q = _view(out, _Quantity)
+                q._unit = returns
+                return q
+            if returns is None:
+                return out if out.ndim else out[()]
+        return _finish(out, returns, impl)
 
     return wrapper
 
@@ -884,11 +960,13 @@ def unit_boundary(
     def decorator(fn: Callable[Concatenate[S, P], R]) -> Callable[Concatenate[S, P], R]:
         specs = _boundary_specs(fn, inputs, f"{fn.__qualname__}()")
         # The boundary's fixed cost is budgeted at 2 µs per call and gated in
-        # benchmarks/test_gates.py. The usual method has one dimensional argument, so
-        # that case gets a wrapper without loops.
+        # benchmarks/test_gates.py, for one and two dimensional arguments. Those are the
+        # usual methods, so they get wrappers without loops.
         if len(specs) == 1:
             name, position, unit = specs[0]
             wrapper = _wrap_one(fn, name, position, unit, returns)
+        elif len(specs) == 2:
+            wrapper = _wrap_two(fn, specs, returns)
         else:
             wrapper = _wrap_many(fn, specs, returns)
         wrapper.__unit_boundary__ = {"inputs": dict(inputs), "returns": returns}  # type: ignore[attr-defined]

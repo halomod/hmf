@@ -13,6 +13,7 @@ import attrs
 import mpmath
 import numpy as np
 import pytest
+from astropy.cosmology import FlatLambdaCDM
 from power_models import (
     RHO_CRIT0,
     AnalyticPower,
@@ -27,8 +28,14 @@ from scipy.special import gamma
 from hmf.core.accuracy import KAccuracy, MassAccuracy
 from hmf.core.domain import DomainError
 from hmf.core.filters import SharpK, SmoothK, TopHat
-from hmf.core.mass_variance import RESOLUTION_RTOL, MassVariance, n_eff_kernel
+from hmf.core.mass_variance import (
+    INTERPOLATION_RTOL,
+    RESOLUTION_RTOL,
+    MassVariance,
+    n_eff_kernel,
+)
 from hmf.core.power_source import TabulatedPower
+from hmf.core.transfer import Transfer
 from hmf.core.units import Mpc_h, Msun_h, UnitBoundaryError, h_Mpc, power_unit, rho_unit
 from hmf.exceptions import HMFExtrapolationWarning
 
@@ -378,7 +385,9 @@ def test_m_from_sigma_out_of_range():
         mv.m_from_sigma(1.01 * s_hi)
     with pytest.raises(DomainError, match="outside"):
         mv.m_from_sigma(0.99 * s_lo)
-    with pytest.raises(DomainError, match="finite"):
+    with pytest.raises(
+        DomainError, match=r"outside the domain \(.*sigma > 0\); out of range: sigma"
+    ):
         mv.m_from_sigma(-1.0)
 
 
@@ -484,7 +493,9 @@ def test_extension_raise():
 
 @pytest.mark.parametrize("bad", [0.0, -1.0, np.nan, np.inf])
 def test_invalid_masses_raise(bad):
-    with pytest.raises(DomainError, match="finite and > 0"):
+    with pytest.raises(
+        DomainError, match=r"MassVariance.sigma: 1 of 1 value\(s\) are outside the domain \("
+    ):
         _mv().sigma(bad * Msun_h)
 
 
@@ -627,3 +638,192 @@ def test_kernel_entry_point_matches_the_public_methods(flt):
     np.testing.assert_array_equal(slope, mv.dlnsigma_dlnm(m * Msun_h))
     with pytest.raises(DomainError):
         mv.ln_sigma_and_slope_kernel(np.array([-1.0]))
+
+
+# ---------------------------------------------------------------------------------
+# The mass of a filter radius: CDM + baryons
+# ---------------------------------------------------------------------------------
+
+#: A cosmology with 0.3 eV of massive neutrinos: the total-matter density is about
+#: 2% above the CDM + baryon one.
+MASSIVE_NU = FlatLambdaCDM(
+    H0=67.66, Om0=0.30966, Ob0=0.04897, Tcmb0=2.7255, m_nu=[0.1, 0.1, 0.1] * u.eV
+)
+
+
+def _rho_cb(cosmology):
+    """The CDM + baryon density in Msun h^2 / Mpc^3, from astropy's critical density."""
+    h = cosmology.H0.value / 100
+    rho_crit = cosmology.critical_density0.to_value(u.Msun / u.Mpc**3) / h**2
+    # astropy counts massive neutrinos in Onu0, not Om0.
+    return cosmology.Om0 * rho_crit
+
+
+@pytest.mark.parametrize("flt", [TopHat(), SharpK(), SmoothK()])
+def test_mass_radius_uses_cdm_plus_baryons_for_every_species(flt):
+    """With massive neutrinos, the tot and cb power give the same R(M), that of rho_cb.
+
+    R = (3M / 4 pi rho_cb)^(1/3) / c, with c the filter's mass assignment: haloes are
+    made of CDM and baryons, whichever species' power sets sigma.
+    """
+    transfer = Transfer(cosmology=MASSIVE_NU, model="EH")
+    tot = MassVariance(power=transfer.power_source("tot"), filter=flt)
+    cb = MassVariance(power=transfer.power_source("cb"), filter=flt)
+    m = np.logspace(0, 18, 37)
+    r_tot, r_cb = tot.radius_from_m_kernel(m), cb.radius_from_m_kernel(m)
+    np.testing.assert_array_equal(r_tot, r_cb)
+    want = (3 * m / (4 * math.pi * _rho_cb(MASSIVE_NU))) ** (1 / 3) / flt.mass_assignment
+    np.testing.assert_allclose(r_tot, want, rtol=1e-12)
+    # The total-matter density would differ by the neutrinos' share, about 2%.
+    rho_tot = _rho_cb(MASSIVE_NU) + MASSIVE_NU.Onu0 * _rho_cb(MASSIVE_NU) / MASSIVE_NU.Om0
+    assert rho_tot / _rho_cb(MASSIVE_NU) - 1 > 0.01
+    np.testing.assert_allclose(tot.m_from_radius_kernel(want), m, rtol=1e-12)
+
+
+# ---------------------------------------------------------------------------------
+# Kernels: sigma(R), the converters and the inverse
+# ---------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("n", [-2.5, -2.0])
+def test_sigma_at_radius_of_a_power_law_scales_as_r_to_the_minus_n_plus_3_over_2(n):
+    """For P = k^n with the top-hat, sigma(R) = sigma(1) R^(-(n+3)/2).
+
+    The integral misses the part below the grid's k_min, (k_min R)^(3+n) / (3+n) of
+    the integral (see _power_law_reference), which is added back: then
+    sigma^2 R^(3+n) is constant, to the quadrature's accuracy (1e-6, from the
+    top-hat's oscillating tail beyond k_max), and equals the closed form.
+    """
+    mv = _mv(AnalyticPower(PowerLaw(n)), "TopHat")
+    r = np.geomspace(0.05, 20.0, 37)
+    s2 = np.exp(2 * mv.ln_sigma_at_radius_kernel(r))
+    k_min = mv._k_grid.k[0]
+    s2_full = s2 + k_min ** (3 + n) / (3 + n) / (2 * math.pi**2)
+    scaled = s2_full * r ** (3 + n)
+    np.testing.assert_allclose(scaled, scaled[0], rtol=1e-6)
+    np.testing.assert_allclose(scaled, _tophat_integral(n) / (2 * math.pi**2), rtol=1e-6)
+    # The log-slope of sigma in R.
+    slope = np.polyfit(np.log(r), 0.5 * np.log(s2_full), 1)[0]
+    assert slope == pytest.approx(-(n + 3) / 2, rel=1e-6)
+
+
+@pytest.mark.parametrize("power", [EH, BAO], ids=["smooth", "bao"])
+@pytest.mark.parametrize("flt", FILTERS)
+def test_sigma_at_radius_agrees_with_the_lattice(power, flt):
+    """Sigma at a radius, evaluated directly, and the lattice's at its mass agree.
+
+    To INTERPOLATION_RTOL, the documented accuracy of the lattice's interpolant at
+    the default settings; at a lattice node they are the same integral.
+    """
+    mv = _mv(power, flt)
+    m = 10 ** (np.linspace(*LOG10_M_RANGE, 211) + 0.0037)
+    ln_lattice, _ = mv.ln_sigma_and_slope_kernel(m)
+    ln_direct = mv.ln_sigma_at_radius_kernel(mv.radius_from_m_kernel(m))
+    np.testing.assert_allclose(np.exp(ln_direct), np.exp(ln_lattice), rtol=INTERPOLATION_RTOL)
+    nodes = 10.0 ** np.arange(8, 15)
+    np.testing.assert_allclose(
+        mv.ln_sigma_at_radius_kernel(mv.radius_from_m_kernel(nodes)),
+        mv.ln_sigma_and_slope_kernel(nodes)[0],
+        rtol=1e-13,
+    )
+
+
+def test_sigma_at_radius_is_independent_of_the_batch_and_shape():
+    mv = _mv(EH, "TopHat")
+    r = np.geomspace(0.1, 30.0, 150)
+    batch = mv.ln_sigma_at_radius_kernel(r)
+    alone = np.array([mv.ln_sigma_at_radius_kernel(x) for x in r[::17]])
+    np.testing.assert_array_equal(alone, batch[::17])
+    assert mv.ln_sigma_at_radius_kernel(r.reshape(10, 15)).shape == (10, 15)
+    assert np.ndim(mv.ln_sigma_at_radius_kernel(8.0)) == 0
+
+
+def test_sigma_at_radius_ignores_the_lattice_range():
+    """A direct evaluation is not limited by mass_accuracy.extension='raise'."""
+    mv = _mv(EH, "TopHat", mass_accuracy=MassAccuracy(log10_m_max=14, extension="raise"))
+    r_large = float(mv.radius_from_m_kernel(1e16))
+    assert np.isfinite(mv.ln_sigma_at_radius_kernel(r_large))
+    with pytest.raises(DomainError, match="extension='raise'"):
+        mv.ln_sigma_and_slope_kernel(1e16)
+
+
+def test_sigma_at_radius_raises_where_the_grid_cannot_resolve():
+    """Below the k grid's reach, the direct evaluation raises, as the lattice does."""
+    mv = _mv(EH, "TopHat")
+    with pytest.raises(DomainError, match="can't evaluate"):
+        mv.ln_sigma_at_radius_kernel(1e-6)
+    for bad in (0.0, -1.0, np.nan, np.inf):
+        with pytest.raises(DomainError, match=r"ln_sigma_at_radius_kernel: r"):
+            mv.ln_sigma_at_radius_kernel(np.array([8.0, bad]))
+
+
+@pytest.mark.parametrize("flt", [TopHat(), SharpK(), SmoothK()])
+def test_mass_radius_kernels_round_trip(flt):
+    """M -> R -> m and R -> m -> R to 1e-12, and the kernels are the public methods."""
+    mv = _mv(EH, flt)
+    m = np.logspace(-3, 19, 89).reshape(89, 1)
+    r = mv.radius_from_m_kernel(m)
+    assert r.shape == m.shape
+    np.testing.assert_allclose(mv.m_from_radius_kernel(r), m, rtol=1e-12)
+    radii = np.geomspace(1e-3, 1e2, 50)
+    m_of_r = mv.m_from_radius_kernel(radii)
+    np.testing.assert_allclose(mv.radius_from_m_kernel(m_of_r), radii, rtol=1e-12)
+    np.testing.assert_array_equal(mv.radius_from_m(m * Msun_h).value, r)
+    np.testing.assert_array_equal(mv.m_from_radius(radii * Mpc_h).value, m_of_r)
+
+
+def test_m_from_sigma_kernel_matches_the_public_method():
+    mv = _mv(EH, "TopHat")
+    m = np.logspace(6, 15, 24).reshape(4, 6)
+    sigma = np.exp(mv.ln_sigma_and_slope_kernel(m)[0])
+    back = mv.m_from_sigma_kernel(sigma)
+    assert back.shape == (4, 6)
+    np.testing.assert_allclose(back, m, rtol=1e-11)
+    np.testing.assert_array_equal(mv.m_from_sigma(sigma).value, back)
+
+
+# ---------------------------------------------------------------------------------
+# The stage's domain
+# ---------------------------------------------------------------------------------
+
+
+def test_valid_domain():
+    mv = _mv()
+    domain = mv.valid_domain
+    assert domain.variables == ("m", "r", "sigma")
+    assert domain["m"].unit is Msun_h
+    assert domain["r"].unit is Mpc_h
+    assert domain.contains(m=1e-30 * Msun_h, r=1e5 * Mpc_h, sigma=1e3)
+    for bad in (0.0, -1.0, np.inf, np.nan):
+        assert not domain.contains(m=bad * Msun_h)
+        assert not domain.contains(r=bad * Mpc_h)
+        assert not domain.contains(sigma=bad)
+
+
+def test_valid_domain_with_extension_raise_is_the_lattice():
+    mv = _mv(mass_accuracy=MassAccuracy(log10_m_min=6, log10_m_max=15, extension="raise"))
+    interval = mv.valid_domain["m"]
+    assert interval.lower == pytest.approx(1e6, rel=1e-11)
+    assert interval.upper == pytest.approx(1e15, rel=1e-11)
+    # The ends themselves are in it.
+    mv.sigma(np.array([1e6, 1e15]) * Msun_h)
+    with pytest.raises(DomainError, match=r"MassVariance.sigma \(the mass lattice"):
+        mv.sigma(1e16 * Msun_h)
+    # Converting a mass to a radius is not limited to the lattice.
+    assert mv.radius_from_m(1e16 * Msun_h).value > 0
+
+
+@pytest.mark.parametrize(
+    ("call", "where"),
+    [
+        (lambda mv: mv.sigma(np.array([1e12, -1.0]) * Msun_h), "MassVariance.sigma"),
+        (lambda mv: mv.dlnsigma_dlnm(np.nan * Msun_h), "MassVariance.dlnsigma_dlnm"),
+        (lambda mv: mv.m_from_sigma(np.inf), "MassVariance.m_from_sigma"),
+        (lambda mv: mv.m_from_radius(0.0 * Mpc_h), "MassVariance.m_from_radius"),
+        (lambda mv: mv.radius_from_m(-1.0 * Msun_h), "MassVariance.radius_from_m"),
+    ],
+)
+def test_public_methods_check_the_domain(call, where):
+    """The public methods raise Domain.check's DomainError: count, domain and variable."""
+    with pytest.raises(DomainError, match=rf"^{where}: 1 of \d value\(s\) are outside the domain"):
+        call(_mv())

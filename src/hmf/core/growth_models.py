@@ -73,6 +73,9 @@ __all__ = [
 
 Array = npt.NDArray[np.float64]
 
+#: The wavenumber accuracy of a model's own Boltzmann run, by default.
+_DEFAULT_K_ACCURACY = KAccuracy()
+
 
 @attrs.frozen(eq=False)
 class GrowthSolution:
@@ -177,6 +180,7 @@ class GrowthModel(_CosmologyModel, Model, kind=True):
         *,
         run: BoltzmannRun | None = None,
         disk_cache: DiskCache | None = None,
+        k_accuracy: KAccuracy = _DEFAULT_K_ACCURACY,
     ) -> GrowthSolution:
         """Compute the growth of every species for a cosmology.
 
@@ -190,6 +194,11 @@ class GrowthModel(_CosmologyModel, Model, kind=True):
             a backend.
         disk_cache
             Where to cache Boltzmann-code output on disk, if anywhere.
+        k_accuracy
+            The wavenumber accuracy of a Boltzmann run the model makes itself (when
+            ``run`` is not given or does not cover its redshifts): it sets the code's
+            precision, as for :class:`~hmf.core.transfer.Transfer`. Ignored by models
+            without a backend.
 
         Returns
         -------
@@ -224,6 +233,7 @@ class _Gridded(GrowthModel, abstract=True):
         *,
         run: BoltzmannRun | None = None,
         disk_cache: DiskCache | None = None,
+        k_accuracy: KAccuracy = _DEFAULT_K_ACCURACY,
     ) -> GrowthSolution:
         """Compute the growth (see :meth:`GrowthModel.solve`)."""
         self.check_cosmology(cosmology)
@@ -420,6 +430,7 @@ class FromArray(GrowthModel, alias="FromArray"):
         *,
         run: BoltzmannRun | None = None,
         disk_cache: DiskCache | None = None,
+        k_accuracy: KAccuracy = _DEFAULT_K_ACCURACY,
     ) -> GrowthSolution:
         """Compute the growth (see :meth:`GrowthModel.solve`)."""
         z, d = self._arrays()
@@ -444,6 +455,7 @@ class FromFile(GrowthModel, alias="FromFile"):
         *,
         run: BoltzmannRun | None = None,
         disk_cache: DiskCache | None = None,
+        k_accuracy: KAccuracy = _DEFAULT_K_ACCURACY,
     ) -> GrowthSolution:
         """Compute the growth (see :meth:`GrowthModel.solve`)."""
         data = np.atleast_2d(np.genfromtxt(self.fname))
@@ -463,8 +475,10 @@ class _BoltzmannGrowth(_BoltzmannBacked, GrowthModel, abstract=True):
     )
 
     @abc.abstractmethod
-    def _own_run(self, cosmology: FLRW, disk_cache: DiskCache | None) -> BoltzmannRun:
-        """The run made when no transfer stage shares one."""
+    def _own_run(
+        self, cosmology: FLRW, disk_cache: DiskCache | None, k_accuracy: KAccuracy
+    ) -> BoltzmannRun:
+        """The run made when no transfer stage shares one, at ``k_accuracy``."""
 
     def solve(
         self,
@@ -472,6 +486,7 @@ class _BoltzmannGrowth(_BoltzmannBacked, GrowthModel, abstract=True):
         *,
         run: BoltzmannRun | None = None,
         disk_cache: DiskCache | None = None,
+        k_accuracy: KAccuracy = _DEFAULT_K_ACCURACY,
     ) -> GrowthSolution:
         """Compute the growth (see :meth:`GrowthModel.solve`)."""
         self.check_cosmology(cosmology)
@@ -482,7 +497,7 @@ class _BoltzmannGrowth(_BoltzmannBacked, GrowthModel, abstract=True):
             and float(run.growth_z[-1]) >= self.z_max * (1 - 1e-12)
         )
         if not usable:
-            run = self._own_run(cosmology, disk_cache)
+            run = self._own_run(cosmology, disk_cache, k_accuracy)
         assert run is not None
         ln_a = -np.log1p(run.growth_z[::-1])
         tables = {s: kg.tabulate_growth(ln_a, run.growth[s][::-1]) for s in MATTER_SPECIES}
@@ -500,15 +515,18 @@ class CambGrowth(_BoltzmannGrowth, alias="CAMB"):
 
     With a :class:`~hmf.core.growth.Growth` stage whose transfer model is
     :class:`~hmf.core.transfer_models.CAMB`, the growth comes from the transfer's
-    run. Otherwise it makes the run of ``CAMB(z_max=z_max)`` at the default
-    accuracy (which a default CAMB transfer stage shares).
+    run. Otherwise it makes the run of ``CAMB(z_max=z_max)`` at the growth stage's
+    ``k_accuracy`` (which a default CAMB transfer stage with the same accuracy
+    shares).
     """
 
     backend: ClassVar[str | None] = "camb"
     references: ClassVar[tuple[str, ...]] = (refs.CAMB,)
 
-    def _own_run(self, cosmology: FLRW, disk_cache: DiskCache | None) -> BoltzmannRun:
-        return CAMB(z_max=self.z_max).run(cosmology, KAccuracy(), disk_cache=disk_cache)
+    def _own_run(
+        self, cosmology: FLRW, disk_cache: DiskCache | None, k_accuracy: KAccuracy
+    ) -> BoltzmannRun:
+        return CAMB(z_max=self.z_max).run(cosmology, k_accuracy, disk_cache=disk_cache)
 
 
 @attrs.frozen(kw_only=True)
@@ -525,5 +543,7 @@ class ClassGrowth(_BoltzmannGrowth, alias="CLASS"):
     backend: ClassVar[str | None] = "class"
     references: ClassVar[tuple[str, ...]] = (refs.CLASS_I, refs.CLASS_II)
 
-    def _own_run(self, cosmology: FLRW, disk_cache: DiskCache | None) -> BoltzmannRun:
-        return CLASS(z_max=self.z_max).run(cosmology, KAccuracy(), disk_cache=disk_cache)
+    def _own_run(
+        self, cosmology: FLRW, disk_cache: DiskCache | None, k_accuracy: KAccuracy
+    ) -> BoltzmannRun:
+        return CLASS(z_max=self.z_max).run(cosmology, k_accuracy, disk_cache=disk_cache)

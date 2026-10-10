@@ -34,6 +34,30 @@ Both are computed at the nodes of a lattice in mass, and interpolated between th
   lattice built for [10⁸, 10¹⁶] and extended to [10⁰, 10¹⁸] gives the same values as
   one built in the opposite order.
 
+At the default settings, the interpolants agree with a direct evaluation on the same
+k grid to :data:`INTERPOLATION_RTOL` in sigma, and to about 1e-4 in
+dln(sigma)/dln(m). :meth:`MassVariance.ln_sigma_at_radius_kernel` is that direct
+evaluation, at any filter radius, without the lattice (e.g. sigma_8, at R = 8 Mpc/h).
+
+Mass and radius
+---------------
+A mass and its filter radius are related by
+:math:`M = \tfrac{4\pi}{3}\bar\rho_{\rm cb}(cR)^3`, with :math:`\bar\rho_{\rm cb}`
+the mean density of CDM + baryons (the power source's ``rho_mean0``, whatever the
+species of its power) and :math:`c` the filter's ``mass_assignment``.
+
+Domains
+-------
+:attr:`MassVariance.valid_domain` bounds the masses at which sigma is evaluated
+(:math:`m > 0`, or the default lattice range with
+``MassAccuracy.extension="raise"``), the filter radii (:math:`R > 0`) and the values
+of sigma (:math:`\sigma > 0`). The public methods check their input with
+:meth:`Domain.check <hmf.core.domain.Domain.check>`, the kernel-level entry points
+from its extent (:func:`~hmf.core.domain.check_extent`); both raise a
+:class:`~hmf.core.domain.DomainError`. A mass, radius or sigma inside it can still
+raise, as below, when the k grid can't resolve it: that depends on the power, and is
+known only once computed.
+
 The k grid
 ----------
 The k grid is a lattice too: :math:`\ln k = i\,\delta` for integer :math:`i`, with
@@ -86,13 +110,13 @@ from ._kernels import mass_variance as kern
 from ._kernels.lattice import LATTICE_RTOL, lattice, lattice_index
 from ._validators import check_finite_positive, positive
 from .accuracy import KAccuracy, MassAccuracy
-from .domain import DomainError, check_extent
+from .domain import Domain, DomainError, Interval, check_extent
 from .filters import Filter, TopHat
 from .power_source import PowerSource
 from .stage import Stage
 from .units import Mpc_h, Msun_h, UnitContext, unit_boundary
 
-__all__ = ["MassVariance", "n_eff_kernel"]
+__all__ = ["INTERPOLATION_RTOL", "MassVariance", "n_eff_kernel"]
 
 FloatArray = NDArray[np.float64]
 IntArray = NDArray[np.int64]
@@ -110,6 +134,14 @@ _N_ROWS = 6
 #: window, for a power spectrum that falls more slowly than about k^-2 at high k), so
 #: this is a sanity limit, not an accuracy target.
 RESOLUTION_RTOL = 1e-2
+
+#: The largest relative difference, at the default settings, between sigma from the
+#: lattice and its direct evaluation on the same k grid
+#: (:meth:`MassVariance.ln_sigma_at_radius_kernel`).
+INTERPOLATION_RTOL = 1e-5
+
+#: The masses a filter radius can be computed for, and their bound in the message.
+_POSITIVE_MASSES = Domain({"m": Interval(0, None, Msun_h, lower_open=True)})
 
 #: Nodes are computed in chunks of this many, to bound the memory of the
 #: (nodes, k) arrays. Nodes are independent, so the chunking does not change results.
@@ -244,7 +276,41 @@ class MassVariance(Stage):
 
     @cached_property
     def _rho_mean(self) -> float:
+        """The mean density of CDM + baryons, in Msun h^2 / Mpc^3 (it sets R(M))."""
         return float(self.power.rho_mean0)
+
+    @cached_property
+    def valid_domain(self) -> Domain:
+        """Where the stage can be evaluated: masses, filter radii and values of sigma.
+
+        ``m`` (the masses at which sigma and its slope are evaluated) is ``> 0``; with
+        ``mass_accuracy.extension="raise"`` it is the default range of the lattice,
+        ``[10**log10_m_min, 10**log10_m_max]`` Msun/h. ``r`` (a filter radius) and
+        ``sigma`` are ``> 0``. Bounds are in canonical units (Msun/h, Mpc/h).
+        A value inside it can still raise if the k grid can't resolve it (see the
+        module documentation).
+        """
+        acc = self.mass_accuracy
+        if acc.extension == "raise":
+            # To round-off in log10 m: the nodes at the ends are computed as j * Δ.
+            m = Interval(10 ** (acc.log10_m_min - 1e-12), 10 ** (acc.log10_m_max + 1e-12), Msun_h)
+        else:
+            m = Interval(0, None, Msun_h, lower_open=True)
+        return Domain(
+            {
+                "m": m,
+                "r": Interval(0, None, Mpc_h, lower_open=True),
+                "sigma": Interval(0, None, lower_open=True),
+            },
+            source="MassVariance: the masses of the lattice, filter radii and sigma.",
+        )
+
+    def _where(self, method: str, variable: str = "") -> str:
+        """Who checks a value, for a DomainError's message."""
+        where = f"MassVariance.{method}"
+        if variable == "m" and self.mass_accuracy.extension == "raise":
+            where += " (the mass lattice, with mass_accuracy.extension='raise')"
+        return where
 
     @cached_property
     def _step(self) -> float:
@@ -318,6 +384,17 @@ class MassVariance(Stage):
     def _direct(self, ln_m: FloatArray) -> FloatArray:
         """Evaluate the node quantities directly at masses ``exp(ln_m)`` (no interpolation).
 
+        As :meth:`_direct_at_radius`, at the filter radius of each mass.
+        """
+        ln_m = np.asarray(ln_m, dtype=float).ravel()
+        ln_r = np.log(
+            kern.lagrangian_radius(np.exp(ln_m), self._rho_mean, self.filter.mass_assignment)
+        )
+        return self._direct_at_radius(ln_r)
+
+    def _direct_at_radius(self, ln_r: FloatArray) -> FloatArray:
+        """Evaluate the node quantities directly at filter radii ``exp(ln_r)`` (in Mpc/h).
+
         Returns
         -------
         ndarray
@@ -326,12 +403,9 @@ class MassVariance(Stage):
             and of dln(sigma)/dln(m), and the estimate of the relative error from the k
             grid's resolution.
         """
-        ln_m = np.asarray(ln_m, dtype=float).ravel()
-        ln_r = np.log(
-            kern.lagrangian_radius(np.exp(ln_m), self._rho_mean, self.filter.mass_assignment)
-        )
-        out = np.empty((_N_ROWS, ln_m.size))
-        for start in range(0, ln_m.size, _CHUNK):
+        ln_r = np.asarray(ln_r, dtype=float).ravel()
+        out = np.empty((_N_ROWS, ln_r.size))
+        for start in range(0, ln_r.size, _CHUNK):
             sl = slice(start, start + _CHUNK)
             if self.filter.sharp_cutoff:
                 out[:, sl] = self._sharpk_nodes(ln_r[sl])
@@ -461,15 +535,11 @@ class MassVariance(Stage):
         )
 
     def _interpolate(self, log10_m: FloatArray) -> tuple[FloatArray, FloatArray]:
-        """The ln(sigma) and dln(sigma)/dln(m) at masses 10**log10_m (1D), from the lattice."""
+        """The ln(sigma) and dln(sigma)/dln(m) at masses 10**log10_m (1D), from the lattice.
+
+        The masses must be in :attr:`valid_domain`: it does not check them.
+        """
         acc = self.mass_accuracy
-        if acc.extension == "raise":
-            outside = (log10_m < acc.log10_m_min - 1e-12) | (log10_m > acc.log10_m_max + 1e-12)
-            if np.any(outside):
-                raise DomainError(
-                    f"MassVariance: masses outside the lattice [1e{acc.log10_m_min:g}, "
-                    f"1e{acc.log10_m_max:g}] Msun/h, with mass_accuracy.extension='raise'."
-                )
         t = log10_m / acc.dlog10_m
         # The interval [j, j + 1] that contains each mass, so 0 <= u < 1. A plain floor,
         # not lattice_index: snapping a mass near a node onto it would move it to the
@@ -506,10 +576,6 @@ class MassVariance(Stage):
             slope = np.where(same_sign, np.sign(d0) * np.exp(ln_abs), linear)
         return ln_sigma, slope
 
-    def _log10_mass(self, m: FloatArray) -> FloatArray:
-        """log10 of masses in Msun/h, checked to be finite and positive."""
-        return np.log10(check_finite_positive("masses", m, where="MassVariance", error=DomainError))
-
     def ln_sigma_and_slope_kernel(self, m: npt.ArrayLike) -> tuple[FloatArray, FloatArray]:
         """ln(sigma) and dln(sigma)/dln(m) at masses in Msun/h, at kernel level.
 
@@ -531,89 +597,73 @@ class MassVariance(Stage):
         Raises
         ------
         DomainError
-            As for :meth:`sigma`.
+            As for :meth:`sigma` (a mass outside :attr:`valid_domain` is found from
+            the extent of ``m``).
         """
-        m = np.asarray(m, dtype=float)
-        ln_sigma, slope = self._interpolate(self._log10_mass(m).ravel())
+        m = check_extent(
+            "m", m, self.valid_domain, where=self._where("ln_sigma_and_slope_kernel", "m")
+        )
+        ln_sigma, slope = self._interpolate(np.log10(m).ravel())
         return ln_sigma.reshape(m.shape), slope.reshape(m.shape)
 
-    # ---------------------------------------------------------------------------------
-    # Public methods
-    # ---------------------------------------------------------------------------------
+    def ln_sigma_at_radius_kernel(self, r: npt.ArrayLike) -> FloatArray:
+        """ln(sigma) at filter radii in Mpc/h, evaluated directly, at kernel level.
 
-    @unit_boundary(m=Msun_h)
-    def sigma(self, m: Any) -> FloatArray:
-        """The mass variance sigma(m) of the unnormalised linear power at z = 0.
+        The integral for sigma at each radius, with this stage's filter, power and k
+        grid, without the mass lattice: so it is not limited to the lattice's range
+        (``mass_accuracy.extension`` does not apply), and does not interpolate. It
+        agrees with :meth:`ln_sigma_and_slope_kernel` at the radius's mass to
+        :data:`INTERPOLATION_RTOL` at the default settings. For sigma_8, use a
+        :class:`~hmf.core.filters.TopHat` stage at R = 8 Mpc/h. Nothing is memoised.
 
         Parameters
         ----------
-        m : Quantity
-            Masses, in Msun/h (or Msun, if the power source has an H0).
+        r
+            Filter radii in Mpc/h: a plain array, of any shape.
 
         Returns
         -------
-        numpy.float64 or ndarray
-            sigma, dimensionless, of the shape of ``m`` (a scalar for a scalar ``m``).
+        numpy.ndarray
+            ln(sigma), dimensionless, with the shape of ``r``.
 
         Raises
         ------
         DomainError
-            If a mass is not finite and > 0, is outside the lattice (with
-            ``extension='raise'``), can't be resolved by the k grid, or sigma is not
-            finite there.
+            If a radius is not finite and > 0, the k grid can't resolve the integrals
+            there, or sigma is not finite there (see the module documentation).
         """
-        return np.exp(self.ln_sigma_and_slope_kernel(m)[0])
+        r = check_extent("r", r, self.valid_domain, where=self._where("ln_sigma_at_radius_kernel"))
+        nodes = self._direct_at_radius(np.log(r).ravel())
+        m = kern.lagrangian_mass(r.ravel(), self._rho_mean, self.filter.mass_assignment)
+        self._check_nodes(nodes, np.log10(m))
+        out: FloatArray = nodes[_LN_SIGMA].reshape(r.shape)
+        return out
 
-    @unit_boundary(m=Msun_h)
-    def dlnsigma_dlnm(self, m: Any) -> FloatArray:
-        """The logarithmic slope dln(sigma)/dln(m) (independent of the normalisation of the power).
+    def m_from_sigma_kernel(self, sigma: npt.ArrayLike) -> FloatArray:
+        """The mass at which sigma(m) takes the given values, at kernel level.
+
+        The inverse of :meth:`ln_sigma_and_slope_kernel`'s sigma: see
+        :meth:`m_from_sigma`.
 
         Parameters
         ----------
-        m : Quantity
-            Masses, in Msun/h (or Msun, if the power source has an H0).
+        sigma
+            Values of sigma (dimensionless, unnormalised as in :meth:`sigma`): a plain
+            array, of any shape.
 
         Returns
         -------
-        numpy.float64 or ndarray
-            dln(sigma)/dln(m), dimensionless, of the shape of ``m`` (a scalar for a
-            scalar ``m``).
+        numpy.ndarray
+            Masses in Msun/h, with the shape of ``sigma``.
 
         Raises
         ------
         DomainError
-            As for :meth:`sigma`.
+            As for :meth:`m_from_sigma` (a value that is not finite and > 0 is found
+            from the extent of ``sigma``).
         """
-        return self.ln_sigma_and_slope_kernel(m)[1]
-
-    @unit_boundary(returns=Msun_h)
-    def m_from_sigma(self, sigma: Any) -> FloatArray:
-        """The mass at which sigma(m) takes the given values: the inverse of :meth:`sigma`.
-
-        sigma(m) is inverted on the lattice nodes of the default range
-        ``[mass_accuracy.log10_m_min, mass_accuracy.log10_m_max]``, then within the bracketing
-        interval by bisection on the sigma interpolant, so ``m_from_sigma(sigma(m))``
-        returns ``m`` to about 1e-12.
-
-        Parameters
-        ----------
-        sigma : float or array_like
-            Values of sigma (dimensionless, unnormalised as in :meth:`sigma`).
-
-        Returns
-        -------
-        Quantity
-            Masses, in Msun/h.
-
-        Raises
-        ------
-        DomainError
-            If a value is not finite and > 0, is outside the range of sigma on the
-            default lattice range, or sigma(m) is not monotonically decreasing where
-            the value is crossed.
-        """
-        target = check_finite_positive(
-            "sigma", sigma, where="MassVariance.m_from_sigma", error=DomainError
+        target = check_extent(
+            "sigma", sigma, self.valid_domain, where=self._where("m_from_sigma_kernel")
         )
         ln_t = np.log(target).ravel()
         acc = self.mass_accuracy
@@ -654,9 +704,146 @@ class MassVariance(Stage):
         m: FloatArray = 10.0 ** ((j[a] + u) * acc.dlog10_m)
         return m.reshape(target.shape)
 
+    def m_from_radius_kernel(self, r: npt.ArrayLike) -> FloatArray:
+        """The mass of a filter radius, at kernel level: see :meth:`m_from_radius`.
+
+        Parameters
+        ----------
+        r
+            Filter radii in Mpc/h: a plain array, of any shape.
+
+        Returns
+        -------
+        numpy.ndarray
+            Masses in Msun/h, with the shape of ``r``.
+
+        Raises
+        ------
+        DomainError
+            If a radius is not finite and > 0.
+        """
+        r = check_extent("r", r, self.valid_domain, where=self._where("m_from_radius_kernel"))
+        out: FloatArray = np.asarray(
+            kern.lagrangian_mass(r, self._rho_mean, self.filter.mass_assignment), dtype=float
+        )
+        return out
+
+    def radius_from_m_kernel(self, m: npt.ArrayLike) -> FloatArray:
+        """The filter radius of a mass, at kernel level: see :meth:`radius_from_m`.
+
+        Any mass > 0 has a radius: the lattice's range does not apply.
+
+        Parameters
+        ----------
+        m
+            Masses in Msun/h: a plain array, of any shape.
+
+        Returns
+        -------
+        numpy.ndarray
+            Radii in Mpc/h, with the shape of ``m``.
+
+        Raises
+        ------
+        DomainError
+            If a mass is not finite and > 0.
+        """
+        m = check_extent("m", m, _POSITIVE_MASSES, where=self._where("radius_from_m_kernel"))
+        out: FloatArray = np.asarray(
+            kern.lagrangian_radius(m, self._rho_mean, self.filter.mass_assignment), dtype=float
+        )
+        return out
+
+    # ---------------------------------------------------------------------------------
+    # Public methods
+    # ---------------------------------------------------------------------------------
+
+    def _check_masses(self, m: FloatArray, method: str) -> None:
+        """Check masses (in Msun/h) against :attr:`valid_domain`."""
+        self.valid_domain.check({"m": m << Msun_h}, where=self._where(method, "m"))
+
+    @unit_boundary(m=Msun_h)
+    def sigma(self, m: Any) -> FloatArray:
+        """The mass variance sigma(m) of the unnormalised linear power at z = 0.
+
+        Parameters
+        ----------
+        m : Quantity
+            Masses, in Msun/h (or Msun, if the power source has an H0).
+
+        Returns
+        -------
+        numpy.float64 or ndarray
+            sigma, dimensionless, of the shape of ``m`` (a scalar for a scalar ``m``).
+
+        Raises
+        ------
+        DomainError
+            If a mass is outside :attr:`valid_domain` (not finite and > 0, or outside
+            the lattice with ``extension='raise'``), can't be resolved by the k grid,
+            or sigma is not finite there.
+        """
+        self._check_masses(m, "sigma")
+        return np.exp(self.ln_sigma_and_slope_kernel(m)[0])
+
+    @unit_boundary(m=Msun_h)
+    def dlnsigma_dlnm(self, m: Any) -> FloatArray:
+        """The logarithmic slope dln(sigma)/dln(m) (independent of the normalisation of the power).
+
+        Parameters
+        ----------
+        m : Quantity
+            Masses, in Msun/h (or Msun, if the power source has an H0).
+
+        Returns
+        -------
+        numpy.float64 or ndarray
+            dln(sigma)/dln(m), dimensionless, of the shape of ``m`` (a scalar for a
+            scalar ``m``).
+
+        Raises
+        ------
+        DomainError
+            As for :meth:`sigma`.
+        """
+        self._check_masses(m, "dlnsigma_dlnm")
+        return self.ln_sigma_and_slope_kernel(m)[1]
+
+    @unit_boundary(returns=Msun_h)
+    def m_from_sigma(self, sigma: Any) -> FloatArray:
+        """The mass at which sigma(m) takes the given values: the inverse of :meth:`sigma`.
+
+        sigma(m) is inverted on the lattice nodes of the default range
+        ``[mass_accuracy.log10_m_min, mass_accuracy.log10_m_max]``, then within the bracketing
+        interval by bisection on the sigma interpolant, so ``m_from_sigma(sigma(m))``
+        returns ``m`` to about 1e-12.
+
+        Parameters
+        ----------
+        sigma : float or array_like
+            Values of sigma (dimensionless, unnormalised as in :meth:`sigma`).
+
+        Returns
+        -------
+        Quantity
+            Masses, in Msun/h.
+
+        Raises
+        ------
+        DomainError
+            If a value is outside :attr:`valid_domain` (not finite and > 0), is
+            outside the range of sigma on the default lattice range, or sigma(m) is
+            not monotonically decreasing where the value is crossed.
+        """
+        self.valid_domain.check({"sigma": sigma}, where=self._where("m_from_sigma"))
+        return self.m_from_sigma_kernel(sigma)
+
     @unit_boundary(r=Mpc_h, returns=Msun_h)
     def m_from_radius(self, r: Any) -> FloatArray:
-        """The mass of a filter radius: m = (4π/3) rho_mean (cR)³, with the filter's c.
+        """The mass of a filter radius: m = (4π/3) rho_cb (cR)³, with the filter's c.
+
+        rho_cb is the mean density of CDM + baryons today (the power source's
+        ``rho_mean0``).
 
         Parameters
         ----------
@@ -667,8 +854,14 @@ class MassVariance(Stage):
         -------
         Quantity
             Masses, in Msun/h.
+
+        Raises
+        ------
+        DomainError
+            If a radius is not finite and > 0.
         """
-        return kern.lagrangian_mass(r, self._rho_mean, self.filter.mass_assignment)
+        self.valid_domain.check({"r": r << Mpc_h}, where=self._where("m_from_radius"))
+        return self.m_from_radius_kernel(r)
 
     @unit_boundary(m=Msun_h, returns=Mpc_h)
     def radius_from_m(self, m: Any) -> FloatArray:
@@ -683,8 +876,14 @@ class MassVariance(Stage):
         -------
         Quantity
             Radii, in Mpc/h.
+
+        Raises
+        ------
+        DomainError
+            If a mass is not finite and > 0.
         """
-        return kern.lagrangian_radius(m, self._rho_mean, self.filter.mass_assignment)
+        _POSITIVE_MASSES.check({"m": m << Msun_h}, where=self._where("radius_from_m"))
+        return self.radius_from_m_kernel(m)
 
 
 def n_eff_kernel(dlnsigma_dlnm: npt.ArrayLike) -> FloatArray:

@@ -71,9 +71,14 @@ def test_spline_is_accurate_for_a_smooth_spectrum():
 def test_extension_raise_raises_a_domain_error():
     src = _power_law_table(extension="raise")
     _kernel_power(src, np.array([1e-3, 1.0, 10.0]))
-    with pytest.raises(DomainError, match=r"above the table.*extension='raise'"):
+    with pytest.raises(
+        DomainError,
+        match=r"extension='raise'\)\.ln_power_kernel: k in \[20, 20\] is outside the domain",
+    ):
         _kernel_power(src, np.array([20.0]))
-    with pytest.raises(DomainError, match="below the table"):
+    with pytest.raises(
+        DomainError, match=r"extension='raise'\)\.power: 1 of 1 value\(s\) are outside the domain"
+    ):
         src.power(1e-4 * h_Mpc)
 
 
@@ -112,7 +117,9 @@ def test_inside_the_table_does_not_warn():
 
 @pytest.mark.parametrize("k", [0.0, -1.0, np.nan, np.inf])
 def test_non_positive_k_is_a_domain_error(k):
-    with pytest.raises(DomainError, match="k must be finite and > 0"):
+    with pytest.raises(
+        DomainError, match=r"TabulatedPower.power: 1 of 1 value\(s\) are outside the domain \(k > 0"
+    ):
         _power_law_table().power(k * h_Mpc)
 
 
@@ -194,7 +201,8 @@ def test_transfer_power_source_is_a_power_source(species):
     source = transfer.power_source(species)
     assert isinstance(source, UnnormalisedPower)
     assert isinstance(source, PowerSource)
-    assert source.rho_mean0 == rho_mean0(transfer.cosmology, species)
+    # CDM + baryons for either species: it sets R(M).
+    assert source.rho_mean0 == rho_mean0(transfer.cosmology, "cb")
     assert source._unit_context is transfer._unit_context
     k = np.logspace(-3, 1, 7)
     np.testing.assert_array_equal(
@@ -241,3 +249,28 @@ def test_mass_variance_of_transfer_matches_its_table(flt):
     tabulated = MassVariance(power=table, filter=flt).ln_sigma_and_slope_kernel(m)
     np.testing.assert_allclose(np.exp(direct[0]), np.exp(tabulated[0]), rtol=1e-9)
     np.testing.assert_allclose(direct[1], tabulated[1], rtol=5e-8)
+
+
+# ---------------------------------------------------------------------------------
+# The domain
+# ---------------------------------------------------------------------------------
+
+
+def test_valid_domain_is_k_positive_or_the_table():
+    auto = _power_law_table()
+    assert auto.valid_domain["k"].describe("k") == "k > 0 littleh / Mpc"
+    raising = _power_law_table(extension="raise")
+    interval = raising.valid_domain["k"]
+    assert interval.unit is h_Mpc
+    assert interval.lower == pytest.approx(1e-3, rel=1e-11)
+    assert interval.upper == pytest.approx(10.0, rel=1e-11)
+    assert raising.valid_domain.contains(k=np.array([1e-3, 10.0]) * h_Mpc).all()
+    assert not raising.valid_domain.contains(k=10.01 * h_Mpc)
+
+
+def test_the_table_ends_are_in_the_domain_with_extension_raise():
+    """K exactly at the table's ends is evaluated, by the kernel and by power()."""
+    src = _power_law_table(extension="raise")
+    k = src.k.value[[0, -1]]
+    np.testing.assert_allclose(src.power(k * h_Mpc).value, 3.0 * k**-1.5, rtol=1e-12)
+    np.testing.assert_allclose(_kernel_power(src, k), 3.0 * k**-1.5, rtol=1e-12)

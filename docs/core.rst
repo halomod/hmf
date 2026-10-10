@@ -100,8 +100,26 @@ Accuracy (:mod:`hmf.core.accuracy`)
     :class:`~hmf.core.accuracy.MassAccuracy` and
     :class:`~hmf.core.accuracy.KAccuracy`, each with ``fast()`` and ``high()``
     presets. A stage's accuracy fields are named for their grid:
-    ``Transfer.k_accuracy``, ``MassVariance.mass_accuracy`` and
-    ``MassVariance.k_accuracy``.
+    ``Transfer.k_accuracy``, ``Growth.k_accuracy``, ``MassVariance.mass_accuracy``
+    and ``MassVariance.k_accuracy``.
+
+    **One KAccuracy drives the k-space calculation.** Each stage reads only some of
+    its settings:
+
+    * :class:`~hmf.core.transfer.Transfer`: ``dln_k``, which sets the precision and
+      k sampling of a CAMB or CLASS run (finer than the code's own below
+      ``dln_k = 0.02``, so ``KAccuracy.high()`` runs the codes at high precision);
+    * :class:`~hmf.core.growth.Growth`: ``dln_k``, in the same way, for a run its
+      CAMB or CLASS growth model makes itself;
+    * :class:`~hmf.core.mass_variance.MassVariance`: ``dln_k``, ``ln_k_min`` and
+      ``k_max_r_min``, the k grid of the σ integrals.
+
+    A stage composed of these passes one ``KAccuracy`` to all of them (the coming
+    ``LinearPower`` stage will own it), and checks it with
+    :func:`~hmf.core.accuracy.check_consistent`.
+    :meth:`Growth.from_transfer <hmf.core.growth.Growth.from_transfer>` takes the
+    transfer stage's, and a growth stage shares its transfer stage's Boltzmann run
+    only when their accuracies are equal.
 
 Domains (:mod:`hmf.core.domain`)
     Every model declares a *valid* domain (outside which it always raises a
@@ -114,7 +132,13 @@ Domains (:mod:`hmf.core.domain`)
     :meth:`~hmf.core.domain.Domain.check` raises a
     :class:`~hmf.core.domain.DomainError` that quotes them. Stages check their inputs
     against their model's valid domain (that of the model's class, so a model can
-    narrow it).
+    narrow it). A stage whose domain depends on its own data has a ``valid_domain``
+    of its own, on the instance: :class:`~hmf.core.mass_variance.MassVariance` (masses,
+    filter radii and σ; masses are bounded by the lattice with
+    ``extension="raise"``) and :class:`~hmf.core.power_source.TabulatedPower` (k; the
+    table's range with ``extension="raise"``). So every stage's domain can be
+    inspected the same way, and every public method checks its input with
+    :meth:`~hmf.core.domain.Domain.check`.
 
 Out-of-range switches
     Two settings say what to do with values out of range, and they are distinct:
@@ -223,8 +247,12 @@ variance σ(M) of the *unnormalised* linear power at z = 0, and its slope
 dlnσ/dlnM, for a smoothing filter (:mod:`hmf.core.filters`: ``TopHat``, ``SharpK``,
 ``SmoothK``). The power comes from any :class:`~hmf.core.power_source.PowerSource`:
 the power of one species of a :class:`~hmf.core.transfer.Transfer` stage
-(:meth:`~hmf.core.transfer.Transfer.power_source`, which carries the mean density
-of the same species), or a :class:`~hmf.core.power_source.TabulatedPower`::
+(:meth:`~hmf.core.transfer.Transfer.power_source`), or a
+:class:`~hmf.core.power_source.TabulatedPower`. A power source also carries the mean
+density of CDM + baryons, :math:`\bar\rho_{\rm cb}`, whatever its species: it sets
+the mass of a filter radius, :math:`M = \tfrac{4\pi}{3}\bar\rho_{\rm cb}(cR)^3`,
+as in hmf 3.x and the calibrations of the fits, so the total-matter and the
+CDM + baryon power give the same R(M)::
 
     from hmf.core.mass_variance import MassVariance
     from hmf.core.power_source import TabulatedPower
@@ -242,13 +270,18 @@ lazily: results do not depend, bit for bit, on the order or batching of requests
 σ uses a quintic Hermite interpolant in ln–ln; dlnσ/dlnM is interpolated
 separately, never by differentiating σ. The k grid is a lattice in ln k, fixed by
 ``k_accuracy`` (and ``mass_accuracy.log10_m_min``). Masses whose integrals the grid can't resolve (truncated at
-either end, or aliased) raise rather than return a wrong value.
+either end, or aliased) raise rather than return a wrong value. σ at any filter
+radius can also be evaluated directly, without the lattice
+(:meth:`~hmf.core.mass_variance.MassVariance.ln_sigma_at_radius_kernel`, e.g. σ8),
+and agrees with the lattice to
+:data:`~hmf.core.mass_variance.INTERPOLATION_RTOL` at the default settings.
 
 Composing stages
 ----------------
 The mass function will be built from these stages and the fits, through their
 kernel-level entry points only. Each one checks its input and raises a
-:class:`~hmf.core.domain.DomainError` rather than extrapolate silently.
+:class:`~hmf.core.domain.DomainError` rather than extrapolate silently, and each
+stage's domain can be inspected (a model's or stage's ``valid_domain``).
 
 * σ(m, z) = D(z) · √A · σ_raw(m), where σ_raw is the σ of
   :class:`~hmf.core.mass_variance.MassVariance`, the mass variance of the
@@ -256,17 +289,30 @@ kernel-level entry points only. Each one checks its input and raises a
   ``LinearPower`` stage will fix A; it does not exist yet. MassVariance keeps the
   unnormalised power, so changing σ8 changes only the scalar A, and recomputes no
   lattice nodes;
+* σ8 of the unnormalised power from :meth:`MassVariance.ln_sigma_at_radius_kernel
+  <hmf.core.mass_variance.MassVariance.ln_sigma_at_radius_kernel>` at R = 8 Mpc/h,
+  on a :class:`~hmf.core.filters.TopHat` ``MassVariance`` of the normalisation
+  species' power (a direct evaluation, without the lattice);
 * ln σ_raw(m) and dlnσ/dlnm (which A and D do not change) from
   :meth:`MassVariance.ln_sigma_and_slope_kernel
   <hmf.core.mass_variance.MassVariance.ln_sigma_and_slope_kernel>`, and ``n_eff``
-  from them with :func:`~hmf.core.mass_variance.n_eff_kernel`;
+  from them with :func:`~hmf.core.mass_variance.n_eff_kernel`; the mass at a σ_raw
+  from :meth:`MassVariance.m_from_sigma_kernel
+  <hmf.core.mass_variance.MassVariance.m_from_sigma_kernel>`, and the conversions
+  between mass and filter radius from :meth:`MassVariance.m_from_radius_kernel
+  <hmf.core.mass_variance.MassVariance.m_from_radius_kernel>` and
+  :meth:`MassVariance.radius_from_m_kernel
+  <hmf.core.mass_variance.MassVariance.radius_from_m_kernel>`;
 * the growth factor D(z) from :meth:`Growth.growth_factor_kernel
   <hmf.core.growth.Growth.growth_factor_kernel>` (and the growth rate from
   :meth:`Growth.growth_rate_kernel <hmf.core.growth.Growth.growth_rate_kernel>`),
   which raise beyond the growth model's table, not ``Growth.solution``, which is NaN
   there;
-* the mean density from the power source's ``rho_mean0``, and Ω_m(z) of CDM +
-  baryons from :func:`hmf.core.species.omega_m` (``"cb"``);
+* the mean density of CDM + baryons from the power source's ``rho_mean0`` (the same
+  for every species), and Ω_m(z) of CDM + baryons from
+  :func:`hmf.core.species.omega_m` (``"cb"``);
+* one :class:`~hmf.core.accuracy.KAccuracy` for the Transfer, Growth and
+  MassVariance stages, checked with :func:`~hmf.core.accuracy.check_consistent`;
 * the overdensity of a fit's mass definition from
   :meth:`MeasuredMassDefinition.delta_halo_mean_kernel
   <hmf.core.fits.MeasuredMassDefinition.delta_halo_mean_kernel>`;

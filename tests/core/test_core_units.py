@@ -50,6 +50,39 @@ class Toy(Stage):
     def both(self, r, *, k):
         return r, k
 
+    @unit_boundary(m=Msun_h, r=Mpc_h, returns=Msun_h)
+    def mass_and_radius(self, m, r, z=0.0):
+        """Return m, checking that both arrive without units."""
+        assert not isinstance(m, u.Quantity)
+        assert not isinstance(r, u.Quantity)
+        return m
+
+    @unit_boundary(m=Msun_h, r=Mpc_h)
+    def ratio(self, m, r):
+        return m / r
+
+    @unit_boundary(r=Mpc_h, m=Msun_h)
+    def ratio_named_backwards(self, m, r):
+        """The decorator names the arguments in the other order."""
+        return m / r
+
+    @unit_boundary(m=Msun_h, r=Mpc_h, returns=(Msun_h, Mpc_h))
+    def after_z(self, z, m, r):
+        """Two dimensional arguments that are not the first two."""
+        return m, r
+
+    @unit_boundary(m=Msun_h, r=Mpc_h, k=h_Mpc, returns=(Msun_h, Mpc_h, h_Mpc))
+    def three(self, m, r, k):
+        return m, r, k
+
+    @unit_boundary(m=Msun_h, r=Mpc_h, k=h_Mpc, returns=Msun_h)
+    def three_mass(self, m, r, k):
+        return m
+
+    @unit_boundary(m=Msun_h, r=Mpc_h, k=h_Mpc)
+    def three_product(self, m, r, k):
+        return m * r * k
+
     @unit_boundary(m=Msun_h, returns=dndm_unit)
     def sqrt_like(self, m):
         # np.sqrt of a 0-d array is a numpy scalar, not an array.
@@ -389,3 +422,93 @@ def test_dimensional_argument_after_others():
     assert (z, scale) == (0.5, 2.0)
     assert type(out) is np.ndarray
     np.testing.assert_array_equal(out, m)
+
+
+def test_two_dimensional_arguments_canonical_fast_path(toy):
+    """With two dimensional arguments, canonical inputs are viewed, not copied."""
+    m = np.logspace(10, 15, 5) * Msun_h
+    r = np.linspace(1, 5, 5) * Mpc_h
+    for out in (toy.mass_and_radius(m, r), toy.mass_and_radius(m, r=r, z=1.0)):
+        assert type(out) is u.Quantity
+        assert out.unit is Msun_h
+        assert np.shares_memory(out, m)
+
+
+def test_two_dimensional_arguments_convert_and_follow_the_scalar_rule(toy):
+    out = toy.mass_and_radius(1e12 * u.Msun, 1.0 * u.Mpc)
+    assert out.unit is Msun_h
+    np.testing.assert_allclose(out.value, 1e12 * LITTLE_H, rtol=1e-14)
+    ratio = toy.ratio(1e12 * Msun_h, r=2.0 * u.Mpc)
+    assert type(ratio) is np.float64
+    np.testing.assert_allclose(ratio, 1e12 / (2.0 * LITTLE_H), rtol=1e-14)
+    assert toy.ratio(np.ones(3) * Msun_h, np.ones(3) * Mpc_h).shape == (3,)
+    with pytest.raises(UnitBoundaryError):
+        toy.mass_and_radius(1e12 * Msun_h, 1.0)
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda toy: toy.ratio(2e12 * u.Msun, 2.0 * u.Mpc),
+        lambda toy: toy.ratio(2e12 * u.Msun, r=2.0 * u.Mpc),
+        lambda toy: toy.ratio(m=2e12 * u.Msun, r=2.0 * u.Mpc),
+        lambda toy: toy.ratio(r=2.0 * u.Mpc, m=2e12 * u.Msun),
+        lambda toy: toy.ratio_named_backwards(2e12 * u.Msun, 2.0 * u.Mpc),
+        lambda toy: toy.ratio_named_backwards(2e12 * u.Msun, r=2.0 * u.Mpc),
+    ],
+    ids=["positional", "mixed", "keywords", "keywords-reversed", "named-backwards", "nb-mixed"],
+)
+def test_two_dimensional_arguments_by_position_or_keyword(toy, call):
+    """Every way of passing the two arguments converts both, to the same result."""
+    out = call(toy)
+    assert type(out) is np.float64
+    np.testing.assert_allclose(out, 1e12, rtol=1e-14)
+
+
+def test_two_dimensional_arguments_by_keyword_keep_arrays(toy):
+    out = toy.ratio(m=np.full(3, 2.0) * Msun_h, r=np.full(3, 2.0) * Mpc_h)
+    assert type(out) is np.ndarray
+    np.testing.assert_array_equal(out, np.ones(3))
+
+
+def test_two_dimensional_arguments_errors_are_the_methods(toy):
+    with pytest.raises(TypeError, match="ratio"):
+        toy.ratio(1e12 * Msun_h)
+    with pytest.raises(TypeError, match="ratio"):
+        toy.ratio()
+    with pytest.raises(UnitBoundaryError):
+        toy.ratio(1e12, 1.0 * Mpc_h)
+    with pytest.raises(UnitBoundaryError):
+        toy.ratio(r=1.0, m=1e12 * Msun_h)
+
+
+def test_two_dimensional_arguments_after_another(toy):
+    """Two dimensional arguments that are not the first two, by position or keyword."""
+    for m, r in (
+        toy.after_z(0.5, 1e12 * Msun_h, 2.0 * Mpc_h),
+        toy.after_z(0.5, 1e12 * u.Msun, r=2.0 * u.Mpc),
+        toy.after_z(0.5, 1e12 * Msun_h, 2.0 * LITTLE_H * u.Mpc),
+        toy.after_z(z=0.5, m=1e12 * Msun_h, r=2.0 * Mpc_h),
+    ):
+        assert (m.unit, r.unit) == (Msun_h, Mpc_h)
+    np.testing.assert_allclose(m.value, 1e12, rtol=1e-14)
+    np.testing.assert_allclose(r.value, 2.0, rtol=1e-14)
+
+
+def test_three_dimensional_arguments(toy):
+    m, r, k = toy.three(1e12 * Msun_h, 1.0 * u.Mpc, k=1.0 / u.Mpc)
+    assert (m.unit, r.unit, k.unit) == (Msun_h, Mpc_h, h_Mpc)
+    np.testing.assert_allclose([m.value, r.value, k.value], [1e12, LITTLE_H, 1 / LITTLE_H])
+    m, r, k = toy.three(m=1e12 * Msun_h, r=1.0 * Mpc_h, k=1.0 * h_Mpc)
+    np.testing.assert_allclose([m.value, r.value, k.value], [1e12, 1.0, 1.0], rtol=1e-14)
+
+
+def test_three_dimensional_arguments_array_outputs(toy):
+    m = np.logspace(10, 12, 3) * Msun_h
+    out = toy.three_mass(m, 1.0 * Mpc_h, 1.0 * h_Mpc)
+    assert type(out) is u.Quantity
+    assert out.unit is Msun_h
+    assert np.shares_memory(out, m)
+    product = toy.three_product(np.ones(3) * Msun_h, np.ones(3) * Mpc_h, np.ones(3) * h_Mpc)
+    assert type(product) is np.ndarray
+    assert type(toy.three_product(1.0 * Msun_h, 2.0 * Mpc_h, 3.0 * h_Mpc)) is np.float64

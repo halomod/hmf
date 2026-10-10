@@ -13,8 +13,12 @@ units, for library code.
   :class:`TabulatedPower` gives its table in (Mpc/h)³, while
   :meth:`Transfer.power_source <hmf.core.transfer.Transfer.power_source>`'s
   :math:`k^{n_s} T(k)^2` is dimensionless;
-* ``rho_mean0``: the mean comoving density today of the *same* matter species, in
-  M☉ h² / Mpc³ (:data:`~hmf.core.units.rho_unit`);
+* ``rho_mean0``: the mean comoving density today of **CDM + baryons**, in
+  M☉ h² / Mpc³ (:data:`~hmf.core.units.rho_unit`), whatever the species of the
+  power. It converts between a halo's mass and its Lagrangian radius,
+  :math:`M = \tfrac{4\pi}{3}\bar\rho_{\rm cb} R^3`: haloes are made of CDM and
+  baryons, as in hmf 3.x and the calibrations of the fits in :mod:`hmf.core.fits`.
+  So the power of total matter and of CDM + baryons give the same R(M);
 * ``table_range``: the :class:`TableRange` of a table the user supplied, beyond
   which ``ln_power_kernel`` extrapolates, or ``None`` if it extrapolates no user
   table (a fitting formula, a Boltzmann code's table, or a table that is not
@@ -43,7 +47,6 @@ lazy extension of the mass lattice) has no :class:`TableRange`, so it never warn
 
 from __future__ import annotations
 
-import math
 from functools import cached_property
 from typing import Any, Protocol, get_args, runtime_checkable
 
@@ -56,9 +59,9 @@ from ._fields import field
 from ._kernels.arrays import read_only
 from ._kernels.interpolation import FrozenSpline, extrapolate_power_law
 from ._serialise import quantity_key
-from ._validators import check_finite_positive, check_in_range, check_increasing, check_table
+from ._validators import check_finite_positive, check_increasing, check_table
 from .accuracy import Extension
-from .domain import DomainError, check_extent, warn_once
+from .domain import Domain, Interval, check_extent, warn_once
 from .stage import Stage
 from .units import (
     HasUnitContext,
@@ -168,7 +171,11 @@ class PowerSource(HasUnitContext, Protocol):
 
     @property
     def rho_mean0(self) -> float:
-        """The mean comoving density today of the species, in Msun h^2 / Mpc^3."""
+        """The mean comoving density today of CDM + baryons, in Msun h^2 / Mpc^3.
+
+        Whatever the species of the power: it sets R(M) (see the module
+        documentation).
+        """
         ...
 
     @property
@@ -243,7 +250,11 @@ class TabulatedPower(Stage):
     mean_density: u.Quantity = field(
         eq=quantity_key,
         validator=_quantity("mean_density", rho_unit),
-        doc="The mean matter density today (Msun h^2 / Mpc^3, or Msun / Mpc^3).",
+        doc=(
+            "The mean comoving density today of CDM + baryons, whatever the species of "
+            "the power: it sets the mass of a filter radius (Msun h^2 / Mpc^3, or "
+            "Msun / Mpc^3)."
+        ),
     )
     H0: u.Quantity | None = field(
         default=None,
@@ -302,8 +313,32 @@ class TabulatedPower(Stage):
 
     @cached_property
     def rho_mean0(self) -> float:
-        """``mean_density`` in Msun h^2 / Mpc^3, as a plain float (kernel level)."""
+        """``mean_density`` (CDM + baryons) in Msun h^2 / Mpc^3, as a plain float."""
         return float(self._canonical(self.mean_density, rho_unit, "mean_density"))
+
+    @cached_property
+    def valid_domain(self) -> Domain:
+        """Where the power can be evaluated: k > 0, or the table's range.
+
+        With ``extension="auto"``, any k > 0 (beyond the table it is extrapolated);
+        with ``extension="raise"``, the table's k range (to round-off). In h/Mpc.
+        """
+        if self.extension == "raise":
+            k = self._canonical(self.k, h_Mpc, "k")
+            # To round-off: ln_power_kernel compares exp(ln k) with these bounds.
+            interval = Interval(k[0] * (1 - 1e-12), k[-1] * (1 + 1e-12), h_Mpc)
+            source = "TabulatedPower: the table's k range (extension='raise')."
+        else:
+            interval = Interval(0, None, h_Mpc, lower_open=True)
+            source = "TabulatedPower: k > 0 (extrapolated beyond the table)."
+        return Domain({"k": interval}, source=source)
+
+    @cached_property
+    def _where(self) -> str:
+        """Who checks k, for a DomainError's message."""
+        if self.extension == "raise":
+            return "TabulatedPower (the table, with extension='raise')"
+        return "TabulatedPower"
 
     @cached_property
     def table_range(self) -> TableRange | None:
@@ -341,21 +376,16 @@ class TabulatedPower(Stage):
         Raises
         ------
         DomainError
-            If a ln k is not finite, or is outside the table and ``extension`` is
-            ``"raise"``.
+            If a ln k is not finite, or k is outside :attr:`valid_domain` (the table,
+            with ``extension="raise"``).
         """
-        ln_k = check_extent("ln_k", ln_k, where="TabulatedPower.ln_power_kernel")
-        if self.extension == "raise" and ln_k.size:
-            table_k = self._table[0]
-            lo, hi = table_k[0], table_k[-1]
-            for side, outside in (("below", ln_k.min() < lo), ("above", ln_k.max() > hi)):
-                if outside:
-                    n_out = np.count_nonzero(ln_k < lo if side == "below" else ln_k > hi)
-                    raise DomainError(
-                        f"TabulatedPower: {n_out} value(s) of k {side} the table "
-                        f"[{math.exp(lo):.4g}, {math.exp(hi):.4g}] h/Mpc, with "
-                        "extension='raise'."
-                    )
+        ln_k = check_extent(
+            "ln_k",
+            ln_k,
+            self.valid_domain,
+            where=f"{self._where}.ln_power_kernel",
+            ln_values=True,
+        )
         return np.asarray(extrapolate_power_law(self._spline, ln_k), dtype=float)
 
     @unit_boundary(k=h_Mpc, returns=power_unit)
@@ -375,7 +405,8 @@ class TabulatedPower(Stage):
         Raises
         ------
         DomainError
-            If a k is not > 0, or is outside the table with ``extension="raise"``.
+            If a k is outside :attr:`valid_domain`: not finite and > 0, or outside the
+            table with ``extension="raise"``.
 
         Warns
         -----
@@ -383,7 +414,7 @@ class TabulatedPower(Stage):
             If a k is outside the table and ``extension`` is ``"auto"``: once per
             instance for each end of the table.
         """
-        check_in_range("k", k, where="TabulatedPower", low=0.0, low_open=True, error=DomainError)
+        self.valid_domain.check({"k": k << h_Mpc}, where=f"{self._where}.power")
         k = np.asarray(k, dtype=float)
         out = np.exp(self.ln_power_kernel(np.log(k)))
         table = self.table_range

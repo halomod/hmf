@@ -362,6 +362,22 @@ KERNEL_CASES = [
         "MassVariance.ln_sigma_and_slope_kernel",
         lambda: MassVariance(power=_ups()).ln_sigma_and_slope_kernel([1e12, -1.0]),
     ),
+    (
+        "MassVariance.ln_sigma_at_radius_kernel",
+        lambda: MassVariance(power=_ups()).ln_sigma_at_radius_kernel([8.0, 0.0]),
+    ),
+    (
+        "MassVariance.m_from_sigma_kernel",
+        lambda: MassVariance(power=_ups()).m_from_sigma_kernel([1.0, np.nan]),
+    ),
+    (
+        "MassVariance.m_from_radius_kernel",
+        lambda: MassVariance(power=_ups()).m_from_radius_kernel([1.0, -1.0]),
+    ),
+    (
+        "MassVariance.radius_from_m_kernel",
+        lambda: MassVariance(power=_ups()).radius_from_m_kernel([1e12, np.inf]),
+    ),
     ("n_eff_kernel", lambda: n_eff_kernel([0.1, np.nan])),
     (
         "TabulatedPower.ln_power_kernel",
@@ -403,7 +419,7 @@ def test_tabulated_power_kernel_with_extension_raise():
         mean_density=1.0 * rho_unit,
         extension="raise",
     )
-    with pytest.raises(DomainError, match=r"1 value\(s\) of k above the table"):
+    with pytest.raises(DomainError, match=r"k in \[1, 20\] is outside the domain"):
         source.ln_power_kernel(np.log([1.0, 20.0]))
 
 
