@@ -175,10 +175,6 @@ def _default_variance(stage: MassFunction) -> MassVariance:
     return MassVariance(power=lp.power_source, k_accuracy=lp.k_accuracy)
 
 
-#: The parameters of :meth:`MassFunction.build` for which None means the default.
-_NONE_IS_DEFAULT = frozenset({"n_s", "sigma_8", "k_accuracy", "mass_accuracy"})
-
-
 def _cosmology_parameter(cosmology: FLRW, key: str, name: str) -> float:
     """A parameter from an astropy cosmology's ``meta`` (e.g. Planck18's ``sigma8``)."""
     value = cosmology.meta.get(key)
@@ -297,12 +293,12 @@ class MassFunction(Stage):
         growth_model
             The growth model (default the growth ODE).
         n_s
-            The spectral index; by default (or if None) the cosmology's
+            The spectral index; by default the cosmology's
             (``cosmology.meta["n"]``, which astropy's realisations give: 0.9665 for
             Planck18).
         sigma_8
-            The rms of the ``sigma_8_species`` field at 8 Mpc/h today; by default (or
-            if None) the cosmology's (``cosmology.meta["sigma8"]``: 0.8102 for
+            The rms of the ``sigma_8_species`` field at 8 Mpc/h today; by default the
+            cosmology's (``cosmology.meta["sigma8"]``: 0.8102 for
             Planck18).
         species
             The matter species of the power: ``"cb"`` (CDM + baryons, default) or
@@ -319,9 +315,9 @@ class MassFunction(Stage):
         domain_policy
             The calibration-domain policy (default ``"ignore"``).
         k_accuracy
-            The wavenumber accuracy (default, or if None, ``KAccuracy()``).
+            The wavenumber accuracy (default ``KAccuracy()``).
         mass_accuracy
-            The mass lattice's accuracy (default, or if None, ``MassAccuracy()``).
+            The mass lattice's accuracy (default ``MassAccuracy()``).
         truncation_rtol
             The mass variance's tolerance for truncating its k integrals (default
             1e-3).
@@ -341,8 +337,7 @@ class MassFunction(Stage):
             If ``n_s`` or ``sigma_8`` is not given and the cosmology's ``meta`` does
             not have it, or for any invalid argument.
         """
-        given = {k: v for k, v in parameters.items() if v is not None or k not in _NONE_IS_DEFAULT}
-        return cls.from_flat(given)
+        return cls.from_flat(parameters)
 
     @classmethod
     def computed_defaults(cls, given: GivenParameters) -> Mapping[str, Any]:

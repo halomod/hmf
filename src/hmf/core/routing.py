@@ -78,21 +78,22 @@ __all__ = [
     "router",
 ]
 
-#: A path from a stage to a field below it, as a tuple of field names.
-Path = tuple[str, ...]
+#: The path from a stage to a field below it, as a tuple of field names (a dotted
+#: name split at its dots).
+FieldPath = tuple[str, ...]
 
 
-def _dotted(path: Path) -> str:
+def _dotted(path: FieldPath) -> str:
     """A path as a dotted string."""
     return ".".join(path)
 
 
-def _split(name: str) -> Path:
+def _split(name: str) -> FieldPath:
     """A dotted string as a path."""
     return tuple(name.split("."))
 
 
-def _overlaps(a: Path, b: Path) -> bool:
+def _overlaps(a: FieldPath, b: FieldPath) -> bool:
     """Whether one path is the other or below it."""
     n = min(len(a), len(b))
     return a[:n] == b[:n]
@@ -108,7 +109,7 @@ def _same(a: Any, b: Any) -> bool:
         return False
 
 
-def _walk(obj: Any, path: Path) -> Any:
+def _walk(obj: Any, path: FieldPath) -> Any:
     """The value at ``path`` below ``obj``."""
     for name in path:
         obj = getattr(obj, name)
@@ -165,12 +166,12 @@ class Derivation:
     doc: str = ""
 
     @cached_property
-    def target(self) -> Path:
+    def target(self) -> FieldPath:
         """The derived field's path, as a tuple."""
         return _split(self.field)
 
     @cached_property
-    def source_paths(self) -> tuple[Path, ...]:
+    def source_paths(self) -> tuple[FieldPath, ...]:
         """The sources' paths, as tuples."""
         return tuple(_split(s) for s in self.sources)
 
@@ -232,7 +233,7 @@ class GivenParameters(Mapping[str, Any]):
 
     __slots__ = ("_values",)
 
-    def __init__(self, values: Mapping[Path, Any]) -> None:
+    def __init__(self, values: Mapping[FieldPath, Any]) -> None:
         self._values = dict(values)
 
     def __getitem__(self, key: str) -> Any:
@@ -259,7 +260,7 @@ class GivenParameters(Mapping[str, Any]):
 class _Leaf:
     """A parameter field of the tree: where it is, and its attribute."""
 
-    path: Path
+    path: FieldPath
     attribute: attrs.Attribute[Any]
     shared: bool
 
@@ -325,7 +326,7 @@ def _describe(cls: type) -> _Node:
     )
 
 
-def _is_field(cls: type, path: Path) -> bool:
+def _is_field(cls: type, path: FieldPath) -> bool:
     """Whether ``path`` is a field of the stage tree of ``cls`` (stage fields included)."""
     for i, name in enumerate(path):
         a = _node(cls).fields.get(name)
@@ -359,9 +360,9 @@ def field_names(cls: type) -> Mapping[str, attrs.Attribute[Any]]:
 class _Resolved:
     """Changes resolved to paths: values, the paths set by a shared name, model changes."""
 
-    values: dict[Path, Any]
-    soft: frozenset[Path]
-    models: dict[Path, dict[Path, Any]]
+    values: dict[FieldPath, Any]
+    soft: frozenset[FieldPath]
+    models: dict[FieldPath, dict[FieldPath, Any]]
 
 
 class Router:
@@ -386,22 +387,22 @@ class Router:
     def __init__(self, cls: type[Stage]) -> None:
         self.cls = cls
         #: The parameter fields, in depth-first order.
-        self.leaves: dict[Path, _Leaf] = {}
+        self.leaves: dict[FieldPath, _Leaf] = {}
         #: The stages of the tree (the root is ``()``), and their classes.
-        self.stages: dict[Path, type] = {}
+        self.stages: dict[FieldPath, type] = {}
         #: The derived fields: path -> (path of the declaring stage, derivation).
-        self.derived: dict[Path, tuple[Path, Derivation]] = {}
-        aliases: dict[str, set[Path]] = {}
+        self.derived: dict[FieldPath, tuple[FieldPath, Derivation]] = {}
+        aliases: dict[str, set[FieldPath]] = {}
         self._visit(cls, (), aliases)
 
-        by_name: dict[str, list[Path]] = {}
+        by_name: dict[str, list[FieldPath]] = {}
         for path in self.leaves:
             by_name.setdefault(path[-1], []).append(path)
 
         #: Flat names (and aliases and shared names) -> the paths they set.
-        self.names: dict[str, tuple[Path, ...]] = {}
+        self.names: dict[str, tuple[FieldPath, ...]] = {}
         #: Repeated names -> the paths they could mean.
-        self.ambiguous: dict[str, tuple[Path, ...]] = {}
+        self.ambiguous: dict[str, tuple[FieldPath, ...]] = {}
         for name, found in by_name.items():
             paths = tuple(found)
             if len(paths) == 1:
@@ -424,7 +425,7 @@ class Router:
                 self.ambiguous[alias] = tuple(sorted(targets))
 
         #: The name each parameter field is routed by.
-        self.preferred: dict[Path, str] = {}
+        self.preferred: dict[FieldPath, str] = {}
         for name, paths in self.names.items():
             for path in paths:
                 current = self.preferred.get(path)
@@ -440,7 +441,7 @@ class Router:
 
     # -- building --------------------------------------------------------------------
 
-    def _visit(self, cls: type, prefix: Path, aliases: dict[str, set[Path]]) -> None:
+    def _visit(self, cls: type, prefix: FieldPath, aliases: dict[str, set[FieldPath]]) -> None:
         """Add the fields of the stage class ``cls`` at ``prefix`` (depth first)."""
         node = _node(cls)
         self.stages[prefix] = cls
@@ -494,7 +495,7 @@ class Router:
             + " See parameter_names() for the parameters."
         )
 
-    def paths_of(self, name: str) -> tuple[tuple[Path, ...], Path]:
+    def paths_of(self, name: str) -> tuple[tuple[FieldPath, ...], FieldPath]:
         """The paths a name sets, and the rest of it, a path into a model field.
 
         Parameters
@@ -563,13 +564,13 @@ class Router:
             For an unknown, ambiguous or derived name, or if one field is given twice
             (by two names, or with a stage above it).
         """
-        values: dict[Path, Any] = {}
-        soft: set[Path] = set()
-        models: dict[Path, dict[Path, Any]] = {}
+        values: dict[FieldPath, Any] = {}
+        soft: set[FieldPath] = set()
+        models: dict[FieldPath, dict[FieldPath, Any]] = {}
         # The name each field (or field of a model) was given by.
-        origin: dict[Path, str] = {}
+        origin: dict[FieldPath, str] = {}
 
-        def claim(key: str, path: Path) -> None:
+        def claim(key: str, path: FieldPath) -> None:
             if path in origin:
                 raise TypeError(
                     f"{self.cls.__name__}: {_dotted(path)!r} is given twice, as "
@@ -650,7 +651,7 @@ class Router:
                 if any(_overlaps(c, prefix + s) for c in changed for s in d.source_paths):
                     changed.add(target)
                     grew = True
-        rebuilt: set[Path] = set()
+        rebuilt: set[FieldPath] = set()
         for path in changed:
             if path in self.stages:
                 rebuilt.add(path)
@@ -658,7 +659,7 @@ class Router:
         return tuple(_dotted(p) for p in sorted(rebuilt, key=lambda p: (len(p), p)))
 
     def quantities_available(self) -> dict[str, tuple[str, ...]]:
-        """The public output methods and properties of each stage of the tree."""
+        """The public outputs of each stage of the tree (see :meth:`Stage.quantities_available`)."""
         return {_dotted(path): _quantities(cls) for path, cls in self.stages.items()}
 
 
@@ -668,7 +669,11 @@ def _takes_self(default: Any) -> bool:
 
 
 def _quantities(cls: type) -> tuple[str, ...]:
-    """The public output methods and properties of a stage class (cached per class)."""
+    """The public outputs of a stage class (cached per class).
+
+    Its :func:`~hmf.core.units.unit_boundary` methods and its public properties and
+    cached properties, without fields or the names of the base stage classes.
+    """
     if cls in _QUANTITIES:
         return _QUANTITIES[cls]
     from .stage import CosmologyStage, Stage
@@ -683,10 +688,12 @@ def _quantities(cls: type) -> tuple[str, ...]:
             if name.startswith("_") or name in base or name in fields or name.endswith("_kernel"):
                 continue
             # A cached_property of a slotted attrs class is a slot that is not a field.
-            if isinstance(
-                value,
-                (property, cached_property, types.FunctionType, types.MemberDescriptorType),
-            ):
+            is_property = isinstance(value, (property, cached_property, types.MemberDescriptorType))
+            # Of the methods, the outputs are those at the units boundary.
+            is_output = isinstance(value, types.FunctionType) and hasattr(
+                value, "__unit_boundary__"
+            )
+            if is_property or is_output:
                 out.add(name)
     _QUANTITIES[cls] = tuple(sorted(out))
     return _QUANTITIES[cls]
@@ -734,7 +741,7 @@ def _default(attribute: attrs.Attribute[Any], where: str) -> Any:
     return default
 
 
-def _evolve_model(model: Any, changes: Mapping[Path, Any], where: str) -> Any:
+def _evolve_model(model: Any, changes: Mapping[FieldPath, Any], where: str) -> Any:
     """``model`` with the fields at the given paths below it changed."""
     if not attrs.has(type(model)):
         name = where + "." + _dotted(next(iter(changes)))
@@ -743,7 +750,7 @@ def _evolve_model(model: Any, changes: Mapping[Path, Any], where: str) -> Any:
         )
     fields = {a.alias or a.name: a for a in attrs.fields(type(model)) if a.init}
     own: dict[str, Any] = {}
-    deeper: dict[str, dict[Path, Any]] = {}
+    deeper: dict[str, dict[FieldPath, Any]] = {}
     for path, value in changes.items():
         if path[0] not in fields:
             raise TypeError(
@@ -762,8 +769,8 @@ def _evolve_model(model: Any, changes: Mapping[Path, Any], where: str) -> Any:
 
 
 def _apply_models(
-    table: Router, resolved: _Resolved, base: Callable[[Path], Any]
-) -> dict[Path, Any]:
+    table: Router, resolved: _Resolved, base: Callable[[FieldPath], Any]
+) -> dict[FieldPath, Any]:
     """The resolved values, with the model changes applied to their models."""
     values = dict(resolved.values)
     for path, changes in resolved.models.items():
@@ -812,7 +819,7 @@ def from_flat(cls: type[Stage], mapping: Mapping[str, Any]) -> Stage:
     table = router(cls)
     resolved = _with_computed_defaults(table, table.resolve(mapping))
 
-    def base(path: Path) -> Any:
+    def base(path: FieldPath) -> Any:
         return _default(table.leaves[path].attribute, repr(table.preferred[path]))
 
     values = resolved.values
@@ -892,12 +899,17 @@ class _Rebuild:
     """
 
     def __init__(
-        self, cls: type, old: Any, changes: Mapping[Path, Any], soft: frozenset[Path], where: Path
+        self,
+        cls: type,
+        old: Any,
+        changes: Mapping[FieldPath, Any],
+        soft: frozenset[FieldPath],
+        where: FieldPath,
     ) -> None:
         self.cls, self.old, self.soft, self.where = cls, old, soft, where
         self.node = node = _node(cls)
         self.own: dict[str, Any] = {}
-        self.sub: dict[str, dict[Path, Any]] = {}
+        self.sub: dict[str, dict[FieldPath, Any]] = {}
         for path, value in changes.items():
             if len(path) == 1:
                 self.own[path[0]] = value

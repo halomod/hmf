@@ -267,10 +267,13 @@ class Stage(Documented):
 
     @classmethod
     def quantities_available(cls) -> dict[str, tuple[str, ...]]:
-        """The public output methods and properties of each stage of the tree.
+        """The public outputs of each stage of the tree.
 
-        From the classes alone. Fields, private names, constants, class methods and
-        the plain-array ``..._kernel`` entry points for library code are left out.
+        From the classes alone: each stage's :func:`~hmf.core.units.unit_boundary`
+        methods (e.g. ``dndm``) and its public properties and cached properties.
+        Other methods (e.g. ``MassFunction.at``, which gives a view, and the
+        plain-array ``..._kernel`` entry points for library code), fields, private
+        names and constants are left out.
 
         Returns
         -------

@@ -510,10 +510,10 @@ def test_from_flat_with_a_stage_given_whole(mf):
     assert lp_built.linear_power.sigma_8 == Planck15.meta["sigma8"]
 
 
-def test_build_none_is_the_default():
-    assert MassFunction.build(transfer_model="EH", n_s=None, sigma_8=None, k_accuracy=None) == (
-        MassFunction.build(transfer_model="EH")
-    )
+def test_build_none_is_not_the_default():
+    """A parameter left out takes its default; None is a value like any other."""
+    with pytest.raises(TypeError):
+        MassFunction.build(transfer_model="EH", n_s=None)
 
 
 def test_given_parameters():
@@ -579,7 +579,11 @@ def test_quantities_available():
         "linear_power.growth",
         "variance",
     }
-    assert {"dndm", "ngtm", "sigma", "fsigma", "at", "m_from_sigma", "m_top"} <= set(q[""])
+    assert {"dndm", "ngtm", "sigma", "fsigma", "m_from_sigma", "m_top"} <= set(q[""])
+    # Methods outside the units boundary are not outputs: at() gives a view, and
+    # Transfer.power_source() builds a power source.
+    assert "at" not in q[""]
+    assert "power_source" not in q["linear_power.transfer"]
     assert {"power", "amplitude", "power_source", "unnormalised_sigma_8"} <= set(q["linear_power"])
     assert "growth_factor" in q["linear_power.growth"]
     for names in q.values():

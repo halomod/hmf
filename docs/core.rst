@@ -396,7 +396,7 @@ a stage or running a Boltzmann code::
     MassFunction.parameter_names()        # ('cosmology', 'transfer_model', 'n_s', ...)
     MassFunction.parameter_info()["sigma_8"].path    # 'linear_power.sigma_8'
     MassFunction.parameter_defaults()["sigma_8"]     # 0.8102, from Planck18
-    MassFunction.quantities_available()[""]          # ('at', 'dlnsigma_dlnm', 'dndm', ...)
+    MassFunction.quantities_available()[""]          # ('dlnsigma_dlnm', 'dndlnm', ...)
     MassFunction.invalidated_by("sigma_8")           # ('', 'linear_power')
     mf.to_flat()                          # every parameter's value, for from_flat
 
