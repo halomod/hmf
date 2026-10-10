@@ -199,7 +199,7 @@ def test_evolve_is_atomic(lp):
     before = lp.power(k=0.1 * h_Mpc, z=0.0)
     with pytest.raises(ValueError):
         lp.evolve(sigma_8=-1.0)
-    with pytest.raises(TypeError, match="no field"):
+    with pytest.raises(TypeError, match=r"no parameter 'sigma8'\. Did you mean 'sigma_8'"):
         lp.evolve(sigma8=0.7)
     assert lp.sigma_8 == 0.8
     assert lp.power(k=0.1 * h_Mpc, z=0.0) == before

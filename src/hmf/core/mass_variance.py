@@ -261,6 +261,7 @@ class MassVariance(Stage):
     k_accuracy: KAccuracy = field(
         factory=KAccuracy,
         validator=attrs.validators.instance_of(KAccuracy),
+        shared=True,
         doc="The settings of the k grid. Its upper end is set from mass_accuracy.log10_m_min.",
     )
     truncation_rtol: float = field(

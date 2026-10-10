@@ -83,6 +83,7 @@ class Growth(CosmologyStage):
     k_accuracy: KAccuracy = field(
         factory=KAccuracy,
         validator=attrs.validators.instance_of(KAccuracy),
+        shared=True,
         doc=(
             "The wavenumber accuracy; it sets the precision of a Boltzmann run the growth "
             "model makes itself (CambGrowth, ClassGrowth). Give the transfer stage's "

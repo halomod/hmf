@@ -67,14 +67,17 @@ CI (issue #394):
 | `test_v4_boltzmann_runs_per_input[...]` | the v4 `Transfer` and `Growth` (CAMB) stages run CAMB once per input, for both species, the transfer function, the power, the growth factor and rate, and an `n_s` change, for each of the five cosmologies (w ≠ −1 included); a new input runs it once more |
 | `test_v4_sigma_recomputations[...]` | a v4 `MassVariance` computes each node of its mass lattice at most once, through repeated, contained, wider and inverse (`m_from_sigma`) calls, for TopHat, SharpK and SmoothK |
 | `test_v4_lattice_determinism[...]` | lattice values are bit-identical under lazy extension in either order, and alone or in a batch (#384) |
-| `test_v4_sigma_8_change_recomputes_no_lattice_node` | a v4 `MassFunction` whose σ8 changes (`evolve(linear_power=...evolve(sigma_8=...))`) shares its `MassVariance` and computes no lattice node, for dn/dm, n(>m), ρ(>m) and `at()`: the v4 counterpart of `test_no_sigma_recompute_without_power_change` |
-| `test_v4_z_or_fit_change_recomputes_nothing_expensive` | changing z, the fit, δc or the domain policy of a CAMB `MassFunction` runs no Boltzmann code and computes no lattice node twice (none at all, except the one extra node Behroozi's n(>m) needs) |
+| `test_v4_sigma_8_change_recomputes_no_lattice_node` | a v4 `MassFunction` whose σ8 changes (by the flat `evolve(sigma_8=...)`, and by `evolve(linear_power=...evolve(sigma_8=...))`) shares its `MassVariance` and computes no lattice node, for dn/dm, n(>m), ρ(>m) and `at()`: the v4 counterpart of `test_no_sigma_recompute_without_power_change` |
+| `test_v4_z_or_fit_change_recomputes_nothing_expensive` | changing z, the fit (by name, or a fit parameter by `"fit.a"`), δc, σ8 or the domain policy of a CAMB `MassFunction` runs no Boltzmann code and computes no lattice node twice (none at all, except the one extra node Behroozi's n(>m) needs) |
 | `test_v4_build_runs_one_boltzmann_code[...]` | `MassFunction.build()` (CAMB, with the ODE or the CAMB growth) runs CAMB once for every quantity, both species included |
+| `test_v4_routed_evolve_gate` | a flat `evolve(sigma_8=...)` on a warm v4 `MassFunction` (routing through the stage tree, #383) costs ≤ 0.25 ms, half the 0.5 ms per-step scan budget (about 30 µs locally) |
 
 The units-boundary gate times an identity method, decorated and not, alternately,
 101 times 1,000 calls each, and compares the medians, so that a slow patch of the
 runner affects both and outliers are discarded. If the difference is over budget it
-measures once more before failing; the result goes to the job summary.
+measures once more before failing; the result goes to the job summary. The
+routed-evolve gate is timed the same way (the median of 25 timings of 100 calls), and
+also writes its result to the job summary.
 
 For w ≠ −1 the CAMB counter is 3, not 1: v3's default growth model, `CambGrowth`,
 runs CAMB itself (twice) instead of reusing the transfer's run. That is a ratchet: a

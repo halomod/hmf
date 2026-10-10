@@ -83,8 +83,10 @@ def test_evolve_is_atomic():
 
 
 def test_evolve_unknown_field():
-    with pytest.raises(TypeError, match=r"no field\(s\) \['ofset'\].*Did you mean 'offset'"):
+    with pytest.raises(TypeError, match=r"no parameter 'ofset'.*Did you mean 'offset'"):
         Squares().evolve(ofset=1.0)
+    with pytest.raises(TypeError, match=r"no field\(s\) \['ofset'\].*Did you mean 'offset'"):
+        Squares().evolve_own(ofset=1.0)
 
 
 def test_evolve_shares_unchanged_substages():
