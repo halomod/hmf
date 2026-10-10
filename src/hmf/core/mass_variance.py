@@ -619,6 +619,8 @@ class MassVariance(Stage):
         m = check_extent(
             "m", m, self.valid_domain, where=self._where("ln_sigma_and_slope_kernel", "m")
         )
+        if m.size == 0:
+            return np.zeros(m.shape), np.zeros(m.shape)
         memo = self._lookups
         key = (m.shape, m.tobytes())
         found = memo.get(key)

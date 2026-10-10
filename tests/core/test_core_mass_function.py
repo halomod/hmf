@@ -704,3 +704,10 @@ def test_tinker_interpolants_are_cached_and_unchanged():
     )
     np.testing.assert_array_equal(fit._delta_interpolants[0](delta), expected)
     assert pickle.loads(pickle.dumps(fit)) == fit
+
+
+@pytest.mark.parametrize("name", list(_UNITS))
+def test_empty_masses_give_empty_results(mf, name):
+    out = getattr(mf, name)(np.zeros(0) * Msun_h, 0.5)
+    assert np.shape(out) == (0,)
+    assert np.shape(getattr(mf, name)(np.zeros((0, 3)) * Msun_h, np.zeros(3))) == (0, 3)
