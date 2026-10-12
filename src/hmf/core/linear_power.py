@@ -45,8 +45,10 @@ and then needs the mass variance of P(k, z) itself rather than a rescaling of
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from functools import cached_property
-from typing import Any, Self
+from types import MappingProxyType
+from typing import Any, ClassVar, Self
 
 import attrs
 import numpy as np
@@ -65,6 +67,7 @@ from .domain import check_extent
 from .filters import TopHat
 from .growth import Growth
 from .mass_variance import MassVariance
+from .routing import Derivation
 from .species import check_species
 from .stage import CosmologyStage
 from .transfer import Transfer, UnnormalisedPower
@@ -119,6 +122,7 @@ class LinearPower(CosmologyStage):
         default=attrs.Factory(_transfer_cosmology, takes_self=True),
         validator=attrs.validators.instance_of(FLRW),
         eq=cosmology_key,
+        shared=True,
         doc=(
             "The cosmology, an astropy FLRW, compared by its class and parameter values. "
             "It defaults to the transfer stage's, and must equal it and the growth stage's."
@@ -148,9 +152,24 @@ class LinearPower(CosmologyStage):
     k_accuracy: KAccuracy = field(
         default=attrs.Factory(_transfer_k_accuracy, takes_self=True),
         validator=attrs.validators.instance_of(KAccuracy),
+        shared=True,
         doc=(
             "The wavenumber accuracy of the whole k-space calculation: it defaults to the "
             "transfer stage's, and the transfer and growth stages must have the same."
+        ),
+    )
+
+    #: The transfer and growth models, whose field names (``model``) are repeated.
+    parameter_aliases: ClassVar[Mapping[str, str]] = MappingProxyType(
+        {"transfer_model": "transfer.model", "growth_model": "growth.model"}
+    )
+    #: The growth stage goes with the transfer stage (see Growth.from_transfer).
+    derivations: ClassVar[tuple[Derivation, ...]] = (
+        Derivation(
+            field="growth.transfer",
+            sources=("transfer",),
+            derive=lambda get: get("transfer"),
+            doc="The growth stage's transfer stage is the linear power's.",
         ),
     )
 
@@ -165,8 +184,8 @@ class LinearPower(CosmologyStage):
                 )
         check_consistent(self, self.transfer, self.growth)
 
-    def evolve(self, **changes: Any) -> Self:
-        """Return a copy of this stage with some fields changed (see :meth:`Stage.evolve`).
+    def evolve_own(self, **changes: Any) -> Self:
+        """Return a copy with some of its own fields changed (see :meth:`Stage.evolve_own`).
 
         The unnormalised sigma_8 depends only on the transfer stage, ``sigma_8_species``
         and ``k_accuracy``. If none of them changes (e.g. only ``sigma_8`` does), the
@@ -187,7 +206,7 @@ class LinearPower(CosmologyStage):
         TypeError
             If a name is not a field (with suggestions).
         """
-        new = super().evolve(**changes)
+        new = super().evolve_own(**changes)
         if (
             new.transfer is self.transfer
             and new.sigma_8_species == self.sigma_8_species

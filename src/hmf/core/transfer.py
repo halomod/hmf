@@ -86,6 +86,7 @@ class Transfer(CosmologyStage):
     k_accuracy: KAccuracy = field(
         factory=KAccuracy,
         validator=attrs.validators.instance_of(KAccuracy),
+        shared=True,
         doc="The wavenumber accuracy; it sets the sampling of the Boltzmann codes.",
     )
     disk_cache: DiskCache | None = _disk_cache_field(
