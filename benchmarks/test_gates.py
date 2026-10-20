@@ -17,7 +17,9 @@ The v4 gates are at the end of this file: Boltzmann runs per input of the v4
 Transfer and Growth stages, no recomputation of a MassVariance lattice node, the
 lattice's determinism under lazy extension (#384), and what a change of a v4
 MassFunction recomputes: no lattice node for sigma_8, z, the fit, delta_c or the
-policy, no Boltzmann run for any of them, and one run for a whole tree.
+policy, no Boltzmann run for any of them, and one run for a whole tree. The last gate
+is the cost of routing a flat ``evolve(sigma_8=...)`` through the stage tree (#383),
+timed like the units boundary.
 """
 
 import os
@@ -339,9 +341,13 @@ def test_v4_sigma_8_change_recomputes_no_lattice_node(computed_nodes):
     before = computed_nodes().size
     assert before > 0
     for sigma_8 in (0.7, 0.75, 0.85, 0.9):
-        changed = mf.evolve(linear_power=mf.linear_power.evolve(sigma_8=sigma_8))
-        assert changed.variance is mf.variance
-        _evaluate(changed)
+        # By its flat name (routed, #383), and with the linear power evolved by hand.
+        for changed in (
+            mf.evolve(sigma_8=sigma_8),
+            mf.evolve(linear_power=mf.linear_power.evolve(sigma_8=sigma_8)),
+        ):
+            assert changed.variance is mf.variance
+            _evaluate(changed)
     assert computed_nodes().size == before
 
 
@@ -361,7 +367,14 @@ def test_v4_z_or_fit_change_recomputes_nothing_expensive(boltzmann_runs, compute
     for z in (0.25, 2.0, 4.0):
         mf.dndm(m=m, z=z)
         mf.ngtm(m=m, z=z)
-    for changes in ({"fit": "ST"}, {"fit": "Watson"}, {"delta_c": 1.7}, {"domain_policy": "mask"}):
+    for changes in (
+        {"fit": "ST"},
+        {"fit": "Watson"},
+        {"delta_c": 1.7},
+        {"domain_policy": "mask"},
+        {"sigma_8": 0.75},
+        {"fit.a": 0.75, "fit": "ST"},
+    ):
         _evaluate(mf.evolve(**changes))
     assert computed_nodes().size == before
     _evaluate(mf.evolve(fit="Behroozi"))
@@ -383,3 +396,52 @@ def test_v4_build_runs_one_boltzmann_code(boltzmann_runs, growth_model):
     _evaluate(mf)
     mf.linear_power.power(k=np.logspace(-3, 1, 5) * h_Mpc, z=np.array([0.0, 2.0])[:, None])
     assert boltzmann_runs() == 1
+
+
+# ---------------------------------------------------------------------------------
+# v4 parameter routing (#383)
+# ---------------------------------------------------------------------------------
+
+#: The budget of a flat ``evolve(sigma_8=...)`` on a warm MassFunction: half the 0.5 ms
+#: per-step budget of a scan, so that routing is never the cost of a step.
+ROUTED_EVOLVE_BUDGET = 250e-6
+
+
+def _routed_evolve_time(mf) -> float:
+    """The median time of one flat ``evolve(sigma_8=...)`` [s] (see _unit_boundary_overhead)."""
+    times = [
+        timeit.timeit(lambda: mf.evolve(sigma_8=0.85), number=_CALLS // 10)
+        for _ in range(_REPEATS // 4)
+    ]
+    return statistics.median(times) / (_CALLS // 10)
+
+
+def test_v4_routed_evolve_gate():
+    """A flat ``evolve(sigma_8=...)`` costs at most 0.25 ms (one retry before failing).
+
+    It resolves the name through the routing table, and rebuilds the linear power and
+    the mass function (validating both); the variance and the transfer and growth
+    stages are shared. Measured on a warm tree, with nothing computed by the new one.
+    """
+    mf = MassFunction.build(transfer_model="EH")
+    mf.linear_power.amplitude
+    for _ in range(100):  # warm up
+        mf.evolve(sigma_8=0.85)
+
+    times = [_routed_evolve_time(mf)]
+    if times[0] > ROUTED_EVOLVE_BUDGET:
+        times.append(_routed_evolve_time(mf))
+
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        with open(summary, "a") as f:  # noqa: PTH123
+            f.write(
+                "\n**Routed-evolve gate:** "
+                + ", then ".join(f"{t * 1e6:.1f} µs" for t in times)
+                + f" per flat evolve(sigma_8=...) (budget {ROUTED_EVOLVE_BUDGET * 1e6:.0f} µs).\n"
+            )
+    assert times[-1] <= ROUTED_EVOLVE_BUDGET, (
+        f"a flat evolve(sigma_8=...) costs {times[-1] * 1e6:.1f} µs (measured "
+        f"{[f'{t * 1e6:.1f}' for t in times]} µs), over its "
+        f"{ROUTED_EVOLVE_BUDGET * 1e6:.0f} µs budget"
+    )
