@@ -56,3 +56,16 @@ def test_dndm_from_sample_empty():
     _, hist = dndm_from_sample(m, 1.0, bins=3)
 
     assert np.all(hist == 0)
+
+
+def test_dndm_from_sample_uneven_bins():
+    # Masses spread uniformly in log10(m) over [10, 13] have the analytic
+    # dn/dm = N / (V * 3 * m * ln(10)), whatever the bin widths.
+    n, volume = 12000, 2.0
+    m = 10 ** (10 + 3 * (np.arange(n) + 0.5) / n)
+    bins = np.array([10.0, 10.5, 12.0, 12.25, 13.0])
+
+    centres, hist = dndm_from_sample(m, volume, bins=bins)
+
+    expected = n / (volume * 3 * 10**centres * np.log(10))
+    assert np.allclose(hist, expected, rtol=1e-10)
