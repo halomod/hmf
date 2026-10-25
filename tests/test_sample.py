@@ -68,4 +68,4 @@ def test_dndm_from_sample_uneven_bins():
     centres, hist = dndm_from_sample(m, volume, bins=bins)
 
     expected = n / (volume * 3 * 10**centres * np.log(10))
-    assert np.allclose(hist, expected, rtol=1e-10)
+    assert np.allclose(hist, expected, rtol=1e-10, atol=0)
