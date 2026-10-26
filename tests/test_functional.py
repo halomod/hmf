@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from hmf import MassFunction, get_hmf
+from hmf import MassFunction, get_best_param_order, get_hmf
 
 
 def test_order():
@@ -35,6 +35,20 @@ def test_order():
         assert isinstance(mf, MassFunction)
         assert np.allclose(quants[0], mf.dndm)
         assert np.allclose(quants[1], mf.ngtm)
+
+
+def test_best_param_order_sorted_by_recalculations():
+    kwargs = {"transfer_model": "BBKS", "dlnk": 1, "dlog10m": 1}
+    order = get_best_param_order(MassFunction, "dndm", **kwargs)
+
+    mf = MassFunction(**kwargs)
+    mf.dndm
+    recalc = mf._MassFunction__recalc_par_prop
+    counts = [len(recalc[k]) for k in order]
+
+    assert sorted(order) == sorted(recalc)
+    assert counts == sorted(counts, reverse=True)
+    assert order.index("cosmo_params") < order.index("z")
 
 
 def test_collected_iterations_are_independent():
