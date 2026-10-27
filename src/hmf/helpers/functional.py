@@ -55,8 +55,8 @@ def get_best_param_order(kls, q="dndm", **kwargs):
     >>> print(get_best_param_order(
     ...     MassFunction, "dndm", transfer_model="BBKS", dlnk=1, dlog10m=1
     ... )[::3])
-    ['disable_mass_conversion', 'hmf_params', 'mdef_model', 'Mmin', 'takahashi',
-     'z', 'lnk_min', 'sigma_8', 'cosmo_model']
+    ['cosmo_model', 'transfer_params', 'dlnk', 'Mmax', 'filter_params',
+     'growth_params', 'delta_c', 'mdef_params', 'disable_mass_conversion']
     """
     a = kls(**kwargs)
 
@@ -66,22 +66,8 @@ def get_best_param_order(kls, q="dndm", **kwargs):
         for qq in q:
             getattr(a, qq)
 
-    final_list = []
-    final_num = []
-    for i, (k, v) in enumerate(
-        getattr(a, "_" + a.__class__.__name__ + "__recalc_par_prop").items()
-    ):
-        num = len(v)
-        for ln in final_num:
-            if ln >= num:
-                break
-        else:
-            final_list += [k]
-            final_num += [num]
-            continue
-        final_list.insert(i, k)
-        final_num.insert(i, num)
-    return final_list[::-1]
+    recalc = getattr(a, "_" + a.__class__.__name__ + "__recalc_par_prop")
+    return sorted(recalc, key=lambda k: len(recalc[k]), reverse=True)
 
 
 def get_hmf(
@@ -242,7 +228,7 @@ def get_hmf(
         # silence the k-range coverage warning for this ordering pass only.
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", message="The k-range", category=UserWarning)
-            order = get_best_param_order(framework, req_qauntities, **fast_kwargs)[::-1]
+            order = get_best_param_order(framework, req_qauntities, **fast_kwargs)
 
         ordered_kwargs = collections.OrderedDict([])
         for item in order:
