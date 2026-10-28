@@ -78,6 +78,48 @@ def test_config_vs_cli(tmpdir: Path):
     assert np.allclose(dndm_cfg, dndm_cli)
 
 
+def test_cli_value_containing_equals(tmpdir: Path):
+    """A ``--key=value`` option keeps the whole value, even when it contains "="."""
+    cfgdir = tmpdir / "cfg"
+    cfgdir.mkdir()
+
+    clidir = tmpdir / "cli"
+    clidir.mkdir()
+
+    runner = CliRunner()
+
+    cfg = """
+    [params]
+    hmf_model = 'ST'
+    hmf_params = {A = 0.3}
+    transfer_model = 'EH'
+    """
+
+    with (tmpdir / "cfg.toml").open("w") as fl:
+        fl.write(cfg)
+
+    result_cfg = runner.invoke(main, ["run", "-i", str(tmpdir / "cfg.toml"), "-o", str(cfgdir)])
+    result_cli = runner.invoke(
+        main,
+        [
+            "run",
+            "-o",
+            str(clidir),
+            "--",
+            '--hmf_model="ST"',
+            "--hmf_params=dict(A=0.3)",
+            '--transfer_model="EH"',
+        ],
+    )
+
+    assert result_cfg.exit_code == 0, result_cfg.output
+    assert result_cli.exit_code == 0, result_cli.output
+
+    np.testing.assert_allclose(
+        np.genfromtxt(clidir / "hmf_dndm.txt"), np.genfromtxt(cfgdir / "hmf_dndm.txt"), rtol=1e-10
+    )
+
+
 def test_list_of_parameters(tmpdir):
     runner = CliRunner()
 

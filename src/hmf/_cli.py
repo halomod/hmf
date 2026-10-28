@@ -68,9 +68,8 @@ def _ctx_to_dct(args):
     while j < len(args):
         arg = args[j]
         if "=" in arg:
-            a = arg.split("=")
-            k = a[0].replace("--", "")
-            v = a[-1]
+            k, v = arg.split("=", 1)
+            k = k.replace("--", "")
             j += 1
         else:
             k = arg.replace("--", "")
