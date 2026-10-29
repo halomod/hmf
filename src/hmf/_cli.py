@@ -79,9 +79,9 @@ def _ctx_to_dct(args):
         try:
             # For most arguments, this will convert it to the right type.
             v = eval(v)
-        except NameError:
-            # If it's supposed to be a string, but quotes weren't supplied.
-            v = eval('"' + v + '"')
+        except (NameError, SyntaxError):
+            # If it's a bare string or contains '=', preserve it as a string.
+            pass
 
         dct[k] = v
 
