@@ -197,6 +197,7 @@ def test_roundtrip_cfg_default_mdef(tmpdir, hmf_model):
         np.genfromtxt(second / "hmf_dndm.txt"), np.genfromtxt(first / "hmf_dndm.txt"), rtol=1e-10
     )
 
+
 def test_ctx_to_dct_bare_string_with_equals():
     """Bare string option values containing '=' are preserved as strings without SyntaxError."""
     from hmf._cli import _ctx_to_dct
