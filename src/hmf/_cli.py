@@ -1,5 +1,6 @@
 """Module that contains the command line app."""
 
+import contextlib
 import importlib
 import tomllib
 from pathlib import Path
@@ -68,21 +69,17 @@ def _ctx_to_dct(args):
     while j < len(args):
         arg = args[j]
         if "=" in arg:
-            a = arg.split("=")
-            k = a[0].replace("--", "")
-            v = a[-1]
+            k, v = arg.split("=", 1)
+            k = k.replace("--", "")
             j += 1
         else:
             k = arg.replace("--", "")
             v = args[j + 1]
             j += 2
 
-        try:
+        with contextlib.suppress(NameError, SyntaxError):
             # For most arguments, this will convert it to the right type.
             v = eval(v)
-        except NameError:
-            # If it's supposed to be a string, but quotes weren't supplied.
-            v = eval('"' + v + '"')
 
         dct[k] = v
 
