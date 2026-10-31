@@ -1,5 +1,6 @@
 """Module that contains the command line app."""
 
+import ast
 import contextlib
 import importlib
 import tomllib
@@ -63,6 +64,22 @@ def _get_config(config=None):
     return cfg
 
 
+def _parse_cli_val(v: str):
+    with contextlib.suppress(ValueError, SyntaxError):
+        return ast.literal_eval(v)
+    with contextlib.suppress(Exception):
+        tree = ast.parse(v, mode="eval")
+        if (
+            isinstance(tree.body, ast.Call)
+            and isinstance(tree.body.func, ast.Name)
+            and tree.body.func.id == "dict"
+            and not tree.body.args
+            and all(kw.arg is not None for kw in tree.body.keywords)
+        ):
+            return {kw.arg: ast.literal_eval(kw.value) for kw in tree.body.keywords}
+    return v
+
+
 def _ctx_to_dct(args):
     dct = {}
     j = 0
@@ -77,11 +94,7 @@ def _ctx_to_dct(args):
             v = args[j + 1]
             j += 2
 
-        with contextlib.suppress(NameError, SyntaxError):
-            # For most arguments, this will convert it to the right type.
-            v = eval(v)
-
-        dct[k] = v
+        dct[k] = _parse_cli_val(v)
 
     return dct
 
@@ -206,14 +219,14 @@ def run_cli(config, pkg_name, args, outdir, label, pkgs, default_framework):
 
         # Write out quantities
         for qname, q in zip(quantities, quants, strict=True):
-            np.savetxt(outdir / f"{lab}_{qname}.txt", q)
+            np.savetxt(outdir / f\"{lab}_{qname}.txt\", q)
 
         console.print(f"   Writing quantities to [cyan]{outdir}/{lab}_<quantity>.txt[/cyan].")
 
         # Write out parameters
         dct = framework_to_dict(obj, plugins=cfg.get("plugins", ()))
         dct["quantities"] = quantities
-        with (outdir / f"{lab}_cfg.toml").open("wb") as fl:
+        with (outdir / f\"{lab}_cfg.toml\").open(\"wb\") as fl:
             tomli_w.dump(to_toml_compatible(dct), fl)
 
         console.print(f"   Writing full config to [cyan]{outdir}/{lab}_cfg.toml[/cyan].")

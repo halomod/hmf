@@ -204,3 +204,22 @@ def test_ctx_to_dct_bare_string_with_equals():
 
     res = _ctx_to_dct(["--z=1.0", "--hmf_model=ST", "--custom_tag=foo=bar"])
     assert res == {"z": 1.0, "hmf_model": "ST", "custom_tag": "foo=bar"}
+
+
+def test_ctx_to_dct_safe_eval():
+    """Verify that _ctx_to_dct safely parses literals without code execution."""
+    from hmf._cli import _ctx_to_dct
+
+    # Numbers and booleans
+    assert _ctx_to_dct(["--z=1.0", "--flag=True"]) == {"z": 1.0, "flag": True}
+    # Builtin names must not evaluate to functions
+    assert _ctx_to_dct(["--hmf_model=sum"]) == {"hmf_model": "sum"}
+    # Import-path models containing colons and dots must not raise SyntaxError
+    assert _ctx_to_dct(["--hmf_model=hmf.mass_function.fitting_functions:PS"]) == {
+        "hmf_model": "hmf.mass_function.fitting_functions:PS"
+    }
+    # Arbitrary code strings must remain unexecuted strings
+    assert _ctx_to_dct(["--z=__import__('os').getcwd()"]) == {"z": "__import__('os').getcwd()"}
+    # Dicts from dict() call or JSON-like dict syntax
+    assert _ctx_to_dct(["--hmf_params=dict(A=0.3)"]) == {"hmf_params": {"A": 0.3}}
+    assert _ctx_to_dct(['--hmf_params={"A": 0.3}']) == {"hmf_params": {"A": 0.3}}
