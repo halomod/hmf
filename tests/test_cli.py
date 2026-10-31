@@ -219,9 +219,7 @@ def test_ctx_to_dct_safe_eval():
         "hmf_model": "hmf.mass_function.fitting_functions:PS"
     }
     # Arbitrary code strings must remain unexecuted strings
-    assert _ctx_to_dct(["--z=__import__('os').getcwd()"]) == {
-        "z": "__import__('os').getcwd()"
-    }
+    assert _ctx_to_dct(["--z=__import__('os').getcwd()"]) == {"z": "__import__('os').getcwd()"}
     # Dicts from dict() call or JSON-like dict syntax
     assert _ctx_to_dct(["--hmf_params=dict(A=0.3)"]) == {"hmf_params": {"A": 0.3}}
     assert _ctx_to_dct(['--hmf_params={"A": 0.3}']) == {"hmf_params": {"A": 0.3}}
