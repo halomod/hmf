@@ -64,7 +64,7 @@ jobs:
         run: |
           uv run python benchmarks/compare.py benchmarks/baseline.json benchmark-results.json \
             | tee -a "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() && hashFiles('benchmark-results.json') != '' }}
         with:
           name: benchmark-results
