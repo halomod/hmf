@@ -219,14 +219,14 @@ def run_cli(config, pkg_name, args, outdir, label, pkgs, default_framework):
 
         # Write out quantities
         for qname, q in zip(quantities, quants, strict=True):
-            np.savetxt(outdir / f\"{lab}_{qname}.txt\", q)
+            np.savetxt(outdir / f"{lab}_{qname}.txt", q)
 
         console.print(f"   Writing quantities to [cyan]{outdir}/{lab}_<quantity>.txt[/cyan].")
 
         # Write out parameters
         dct = framework_to_dict(obj, plugins=cfg.get("plugins", ()))
         dct["quantities"] = quantities
-        with (outdir / f\"{lab}_cfg.toml\").open(\"wb\") as fl:
+        with (outdir / f"{lab}_cfg.toml").open("wb") as fl:
             tomli_w.dump(to_toml_compatible(dct), fl)
 
         console.print(f"   Writing full config to [cyan]{outdir}/{lab}_cfg.toml[/cyan].")
