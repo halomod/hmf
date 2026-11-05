@@ -21,6 +21,7 @@ BHATTACHARYA11 = (
     "Bhattacharya, S., et al., 2011. ApJ 732, 122. https://doi.org/10.1088/0004-637X/732/2/122"
 )
 BOCQUET16 = "Bocquet, S., et al., 2016. MNRAS 456, 2361. https://doi.org/10.1093/mnras/stv2657"
+BRYAN98 = "Bryan, G. L., Norman, M. L., 1998. ApJ 495, 80. https://doi.org/10.1086/305262"
 CAMB = "Lewis, A., Challinor, A., Lasenby, A., 2000. ApJ 538, 473. https://doi.org/10.1086/309179"
 CARROLL92 = (
     "Carroll, S. M., Press, W. H., Turner, E. L., 1992. ARA&A 30, 499. "
@@ -37,6 +38,14 @@ COURTIN11 = (
 CROCCE10 = (
     "Crocce, M., et al., 2010. MNRAS 403, 1353. https://doi.org/10.1111/j.1365-2966.2009.16194.x"
 )
+DAVIS85 = (
+    "Davis, M., Efstathiou, G., Frenk, C. S., White, S. D. M., 1985. ApJ 292, 371. "
+    "https://doi.org/10.1086/163168"
+)
+DUFFY08 = (
+    "Duffy, A. R., Schaye, J., Kay, S. T., Dalla Vecchia, C., 2008. MNRAS 390, L64. "
+    "https://doi.org/10.1111/j.1745-3933.2008.00537.x"
+)
 EBW92 = (
     "Efstathiou, G., Bond, J. R., White, S. D. M., 1992. MNRAS 258, 1P. "
     "https://doi.org/10.1093/mnras/258.1.1P"
@@ -44,6 +53,7 @@ EBW92 = (
 EH97 = "Eisenstein, D. J., 1997. arXiv:astro-ph/9709054"
 EH98 = "Eisenstein, D. J., Hu, W., 1998. ApJ 496, 605. https://doi.org/10.1086/305424"
 HEATH77 = "Heath, D. J., 1977. MNRAS 179, 351. https://doi.org/10.1093/mnras/179.3.351"
+HU03 = "Hu, W., Kravtsov, A. V., 2003. ApJ 584, 702. https://doi.org/10.1086/345846"
 ISHIYAMA15 = "Ishiyama, T., et al., 2015. PASJ 67, 61. https://doi.org/10.1093/pasj/psv021"
 JENKINS01 = (
     "Jenkins, A., et al., 2001. MNRAS 321, 372. https://doi.org/10.1046/j.1365-8711.2001.04029.x"
@@ -59,6 +69,10 @@ LEO18 = (
 MANERA10 = (
     "Manera, M., Sheth, R. K., Scoccimarro, R., 2010. MNRAS 402, 589. "
     "https://doi.org/10.1111/j.1365-2966.2009.15921.x"
+)
+NFW97 = (
+    "Navarro, J. F., Frenk, C. S., White, S. D. M., 1997. ApJ 490, 493. "
+    "https://doi.org/10.1086/304888"
 )
 PEACOCK07 = (
     "Peacock, J. A., 2007. MNRAS 379, 1067. https://doi.org/10.1111/j.1365-2966.2007.11978.x"
@@ -87,4 +101,7 @@ TINKER08 = "Tinker, J., et al., 2008. ApJ 688, 709. https://doi.org/10.1086/5914
 TINKER10 = "Tinker, J., et al., 2010. ApJ 724, 878. https://doi.org/10.1088/0004-637X/724/2/878"
 WARREN06 = "Warren, M. S., et al., 2006. ApJ 646, 881. https://doi.org/10.1086/504962"
 WATSON13 = "Watson, W. A., et al., 2013. MNRAS 433, 1230. https://doi.org/10.1093/mnras/stt791"
+WHITE01 = (
+    "White, M., Hernquist, L., Springel, V., 2001. ApJ 550, L129. https://doi.org/10.1086/319644"
+)
 YUNG24 = "Yung, L. Y. A., et al., 2024. MNRAS 530, 4868. https://doi.org/10.1093/mnras/stae1188"

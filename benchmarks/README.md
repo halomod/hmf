@@ -70,6 +70,7 @@ CI (issue #394):
 | `test_v4_sigma_8_change_recomputes_no_lattice_node` | a v4 `MassFunction` whose σ8 changes (by the flat `evolve(sigma_8=...)`, and by `evolve(linear_power=...evolve(sigma_8=...))`) shares its `MassVariance` and computes no lattice node, for dn/dm, n(>m), ρ(>m) and `at()`: the v4 counterpart of `test_no_sigma_recompute_without_power_change` |
 | `test_v4_z_or_fit_change_recomputes_nothing_expensive` | changing z, the fit (by name, or a fit parameter by `"fit.a"`), δc, σ8 or the domain policy of a CAMB `MassFunction` runs no Boltzmann code and computes no lattice node twice (none at all, except the one extra node Behroozi's n(>m) needs) |
 | `test_v4_build_runs_one_boltzmann_code[...]` | `MassFunction.build()` (CAMB, with the ODE or the CAMB growth) runs CAMB once for every quantity, both species included |
+| `test_v4_mass_conversion_gate` | a mass-converted dn/dm (SMT to SO-mean(200), `NFWConversion`, 501 masses, one z, #392) costs ≤ 20 ms, a fifth of v3's ~100 ms per z (about 1.6 ms locally), and recomputes no lattice node |
 | `test_v4_routed_evolve_gate` | a flat `evolve(sigma_8=...)` on a warm v4 `MassFunction` (routing through the stage tree, #383) costs ≤ 0.25 ms, half the 0.5 ms per-step scan budget (about 30 µs locally) |
 
 The units-boundary gate times an identity method, decorated and not, alternately,
@@ -139,6 +140,8 @@ that removes it should lower them.
 | 15 | `test_v4_z_loop_ngtm` | the same: `ngtm_kernel` at each of 20 redshifts |
 | 15 | `test_v4_z_vectorised_dndm` | the same: `dndm_kernel` at 20 redshifts in one call |
 | 15 | `test_v4_fit_scan_dndm` | the same: `evolve(fit=...)` + `dndm_kernel` for each of the 28 fits |
+| 16 | `test_v4_mass_conversion_z_loop_dndm` | the same: `dndm_kernel` of SMT converted to SO-mean(200) (`NFWConversion`), at each of 20 redshifts: workload 9 in v4 |
+| 16 | `test_v4_mass_conversion_first_dndm` | the same: a new converting stage (`evolve`) and its first `dndm_kernel` |
 
 Workload 15 (`test_core_scans.py`) is the v4 counterpart of workloads 3-7, on the
 `hmf.core` stages with every cache warm (the lattice, the Boltzmann run, the

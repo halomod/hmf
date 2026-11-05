@@ -19,7 +19,7 @@ lattice's determinism under lazy extension (#384), and what a change of a v4
 MassFunction recomputes: no lattice node for sigma_8, z, the fit, delta_c or the
 policy, no Boltzmann run for any of them, and one run for a whole tree. The last gate
 is the cost of routing a flat ``evolve(sigma_8=...)`` through the stage tree (#383),
-timed like the units boundary.
+timed like the units boundary, and the cost of a mass-converted dn/dm (#392).
 """
 
 import os
@@ -444,4 +444,49 @@ def test_v4_routed_evolve_gate():
         f"a flat evolve(sigma_8=...) costs {times[-1] * 1e6:.1f} µs (measured "
         f"{[f'{t * 1e6:.1f}' for t in times]} µs), over its "
         f"{ROUTED_EVOLVE_BUDGET * 1e6:.0f} µs budget"
+    )
+
+
+# ---------------------------------------------------------------------------------
+# v4 mass conversion (#392)
+# ---------------------------------------------------------------------------------
+
+#: The budget of a mass-converted dn/dm (SMT to SO-mean(200), NFWConversion) at one z,
+#: on v3's default 501 masses, with the variance warm: a fifth of v3's ~100 ms per z
+#: (``test_mass_conversion_z_loop``), and over 10x the ~1.6 ms it takes locally.
+MASS_CONVERSION_BUDGET = 20e-3
+
+
+def _converted_dndm_time(mf, m) -> float:
+    """The median time of one converted ``dndm_kernel`` [s], over 15 timings of 5 calls."""
+    times = [timeit.timeit(lambda: mf.dndm_kernel(m=m, z=0.5), number=5) / 5 for _ in range(15)]
+    return statistics.median(times)
+
+
+def test_v4_mass_conversion_gate(boltzmann_runs, computed_nodes):
+    """A converted dn/dm costs at most 20 ms (one retry), and recomputes no lattice node."""
+    m = np.logspace(10, 15, 501)
+    mf = MassFunction.build(**{"transfer.model": "EH"}, fit="SMT")
+    converted = mf.evolve(mass_definition="200m", mass_conversion="NFW")
+    converted.dndm_kernel(m=m, z=0.5)  # warm: the lattice nodes at the converted masses
+    n_nodes = computed_nodes().size
+
+    times = [_converted_dndm_time(converted, m)]
+    if times[0] > MASS_CONVERSION_BUDGET:
+        times.append(_converted_dndm_time(converted, m))
+    assert computed_nodes().size == n_nodes
+    assert boltzmann_runs() == 0
+
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        with open(summary, "a") as f:  # noqa: PTH123
+            f.write(
+                "\n**Mass-conversion gate:** "
+                + ", then ".join(f"{t * 1e3:.2f} ms" for t in times)
+                + f" per converted dn/dm (budget {MASS_CONVERSION_BUDGET * 1e3:.0f} ms).\n"
+            )
+    assert times[-1] <= MASS_CONVERSION_BUDGET, (
+        f"a converted dn/dm costs {times[-1] * 1e3:.2f} ms (measured "
+        f"{[f'{t * 1e3:.2f}' for t in times]} ms), over its "
+        f"{MASS_CONVERSION_BUDGET * 1e3:.0f} ms budget"
     )

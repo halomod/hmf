@@ -39,6 +39,17 @@ The steps of a calculation, each a function of its natural variables.
    linear_power
    mass_function
 
+Mass definitions
+----------------
+Halo mass definitions as hashable values, and the conversion of masses between them.
+
+.. autosummary::
+   :toctree: _autosummary
+   :template: core-module.rst
+
+   mass_definitions
+   mass_conversion
+
 Models
 ------
 The interchangeable physical models that the stages are built from.
@@ -50,6 +61,7 @@ The interchangeable physical models that the stages are built from.
    transfer_models
    growth_models
    filters
+   concentration
 
 Fitting functions (their parameters are listed in each class's "Parameters" section):
 
@@ -85,5 +97,6 @@ contributors; they are not part of the public API.
    _kernels.mass_function
    _kernels.interpolation
    _kernels.lattice
+   _kernels.mass_conversion
    _kernels.arrays
    _kernels.fits

@@ -45,9 +45,10 @@ import attrs
 import numpy as np
 from regression_harness import Case, Reference, register_provider
 
-from hmf.core.fits import FittingFunction, MeasuredMassDefinition, Watson
+from hmf.core.fits import FittingFunction, Watson
 from hmf.core.growth import Growth
 from hmf.core.linear_power import LinearPower
+from hmf.core.mass_definitions import MassDefinition, SOVirial
 from hmf.core.mass_function import MassFunction
 from hmf.core.mass_variance import n_eff_kernel
 from hmf.core.species import omega_m, omega_m0
@@ -111,7 +112,7 @@ V3_PARAMETERS = {"Manera": {"p": 0.289}}
 #: Mass definitions in which v3.7.2 evaluated a fit, where v4's differs: v4 evaluates
 #: Watson (an SO-any fit) by default in SO-mean(178), where its Gamma = 1, as the paper
 #: measured it; v3 preferred the virial definition.
-V3_MASS_DEFINITIONS = {"Watson": MeasuredMassDefinition(kind="so_virial")}
+V3_MASS_DEFINITIONS: dict[str, MassDefinition] = {"Watson": SOVirial()}
 
 
 #: Fits whose v4 modify_dndm_kernel v3.7.2 applied to dn/dm only, so that its f(sigma)
@@ -226,7 +227,7 @@ class WatsonVirial(Watson, abstract=True):
     It is not registered (``abstract=True``): the stage takes it as an instance.
     """
 
-    measured_mass_definition: ClassVar[MeasuredMassDefinition] = V3_MASS_DEFINITIONS["Watson"]
+    measured_mass_definition: ClassVar[MassDefinition] = V3_MASS_DEFINITIONS["Watson"]
 
 
 def v3_fit(name: str) -> FittingFunction:

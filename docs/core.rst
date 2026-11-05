@@ -209,7 +209,7 @@ Fitting functions (:mod:`hmf.core.fits`)
     cited; :func:`~hmf.core.fits.evaluate_fsigma` applies a domain policy to the
     latter. Each also records, as metadata, the mass definition it was measured in and
     the simulations it was calibrated on
-    (:class:`~hmf.core.fits.SimulationDetails`).
+    (:class:`~hmf.core.fits.SimulationDetails`). See `Mass definitions and conversion`_.
 
 Logarithms always name their base: ``log10_...`` or ``ln_...``, never ``log``.
 
@@ -353,13 +353,56 @@ What each part does:
   variance already computed (the expensive part of the calculation) and runs no
   Boltzmann code again.
 * The fit is evaluated in its own mass definition (e.g. SO-mean(200) for Tinker08,
-  FoF for Jenkins); masses are not converted between definitions.
+  FoF for Jenkins), unless ``mass_definition`` asks for another; see
+  `Mass definitions and conversion`_.
 * n(>m) and ρ(>m) are integrated from 10^17.5 M☉/h down, over a fixed grid of masses,
   so the value at a mass does not depend on which other masses are asked for with
   it.
 * Outside the fit's valid domain every method raises; outside the range it was
   calibrated on, ``domain_policy`` (``"ignore"``, ``"warn"``, ``"mask"`` or ``"raise"``)
   decides what happens at each mass and redshift asked for.
+
+Mass definitions and conversion
+-------------------------------
+A halo's mass depends on where its edge is put. :mod:`hmf.core.mass_definitions`
+gives the definitions as frozen ``attrs`` values, which compare (symmetrically) and
+hash by class and value: ``SOMean(overdensity=200)``, ``SOCritical(overdensity=500)``,
+``SOVirial()`` (Bryan & Norman 1998), ``FOF(linking_length=0.2)``, ``SelfBound()``,
+and ``SOGeneric(preferred=...)``, the definition of a fit that takes the overdensity
+as an input. Each has a short name (``"200m"``, ``"500c"``, ``"vir"``, ``"fof"``)
+that is accepted wherever a definition is. Overdensities are relative to the mean
+density of CDM + baryons, and radii are comoving.
+
+Every fit records the definition it was measured in
+(``FittingFunction.measured_mass_definition``), and
+``measured.accepts(definition)`` says whether it can be evaluated in another directly:
+every definition accepts itself, and an ``SOGeneric`` (Tinker08, Tinker10, Watson)
+accepts every SO definition. A :class:`~hmf.core.mass_function.MassFunction` takes
+the definition its masses are in as ``mass_definition`` (``None``, the default, is the
+fit's own). When the fit does not accept it, the masses are converted by
+``mass_conversion``, which must be given: the conversion is opt-in::
+
+    from hmf.core.mass_conversion import NFWConversion
+    from hmf.core.concentration import Duffy08
+
+    mf = MassFunction.build(fit="SMT")         # in SMT's own, virial, definition
+    mf.evolve(mass_definition="200c")          # ValueError: needs a mass_conversion
+    mf200c = mf.evolve(mass_definition="200c", mass_conversion=NFWConversion())
+    mf.evolve(fit="Tinker08", mass_definition="200c")   # accepted: no conversion
+    mf200c.evolve(**{"mass_conversion.concentration": Duffy08(sample="relaxed")})
+
+:class:`~hmf.core.mass_conversion.NFWConversion` takes NFW haloes with the
+concentrations of a :class:`~hmf.core.concentration.ConcentrationModel` (a model kind:
+:class:`~hmf.core.concentration.Duffy08` by default, with every parameter set of their
+Table 1), converted to the definition of the masses if it was calibrated in another.
+It solves for the new concentration of every mass at once (Newton's method from the
+approximation of Hu & Kravtsov 2003, to round-off), and gives the Jacobian dM'/dM
+analytically. The mass function then conserves halo number:
+dn/dM(M) = dn'/dM'(M'(M)) dM'/dM and n(>M) = n'(>M'(M)), with the fit evaluated at
+the masses M' in its own definition. Converting to the same definition is the
+identity, and A → B → A returns the masses to round-off. The domain policy also
+applies to the concentration model's calibration domain. Other profiles (e.g.
+Einasto) are other :class:`~hmf.core.mass_conversion.MassConversion` models.
 
 Changing parameters
 -------------------
@@ -373,7 +416,8 @@ names, of three kinds:
 * **Flat names**, for every field whose name appears once in the tree:
   ``cosmology``, ``n_s``, ``k_accuracy``, ``disk_cache``, ``growth_model``,
   ``sigma_8``, ``species``, ``sigma_8_species``, ``filter``, ``mass_accuracy``,
-  ``truncation_rtol``, ``fit``, ``delta_c``, ``domain_policy``. More generally, any
+  ``truncation_rtol``, ``fit``, ``delta_c``, ``domain_policy``, ``mass_definition``,
+  ``mass_conversion``. More generally, any
   dotted suffix of a field's path that ends no other field's path names it:
   ``"transfer.model"`` is the transfer model however many other stages have a
   ``model``. A stage lists the fields whose names are too generic to stand alone

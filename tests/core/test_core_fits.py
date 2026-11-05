@@ -23,9 +23,17 @@ from hmf.core.domain import DOMAIN_POLICIES, Domain, DomainError, HMFExtrapolati
 from hmf.core.fits import (
     FitInputs,
     FittingFunction,
-    MeasuredMassDefinition,
     SimulationDetails,
     evaluate_fsigma,
+)
+from hmf.core.mass_definitions import (
+    FOF,
+    MassDefinition,
+    SelfBound,
+    SOCritical,
+    SOGeneric,
+    SOMean,
+    SOVirial,
 )
 from hmf.core.units import (
     H0_unit,
@@ -125,7 +133,9 @@ def test_fit_declares_its_metadata(cls):
         assert cls.calibration_domain.variables
         assert cls.calibration_domain.source
         assert "TODO" not in cls.calibration_domain.source
-    assert isinstance(cls.measured_mass_definition, MeasuredMassDefinition)
+    assert isinstance(cls.measured_mass_definition, MassDefinition)
+    assert hash(cls.measured_mass_definition) == hash(attrs.evolve(cls.measured_mass_definition))
+    assert cls.measured_mass_definition_note
     # Only the fits made without simulations (analytic, or a fit to another fit) have none.
     if cls in (fits.PS, fits.Peacock):
         assert cls.simulations is None
@@ -156,24 +166,17 @@ def test_default_instance_is_hashable_and_frozen(cls):
 
 
 def test_measured_mass_definitions():
-    assert str(fits.Jenkins.measured_mass_definition) == "FoF(b=0.2)"
-    assert str(fits.Bocquet500cHydro.measured_mass_definition) == "SO-crit(500)"
-    assert str(fits.Bocquet200mDMOnly.measured_mass_definition) == "SO-mean(200)"
-    assert str(fits.Behroozi.measured_mass_definition) == "SO-virial"
-    assert str(fits.Tinker08.measured_mass_definition) == "SO-any (preferred SO-mean(200))"
-    assert str(fits.Watson.measured_mass_definition) == "SO-any (preferred SO-mean(178))"
-    assert str(fits.AnguloBound.measured_mass_definition) == "self-bound"
-    with pytest.raises(ValueError, match="linking length"):
-        MeasuredMassDefinition(kind="so_mean", overdensity=200, linking_length=0.2)
-    with pytest.raises(ValueError, match="overdensity"):
-        MeasuredMassDefinition(kind="so_critical")
-    with pytest.raises(ValueError, match="preferred"):
-        MeasuredMassDefinition(kind="so_any")
-    with pytest.raises(
-        ValueError,
-        match=r"MeasuredMassDefinition\.kind must be one of 'fof', 'so_mean'.*; got 'bogus'",
-    ):
-        MeasuredMassDefinition(kind="bogus")
+    assert fits.Jenkins.measured_mass_definition == FOF(linking_length=0.2)
+    assert fits.Bocquet500cHydro.measured_mass_definition == SOCritical(overdensity=500)
+    assert fits.Bocquet200mDMOnly.measured_mass_definition == SOMean(overdensity=200)
+    assert fits.Behroozi.measured_mass_definition == SOVirial()
+    assert fits.Tinker08.measured_mass_definition == SOGeneric(preferred=SOMean(overdensity=200))
+    assert fits.Watson.measured_mass_definition == SOGeneric(preferred=SOMean(overdensity=178))
+    assert fits.AnguloBound.measured_mass_definition == SelfBound()
+    assert str(fits.Watson.measured_mass_definition) == "so(preferred 178m)"
+    # Inherited by the subclasses that share it, with its note.
+    assert fits.ST.measured_mass_definition_note == fits.SMT.measured_mass_definition_note
+    assert "Bocquet et al. 2016" in fits.Bocquet500cHydro.measured_mass_definition_note
 
 
 def test_parameters_are_documented_fields():
@@ -1003,78 +1006,11 @@ def test_derived_simulation_details():
 
 
 # ---------------------------------------------------------------------------------
-# The overdensity of a measured mass definition, relative to the mean density
+# The overdensity of a fit's measured mass definition (the formulas are tested in
+# test_core_mass_definitions.py)
 # ---------------------------------------------------------------------------------
 
 _OMEGA_M_Z = np.array([0.05, 0.3, 0.7, 1.0])
-
-
-def test_so_mean_overdensity_is_unchanged():
-    mdef = MeasuredMassDefinition(kind="so_mean", overdensity=200)
-    np.testing.assert_array_equal(mdef.delta_halo_mean_kernel(_OMEGA_M_Z), 200.0)
-    assert mdef.delta_halo_mean_kernel(0.3).shape == ()
-
-
-def test_so_critical_overdensity_is_the_same_halo_density():
-    """Delta_c rho_c(z) = Delta_m rho_m(z), with rho_m(z) = Omega_m0 rho_c0 (1 + z)^3.
-
-    The halo density is computed both ways from astropy's densities (rho_c(z) from
-    H(z), rho_m(z) from today's), with Omega_m(z) from hmf.core.species. In
-    Einstein-de Sitter (Omega_m = 1) the two definitions coincide.
-    """
-    from astropy.cosmology import Planck18
-
-    from hmf.core.species import omega_m
-
-    mdef = MeasuredMassDefinition(kind="so_critical", overdensity=500)
-    z = np.array([0.0, 0.5, 2.0, 6.0])
-    delta_m = mdef.delta_halo_mean_kernel(omega_m(Planck18, z))
-    rho_m = Planck18.Om0 * Planck18.critical_density0 * (1 + z) ** 3
-    np.testing.assert_allclose(
-        (delta_m * rho_m).to_value(u.g / u.cm**3),
-        (500 * Planck18.critical_density(z)).to_value(u.g / u.cm**3),
-        rtol=1e-13,
-    )
-    assert mdef.delta_halo_mean_kernel(1.0) == 500.0
-    assert np.all(mdef.delta_halo_mean_kernel(_OMEGA_M_Z[:-1]) > 500.0)
-
-
-def test_bryan_norman_virial_overdensity():
-    """18 pi^2 for Omega_m = 1; ~330 times the mean density for Planck18 today."""
-    from astropy.cosmology import Planck18
-
-    from hmf.core.species import omega_m
-
-    mdef = MeasuredMassDefinition(kind="so_virial")
-    assert mdef.delta_halo_mean_kernel(1.0) == pytest.approx(18 * np.pi**2, rel=1e-15)
-    # Bryan & Norman (1998): Delta_c ~ 100 for Omega_m ~ 0.3, so Delta_m ~ 330.
-    delta_m0 = mdef.delta_halo_mean_kernel(omega_m(Planck18, 0.0))
-    assert 300 < delta_m0 < 360
-    # It decreases towards 18 pi^2 as Omega_m(z) -> 1 at high z.
-    delta = mdef.delta_halo_mean_kernel(omega_m(Planck18, np.array([0.0, 1.0, 3.0, 10.0])))
-    assert np.all(np.diff(delta) < 0)
-    assert delta[-1] == pytest.approx(18 * np.pi**2, rel=1e-2)
-
-
-def test_fof_overdensity():
-    """9 / (2 pi b^3): about 179 for b = 0.2, falling as b^-3, whatever Omega_m(z)."""
-    fof = MeasuredMassDefinition(kind="fof", linking_length=0.2)
-    delta = fof.delta_halo_mean_kernel(_OMEGA_M_Z)
-    np.testing.assert_allclose(delta, 9 / (2 * np.pi * 0.2**3), rtol=1e-15)
-    assert 178 < delta[0] < 180
-    wide = MeasuredMassDefinition(kind="fof", linking_length=0.4)
-    assert wide.delta_halo_mean_kernel(0.3) == pytest.approx(delta[0] / 8, rel=1e-14)
-
-
-def test_so_any_uses_its_preferred_definition_and_self_bound_has_none():
-    watson = fits.Watson.measured_mass_definition
-    assert watson.kind == "so_any"
-    np.testing.assert_array_equal(
-        watson.delta_halo_mean_kernel(_OMEGA_M_Z),
-        watson.preferred.delta_halo_mean_kernel(_OMEGA_M_Z),
-    )
-    with pytest.raises(ValueError, match="no overdensity"):
-        fits.AnguloBound.measured_mass_definition.delta_halo_mean_kernel(0.3)
 
 
 @pytest.mark.parametrize("cls", ALL, ids=lambda c: c.__name__)
