@@ -336,7 +336,7 @@ def test_v4_sigma_8_change_recomputes_no_lattice_node(computed_nodes):
     enters only the scalar amplitude of LinearPower, and the variance is of the
     unnormalised power.
     """
-    mf = MassFunction.build(transfer_model="EH")
+    mf = MassFunction.build(**{"transfer.model": "EH"})
     _evaluate(mf)
     before = computed_nodes().size
     assert before > 0
@@ -359,7 +359,7 @@ def test_v4_z_or_fit_change_recomputes_nothing_expensive(boltzmann_runs, compute
     correction needs n(>m) of Tinker08 at the lowest node of the integrals, one node
     below what the others use: it computes that one node.)
     """
-    mf = MassFunction.build(transfer_model="CAMB", growth_model="CAMB")
+    mf = MassFunction.build(**{"transfer.model": "CAMB"}, growth_model="CAMB")
     _evaluate(mf)
     assert boltzmann_runs() == 1
     before = computed_nodes().size
@@ -423,7 +423,7 @@ def test_v4_routed_evolve_gate():
     the mass function (validating both); the variance and the transfer and growth
     stages are shared. Measured on a warm tree, with nothing computed by the new one.
     """
-    mf = MassFunction.build(transfer_model="EH")
+    mf = MassFunction.build(**{"transfer.model": "EH"})
     mf.linear_power.amplitude
     for _ in range(100):  # warm up
         mf.evolve(sigma_8=0.85)

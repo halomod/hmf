@@ -1,4 +1,4 @@
-"""Parameter routing: flat names, aliases and dotted paths through a tree of stages.
+"""Parameter routing: flat names and dotted paths through a tree of stages.
 
 A stage holds the stages it is computed from as fields (see :mod:`hmf.core.stage`),
 so together they form a *stage tree*. This module builds, once per stage class and
@@ -16,22 +16,22 @@ by:
 
 * its **dotted path** from the root, always: ``"linear_power.sigma_8"``,
   ``"linear_power.transfer.model"``;
-* its **flat name**, if no other field of the tree has the same name: ``sigma_8``,
-  ``filter``, ``delta_c``;
-* a **flat alias** declared by a stage in :attr:`Stage.parameter_aliases
-  <hmf.core.stage.Stage.parameter_aliases>`, for a field whose name reads badly
-  flat: ``transfer_model`` for ``linear_power.transfer.model``;
+* any **dotted suffix** of its path that ends no other field's path: its flat name
+  (``sigma_8``, ``filter``, ``delta_c``) if no other field has the same name, and
+  otherwise a longer suffix, such as ``"transfer.model"`` where several stages have
+  a ``model``;
 * a **shared** name: a name that a stage lists in :attr:`Stage.shared_parameters
   <hmf.core.stage.Stage.shared_parameters>` is one parameter in that stage's tree,
   and a change to it changes every field of that name below the stage, so that they
   stay equal. The stage that composes the others declares it.
 
-A field of the root is also reached by its own name. Any other repeated name is
-*ambiguous*: it raises a :class:`TypeError` that lists the dotted paths. A name that
-is not a parameter raises a :class:`TypeError` with the closest names. A stage field
-is reached by its dotted path only, and replaces that whole stage.
+The full path of a field (e.g. the name of a field of the root) always means that
+field. Any other suffix that ends several paths is *ambiguous*: it raises a
+:class:`TypeError` that lists the names to choose from. A name that is not a
+parameter raises a :class:`TypeError` with the closest names. A stage field is
+reached by its dotted path only, and replaces that whole stage.
 
-A dotted path into a *model* field (``"fit.A"``, ``"transfer_model.z_max"``) changes
+A dotted path into a *model* field (``"fit.A"``, ``"transfer.model.z_max"``) changes
 that field of the model. A model's class is known only from the stage's value, so
 these are resolved when they are used, without computing anything.
 
@@ -117,8 +117,8 @@ class ParameterInfo:
     Parameters
     ----------
     name
-        The name it is routed by: its flat name, a flat alias, its shared name, or
-        (if none of them exists) its dotted path.
+        The name it is routed by: its shortest name (its flat name, a shared name, or
+        the shortest dotted suffix of its path that is unique in the tree).
     paths
         The dotted paths of the fields it sets: one, or every holder of a shared
         parameter.
@@ -299,9 +299,8 @@ class Router:
     """The routing table of a stage class: every parameter of its tree, and its name.
 
     Build it with :func:`router` (cached per class). It is computed from the classes'
-    ``attrs`` fields, :attr:`~hmf.core.stage.Stage.parameter_aliases`,
-    :attr:`~hmf.core.stage.Stage.shared_parameters` and their derived properties; it
-    creates no stage.
+    ``attrs`` fields, :attr:`~hmf.core.stage.Stage.shared_parameters` and their
+    derived properties; it creates no stage.
 
     Parameters
     ----------
@@ -311,8 +310,7 @@ class Router:
     Raises
     ------
     TypeError
-        If a stage of the tree declares an alias that is not a parameter of its tree
-        or is also a field's name, or a derived property whose input is not a field.
+        If a stage of the tree has a derived property whose input is not a field.
     """
 
     def __init__(self, cls: type[Stage]) -> None:
@@ -325,66 +323,47 @@ class Router:
         self.derived: dict[FieldPath, tuple[FieldPath, ...]] = {}
         #: The derived properties that are stages, and their classes.
         self.derived_stages: dict[FieldPath, type] = {}
-        aliases: dict[str, set[FieldPath]] = {}
         #: The stages declaring each shared name.
         sharers: dict[str, list[FieldPath]] = {}
-        self._visit(cls, (), aliases, sharers)
+        self._visit(cls, (), sharers)
 
-        by_name: dict[str, list[FieldPath]] = {}
+        # Every dotted suffix of every field's path: "model", "transfer.model", ...
+        by_suffix: dict[FieldPath, list[FieldPath]] = {}
         for path in self.leaves:
-            by_name.setdefault(path[-1], []).append(path)
+            for i in range(len(path)):
+                by_suffix.setdefault(path[i:], []).append(path)
 
-        #: Flat names (and aliases and shared names) -> the paths they set.
+        #: Names (dotted suffixes, shared names and paths) -> the paths they set.
         self.names: dict[str, tuple[FieldPath, ...]] = {}
-        #: Repeated names -> the paths they could mean.
+        #: Names that end more than one path -> the paths they could mean.
         self.ambiguous: dict[str, tuple[FieldPath, ...]] = {}
-        for name, found in by_name.items():
-            paths = tuple(found)
+        for suffix, found in by_suffix.items():
+            name, paths = _dotted(suffix), tuple(found)
             if len(paths) == 1:
                 self.names[name] = paths
-            elif any(all(p[: len(s)] == s for p in paths) for s in sharers.get(name, ())):
+            elif any(all(p[: len(s)] == s for p in paths) for s in sharers.get(suffix[-1], ())):
                 # A stage above all of them declares the name shared.
                 self.names[name] = paths
-            elif (name,) in self.leaves:
-                self.names[name] = ((name,),)
+            elif suffix in self.leaves:
+                # The full path of a field (e.g. a field of the root) means that field.
+                self.names[name] = (suffix,)
             else:
                 self.ambiguous[name] = paths
-        for alias, targets in aliases.items():
-            if alias in by_name:
-                raise TypeError(
-                    f"{cls.__name__}: the alias {alias!r} is also the name of a field "
-                    f"({', '.join(_dotted(p) for p in by_name[alias])})."
-                )
-            if len(targets) == 1:
-                self.names[alias] = (next(iter(targets)),)
-            else:
-                self.ambiguous[alias] = tuple(sorted(targets))
 
-        #: The name each parameter field is routed by: its alias, if a stage declares
-        #: one, else its flat (or shared) name, else its dotted path.
+        #: The name each parameter field is routed by: its shortest name.
         self.preferred: dict[FieldPath, str] = {}
-        for alias, targets in aliases.items():
-            if alias in self.names:
-                self.preferred[next(iter(targets))] = alias
-        for name, paths in self.names.items():
-            for path in paths:
-                self.preferred.setdefault(path, name)
         for path in self.leaves:
-            self.preferred.setdefault(path, _dotted(path))
+            for i in range(len(path) - 1, -1, -1):
+                name = _dotted(path[i:])
+                if path in self.names.get(name, ()):
+                    self.preferred[path] = name
+                    break
 
-        self._candidates = sorted(
-            set(self.names) | set(self.ambiguous) | {_dotted(p) for p in self.leaves}
-        )
+        self._candidates = sorted(set(self.names) | set(self.ambiguous))
 
     # -- building --------------------------------------------------------------------
 
-    def _visit(
-        self,
-        cls: type,
-        prefix: FieldPath,
-        aliases: dict[str, set[FieldPath]],
-        sharers: dict[str, list[FieldPath]],
-    ) -> None:
+    def _visit(self, cls: type, prefix: FieldPath, sharers: dict[str, list[FieldPath]]) -> None:
         """Add the fields of the stage class ``cls`` at ``prefix`` (depth first)."""
         node = _node(cls)
         self.stages[prefix] = cls
@@ -393,7 +372,7 @@ class Router:
         for name, a in node.fields.items():
             path = (*prefix, name)
             if name in node.children:
-                self._visit(node.children[name][0], path, aliases, sharers)
+                self._visit(node.children[name][0], path, sharers)
             else:
                 self.leaves[path] = a
         for name, (inputs, stage_cls) in node.derived.items():
@@ -406,30 +385,14 @@ class Router:
             self.derived[(*prefix, name)] = tuple(prefix + p for p in inputs)
             if stage_cls is not None:
                 self.derived_stages[(*prefix, name)] = stage_cls
-        for alias, target in getattr(cls, "parameter_aliases", {}).items():
-            full = prefix + _split(target)
-            if full not in self.leaves:
-                raise TypeError(
-                    f"{cls.__name__}.parameter_aliases: {alias!r} -> {target!r} is not a "
-                    "parameter field."
-                )
-            aliases.setdefault(alias, set()).add(full)
 
     # -- resolving names -------------------------------------------------------------
 
     def _ambiguous_message(self, name: str) -> str:
-        paths = self.ambiguous[name]
-        options = [repr(_dotted(p)) for p in paths]
-        named = sorted(
-            {self.preferred[p] for p in paths if p in self.preferred} - {_dotted(p) for p in paths}
+        options = ", ".join(repr(self.preferred[p]) for p in self.ambiguous[name])
+        return (
+            f"{self.cls.__name__}: the parameter name {name!r} is ambiguous; give one of {options}."
         )
-        msg = (
-            f"{self.cls.__name__}: the parameter name {name!r} is ambiguous; give one of "
-            f"the dotted paths {', '.join(options)}"
-        )
-        if named:
-            msg += f", or the names {', '.join(repr(n) for n in named)}"
-        return msg + "."
 
     def _unknown_message(self, name: str) -> str:
         return (
@@ -444,7 +407,7 @@ class Router:
         Parameters
         ----------
         name
-            A flat name, alias, shared name or dotted path, possibly followed by
+            A flat name, dotted suffix, shared name or dotted path, possibly followed by
             ``.field`` of a model.
 
         Returns
@@ -493,7 +456,7 @@ class Router:
         Parameters
         ----------
         changes
-            Values by flat name, alias, shared name or dotted path. A mapping value
+            Values by flat name, dotted suffix, shared name or dotted path. A mapping value
             of a stage's path (e.g. ``{"linear_power": {"sigma_8": 0.8}}``) is read
             as values of the fields below that stage.
 
@@ -726,7 +689,7 @@ def evolve(stage: Stage, changes: Mapping[str, Any]) -> Stage:
     stage
         The stage at the root of the tree.
     changes
-        New values, by flat name, alias, shared name or dotted path.
+        New values, by flat name, dotted suffix, shared name or dotted path.
 
     Returns
     -------
@@ -748,7 +711,7 @@ def from_flat(cls: type[Stage], mapping: Mapping[str, Any]) -> Stage:
     cls
         The stage class at the root of the tree.
     mapping
-        Values by flat name, alias, shared name or dotted path, or nested mappings.
+        Values by flat name, dotted suffix, shared name or dotted path, or nested mappings.
 
     Returns
     -------

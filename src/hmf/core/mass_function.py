@@ -18,7 +18,7 @@ the critical overdensity ``delta_c`` and the calibration-domain policy
 ``domain_policy`` as fields. :meth:`MassFunction.build` builds the whole tree from
 parameters by name, with hmf 3.x-like defaults, and :meth:`~MassFunction.evolve` takes
 the same names (see :mod:`hmf.core.routing`): ``mf.evolve(sigma_8=0.75)``,
-``mf.evolve(transfer_model="EH")``.
+``mf.evolve(**{"transfer.model": "EH"})``.
 
 The variance belongs to the mass function, not the linear-power stage, because it
 does not depend on sigma_8 or z: its power is :attr:`LinearPower.power_source
@@ -193,7 +193,7 @@ class MassFunction(Stage):
     --------
     >>> import numpy as np
     >>> from hmf.core.units import Msun_h
-    >>> mf = MassFunction.build(transfer_model="EH")
+    >>> mf = MassFunction.build(**{"transfer.model": "EH"})
     >>> m = np.logspace(10, 15, 6) * Msun_h
     >>> mf.dndm(m=m[None, :], z=np.array([0.0, 1.0])[:, None]).shape
     (2, 6)
@@ -257,18 +257,19 @@ class MassFunction(Stage):
         """Build the whole stage tree from parameters by name, with hmf 3.x-like defaults.
 
         The same as :meth:`from_flat`, whose names are those of :meth:`evolve`: the
-        flat names below, or dotted paths (``"linear_power.transfer.n_s"``), dotted
-        paths into model fields (``"fit.A"``) or nested mappings. Models may be given
-        as instances, classes or registered names. Shared parameters (``cosmology``,
-        ``k_accuracy``, ``disk_cache``) are given to every stage that holds them, so a
-        CAMB or CLASS growth model shares the transfer's Boltzmann run.
+        flat names below, dotted paths (``"linear_power.transfer.n_s"``) or unique
+        suffixes of them (``"transfer.model"``), dotted paths into model fields
+        (``"fit.A"``) or nested mappings. Models may be given as instances, classes or
+        registered names. The growth and the mass variance are built from the transfer
+        stage, with its cosmology, ``k_accuracy`` and disk cache, so a CAMB or CLASS
+        growth model shares the transfer's Boltzmann run.
 
         Parameters
         ----------
         cosmology
             The astropy cosmology (default Planck18).
-        transfer_model
-            The transfer model (default CAMB).
+        model
+            The transfer model (default CAMB); also named ``"transfer.model"``.
         growth_model
             The growth model (default the growth ODE).
         n_s

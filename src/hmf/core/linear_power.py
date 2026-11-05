@@ -46,10 +46,8 @@ and then needs the mass variance of P(k, z) itself rather than a rescaling of
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping
 from functools import cached_property
-from types import MappingProxyType
-from typing import Any, ClassVar
+from typing import Any
 
 import attrs
 import numpy as np
@@ -136,11 +134,6 @@ class LinearPower(Stage):
             "The matter species whose rms sigma_8 is: 'tot' (total matter, as quoted by "
             "CMB experiments, and hmf 3.x's default) or 'cb'."
         ),
-    )
-
-    #: The transfer model, whose field name (``model``) reads badly flat.
-    parameter_aliases: ClassVar[Mapping[str, str]] = MappingProxyType(
-        {"transfer_model": "transfer.model"}
     )
 
     @property

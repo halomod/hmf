@@ -40,7 +40,7 @@ Z = np.array([0.0, 0.5, 1.0, 2.0])
 @pytest.fixture(scope="module")
 def mf():
     """A Planck18 mass function with EH: no Boltzmann run, Tinker08."""
-    return MassFunction.build(transfer_model="EH")
+    return MassFunction.build(**{"transfer.model": "EH"})
 
 
 def _rho_cb(cosmo) -> float:
@@ -110,7 +110,7 @@ def test_sigma_8_is_recovered_for_each_species():
 def test_growth_in_einstein_de_sitter():
     """In Einstein-de Sitter, D = a, so sigma(m, z) = sigma(m, 0) / (1 + z)."""
     eds = FlatLambdaCDM(H0=70.0, Om0=1.0, Ob0=0.05, Tcmb0=0.0)
-    mf = MassFunction.build(cosmology=eds, transfer_model="EH", sigma_8=0.8, n_s=0.96)
+    mf = MassFunction.build(cosmology=eds, **{"transfer.model": "EH"}, sigma_8=0.8, n_s=0.96)
     s = mf.sigma(m=M[None, :] * Msun_h, z=Z[:, None])
     expected = s[0] / (1 + Z[:, None])
     np.testing.assert_allclose(s, expected, rtol=1e-6)
@@ -215,8 +215,10 @@ def test_ngtm_is_continuous_across_nodes(mf):
 
 def test_ngtm_truncation_at_the_top_is_negligible():
     """Integrating to 10^18.5 instead of 10^17.5 changes n(>m <= 10^16) by < 1e-12."""
-    base = MassFunction.build(transfer_model="EH")
-    wider = MassFunction.build(transfer_model="EH", mass_accuracy=MassAccuracy(log10_m_max=18.5))
+    base = MassFunction.build(**{"transfer.model": "EH"})
+    wider = MassFunction.build(
+        **{"transfer.model": "EH"}, mass_accuracy=MassAccuracy(log10_m_max=18.5)
+    )
     m = np.logspace(8, 16, 9)
     for z in (0.0, 2.0):
         np.testing.assert_allclose(
@@ -384,7 +386,7 @@ def test_invalid_inputs_raise(mf):
 
 def test_extension_raise_bounds_the_masses():
     mf = MassFunction.build(
-        transfer_model="EH", mass_accuracy=MassAccuracy(log10_m_min=8.0, extension="raise")
+        **{"transfer.model": "EH"}, mass_accuracy=MassAccuracy(log10_m_min=8.0, extension="raise")
     )
     assert mf.ngtm(m=1e8 * Msun_h, z=0.0).value > 0
     with pytest.raises(DomainError):
@@ -495,9 +497,11 @@ def test_build_defaults():
 
 
 def test_build_accepts_names_or_instances():
-    by_name = MassFunction.build(transfer_model="EH", fit="ST", filter="SharpK", growth_model="ODE")
+    by_name = MassFunction.build(
+        **{"transfer.model": "EH"}, fit="ST", filter="SharpK", growth_model="ODE"
+    )
     by_instance = MassFunction.build(
-        transfer_model=Transfer(model="EH").model,
+        **{"transfer.model": Transfer(model="EH").model},
         fit=fits.ST(),
         filter=MassVariance(power=by_name.variance.power, filter="SharpK").filter,
         growth_model=Growth().model,
@@ -508,10 +512,10 @@ def test_build_accepts_names_or_instances():
 def test_build_needs_sigma_8_and_n_s_without_cosmology_meta():
     cosmo = FlatLambdaCDM(H0=70.0, Om0=0.3, Ob0=0.05, Tcmb0=2.7255)
     with pytest.raises(ValueError, match="sigma_8"):
-        MassFunction.build(cosmology=cosmo, transfer_model="EH", n_s=0.96)
+        MassFunction.build(cosmology=cosmo, **{"transfer.model": "EH"}, n_s=0.96)
     with pytest.raises(ValueError, match="n_s"):
-        MassFunction.build(cosmology=cosmo, transfer_model="EH", sigma_8=0.8)
-    mf = MassFunction.build(cosmology=cosmo, transfer_model="EH", sigma_8=0.8, n_s=0.96)
+        MassFunction.build(cosmology=cosmo, **{"transfer.model": "EH"}, sigma_8=0.8)
+    mf = MassFunction.build(cosmology=cosmo, **{"transfer.model": "EH"}, sigma_8=0.8, n_s=0.96)
     assert mf.linear_power.sigma_8 == 0.8
 
 
@@ -561,7 +565,7 @@ def _rebuilt(mf: MassFunction, **changes) -> MassFunction:
     lp = mf.linear_power
     kwargs = {
         "cosmology": lp.cosmology,
-        "transfer_model": lp.transfer.model,
+        "transfer.model": lp.transfer.model,
         "n_s": lp.transfer.n_s,
         "sigma_8": lp.sigma_8,
         "fit": mf.fit,
@@ -634,7 +638,7 @@ def test_ngtm_is_bit_identical_under_extension(filt):
     wide = np.logspace(5, 16, 111)
 
     def build():
-        return MassFunction.build(transfer_model="EH", filter=filt, fit="ST")
+        return MassFunction.build(**{"transfer.model": "EH"}, filter=filt, fit="ST")
 
     narrow_first = build()
     n1 = narrow_first.ngtm_kernel(m=narrow, z=1.0)

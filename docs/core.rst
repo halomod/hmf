@@ -351,33 +351,35 @@ once per stage class, from the ``attrs`` fields of the classes: it creates no st
 and computes nothing. :meth:`~hmf.core.stage.Stage.evolve`,
 :meth:`~hmf.core.stage.Stage.from_flat` and
 :meth:`MassFunction.build <hmf.core.mass_function.MassFunction.build>` take the same
-names, of four kinds:
+names, of three kinds:
 
 * **Flat names**, for every field whose name appears once in the tree:
-  ``cosmology``, ``n_s``, ``k_accuracy``, ``disk_cache``, ``growth_model``,
-  ``sigma_8``, ``species``, ``sigma_8_species``, ``filter``, ``mass_accuracy``,
-  ``truncation_rtol``, ``fit``, ``delta_c``, ``domain_policy``.
-* **Aliases**, which a stage declares for fields whose names read badly flat:
-  ``transfer_model`` (``linear_power.transfer.model``).
+  ``cosmology``, ``model`` (the transfer model), ``n_s``, ``k_accuracy``,
+  ``disk_cache``, ``growth_model``, ``sigma_8``, ``species``, ``sigma_8_species``,
+  ``filter``, ``mass_accuracy``, ``truncation_rtol``, ``fit``, ``delta_c``,
+  ``domain_policy``. More generally, any dotted suffix of a field's path that ends no
+  other field's path names it: ``"transfer.model"`` is the transfer model however
+  many other stages have a ``model``.
 * **Shared parameters**: a name that a stage lists in ``shared_parameters`` is one
   parameter in its tree, and a change to it changes every field of that name below
   the stage, so that they stay equal. A :class:`~hmf.core.growth.Growth` stage with a
   transfer stage shares ``cosmology``, ``k_accuracy`` and ``disk_cache`` with it. In a
   mass function each of them is held once, by the transfer stage.
 * **Dotted paths**, always: ``"linear_power.sigma_8"``,
-  ``"linear_power.transfer.model"``. A stage's path replaces the whole stage
+  ``"linear_power.transfer.model"``; a suffix that ends several paths is ambiguous,
+  and its error lists the names to choose from. A stage's path replaces the whole stage
   (``mf.evolve(linear_power=lp)``), and a path into a model field changes that field
-  of the model (``"fit.a"``, ``"transfer_model.z_max"``).
+  of the model (``"fit.a"``, ``"transfer.model.z_max"``).
 
 So the flat names of a mass function are exactly :meth:`build
 <hmf.core.mass_function.MassFunction.build>`'s keywords::
 
-    mf = MassFunction.build(transfer_model="EH", fit="ST", sigma_8=0.8)
+    mf = MassFunction.build(**{"transfer.model": "EH"}, fit="ST", sigma_8=0.8)
     mf.evolve(sigma_8=0.85, n_s=0.95)
     mf.evolve(cosmology=Planck15)              # the cosmology of the whole tree
     mf.evolve(**{"fit.a": 0.75})               # a parameter of the fit
     mf.evolve(**{"linear_power.transfer.n_s": 0.95})
-    MassFunction.from_flat({"transfer_model": "EH", "linear_power": {"sigma_8": 0.8}})
+    MassFunction.from_flat({"transfer.model": "EH", "linear_power": {"sigma_8": 0.8}})
 
 A name that is not a parameter raises a :class:`TypeError` at once, before anything
 is built, with the closest names (``mf.evolve(sigma8=0.8)``: "Did you mean
@@ -392,14 +394,14 @@ variance settings; the growth from the transfer stage and ``growth_model``), and
 changes. So ``mf.evolve(sigma_8=0.85)`` rebuilds the linear power and the mass
 function, and keeps the transfer, growth and variance stages;
 ``mf.evolve(filter="SharpK")`` keeps the linear power; ``mf.evolve(fit="ST")`` keeps
-both; ``mf.evolve(transfer_model="BBKS")`` gives a new variance, of the new power.
+both; ``mf.evolve(**{"transfer.model": "BBKS"})`` gives a new variance, of the new power.
 Each new stage is validated by its constructor; if any fails, ``evolve`` raises and
 the original tree is unchanged.
 
 Every question about the parameters is answered from the classes, without building
 a stage or running a Boltzmann code::
 
-    MassFunction.parameter_names()        # ('cosmology', 'transfer_model', 'n_s', ...)
+    MassFunction.parameter_names()        # ('cosmology', 'model', 'n_s', ...)
     MassFunction.parameter_info()["sigma_8"].path    # 'linear_power.sigma_8'
     MassFunction.parameter_defaults()["sigma_8"]     # 0.8102, from Planck18
     MassFunction.quantities_available()[""]          # ('dlnsigma_dlnm', 'dndlnm', ...)

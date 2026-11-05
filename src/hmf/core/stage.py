@@ -20,10 +20,10 @@ as a field. The conventions every stage follows:
   declares the fields it is computed from, and :meth:`Stage.evolve_own` carries it,
   with its caches, to the new stage when none of them changes.
 * **Parameters by name**: :meth:`Stage.evolve` and :meth:`Stage.from_flat` take the
-  parameters of the whole stage tree by flat name, alias or dotted path, through a
-  routing table built from the classes (see :mod:`hmf.core.routing`). A stage that
-  holds stages declares its flat aliases in :attr:`Stage.parameter_aliases`, and the
-  names of its subtree that are one parameter in :attr:`Stage.shared_parameters`.
+  parameters of the whole stage tree by flat name or (a unique suffix of their)
+  dotted path, through a routing table built from the classes (see
+  :mod:`hmf.core.routing`). A stage that holds stages declares the names of its
+  subtree that are one parameter in :attr:`Stage.shared_parameters`.
 * **Introspection without instantiation**: :meth:`Stage.fields_info`,
   :meth:`Stage.parameter_info`, :meth:`Stage.quantities_available` and
   :meth:`Stage.invalidated_by` describe a stage tree from the classes alone.
@@ -54,8 +54,6 @@ from .cache import to_disk_cache
 from .units import UnitContext
 
 __all__ = ["CosmologyStage", "DerivedProperty", "Stage", "derived_property"]
-
-_NO_ALIASES: Mapping[str, str] = MappingProxyType({})
 
 _T = TypeVar("_T")
 
@@ -190,11 +188,6 @@ class Stage(Documented):
     [0, 1, 4, 9]
     """
 
-    #: Flat aliases of parameters of the stage tree: alias -> dotted path below this
-    #: stage, for fields whose names are repeated in the tree or read badly flat
-    #: (e.g. ``{"transfer_model": "transfer.model"}``). A stage holding this one
-    #: routes the alias too.
-    parameter_aliases: ClassVar[Mapping[str, str]] = _NO_ALIASES
     #: Names that are one parameter in this stage's tree: every field of that name
     #: below this stage (e.g. a ``cosmology`` held by two stages it composes) is set
     #: together by the flat name, so that they stay equal. The stage that composes the
@@ -207,8 +200,9 @@ class Stage(Documented):
     def evolve(self, **changes: Any) -> Self:
         """Return a copy of this stage tree with some parameters changed.
 
-        Parameters are named by their flat name, a flat alias, a shared name or their
-        dotted path (see :mod:`hmf.core.routing` and :meth:`parameter_names`); a
+        Parameters are named by their flat name, a shared name, their dotted path or
+        a dotted suffix of it unique in the tree (see :mod:`hmf.core.routing` and
+        :meth:`parameter_names`); a
         dotted path into a model field (``"fit.A"``) changes that field of the model,
         and a stage's dotted path replaces that stage. Only the stages on the path
         from each changed field to this one are rebuilt, each by its

@@ -1,7 +1,6 @@
 """Tests of hmf.core.routing: parameters by name through a stage tree, and introspection."""
 
 from functools import cached_property
-from types import MappingProxyType
 from typing import ClassVar
 
 import attrs
@@ -24,11 +23,11 @@ from hmf.core.units import Msun_h, h_Mpc
 
 M = np.logspace(10, 15, 6) * Msun_h
 
-#: MassFunction.build's keywords before routing, plus the variance's truncation_rtol,
-#: which build did not take: build's keywords and evolve's flat names are one set.
+#: The flat names of a MassFunction: build's keywords before routing, with the transfer
+#: model's flat name, model, for transfer_model, and the variance's truncation_rtol.
 BUILD_KEYWORDS = {
     "cosmology",
-    "transfer_model",
+    "model",
     "growth_model",
     "n_s",
     "sigma_8",
@@ -48,7 +47,7 @@ BUILD_KEYWORDS = {
 @pytest.fixture(scope="module")
 def mf():
     """A fast mass function (Eisenstein & Hu), with the quantities of the tests cached."""
-    stage = MassFunction.build(transfer_model="EH")
+    stage = MassFunction.build(**{"transfer.model": "EH"})
     stage.dndm(m=M, z=0.0)
     return stage
 
@@ -82,7 +81,7 @@ def test_parameter_info():
     assert info["sigma_8"].path == "linear_power.sigma_8"
     assert not info["sigma_8"].shared
     assert info["sigma_8"].required  # computed from the cosmology by build
-    assert info["transfer_model"].paths == ("linear_power.transfer.model",)
+    assert info["model"].paths == ("linear_power.transfer.model",)
     assert info["growth_model"].paths == ("linear_power.growth_model",)
     assert info["filter"].path == "filter"
     assert info["delta_c"].default == 1.686
@@ -162,7 +161,7 @@ def test_dotted_paths_and_flat_names_route_alike(mf):
 #: here (checked to reach its field instead).
 CHANGES = {
     "cosmology": (Planck15, ("dndm", 0.0)),
-    "transfer_model": ("BBKS", ("dndm", 0.0)),
+    "model": ("BBKS", ("dndm", 0.0)),
     "n_s": (0.95, ("dndm", 0.0)),
     "k_accuracy": (KAccuracy.fast(), ("dndm", 0.0)),
     # Where to cache Boltzmann runs: EH makes none, and the cache changes no result.
@@ -196,7 +195,7 @@ def _two_species(mf):
     """
     k = np.logspace(-9, 5, 600)
     t = np.asarray(Transfer(model="EH").transfer_function(k * h_Mpc))
-    return mf.evolve(transfer_model=FromArray(k=k * h_Mpc, t=t, t_tot=t * (1 - 0.1 * k / (k + 1))))
+    return mf.evolve(model=FromArray(k=k * h_Mpc, t=t, t_tot=t * (1 - 0.1 * k / (k + 1))))
 
 
 @pytest.mark.filterwarnings("ignore::hmf.exceptions.HMFExtrapolationWarning")
@@ -244,7 +243,7 @@ def test_evolve_nothing_returns_the_stage(mf):
 
 
 def test_evolve_on_a_sub_stage_routes_its_own_tree(mf):
-    lp = mf.linear_power.evolve(transfer_model="BBKS")
+    lp = mf.linear_power.evolve(**{"transfer.model": "BBKS"})
     assert lp.growth.transfer is lp.transfer
     assert lp.transfer.model.__class__.__name__ == "BBKS"
     assert Transfer().evolve(n_s=0.9).n_s == 0.9
@@ -302,7 +301,7 @@ def test_k_accuracy_change_is_consistent(mf):
 
 
 def test_derived_stages_are_recomputed(mf):
-    new = mf.evolve(transfer_model="BBKS")
+    new = mf.evolve(**{"transfer.model": "BBKS"})
     lp = new.linear_power
     assert new.variance.power.transfer is lp.transfer
     assert lp.growth.transfer is lp.transfer
@@ -323,7 +322,7 @@ def test_species_recomputes_the_variance(mf):
 
 def test_derived_values_are_carried_only_once_computed():
     """evolve_own carries a derived value already computed; one not computed is not."""
-    fresh = MassFunction.build(transfer_model="EH")
+    fresh = MassFunction.build(**{"transfer.model": "EH"})
     lower = fresh.evolve(sigma_8=0.7)
     variance = lower.variance  # computed on the new stage, not the old one
     assert fresh.evolve(sigma_8=0.7).variance is not variance
@@ -386,9 +385,9 @@ def test_model_field_by_dotted_path(mf):
     assert growth.evolve(**{"linear_power.growth_model.dln_a": 0.01}).linear_power.growth_model == (
         mf.linear_power.growth_model
     )
-    built = MassFunction.build(transfer_model="EH", fit="ST", **{"fit.a": 0.75})
+    built = MassFunction.build(**{"transfer.model": "EH"}, fit="ST", **{"fit.a": 0.75})
     assert built.fit == changed.fit
-    assert MassFunction.build(transfer_model="EH", **{"fit.A_200": 0.2}).fit.A_200 == 0.2
+    assert MassFunction.build(**{"transfer.model": "EH"}, **{"fit.A_200": 0.2}).fit.A_200 == 0.2
 
 
 def test_model_field_errors(mf):
@@ -403,7 +402,7 @@ def test_model_field_errors(mf):
     with pytest.raises(TypeError, match="ambiguous"):
         HaloModel.from_flat({"delta_c.real": 1.0})
     with pytest.raises(TypeError, match="no default to change"):
-        LinearPower.from_flat({"transfer_model": "EH", "sigma_8.x": 1.0})
+        LinearPower.from_flat({"transfer.model": "EH", "sigma_8.x": 1.0})
     with pytest.raises(TypeError, match="'delta_c' is a float, not a model"):
         MassFunction.from_flat({"delta_c.real": 1.0})
 
@@ -422,8 +421,10 @@ def test_unknown_name_suggests(mf):
         mf.evolve(**{"linear_power.sigma8": 0.8})
     with pytest.raises(TypeError, match=r"no parameter 'Mminn'"):
         MassFunction.build(Mminn=3)
-    with pytest.raises(TypeError, match=r"no parameter 'tranfer_model'.*'transfer_model'"):
-        MassFunction.invalidated_by("tranfer_model")
+    with pytest.raises(TypeError, match=r"no parameter 'tranfer.model'.*'transfer.model'"):
+        MassFunction.invalidated_by("tranfer.model")
+    with pytest.raises(TypeError, match=r"no parameter 'transfer_model'.*'transfer.model'"):
+        MassFunction.build(transfer_model="EH")
 
 
 def test_ambiguous_name_lists_paths(mf):
@@ -431,9 +432,7 @@ def test_ambiguous_name_lists_paths(mf):
     with pytest.raises(TypeError, match="ambiguous") as err:
         hm.evolve(delta_c=1.6)
     message = str(err.value)
-    assert "'mass_function.delta_c'" in message
-    assert "'profile.delta_c'" in message
-    assert "'profile_delta_c'" in message
+    assert "give one of 'mass_function.delta_c', 'profile.delta_c'" in message
 
 
 def test_conflicts(mf):
@@ -458,10 +457,10 @@ def test_unknown_names_raise_before_anything_is_built(mf, monkeypatch):
 
 def test_missing_required_parameter():
     with pytest.raises(TypeError, match=r"missing required parameter\(s\) \['sigma_8'\]"):
-        LinearPower.from_flat({"transfer_model": "EH"})
+        LinearPower.from_flat({"transfer.model": "EH"})
     with pytest.raises(TypeError, match=r"missing required parameter\(s\) \['power'\]"):
         MassVariance.from_flat({})
-    lp = LinearPower.from_flat({"transfer_model": "EH", "sigma_8": 0.8})
+    lp = LinearPower.from_flat({"transfer.model": "EH", "sigma_8": 0.8})
     assert lp.growth.transfer is lp.transfer
 
 
@@ -470,7 +469,7 @@ def test_evolve_is_atomic(mf):
     lp, variance = mf.linear_power, mf.variance
     for changes in (
         {"sigma_8": 0.7, "delta_c": -1.0},  # the root fails after linear_power is rebuilt
-        {"transfer_model": "BBKS", "filter": "NotAFilter"},
+        {"transfer.model": "BBKS", "filter": "NotAFilter"},
         {"n_s": 0.95, "k_accuracy": "high"},
     ):
         with pytest.raises((ValueError, TypeError, LookupError)):
@@ -491,17 +490,17 @@ def test_round_trip(mf):
     assert list(flat) == list(MassFunction.parameter_names())
     assert MassFunction.from_flat(flat) == mf
     assert flat["sigma_8"] == mf.linear_power.sigma_8
-    assert flat["transfer_model"] == mf.linear_power.transfer.model
+    assert flat["model"] == mf.linear_power.transfer.model
 
 
 def test_from_flat_nested_and_dotted():
     nested = MassFunction.from_flat(
-        {"transfer_model": "EH", "linear_power": {"sigma_8": 0.7, "transfer": {"n_s": 0.95}}}
+        {"transfer.model": "EH", "linear_power": {"sigma_8": 0.7, "transfer": {"n_s": 0.95}}}
     )
     dotted = MassFunction.from_flat(
-        {"transfer_model": "EH", "linear_power.sigma_8": 0.7, "linear_power.transfer.n_s": 0.95}
+        {"transfer.model": "EH", "linear_power.sigma_8": 0.7, "linear_power.transfer.n_s": 0.95}
     )
-    assert nested == dotted == MassFunction.build(transfer_model="EH", sigma_8=0.7, n_s=0.95)
+    assert nested == dotted == MassFunction.build(**{"transfer.model": "EH"}, sigma_8=0.7, n_s=0.95)
     assert nested.linear_power.growth.transfer is nested.linear_power.transfer
     assert nested.variance.power.transfer is nested.linear_power.transfer
     assert MassFunction.from_flat({"linear_power": {"sigma_8": 0.7}}) == MassFunction.build(
@@ -525,7 +524,7 @@ def test_from_flat_with_a_stage_given_whole(mf):
 def test_build_none_is_not_the_default():
     """A parameter left out takes its default; None is a value like any other."""
     with pytest.raises(TypeError):
-        MassFunction.build(transfer_model="EH", n_s=None)
+        MassFunction.build(**{"transfer.model": "EH"}, n_s=None)
 
 
 def test_given_parameters():
@@ -568,7 +567,8 @@ def test_invalidated_by():
         "linear_power.transfer",
         "linear_power.unnormalised_sigma_8",
     )
-    assert MassFunction.invalidated_by("transfer_model") == everything
+    assert MassFunction.invalidated_by("model") == everything
+    assert MassFunction.invalidated_by("transfer.model") == everything
     assert MassFunction.invalidated_by("n_s") == everything
     assert MassFunction.invalidated_by("cosmology") == everything
     assert MassFunction.invalidated_by("species") == ("", "linear_power", "variance")
@@ -626,7 +626,6 @@ def test_quantities_available():
                 "fields_info",
                 "same_cosmology",
                 "shared_parameters",
-                "parameter_aliases",
             }
             assert not name.isupper()
     # Fields are parameters, not quantities.
@@ -686,10 +685,8 @@ class Profile(Stage):
 class HaloModel(Stage):
     """A toy extension stage holding a MassFunction and a Profile."""
 
-    parameter_aliases: ClassVar = MappingProxyType({"profile_delta_c": "profile.delta_c"})
-
     mass_function: MassFunction = field(
-        factory=lambda: MassFunction.build(transfer_model="EH"), doc="The mass function."
+        factory=lambda: MassFunction.build(**{"transfer.model": "EH"}), doc="The mass function."
     )
     profile: Profile = field(factory=Profile, doc="The profile.")
     bias: str = field(default="Tinker10", doc="The bias model.")
@@ -713,7 +710,7 @@ def test_extension_stage(mf):
     hm = HaloModel(mass_function=mf)
     names = set(HaloModel.parameter_names())
     assert BUILD_KEYWORDS - {"delta_c"} <= names
-    assert {"bias", "profile_delta_c", "mass_function.delta_c"} <= names
+    assert {"bias", "profile.delta_c", "mass_function.delta_c"} <= names
     lower = hm.evolve(sigma_8=0.7)
     assert lower.mass_function.variance is mf.variance
     assert lower.profile is hm.profile
@@ -723,34 +720,18 @@ def test_extension_stage(mf):
     assert hm.evolve(sigma_8=0.7).boosted is boosted
     new = hm.evolve(**{"mass_function.delta_c": 1.6})
     assert new.boosted.concentration == pytest.approx(4.8)
-    assert hm.evolve(profile_delta_c=2.0).profile.delta_c == 2.0
+    assert hm.evolve(**{"profile.delta_c": 2.0}).profile.delta_c == 2.0
     assert HaloModel.invalidated_by("mass_function.delta_c") == ("", "boosted", "mass_function")
     q = HaloModel.quantities_available()
     assert q[""] == ("power",)
     assert q["boosted"] == ()
     assert q["mass_function.variance"]
     # The mass function's computed defaults (sigma_8, n_s) apply inside the tree too.
-    fresh = HaloModel.from_flat({"transfer_model": "EH"})
-    assert fresh.mass_function == MassFunction.build(transfer_model="EH")
+    fresh = HaloModel.from_flat({"transfer.model": "EH"})
+    assert fresh.mass_function == MassFunction.build(**{"transfer.model": "EH"})
 
 
-def test_bad_hooks_raise_when_the_table_is_built():
-    @attrs.frozen(kw_only=True)
-    class BadAlias(Stage):
-        parameter_aliases: ClassVar = MappingProxyType({"x": "profile.nope"})
-        profile: Profile = field(factory=Profile, doc="The profile.")
-
-    with pytest.raises(TypeError, match="not a parameter field"):
-        BadAlias.parameter_names()
-
-    @attrs.frozen(kw_only=True)
-    class ClashingAlias(Stage):
-        parameter_aliases: ClassVar = MappingProxyType({"concentration": "profile.delta_c"})
-        profile: Profile = field(factory=Profile, doc="The profile.")
-
-    with pytest.raises(TypeError, match="also the name of a field"):
-        ClashingAlias.parameter_names()
-
+def test_bad_derived_input_raises_when_the_table_is_built():
     @attrs.frozen(kw_only=True)
     class BadInput(Stage):
         profile: Profile = field(factory=Profile, doc="The profile.")
@@ -763,28 +744,30 @@ def test_bad_hooks_raise_when_the_table_is_built():
         BadInput.parameter_names()
 
 
-def test_repeated_alias_is_ambiguous():
+def test_dotted_suffixes():
     @attrs.frozen(kw_only=True)
-    class Twice(Stage):
-        a: Profile = field(factory=Profile, doc="One.")
-        b: Profile = field(factory=Profile, doc="Two.")
+    class Pair(Stage):
+        x: Profile = field(factory=Profile, doc="One.")
+        y: Profile = field(factory=Profile, doc="Two.")
 
     @attrs.frozen(kw_only=True)
-    class Aliased(Stage):
-        parameter_aliases: ClassVar = MappingProxyType({"c": "concentration"})
-        concentration: float = field(default=1.0, doc="A concentration.")
+    class Nest(Stage):
+        pair: Pair = field(factory=Pair, doc="A pair.")
+        concentration: float = field(default=1.0, doc="The root's own.")
 
-    @attrs.frozen(kw_only=True)
-    class Both(Stage):
-        x: Aliased = field(factory=Aliased, doc="One.")
-        y: Aliased = field(factory=Aliased, doc="Two.")
-
-    with pytest.raises(TypeError, match=r"'concentration' is ambiguous.*'a.concentration'"):
-        Twice().evolve(concentration=1.0)
-    with pytest.raises(TypeError, match=r"'c' is ambiguous.*'x.concentration'"):
-        Both().evolve(c=2.0)
-    assert Both().evolve(**{"x.concentration": 2.0}).x.concentration == 2.0
-    assert Both.parameter_names() == ("x.concentration", "y.concentration")
+    with pytest.raises(TypeError, match=r"'concentration' is ambiguous.*'x.concentration'"):
+        Pair().evolve(concentration=1.0)
+    assert Pair().evolve(**{"x.concentration": 2.0}).x.concentration == 2.0
+    assert Pair.parameter_names() == (
+        "x.concentration",
+        "x.delta_c",
+        "y.concentration",
+        "y.delta_c",
+    )
+    # A field's full path means that field: the root's own name beats the suffixes.
+    assert Nest().evolve(concentration=3.0).concentration == 3.0
+    assert Nest().evolve(**{"x.concentration": 3.0}).pair.x.concentration == 3.0
+    assert Nest.parameter_info()["concentration"].paths == ("concentration",)
 
 
 # ---------------------------------------------------------------------------------
