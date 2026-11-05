@@ -7,16 +7,18 @@ number of haloes:
 
 .. math:: \frac{dn}{dM}(M) = \frac{dn'}{dM'}\big(M'(M)\big)\frac{dM'}{dM}.
 
-It is a model kind (``MassConversion.get("NFW")``), so other packages can add their
-own (e.g. for an Einasto profile) by subclassing it and implementing
-:meth:`MassConversion.convert_kernel`.
+It is a model kind (``MassConversion.get("profile")``), so other packages can add
+their own by subclassing it and implementing :meth:`MassConversion.convert_kernel`.
 
-The NFW conversion
-------------------
-:class:`NFWConversion` assumes NFW haloes (Navarro, Frenk & White 1997) with the
-median concentration of a :class:`~hmf.core.concentration.ConcentrationModel`
-(default :class:`~hmf.core.concentration.Duffy08`). For masses M in the source
-definition A at redshift z:
+The profile conversion
+----------------------
+:class:`ProfileConversion` assumes haloes of a
+:class:`~hmf.core.profiles.DensityProfile` (default
+:class:`~hmf.core.profiles.NFW`, Navarro, Frenk & White 1997) with the median
+concentration of a :class:`~hmf.core.concentration.ConcentrationModel` (default
+:class:`~hmf.core.concentration.Duffy08`). Another profile (e.g. Einasto) is another
+``DensityProfile``, not another conversion. For masses M in the source definition A at
+redshift z:
 
 1. **The concentration in A**, :math:`c_A(M)`. If the concentration model is
    calibrated in A, it is the model's. Otherwise (it is calibrated in C), each halo
@@ -26,13 +28,15 @@ definition A at redshift z:
    :math:`c_A` follows from :math:`c_C`, as in step 2.
 2. **The concentration in B**, :math:`c_B`: the root of
    :math:`F(c_B) = (\rho_B/\rho_A)F(c_A)`, where :math:`F(x) = \mu(x)/x^3` is the
-   mean enclosed density in units of :math:`3\rho_s`,
-   :math:`\mu(x) = \ln(1+x) - x/(1+x)`, and :math:`\rho_A, \rho_B` the halo
-   densities of the two definitions at z (their ratio is that of their
-   overdensities relative to the mean, :math:`\Delta_{m,B}/\Delta_{m,A}`). It is
-   solved for every mass at once, by Newton's method from the approximation of
-   Hu & Kravtsov (2003, eq. C11), to round-off (about :math:`10^{-13}`; see
-   :mod:`hmf.core._kernels.mass_conversion`).
+   mean enclosed density in units of :math:`3\rho_s`, :math:`\mu(x)` the profile's
+   enclosed mass (:math:`\ln(1+x) - x/(1+x)` for NFW), and :math:`\rho_A, \rho_B`
+   the halo densities of the two definitions at z (their ratio is that of their
+   overdensities relative to the mean, :math:`\Delta_{m,B}/\Delta_{m,A}`). The
+   profile solves it for every mass at once, by Newton's method
+   (:meth:`DensityProfile.convert_concentration_kernel
+   <hmf.core.profiles.DensityProfile.convert_concentration_kernel>`): for NFW from
+   the approximation of Hu & Kravtsov (2003, eq. C11), to round-off (about
+   :math:`10^{-13}`; see :mod:`hmf.core._kernels.mass_conversion`).
 3. **The mass in B**, :math:`M' = M\mu(c_B)/\mu(c_A)`, and the Jacobian, by implicit
    differentiation of the root through :math:`c_A(M)`, with
    :math:`s_A = d\ln c_A/d\ln M`, :math:`\psi = d\ln\mu/d\ln x` and
@@ -51,7 +55,7 @@ Einstein-de Sitter) converts to itself exactly.
 
 Definitions with an overdensity convert: the SO definitions and
 :class:`~hmf.core.mass_definitions.FOF`, through its approximate overdensity (an
-FoF group is not an NFW sphere). :class:`~hmf.core.mass_definitions.SelfBound` has
+FoF group is not a spherical halo). :class:`~hmf.core.mass_definitions.SelfBound` has
 none, and an :class:`~hmf.core.mass_definitions.SOGeneric` is not a definition masses
 are in: both raise ``ValueError``.
 
@@ -68,28 +72,27 @@ definition). The concentration model's calibration domain is reported, not enfor
 from __future__ import annotations
 
 import abc
-from typing import Any, ClassVar
+from typing import Any
 
 import attrs
 import numpy as np
 import numpy.typing as npt
 
-from . import _references as refs
 from ._fields import field
-from ._kernels import mass_conversion as _k
 from .concentration import ConcentrationModel, Duffy08
 from .domain import Interval, check_extent
 from .mass_definitions import MassDefinition, SelfBound, SOGeneric
 from .model import Model
+from .profiles import NFW, DensityProfile
 from .units import Msun_h, unit_boundary
 
-__all__ = ["OUTER_NEWTON_STEPS", "ConvertedMasses", "MassConversion", "NFWConversion"]
+__all__ = ["OUTER_NEWTON_STEPS", "ConvertedMasses", "MassConversion", "ProfileConversion"]
 
 FloatArray = npt.NDArray[np.float64]
 BoolArray = npt.NDArray[np.bool_]
 
 #: The Newton steps in ln M_C that find the mass in the concentration model's own
-#: definition (step 1 of the NFW conversion). With concentration slopes |s| ~ 0.1
+#: definition (step 1 of the profile conversion). With concentration slopes |s| ~ 0.1
 #: each step multiplies the error by about its square, so three reach round-off
 #: from M_C = M; the fourth is a margin.
 OUTER_NEWTON_STEPS = 4
@@ -223,20 +226,25 @@ def _check_convertible(definition: MassDefinition, role: str) -> None:
     if isinstance(definition, SelfBound):
         raise ValueError(  # noqa: TRY004 (a configuration error: see hmf.core.domain)
             f"Can't convert masses {role} {definition}: self-bound masses have no "
-            "overdensity, so no NFW radius."
+            "overdensity, so no halo radius."
         )
 
 
 @attrs.frozen(kw_only=True)
-class NFWConversion(MassConversion, alias="NFW"):
-    """Mass conversion for NFW haloes with a concentration-mass relation.
+class ProfileConversion(MassConversion, alias="profile"):
+    """Mass conversion for haloes of a density profile with a concentration-mass relation.
 
-    See "The NFW conversion" in the module documentation. A profile other than NFW
-    (e.g. Einasto) is another :class:`MassConversion`.
+    See "The profile conversion" in the module documentation.
     """
 
-    references: ClassVar[tuple[str, ...]] = (refs.NFW97, refs.HU03)
-
+    profile: DensityProfile = field(
+        factory=NFW,
+        converter=DensityProfile.coerce,
+        doc=(
+            "The haloes' density profile: an instance, a class or a registered name "
+            "(default NFW())."
+        ),
+    )
     concentration: ConcentrationModel = field(
         factory=Duffy08,
         converter=ConcentrationModel.coerce,
@@ -268,9 +276,9 @@ class NFWConversion(MassConversion, alias="NFW"):
     ) -> tuple[FloatArray, FloatArray, FloatArray]:
         """c(M) and dln c/dln M in ``definition``, and the masses c was evaluated at.
 
-        Step 1 of the NFW conversion.
+        Step 1 of the profile conversion.
         """
-        model = self.concentration
+        model, profile = self.concentration, self.profile
         own = model.mass_definition
         if own == definition:
             ln_c, slope = model.ln_concentration_and_slope_kernel(m, z=z)
@@ -282,11 +290,15 @@ class NFWConversion(MassConversion, alias="NFW"):
         ln_m_own = np.array(np.broadcast_to(ln_m, np.broadcast_shapes(ln_m.shape, ln_q.shape)))
         for _ in range(OUTER_NEWTON_STEPS):
             ln_c, slope = model.ln_concentration_and_slope_kernel(np.exp(ln_m_own), z=z)
-            ln_ratio, _, dln_m, _ = _k.nfw_convert(np.exp(ln_c), slope, ln_q)
+            ln_ratio, _, dln_m, _ = profile.convert_concentration_kernel(
+                np.exp(ln_c), slope=slope, ln_q=ln_q
+            )
             ln_m_own = ln_m_own - (ln_m_own + ln_ratio - ln_m) / dln_m
         m_own = np.exp(ln_m_own)
         ln_c, slope = model.ln_concentration_and_slope_kernel(m_own, z=z)
-        _, c_new, dln_m, dln_c = _k.nfw_convert(np.exp(ln_c), slope, ln_q)
+        _, c_new, dln_m, dln_c = profile.convert_concentration_kernel(
+            np.exp(ln_c), slope=slope, ln_q=ln_q
+        )
         return c_new, dln_c / dln_m, m_own
 
     def convert_kernel(
@@ -300,7 +312,7 @@ class NFWConversion(MassConversion, alias="NFW"):
     ) -> ConvertedMasses:
         r"""Convert masses from ``source`` to ``target`` at z, at kernel level.
 
-        See "The NFW conversion" in the module documentation.
+        See "The profile conversion" in the module documentation.
 
         Parameters
         ----------
@@ -327,7 +339,7 @@ class NFWConversion(MassConversion, alias="NFW"):
         ValueError
             As :meth:`check_definitions`.
         """
-        where = f"NFWConversion.convert_kernel ({source} -> {target})"
+        where = f"ProfileConversion.convert_kernel ({source} -> {target})"
         m = check_extent("m", m, _POSITIVE, where=where)
         z = check_extent("z", z, _Z, where=where)
         omega_m_z = check_extent("omega_m_z", omega_m_z, _POSITIVE, where=where)
@@ -343,7 +355,9 @@ class NFWConversion(MassConversion, alias="NFW"):
         ln_q = np.log(target.delta_halo_mean_kernel(omega_m_z)) - np.log(
             source.delta_halo_mean_kernel(omega_m_z)
         )
-        ln_ratio, _, dln_m, _ = _k.nfw_convert(c_source, slope, ln_q)
+        ln_ratio, _, dln_m, _ = self.profile.convert_concentration_kernel(
+            c_source, slope=slope, ln_q=ln_q
+        )
         ratio = np.exp(ln_ratio)
         model = self.concentration
         calibration = model.calibration

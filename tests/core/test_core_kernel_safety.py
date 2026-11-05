@@ -25,6 +25,7 @@ import hmf.core.mass_conversion
 import hmf.core.mass_definitions
 import hmf.core.mass_variance
 import hmf.core.power_source
+import hmf.core.profiles
 import hmf.core.transfer
 from hmf.core import fits, growth_models, transfer_models
 from hmf.core._kernels import growth as kg
@@ -34,10 +35,11 @@ from hmf.core.domain import Domain, DomainError, Interval, check_extent, warn_on
 from hmf.core.filters import TopHat
 from hmf.core.fits import FitInputs, evaluate_fsigma
 from hmf.core.growth import Growth
-from hmf.core.mass_conversion import NFWConversion
+from hmf.core.mass_conversion import ProfileConversion
 from hmf.core.mass_definitions import SOCritical, SOMean
 from hmf.core.mass_variance import MassVariance, n_eff_kernel
 from hmf.core.power_source import TableRange, TabulatedPower
+from hmf.core.profiles import NFW
 from hmf.core.transfer import Transfer
 from hmf.core.units import Msun_h, h_Mpc, power_unit, rho_unit
 from hmf.exceptions import HMFExtrapolationWarning
@@ -421,14 +423,26 @@ KERNEL_CASES = [
         lambda: Duffy08().in_calibration_domain_kernel(1e12, z=[0.0, -1.0]),
     ),
     (
-        "NFWConversion.convert_kernel",
-        lambda: NFWConversion().convert_kernel(
+        "DensityProfile.ln_mu_and_slope_kernel",
+        lambda: NFW().ln_mu_and_slope_kernel([1.0, 0.0]),
+    ),
+    (
+        "DensityProfile.convert_concentration_kernel",
+        lambda: NFW().convert_concentration_kernel([5.0, -1.0], slope=-0.1, ln_q=0.5),
+    ),
+    (
+        "DensityProfile.convert_concentration_kernel ln_q",
+        lambda: NFW().convert_concentration_kernel(5.0, slope=-0.1, ln_q=np.inf),
+    ),
+    (
+        "ProfileConversion.convert_kernel",
+        lambda: ProfileConversion().convert_kernel(
             [1e12, np.inf], z=0.0, omega_m_z=0.3, source=SOMean(), target=SOCritical()
         ),
     ),
     (
-        "NFWConversion.convert_kernel omega_m_z",
-        lambda: NFWConversion().convert_kernel(
+        "ProfileConversion.convert_kernel omega_m_z",
+        lambda: ProfileConversion().convert_kernel(
             1e12, z=0.0, omega_m_z=0.0, source=SOMean(), target=SOCritical()
         ),
     ),
@@ -473,6 +487,7 @@ def _public_kernels():
         hmf.core.mass_definitions,
         hmf.core.mass_variance,
         hmf.core.power_source,
+        hmf.core.profiles,
     )
     for module in (*modules, hmf.core.transfer):
         for obj_name, obj in vars(module).items():

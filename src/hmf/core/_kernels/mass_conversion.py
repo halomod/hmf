@@ -1,15 +1,16 @@
-r"""Kernels of the NFW conversion between halo mass definitions.
+r"""Kernels of the conversion of halo masses between mass definitions, for a profile.
 
-An NFW halo (Navarro, Frenk & White 1997) of scale radius :math:`r_s` and
-characteristic density :math:`\rho_s` encloses, within :math:`r = x r_s`, the mass
+A halo of density profile :math:`\rho(r) = \rho_s f(r/r_s)` encloses, within
+:math:`r = x r_s`, the mass :math:`M(<x r_s) = 4\pi\rho_s r_s^3\,\mu(x)`, with
+:math:`\mu(x) = \int_0^x f(y) y^2\,dy`, so its mean enclosed density is
+:math:`\bar\rho(<x r_s) = 3\rho_s F(x)`, with :math:`F(x) = \mu(x)/x^3`. For an NFW
+profile (Navarro, Frenk & White 1997)
 
-.. math:: M(<x r_s) = 4\pi\rho_s r_s^3\,\mu(x), \qquad
-          \mu(x) = \ln(1 + x) - \frac{x}{1 + x},
+.. math:: \mu(x) = \ln(1 + x) - \frac{x}{1 + x}.
 
-so its mean enclosed density is :math:`\bar\rho(<x r_s) = 3\rho_s F(x)`, with
-:math:`F(x) = \mu(x)/x^3`. A spherical-overdensity definition A of halo density
-:math:`\rho_A` sets the concentration :math:`c_A` by :math:`3\rho_s F(c_A) = \rho_A`.
-The same halo in a definition B has the concentration :math:`c_B` with
+A spherical-overdensity definition A of halo density :math:`\rho_A` sets the
+concentration :math:`c_A` by :math:`3\rho_s F(c_A) = \rho_A`. The same halo in a
+definition B has the concentration :math:`c_B` with
 
 .. math:: F(c_B) = q\,F(c_A), \qquad q = \rho_B / \rho_A,
 
@@ -17,32 +18,48 @@ and the mass :math:`M_B = M_A\,\mu(c_B)/\mu(c_A)`. Only the ratio of the two hal
 densities enters, so it does not matter whether they are comoving or physical, or
 relative to the mean or the critical density, as long as both are the same.
 
-:func:`nfw_concentration_ratio_solve` solves :math:`F(c_B) = q F(c_A)` for every
-element at once: it starts from the fit of Hu & Kravtsov (2003, eq. C11;
-:func:`hu_kravtsov_inverse`), and polishes it with a fixed number of Newton steps in
-:math:`\ln x` (:data:`NEWTON_STEPS`), each elementwise, so the result does not depend
-on the batch size. :func:`nfw_convert` gives the masses and the analytic Jacobian.
+A profile enters only through :math:`\ln\mu(x)` and its slope
+:math:`\psi(x) = d\ln\mu/d\ln x`, which is below 3 for a density that falls
+outwards, so :math:`\ln F` decreases monotonically in :math:`\ln x` and the root is
+unique. :func:`concentration_ratio_solve` solves :math:`F(c_B) = q F(c_A)` for every
+element at once by a fixed number of Newton steps in :math:`\ln x` from a starting
+point, each elementwise, so the result does not depend on the batch size, and
+:func:`profile_convert` gives the masses and the analytic Jacobian. For NFW
+(:func:`nfw_ln_mu_and_slope`) the starting point is the fit of Hu & Kravtsov (2003,
+eq. C11; :func:`hu_kravtsov_inverse`), and :func:`nfw_concentration_ratio_solve` and
+:func:`nfw_convert` are the two with it.
 
 The functions follow the rules of :mod:`hmf.core._kernels` and do not check their
-inputs: the kernel-level entry points of :mod:`hmf.core.mass_conversion` do.
+inputs: the kernel-level entry points of :mod:`hmf.core.profiles` do.
 """
 
 from __future__ import annotations
+
+from collections.abc import Callable
 
 import numpy as np
 import numpy.typing as npt
 
 __all__ = [
     "NEWTON_STEPS",
+    "LnMuAndSlope",
+    "concentration_ratio_solve",
     "hu_kravtsov_inverse",
     "nfw_concentration_ratio_solve",
     "nfw_convert",
     "nfw_ln_mean_density",
     "nfw_ln_mu",
+    "nfw_ln_mu_and_slope",
     "nfw_ln_mu_slope",
+    "nfw_start",
+    "power_law_start",
+    "profile_convert",
 ]
 
 FloatArray = npt.NDArray[np.float64]
+
+#: A profile's :math:`x \mapsto (\ln\mu(x), \psi(x))`, on plain arrays.
+LnMuAndSlope = Callable[[FloatArray], tuple[FloatArray, FloatArray]]
 
 #: The number of Newton steps that polish the Hu & Kravtsov (2003) starting point.
 #: Newton converges quadratically from its error (below 1% for 0 < c < 400): for
@@ -58,8 +75,22 @@ _SERIES_X = 0.01
 _HK_A = (0.5116, -0.4283, -3.13e-3, -3.52e-5)
 
 
-def _ln_mu_and_slope(x: FloatArray) -> tuple[FloatArray, FloatArray, FloatArray]:
-    """Ln x, ln mu(x) and psi(x), with mu from one evaluation (see :func:`nfw_ln_mu`)."""
+def nfw_ln_mu_and_slope(x: npt.ArrayLike) -> tuple[FloatArray, FloatArray]:
+    r"""The NFW :math:`\ln\mu(x)` and :math:`\psi(x)`, from one evaluation of :math:`\mu`.
+
+    See :func:`nfw_ln_mu` and :func:`nfw_ln_mu_slope`.
+
+    Parameters
+    ----------
+    x
+        :math:`r/r_s` (> 0), dimensionless.
+
+    Returns
+    -------
+    ln_mu, psi : numpy.ndarray
+        With the shape of ``x``.
+    """
+    x = np.asarray(x, dtype=np.float64)
     ln_x = np.log(x)
     ln_1px = np.log1p(x)
     mu = ln_1px - x / (1.0 + x)
@@ -72,7 +103,7 @@ def _ln_mu_and_slope(x: FloatArray) -> tuple[FloatArray, FloatArray, FloatArray]
         mu = np.where(x < _SERIES_X, series * xs**2, mu)
     ln_mu = np.log(mu)
     psi = np.exp(2.0 * (ln_x - ln_1px) - ln_mu)
-    return ln_x, ln_mu, psi
+    return ln_mu, psi
 
 
 def nfw_ln_mu(x: npt.ArrayLike) -> FloatArray:
@@ -92,7 +123,7 @@ def nfw_ln_mu(x: npt.ArrayLike) -> FloatArray:
     numpy.ndarray
         :math:`\ln\mu(x)`.
     """
-    return _ln_mu_and_slope(np.asarray(x, dtype=np.float64))[1]
+    return nfw_ln_mu_and_slope(np.asarray(x, dtype=np.float64))[0]
 
 
 def nfw_ln_mu_slope(x: npt.ArrayLike) -> FloatArray:
@@ -110,7 +141,7 @@ def nfw_ln_mu_slope(x: npt.ArrayLike) -> FloatArray:
     numpy.ndarray
         :math:`\psi(x)`, dimensionless.
     """
-    return _ln_mu_and_slope(np.asarray(x, dtype=np.float64))[2]
+    return nfw_ln_mu_and_slope(np.asarray(x, dtype=np.float64))[1]
 
 
 def nfw_ln_mean_density(x: npt.ArrayLike) -> FloatArray:
@@ -165,23 +196,58 @@ def hu_kravtsov_inverse(ln_f: npt.ArrayLike) -> FloatArray:
     return out
 
 
-def nfw_concentration_ratio_solve(c: npt.ArrayLike, ln_q: npt.ArrayLike) -> FloatArray:
-    r"""The concentration :math:`c'` with :math:`F(c') = q F(c)`, elementwise.
+def power_law_start(c: FloatArray, ln_q: FloatArray, psi: FloatArray) -> FloatArray:
+    r"""A starting point for any profile: :math:`F` as the local power law at c.
 
-    The NFW halo of concentration c in a definition of halo density :math:`\rho` has
-    the concentration :math:`c'` in a definition of halo density :math:`q\rho`. The
-    root of :math:`g(y) = \ln F(e^y) - \ln q - \ln F(c)` in :math:`y = \ln c'` is
-    found from :func:`hu_kravtsov_inverse` by :data:`NEWTON_STEPS` Newton steps
-    (:math:`g'(y) = \psi - 3`, between -1 and -3), so the error is at round-off.
-    Where :math:`q = 1` the result is ``c`` itself, exactly.
+    :math:`\ln c' = \ln c + \ln q/(\psi(c) - 3)`, one Newton step from c (exact for a
+    power-law profile).
 
     Parameters
     ----------
+    c
+        The concentrations (> 0).
+    ln_q
+        :math:`\ln q`, broadcast with ``c``.
+    psi
+        :math:`\psi(c)`.
+
+    Returns
+    -------
+    numpy.ndarray
+        The starting concentration.
+    """
+    out: FloatArray = c * np.exp(ln_q / (psi - 3.0))
+    return out
+
+
+def concentration_ratio_solve(
+    ln_mu_and_slope: LnMuAndSlope,
+    c: npt.ArrayLike,
+    ln_q: npt.ArrayLike,
+    c_start: npt.ArrayLike,
+    steps: int,
+) -> FloatArray:
+    r"""The concentration :math:`c'` with :math:`F(c') = q F(c)`, elementwise, for a profile.
+
+    The halo of concentration c in a definition of halo density :math:`\rho` has the
+    concentration :math:`c'` in a definition of halo density :math:`q\rho`. The root of
+    :math:`g(y) = \ln\mu(e^y) - 3y - \ln q - \ln F(c)` in :math:`y = \ln c'` is found
+    by ``steps`` Newton steps from ``c_start`` (:math:`g'(y) = \psi - 3 < 0`). Where
+    :math:`q = 1` the result is ``c`` itself, exactly.
+
+    Parameters
+    ----------
+    ln_mu_and_slope
+        The profile's :math:`(\ln\mu, \psi)` (e.g. :func:`nfw_ln_mu_and_slope`).
     c
         The concentrations (> 0), dimensionless.
     ln_q
         :math:`\ln q`, the log of the ratio of the new halo density to the old;
         broadcast with ``c``.
+    c_start
+        The starting concentrations, broadcast with ``c``.
+    steps
+        The number of Newton steps.
 
     Returns
     -------
@@ -189,24 +255,29 @@ def nfw_concentration_ratio_solve(c: npt.ArrayLike, ln_q: npt.ArrayLike) -> Floa
         :math:`c'`, with the broadcast shape.
     """
     c, ln_q = np.broadcast_arrays(np.asarray(c, dtype=np.float64), np.asarray(ln_q, np.float64))
-    ln_c, ln_mu_c, _ = _ln_mu_and_slope(c)
-    target = ln_mu_c - 3.0 * ln_c + ln_q
-    y = np.log(hu_kravtsov_inverse(target))
-    for _ in range(NEWTON_STEPS):
-        _, ln_mu, psi = _ln_mu_and_slope(np.exp(y))
+    ln_mu_c, _ = ln_mu_and_slope(c)
+    target = ln_mu_c - 3.0 * np.log(c) + ln_q
+    y = np.array(np.broadcast_to(np.log(c_start), c.shape))
+    for _ in range(steps):
+        ln_mu, psi = ln_mu_and_slope(np.exp(y))
         y = y - (ln_mu - 3.0 * y - target) / (psi - 3.0)
     out: FloatArray = np.where(ln_q == 0.0, c, np.exp(y))
     return out
 
 
-def nfw_convert(
-    c: npt.ArrayLike, slope: npt.ArrayLike, ln_q: npt.ArrayLike
+def profile_convert(
+    ln_mu_and_slope: LnMuAndSlope,
+    c: npt.ArrayLike,
+    slope: npt.ArrayLike,
+    ln_q: npt.ArrayLike,
+    c_start: npt.ArrayLike,
+    steps: int,
 ) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray]:
-    r"""Convert NFW haloes to a definition of ``q`` times the halo density.
+    r"""Convert haloes of a profile to a definition of ``q`` times the halo density.
 
     For haloes of mass :math:`M` and concentration :math:`c(M)` in a definition A,
     with :math:`s = d\ln c/d\ln M`, the new concentration :math:`c'` solves
-    :math:`F(c') = qF(c)` (:func:`nfw_concentration_ratio_solve`) and the new mass is
+    :math:`F(c') = qF(c)` (:func:`concentration_ratio_solve`) and the new mass is
     :math:`M' = M\mu(c')/\mu(c)`. Differentiating the root implicitly, with
     :math:`\phi = \psi - 3 = d\ln F/d\ln x` (never zero):
 
@@ -216,6 +287,8 @@ def nfw_convert(
 
     Parameters
     ----------
+    ln_mu_and_slope
+        The profile's :math:`(\ln\mu, \psi)`.
     c
         The concentrations in the old definition (> 0).
     slope
@@ -223,6 +296,8 @@ def nfw_convert(
         definition.
     ln_q
         :math:`\ln q = \ln(\rho_{\rm new}/\rho_{\rm old})`.
+    c_start, steps
+        As for :func:`concentration_ratio_solve`.
 
     Returns
     -------
@@ -237,13 +312,66 @@ def nfw_convert(
 
     All have the broadcast shape of the inputs.
     """
-    c_new = nfw_concentration_ratio_solve(c, ln_q)
+    c_new = concentration_ratio_solve(ln_mu_and_slope, c, ln_q, c_start, steps)
     c_old = np.broadcast_to(np.asarray(c, dtype=np.float64), c_new.shape)
-    _, ln_mu_old, psi_old = _ln_mu_and_slope(c_old)
-    _, ln_mu_new, psi_new = _ln_mu_and_slope(c_new)
+    ln_mu_old, psi_old = ln_mu_and_slope(c_old)
+    ln_mu_new, psi_new = ln_mu_and_slope(c_new)
     ratio = (psi_old - 3.0) / (psi_new - 3.0)
     slope = np.asarray(slope, dtype=np.float64)
     ln_mass_ratio = ln_mu_new - ln_mu_old
     dln_m = 1.0 + slope * (psi_new * ratio - psi_old)
     dln_c = ratio * slope
     return ln_mass_ratio, c_new, np.asarray(dln_m, np.float64), np.asarray(dln_c, np.float64)
+
+
+def nfw_start(c: FloatArray, ln_q: FloatArray) -> FloatArray:
+    r"""The NFW starting point: Hu & Kravtsov (2003) at :math:`\ln F(c) + \ln q`."""
+    c = np.asarray(c, dtype=np.float64)
+    return hu_kravtsov_inverse(nfw_ln_mean_density(c) + ln_q)
+
+
+def nfw_concentration_ratio_solve(c: npt.ArrayLike, ln_q: npt.ArrayLike) -> FloatArray:
+    r"""The NFW concentration :math:`c'` with :math:`F(c') = q F(c)`, elementwise.
+
+    :func:`concentration_ratio_solve` for NFW, from :func:`hu_kravtsov_inverse`, with
+    :data:`NEWTON_STEPS` steps, so the error is at round-off.
+
+    Parameters
+    ----------
+    c
+        The concentrations (> 0), dimensionless.
+    ln_q
+        :math:`\ln q`, broadcast with ``c``.
+
+    Returns
+    -------
+    numpy.ndarray
+        :math:`c'`, with the broadcast shape.
+    """
+    c = np.asarray(c, dtype=np.float64)
+    ln_q = np.asarray(ln_q, dtype=np.float64)
+    return concentration_ratio_solve(nfw_ln_mu_and_slope, c, ln_q, nfw_start(c, ln_q), NEWTON_STEPS)
+
+
+def nfw_convert(
+    c: npt.ArrayLike, slope: npt.ArrayLike, ln_q: npt.ArrayLike
+) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray]:
+    r""":func:`profile_convert` for NFW haloes (see :func:`nfw_concentration_ratio_solve`).
+
+    Parameters
+    ----------
+    c
+        The concentrations in the old definition (> 0).
+    slope
+        :math:`s = d\ln c/d\ln M`, in the old definition.
+    ln_q
+        :math:`\ln q = \ln(\rho_{\rm new}/\rho_{\rm old})`.
+
+    Returns
+    -------
+    ln_mass_ratio, c_new, dln_m_new_dln_m, dln_c_new_dln_m : numpy.ndarray
+        As for :func:`profile_convert`.
+    """
+    c = np.asarray(c, dtype=np.float64)
+    ln_q = np.asarray(ln_q, dtype=np.float64)
+    return profile_convert(nfw_ln_mu_and_slope, c, slope, ln_q, nfw_start(c, ln_q), NEWTON_STEPS)

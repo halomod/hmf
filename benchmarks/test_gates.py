@@ -451,7 +451,7 @@ def test_v4_routed_evolve_gate():
 # v4 mass conversion (#392)
 # ---------------------------------------------------------------------------------
 
-#: The budget of a mass-converted dn/dm (SMT to SO-mean(200), NFWConversion) at one z,
+#: The budget of a mass-converted dn/dm (SMT to SO-mean(200), ProfileConversion) at one z,
 #: on v3's default 501 masses, with the variance warm: a fifth of v3's ~100 ms per z
 #: (``test_mass_conversion_z_loop``), and over 10x the ~1.6 ms it takes locally.
 MASS_CONVERSION_BUDGET = 20e-3
@@ -467,7 +467,7 @@ def test_v4_mass_conversion_gate(boltzmann_runs, computed_nodes):
     """A converted dn/dm costs at most 20 ms (one retry), and recomputes no lattice node."""
     m = np.logspace(10, 15, 501)
     mf = MassFunction.build(**{"transfer.model": "EH"}, fit="SMT")
-    converted = mf.evolve(mass_definition="200m", mass_conversion="NFW")
+    converted = mf.evolve(mass_definition="200m", mass_conversion="profile")
     converted.dndm_kernel(m=m, z=0.5)  # warm: the lattice nodes at the converted masses
     n_nodes = computed_nodes().size
 

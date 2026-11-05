@@ -1,4 +1,4 @@
-"""Tests of the NFW mass conversion, its kernels, and converted mass functions."""
+"""Tests of the profile mass conversion (NFW), its kernels, and converted mass functions."""
 
 import copy
 import math
@@ -19,7 +19,7 @@ from hmf.core import fits
 from hmf.core._kernels import mass_conversion as kern
 from hmf.core.concentration import ConcentrationModel, Duffy08
 from hmf.core.domain import DomainError
-from hmf.core.mass_conversion import MassConversion, NFWConversion
+from hmf.core.mass_conversion import MassConversion, ProfileConversion
 from hmf.core.mass_definitions import (
     FOF,
     SelfBound,
@@ -29,6 +29,7 @@ from hmf.core.mass_definitions import (
     SOVirial,
 )
 from hmf.core.mass_function import MassFunction
+from hmf.core.profiles import NFW
 from hmf.core.species import omega_m
 from hmf.core.units import Msun_h, UnitBoundaryError
 from hmf.exceptions import HMFExtrapolationWarning
@@ -159,22 +160,23 @@ def test_jacobian_is_the_derivative_of_the_mapping():
 
 
 # ---------------------------------------------------------------------------------
-# The NFWConversion model
+# The ProfileConversion model
 # ---------------------------------------------------------------------------------
 
 
 @pytest.fixture(scope="module")
 def nfw():
-    return NFWConversion()
+    return ProfileConversion()
 
 
 def test_registered_and_cited(nfw):
-    assert MassConversion.get("NFW") is NFWConversion
+    assert MassConversion.get("profile") is ProfileConversion
+    assert nfw.profile == NFW()
     assert nfw.concentration == Duffy08()
-    assert NFWConversion(concentration="Duffy08") == nfw
-    assert refs.HU03 in NFWConversion.references
+    assert ProfileConversion(profile="NFW", concentration="Duffy08") == nfw
+    assert refs.HU03 in NFW.references
     assert pickle.loads(pickle.dumps(nfw)) == nfw
-    assert hash(nfw) == hash(NFWConversion())
+    assert hash(nfw) == hash(ProfileConversion())
 
 
 @pytest.mark.parametrize("definition", [*SO_DEFINITIONS, FOF()], ids=str)
@@ -201,7 +203,7 @@ def test_virial_is_so_mean_18pi2_in_einstein_de_sitter(nfw):
 )
 def test_round_trip(a, b, concentration):
     """A -> B -> A returns the masses to 1e-13, and the Jacobians are reciprocal."""
-    conv = NFWConversion(concentration=concentration)
+    conv = ProfileConversion(concentration=concentration)
     z, om = 0.7, float(omega_m(Planck18, 0.7))
     there = conv.convert_kernel(M, z=z, omega_m_z=om, source=a, target=b)
     back = conv.convert_kernel(there.m, z=z, omega_m_z=om, source=b, target=a)
@@ -219,7 +221,7 @@ def test_round_trip(a, b, concentration):
     ids=str,
 )
 def test_jacobian_matches_a_finite_difference(source, concentration):
-    conv = NFWConversion(concentration=concentration)
+    conv = ProfileConversion(concentration=concentration)
     target = SOVirial()
     out = conv.convert_kernel(M, z=0.3, omega_m_z=0.4, source=source, target=target)
     h = 1e-5
@@ -231,7 +233,7 @@ def test_jacobian_matches_a_finite_difference(source, concentration):
 
 def test_concentration_is_converted_to_the_source_definition():
     """A halo converted to the relation's definition has the relation's concentration."""
-    conv = NFWConversion(concentration=Duffy08())  # in 200c
+    conv = ProfileConversion(concentration=Duffy08())  # in 200c
     z, om = 0.5, 0.55
     out = conv.convert_kernel(M, z=z, omega_m_z=om, source=SOMean(), target=SOCritical())
     # Through the kernel: c in 200m from c in 200c, at the 200c masses found.
@@ -282,7 +284,7 @@ class _ConstantConcentration(ConcentrationModel, abstract=True):
 
 def test_a_user_concentration_model():
     """With a constant c the mapping is a constant ratio mu(c') / mu(c), and dM'/dM it."""
-    conv = NFWConversion(concentration=_ConstantConcentration())
+    conv = ProfileConversion(concentration=_ConstantConcentration())
     out = conv.convert_kernel(M, z=0.0, omega_m_z=0.3, source=SOMean(), target=SOCritical())
     c_new = kern.nfw_concentration_ratio_solve(5.0, _ln_q(SOCritical(), SOMean(), 0.3))
     ratio = math.exp(kern.nfw_ln_mu(c_new) - kern.nfw_ln_mu(5.0))
@@ -357,7 +359,7 @@ def smt():
 
 @pytest.fixture(scope="module")
 def smt200(smt):
-    return smt.evolve(mass_definition="200m", mass_conversion="NFW")
+    return smt.evolve(mass_definition="200m", mass_conversion="profile")
 
 
 def test_default_mass_function_does_not_convert(smt):
@@ -382,7 +384,7 @@ def test_accepted_definition_is_evaluated_directly(smt):
     expected = fits.Tinker08().fsigma(sigma, z=z, delta_halo=200 / om)
     np.testing.assert_allclose(mf.fsigma(m=M * Msun_h, z=z), expected, rtol=1e-14)
     # The same, with a conversion given but not needed.
-    with_conversion = mf.evolve(mass_conversion="NFW")
+    with_conversion = mf.evolve(mass_conversion="profile")
     np.testing.assert_array_equal(
         with_conversion.dndm(m=M * Msun_h, z=z), mf.dndm(m=M * Msun_h, z=z)
     )
@@ -394,15 +396,15 @@ def test_accepted_definition_is_evaluated_directly(smt):
 
 
 def test_mismatched_definition_needs_a_conversion(smt):
-    with pytest.raises(ValueError, match=r"mass_conversion=NFWConversion\(\)") as info:
+    with pytest.raises(ValueError, match=r"mass_conversion=ProfileConversion\(\)") as info:
         smt.evolve(mass_definition="200m")
     assert "SMT was measured in vir, which does not accept mass_definition=200m" in str(info.value)
     with pytest.raises(ValueError, match="can't be an SOGeneric"):
-        smt.evolve(mass_definition=SOGeneric(preferred=SOMean()), mass_conversion="NFW")
+        smt.evolve(mass_definition=SOGeneric(preferred=SOMean()), mass_conversion="profile")
     with pytest.raises(ValueError, match="self-bound masses have no overdensity"):
-        smt.evolve(fit="AnguloBound", mass_definition="200m", mass_conversion="NFW")
+        smt.evolve(fit="AnguloBound", mass_definition="200m", mass_conversion="profile")
     with pytest.raises(ValueError, match="self-bound masses have no overdensity"):
-        smt.evolve(mass_definition=SelfBound(), mass_conversion="NFW")
+        smt.evolve(mass_definition=SelfBound(), mass_conversion="profile")
 
 
 @pytest.mark.parametrize("z", [0.0, 1.0])
@@ -414,7 +416,7 @@ def test_halo_number_is_conserved(smt, z, target):
     a fine grid), counts the same haloes as the measured cumulative function above the
     corresponding masses. It checks dn/dm at M' and the Jacobian together.
     """
-    mf = smt.evolve(mass_definition=target, mass_conversion="NFW")
+    mf = smt.evolve(mass_definition=target, mass_conversion="profile")
     m_lo = np.geomspace(1e10, 3e15, 12)
     m_top = 1e16
     om = omega_m(Planck18, z, "cb")
@@ -452,7 +454,7 @@ def test_converting_to_an_equal_overdensity_is_the_identity(smt):
     """SO-mean of the virial overdensity at z is the virial definition there (#362)."""
     z = 0.5
     delta = float(SOVirial().delta_halo_mean_kernel(omega_m(Planck18, z, "cb")))
-    mf = smt.evolve(mass_definition=SOMean(overdensity=delta), mass_conversion="NFW")
+    mf = smt.evolve(mass_definition=SOMean(overdensity=delta), mass_conversion="profile")
     assert mf.converts_masses
     m = M * Msun_h
     np.testing.assert_allclose(mf.dndm(m=m, z=z), smt.dndm(m=m, z=z), rtol=1e-12)
@@ -464,7 +466,7 @@ def test_einstein_de_sitter_virial_and_so_mean_18pi2_agree():
     eds = FlatLambdaCDM(H0=70, Om0=1.0, Ob0=0.05, Tcmb0=0.0, meta={"sigma8": 0.8, "n": 1.0})
     mf = MassFunction.build(cosmology=eds, **{"transfer.model": "EH"}, fit="SMT")
     converted = mf.evolve(
-        mass_definition=SOMean(overdensity=18 * math.pi**2), mass_conversion="NFW"
+        mass_definition=SOMean(overdensity=18 * math.pi**2), mass_conversion="profile"
     )
     m = M * Msun_h
     for z in (0.0, 2.0):
@@ -502,7 +504,7 @@ def test_view_matches_the_methods(smt200):
 def test_behroozi_uses_the_measured_ngtm(smt):
     """Behroozi's correction takes n(>M') of the measured (virial) definition."""
     behroozi = smt.evolve(fit="Behroozi")
-    converted = behroozi.evolve(mass_definition="200m", mass_conversion="NFW")
+    converted = behroozi.evolve(mass_definition="200m", mass_conversion="profile")
     z = 3.0
     om = omega_m(Planck18, z, "cb")
     out = converted.mass_conversion.convert_kernel(
@@ -524,7 +526,7 @@ def test_bocquet_mass_ratio_is_applied_once(smt):
     """
     bocquet = smt.evolve(fit="Bocquet200cDMOnly")
     assert bocquet.fit.modifies_dndm
-    converted = bocquet.evolve(mass_definition="200m", mass_conversion="NFW")
+    converted = bocquet.evolve(mass_definition="200m", mass_conversion="profile")
     z = 0.5
     m = np.geomspace(1e13, 1e15, 9)
     out = converted.mass_conversion.convert_kernel(
@@ -539,7 +541,7 @@ def test_bocquet_mass_ratio_is_applied_once(smt):
 
 def test_domain_policy_covers_the_concentration_model(smt):
     m = np.array([1e9, 1e12]) * Msun_h  # 1e9 is below Duffy08's calibration
-    mf = smt.evolve(mass_definition="200m", mass_conversion="NFW")
+    mf = smt.evolve(mass_definition="200m", mass_conversion="profile")
     np.testing.assert_array_equal(mf.in_calibration_domain(m=m, z=0.5), [False, True])
     masked = mf.evolve(domain_policy="mask")
     for name in ("dndm", "ngtm", "rho_gtm"):
@@ -560,16 +562,17 @@ def test_routing_and_introspection(smt, smt200):
     assert info["mass_definition"].path == "mass_definition"
     assert info["mass_definition"].default is None
     assert info["mass_conversion"].default is None
-    assert "NFWConversion" in info["mass_conversion"].doc
+    assert "ProfileConversion" in info["mass_conversion"].doc
     assert MassFunction.invalidated_by("mass_definition") == ("",)
     assert MassFunction.invalidated_by("mass_conversion") == ("",)
     assert smt200.mass_definition == SOMean()
-    assert smt200.mass_conversion == NFWConversion()
+    assert smt200.mass_conversion == ProfileConversion()
     # Dotted paths into the models.
     critical = smt200.evolve(mass_definition=SOCritical())
     assert critical.evolve(**{"mass_definition.overdensity": 500}).mass_definition == SOCritical(
         overdensity=500
     )
+    assert smt200.evolve(**{"mass_conversion.profile": "NFW"}) == smt200
     relaxed = smt200.evolve(**{"mass_conversion.concentration.sample": "relaxed"})
     assert relaxed.mass_conversion.concentration == Duffy08(sample="relaxed")
     # The variance and the linear power are shared.
@@ -577,7 +580,7 @@ def test_routing_and_introspection(smt, smt200):
     assert relaxed.linear_power is smt200.linear_power
     # Built from names, and round-tripped through to_flat.
     built = MassFunction.build(
-        **{"transfer.model": "EH"}, fit="SMT", mass_definition="200m", mass_conversion="NFW"
+        **{"transfer.model": "EH"}, fit="SMT", mass_definition="200m", mass_conversion="profile"
     )
     assert built == smt200
     assert MassFunction.from_flat(smt200.to_flat()) == smt200
@@ -603,7 +606,7 @@ def test_conversion_does_not_import_halomod():
         from hmf.core.units import Msun_h
         mf = MassFunction.build(
             **{"transfer.model": "EH"}, fit="SMT", mass_definition="200c",
-            mass_conversion="NFW",
+            mass_conversion="profile",
         )
         out = mf.dndm(m=np.logspace(10, 15, 11) * Msun_h, z=0.5)
         assert np.all(np.isfinite(out))
@@ -672,7 +675,9 @@ def test_converted_dndm_matches_v3(monkeypatch, z):
     v3_ratio = converted.dndm / native.dndm
 
     mf = MassFunction.build(**{"transfer.model": "EH"}, fit="SMT")
-    mf200 = mf.evolve(mass_definition="200m", mass_conversion=NFWConversion(concentration=duffy))
+    mf200 = mf.evolve(
+        mass_definition="200m", mass_conversion=ProfileConversion(concentration=duffy)
+    )
     m = converted.m * Msun_h
     v4_ratio = (mf200.dndm(m=m, z=z) / mf.dndm(m=m, z=z)).value
     np.testing.assert_allclose(v4_ratio, v3_ratio, rtol=2e-3)

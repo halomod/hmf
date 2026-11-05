@@ -382,27 +382,30 @@ the definition its masses are in as ``mass_definition`` (``None``, the default, 
 fit's own). When the fit does not accept it, the masses are converted by
 ``mass_conversion``, which must be given: the conversion is opt-in::
 
-    from hmf.core.mass_conversion import NFWConversion
+    from hmf.core.mass_conversion import ProfileConversion
     from hmf.core.concentration import Duffy08
 
     mf = MassFunction.build(fit="SMT")         # in SMT's own, virial, definition
     mf.evolve(mass_definition="200c")          # ValueError: needs a mass_conversion
-    mf200c = mf.evolve(mass_definition="200c", mass_conversion=NFWConversion())
+    mf200c = mf.evolve(mass_definition="200c", mass_conversion=ProfileConversion())
     mf.evolve(fit="Tinker08", mass_definition="200c")   # accepted: no conversion
     mf200c.evolve(**{"mass_conversion.concentration": Duffy08(sample="relaxed")})
 
-:class:`~hmf.core.mass_conversion.NFWConversion` takes NFW haloes with the
+:class:`~hmf.core.mass_conversion.ProfileConversion` takes haloes of a
+:class:`~hmf.core.profiles.DensityProfile` (:class:`~hmf.core.profiles.NFW` by
+default; another profile, e.g. Einasto, is another ``DensityProfile``) with the
 concentrations of a :class:`~hmf.core.concentration.ConcentrationModel` (a model kind:
 :class:`~hmf.core.concentration.Duffy08` by default, with every parameter set of their
 Table 1), converted to the definition of the masses if it was calibrated in another.
-It solves for the new concentration of every mass at once (Newton's method from the
-approximation of Hu & Kravtsov 2003, to round-off), and gives the Jacobian dM'/dM
+The profile solves for the new concentration of every mass at once (for NFW, Newton's
+method from the approximation of Hu & Kravtsov 2003, to round-off), and gives the Jacobian dM'/dM
 analytically. The mass function then conserves halo number:
 dn/dM(M) = dn'/dM'(M'(M)) dM'/dM and n(>M) = n'(>M'(M)), with the fit evaluated at
 the masses M' in its own definition. Converting to the same definition is the
 identity, and A → B → A returns the masses to round-off. The domain policy also
-applies to the concentration model's calibration domain. Other profiles (e.g.
-Einasto) are other :class:`~hmf.core.mass_conversion.MassConversion` models.
+applies to the concentration model's calibration domain. A profile gives only what
+the conversion needs, its enclosed mass :math:`\mu(x)`; halomod's profiles, with
+their Fourier transforms, build on these.
 
 Changing parameters
 -------------------

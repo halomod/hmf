@@ -192,7 +192,7 @@ CHANGES = {
     # Tinker08 accepts every SO definition: its overdensity changes, nothing is converted.
     "mass_definition": ("200c", ("dndm", 0.0)),
     # Tinker08 accepts the (default) mass definition, so nothing is converted.
-    "mass_conversion": ("NFW", None),
+    "mass_conversion": ("profile", None),
 }
 
 

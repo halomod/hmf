@@ -79,7 +79,7 @@ function is in SO-mean(200), a Jenkins one in FoF(b = 0.2).
   definition for an SOGeneric fit such as Tinker08), the fit is evaluated in it
   directly, with its overdensity: no mass is converted.
 * Otherwise the masses are converted, by the field ``mass_conversion`` (e.g.
-  :class:`~hmf.core.mass_conversion.NFWConversion`), which must then be given
+  :class:`~hmf.core.mass_conversion.ProfileConversion`), which must then be given
   (``ValueError`` if not). With M' = M'(M) the mass in the fit's definition
   (:attr:`~MassFunction.fit_mass_definition`) of a halo of mass M, halo number is
   conserved:
@@ -293,7 +293,7 @@ class MassFunction(Stage):
         converter=attrs.converters.optional(MassConversion.coerce),
         doc=(
             "How to convert masses from mass_definition to the fit's measured definition, "
-            "when that does not accept it (e.g. NFWConversion()); None: no conversion."
+            "when that does not accept it (e.g. ProfileConversion()); None: no conversion."
         ),
     )
 
@@ -314,7 +314,7 @@ class MassFunction(Stage):
             raise ValueError(
                 f"{type(self.fit).__name__} was measured in {measured}, which does not "
                 f"accept mass_definition={requested}: converting masses needs a mass "
-                "conversion, e.g. mass_conversion=NFWConversion() (from "
+                "conversion, e.g. mass_conversion=ProfileConversion() (from "
                 "hmf.core.mass_conversion), or leave mass_definition=None."
             )
         self.mass_conversion.check_definitions(requested, measured.resolved)

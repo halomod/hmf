@@ -61,6 +61,7 @@ The interchangeable physical models that the stages are built from.
    transfer_models
    growth_models
    filters
+   profiles
    concentration
 
 Fitting functions (their parameters are listed in each class's "Parameters" section):
