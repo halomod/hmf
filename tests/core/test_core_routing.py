@@ -894,3 +894,56 @@ def test_toy_unknown_dotted_names():
 def test_same():
     assert stage_module._same(1, 1)
     assert not stage_module._same(np.ones(2), np.ones(2))  # an eq that can't answer
+
+
+# ---------------------------------------------------------------------------------
+# Derived properties declare what they read (undeclared_inputs)
+# ---------------------------------------------------------------------------------
+
+
+def test_hmf_derived_properties_declare_their_inputs(mf):
+    """Every field a derived property of hmf.core reads is one of its declared inputs."""
+    checked = {
+        MassFunction: MassFunction.build(**{"transfer.model": "EH"}),
+        LinearPower: LinearPower(transfer=Transfer(model="EH"), sigma_8=0.8),
+    }
+    # Every stage class of hmf.core with derived properties is checked here.
+    with_derived = {
+        cls
+        for cls in _stage_classes()
+        if cls.__module__.startswith("hmf.core") and cls._derived_properties
+    }
+    assert with_derived == set(checked)
+    for stage in checked.values():
+        assert stage_module.undeclared_inputs(stage) == {}
+    assert stage_module.undeclared_inputs(HaloModel(mass_function=mf)) == {}
+
+
+@attrs.frozen(kw_only=True)
+class Reads(Stage):
+    """A toy stage whose derived properties declare too little, or too much."""
+
+    profile: Profile = field(factory=Profile, doc="A stage it holds.")
+    a: int = field(default=1, doc="One.")
+    b: int = field(default=2, doc="Two.")
+
+    @derived_property("a")
+    def too_little(self) -> int:
+        return self.a + self.b + int(self.profile.concentration)
+
+    @derived_property("a", "b", "profile")
+    def too_much(self) -> int:
+        # b and the profile are only read on another branch: declaring them is safe.
+        return self.a if self.a > 0 else self.b + int(self.profile.delta_c)
+
+    @derived_property("a")
+    def holds_the_profile(self) -> tuple:
+        # The profile is held, not read: a value built from it may read it later.
+        return ({"stage": [self.profile]}, self.a)
+
+
+def test_undeclared_inputs_reports_reads_and_held_stages():
+    assert stage_module.undeclared_inputs(Reads()) == {
+        "too_little": ("b", "profile.concentration"),
+        "holds_the_profile": ("profile",),
+    }

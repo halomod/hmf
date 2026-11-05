@@ -431,6 +431,10 @@ Extension stages
 
     A derived property's input that is not a field of the tree raises a
     :class:`TypeError` when the table is first built.
+    :func:`~hmf.core.stage.undeclared_inputs` checks, in a test, that each derived
+    property declares every field it reads (and every stage it holds): run on a stage
+    of the extension, it returns the fields each one reads but does not declare.
+    Declaring an input that is read only on some branches is safe.
 
 API
 ---

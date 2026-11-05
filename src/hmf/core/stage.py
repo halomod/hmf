@@ -53,7 +53,13 @@ from ._serialise import cosmology_key
 from .cache import to_disk_cache
 from .units import UnitContext
 
-__all__ = ["CosmologyStage", "DerivedProperty", "Stage", "derived_property"]
+__all__ = [
+    "CosmologyStage",
+    "DerivedProperty",
+    "Stage",
+    "derived_property",
+    "undeclared_inputs",
+]
 
 _T = TypeVar("_T")
 
@@ -438,6 +444,125 @@ def _walk_path(obj: Any, dotted: str) -> Any:
     for name in dotted.split("."):
         obj = getattr(obj, name)
     return obj
+
+
+def _fresh(stage: Stage) -> Stage:
+    """A copy of a stage tree with nothing computed: every stage of it is a new one."""
+    changes = {}
+    for a in attrs.fields(type(stage)):
+        value = getattr(stage, a.name)
+        if a.init and isinstance(value, Stage):
+            changes[a.alias or a.name] = _fresh(value)
+    return attrs.evolve(stage, **changes)
+
+
+def _stage_paths(stage: Stage, path: tuple[str, ...] = ()) -> dict[int, tuple[str, ...]]:
+    """The path of every stage of a tree that is a field, by its id."""
+    out = {id(stage): path}
+    for a in attrs.fields(type(stage)):
+        value = getattr(stage, a.name)
+        if isinstance(value, Stage):
+            out.update(_stage_paths(value, (*path, a.name)))
+    return out
+
+
+def _captured(
+    value: Any, paths: dict[int, tuple[str, ...]], seen: set[int]
+) -> set[tuple[str, ...]]:
+    """The paths of the stages of a tree that ``value`` holds (through attrs fields)."""
+    if id(value) in seen:
+        return set()
+    seen.add(id(value))
+    if id(value) in paths:
+        return {paths[id(value)]}
+    if isinstance(value, (list, tuple)):
+        items: list[Any] = list(value)
+    elif isinstance(value, dict):
+        items = list(value.values())
+    elif attrs.has(type(value)):
+        items = [getattr(value, a.name) for a in attrs.fields(type(value))]
+    else:
+        return set()
+    out: set[tuple[str, ...]] = set()
+    for item in items:
+        out |= _captured(item, paths, seen)
+    return out
+
+
+def undeclared_inputs(stage: Stage) -> dict[str, tuple[str, ...]]:
+    """The fields each derived property of a stage reads, but does not declare as inputs.
+
+    A check for tests, of a stage's :func:`derived_property` declarations. Each derived
+    property is evaluated on a fresh copy of the stage's tree (nothing computed), while
+    every read of a field of a stage of the tree is recorded, and so is every stage of
+    the tree that the value holds (e.g. a derived stage built from it, which may read
+    its fields later). A read is covered by an input that is the field or a stage above
+    it; reading a stage field to reach the stage it holds is not a read of its own. An
+    input that is never read (e.g. one used on another branch) is allowed: declaring
+    too much is safe, declaring too little is not, because :meth:`Stage.evolve_own`
+    would carry a stale value.
+
+    Parameters
+    ----------
+    stage
+        A stage whose derived properties to check (those of the stages it holds are
+        not checked: call it on them too).
+
+    Returns
+    -------
+    dict
+        For each derived property that reads an undeclared field, the dotted paths
+        (below the stage) of those fields. Empty if every read is declared.
+
+    Examples
+    --------
+    >>> import attrs
+    >>> from hmf.core import field
+    >>> @attrs.frozen(kw_only=True)
+    ... class Sum(Stage):
+    ...     a: int = field(default=1, doc="One term.")
+    ...     b: int = field(default=2, doc="Another.")
+    ...
+    ...     @derived_property("a")
+    ...     def total(self) -> int:
+    ...         return self.a + self.b
+    >>> undeclared_inputs(Sum())
+    {'total': ('b',)}
+    """
+    out = {}
+    for name, prop in type(stage)._derived_properties.items():
+        fresh = _fresh(stage)
+        paths = _stage_paths(fresh)
+        reads: set[tuple[str, ...]] = set()
+
+        def tracing(
+            obj: Any,
+            attr: str,
+            paths: dict[int, tuple[str, ...]] = paths,
+            reads: set[tuple[str, ...]] = reads,
+        ) -> Any:
+            value = object.__getattribute__(obj, attr)
+            path = paths.get(id(obj))
+            # A field whose value is not a stage of the tree (reaching one is not a read).
+            if (
+                path is not None
+                and attr in routing.field_names(type(obj))
+                and id(value) not in paths
+            ):
+                reads.add((*path, attr))
+            return value
+
+        type.__setattr__(Stage, "__getattribute__", tracing)
+        try:
+            value = getattr(fresh, name)
+        finally:
+            type.__delattr__(Stage, "__getattribute__")
+        reads |= _captured(value, paths, set())
+        inputs = [tuple(p.split(".")) for p in prop.inputs]
+        missing = sorted(".".join(r) for r in reads if not any(r[: len(i)] == i for i in inputs))
+        if missing:
+            out[name] = tuple(missing)
+    return out
 
 
 def _cosmology_field(*, also: str = "") -> Any:
