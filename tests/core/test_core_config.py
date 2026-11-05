@@ -763,3 +763,19 @@ def test_from_paths():
         shared=["cosmology", "transfer.cosmology"],
     )
     assert growth.transfer is None
+
+
+def test_package_versions_of_a_missing_package(monkeypatch):
+    import importlib.metadata
+
+    real = importlib.metadata.version
+
+    def version(name):
+        if name == "classy":
+            raise importlib.metadata.PackageNotFoundError(name)
+        return real(name)
+
+    monkeypatch.setattr(importlib.metadata, "version", version)
+    versions = config.package_versions.__wrapped__()
+    assert versions["classy"] is None
+    assert versions["hmf"] == real("hmf")
