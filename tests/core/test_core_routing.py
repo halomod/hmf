@@ -23,11 +23,11 @@ from hmf.core.units import Msun_h, h_Mpc
 
 M = np.logspace(10, 15, 6) * Msun_h
 
-#: The flat names of a MassFunction: build's keywords before routing, with the transfer
-#: model's flat name, model, for transfer_model, and the variance's truncation_rtol.
+#: The parameter names of a MassFunction: build's keywords before routing, with
+#: "transfer.model" for transfer_model, and the variance's truncation_rtol.
 BUILD_KEYWORDS = {
     "cosmology",
-    "model",
+    "transfer.model",
     "growth_model",
     "n_s",
     "sigma_8",
@@ -81,7 +81,14 @@ def test_parameter_info():
     assert info["sigma_8"].path == "linear_power.sigma_8"
     assert not info["sigma_8"].shared
     assert info["sigma_8"].required  # computed from the cosmology by build
-    assert info["model"].paths == ("linear_power.transfer.model",)
+    assert info["transfer.model"].paths == ("linear_power.transfer.model",)
+    assert "model" not in info  # Transfer lists it qualified ...
+    # ... but a bare model still routes to it while it is unique.
+    assert routing.router(MassFunction).paths_of("model")[0] == (
+        ("linear_power", "transfer", "model"),
+    )
+    # A transfer stage on its own has nothing to qualify it with.
+    assert Transfer.parameter_names()[1] == "model"
     assert info["growth_model"].paths == ("linear_power.growth_model",)
     assert info["filter"].path == "filter"
     assert info["delta_c"].default == 1.686
@@ -161,7 +168,7 @@ def test_dotted_paths_and_flat_names_route_alike(mf):
 #: here (checked to reach its field instead).
 CHANGES = {
     "cosmology": (Planck15, ("dndm", 0.0)),
-    "model": ("BBKS", ("dndm", 0.0)),
+    "transfer.model": ("BBKS", ("dndm", 0.0)),
     "n_s": (0.95, ("dndm", 0.0)),
     "k_accuracy": (KAccuracy.fast(), ("dndm", 0.0)),
     # Where to cache Boltzmann runs: EH makes none, and the cache changes no result.
@@ -490,7 +497,7 @@ def test_round_trip(mf):
     assert list(flat) == list(MassFunction.parameter_names())
     assert MassFunction.from_flat(flat) == mf
     assert flat["sigma_8"] == mf.linear_power.sigma_8
-    assert flat["model"] == mf.linear_power.transfer.model
+    assert flat["transfer.model"] == mf.linear_power.transfer.model
 
 
 def test_from_flat_nested_and_dotted():

@@ -193,6 +193,10 @@ class Stage(Documented):
     #: together by the flat name, so that they stay equal. The stage that composes the
     #: others declares it, whatever the stages it holds declare.
     shared_parameters: ClassVar[frozenset[str]] = frozenset()
+    #: Fields whose names are too generic to stand alone (e.g. ``model``): in a tree
+    #: holding this stage, :meth:`parameter_names` lists them with the name of the
+    #: stage field holding it (``"transfer.model"``). Any unique name still routes.
+    qualified_parameters: ClassVar[frozenset[str]] = frozenset()
     #: The derived properties of the class (see :func:`derived_property`), by name,
     #: recorded when the class is created.
     _derived_properties: ClassVar[Mapping[str, DerivedProperty[Any]]] = MappingProxyType({})

@@ -34,7 +34,7 @@ without its name and metadata. Two stages with equal parameters are therefore eq
 from __future__ import annotations
 
 from functools import cached_property
-from typing import Any
+from typing import Any, ClassVar
 
 import astropy.units as u
 import attrs
@@ -71,6 +71,9 @@ class Transfer(CosmologyStage):
     >>> float(round(t.transfer_function(1e-7 * h_Mpc), 6))
     1.0
     """
+
+    #: In a tree, the transfer model is listed as ``"transfer.model"``.
+    qualified_parameters: ClassVar[frozenset[str]] = frozenset({"model"})
 
     model: TransferModel = field(
         factory=CAMB,

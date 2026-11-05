@@ -325,6 +325,8 @@ class Router:
         self.derived_stages: dict[FieldPath, type] = {}
         #: The stages declaring each shared name.
         sharers: dict[str, list[FieldPath]] = {}
+        #: The fields listed by their name with the stage field above it.
+        self._qualified: set[FieldPath] = set()
         self._visit(cls, (), sharers)
 
         # Every dotted suffix of every field's path: "model", "transfer.model", ...
@@ -350,10 +352,13 @@ class Router:
             else:
                 self.ambiguous[name] = paths
 
-        #: The name each parameter field is routed by: its shortest name.
+        #: The name each parameter field is routed by: its shortest name (with the
+        #: name of the stage field above it, for a field its stage lists in
+        #: ``qualified_parameters``).
         self.preferred: dict[FieldPath, str] = {}
         for path in self.leaves:
-            for i in range(len(path) - 1, -1, -1):
+            longest = len(path) - (2 if path in self._qualified and len(path) > 1 else 1)
+            for i in range(longest, -1, -1):
                 name = _dotted(path[i:])
                 if path in self.names.get(name, ()):
                     self.preferred[path] = name
@@ -375,6 +380,8 @@ class Router:
                 self._visit(node.children[name][0], path, sharers)
             else:
                 self.leaves[path] = a
+                if name in getattr(cls, "qualified_parameters", ()):
+                    self._qualified.add(path)
         for name, (inputs, stage_cls) in node.derived.items():
             for p in inputs:
                 if not _is_field(cls, p):

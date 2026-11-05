@@ -354,12 +354,15 @@ and computes nothing. :meth:`~hmf.core.stage.Stage.evolve`,
 names, of three kinds:
 
 * **Flat names**, for every field whose name appears once in the tree:
-  ``cosmology``, ``model`` (the transfer model), ``n_s``, ``k_accuracy``,
-  ``disk_cache``, ``growth_model``, ``sigma_8``, ``species``, ``sigma_8_species``,
-  ``filter``, ``mass_accuracy``, ``truncation_rtol``, ``fit``, ``delta_c``,
-  ``domain_policy``. More generally, any dotted suffix of a field's path that ends no
-  other field's path names it: ``"transfer.model"`` is the transfer model however
-  many other stages have a ``model``.
+  ``cosmology``, ``n_s``, ``k_accuracy``, ``disk_cache``, ``growth_model``,
+  ``sigma_8``, ``species``, ``sigma_8_species``, ``filter``, ``mass_accuracy``,
+  ``truncation_rtol``, ``fit``, ``delta_c``, ``domain_policy``. More generally, any
+  dotted suffix of a field's path that ends no other field's path names it:
+  ``"transfer.model"`` is the transfer model however many other stages have a
+  ``model``. A stage lists the fields whose names are too generic to stand alone
+  in ``qualified_parameters``; :meth:`~hmf.core.stage.Stage.parameter_names` gives
+  them with the stage's name, so the transfer model is listed as
+  ``"transfer.model"`` (a bare ``model`` still works while it is unique).
 * **Shared parameters**: a name that a stage lists in ``shared_parameters`` is one
   parameter in its tree, and a change to it changes every field of that name below
   the stage, so that they stay equal. A :class:`~hmf.core.growth.Growth` stage with a
@@ -401,7 +404,7 @@ the original tree is unchanged.
 Every question about the parameters is answered from the classes, without building
 a stage or running a Boltzmann code::
 
-    MassFunction.parameter_names()        # ('cosmology', 'model', 'n_s', ...)
+    MassFunction.parameter_names()        # ('cosmology', 'transfer.model', 'n_s', ...)
     MassFunction.parameter_info()["sigma_8"].path    # 'linear_power.sigma_8'
     MassFunction.parameter_defaults()["sigma_8"]     # 0.8102, from Planck18
     MassFunction.quantities_available()[""]          # ('dlnsigma_dlnm', 'dndlnm', ...)
@@ -421,12 +424,12 @@ Extension stages
     * the names of its tree that are one parameter in the class attribute
       ``shared_parameters``: the stage that composes the others decides, whatever
       the stages it holds declare;
-    * its flat aliases in ``parameter_aliases`` (alias → dotted path below the
-      stage);
+    * the fields whose names are too generic to stand alone in
+      ``qualified_parameters``, listed with the stage's name;
     * and defaults that depend on other parameters (as ``build`` takes σ8 and n_s from
       the cosmology) in the class method ``computed_defaults``.
 
-    An alias, or a derived property's input, that is not a field of the tree raises a
+    A derived property's input that is not a field of the tree raises a
     :class:`TypeError` when the table is first built.
 
 API

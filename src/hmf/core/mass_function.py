@@ -268,8 +268,8 @@ class MassFunction(Stage):
         ----------
         cosmology
             The astropy cosmology (default Planck18).
-        model
-            The transfer model (default CAMB); also named ``"transfer.model"``.
+        transfer.model
+            The transfer model (default CAMB); also ``model`` while it is unique.
         growth_model
             The growth model (default the growth ODE).
         n_s
