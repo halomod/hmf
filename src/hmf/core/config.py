@@ -104,6 +104,13 @@ a :class:`~hmf.core.model.ModelNotFoundError` with suggestions; a wrong unit an
 :class:`astropy.units.UnitConversionError`. The error notes where in the
 configuration the value is.
 
+Trust
+-----
+A configuration names classes to import (its ``stage``, a model's ``model`` and a value's
+``class``), as :meth:`Model.get <hmf.core.model.Model.get>` does for an import path: reading
+one imports those modules, which runs their code. Read configurations you trust, as you
+would unpickle only pickles you trust.
+
 Schema versions
 ---------------
 :data:`SCHEMA_VERSION` is the version of this layout and of the defaults. A change to
@@ -146,7 +153,9 @@ import functools
 import importlib.metadata
 import json
 import logging
+import os
 import re
+import tempfile
 import tomllib
 import types
 import typing
@@ -648,8 +657,16 @@ def _structure_quantity(data: Any, tp: Any) -> Any:
 def _structure_array(data: Any, tp: Any) -> Any:
     if isinstance(data, Mapping) and set(data) == {"value", "dtype"}:
         return np.asarray(data["value"], dtype=np.dtype(data["dtype"]))
-    if isinstance(data, (list, tuple)):
+    if isinstance(data, (list, tuple, int, float)) and not isinstance(data, bool):
         return np.asarray(data, dtype=np.float64)
+    return data
+
+
+def _structure_unit(data: Any, tp: Any) -> Any:
+    if isinstance(data, Mapping) and set(data) == {"unit"}:
+        return parse_unit(data["unit"])
+    if isinstance(data, str):
+        return parse_unit(data)
     return data
 
 
@@ -795,6 +812,7 @@ converter.register_structure_hook_func(
     lambda t: _is_class(t, Enum), lambda d, t: d if isinstance(d, t) else t(d)
 )
 converter.register_structure_hook_func(_is_ndarray, _structure_array)
+converter.register_structure_hook_func(lambda t: _is_class(t, u.UnitBase), _structure_unit)
 converter.register_structure_hook_func(lambda t: _is_class(t, u.Quantity), _structure_quantity)
 converter.register_structure_hook_func(_is_tuple, _structure_tuple)
 converter.register_structure_hook_func(_is_literal, _structure_literal)
@@ -1013,6 +1031,11 @@ def _upgrade(document: Mapping[str, Any], *, migrate: bool) -> dict[str, Any]:
     return out
 
 
+def _version_text(version: Any) -> str:
+    """A package version for a message: quoted (so a crafted one can't fake a line)."""
+    return "not installed" if version is None or _is_none(version) else repr(version)
+
+
 def _check_versions(written: Any, *, strict: bool) -> None:
     """Log (or raise, if strict) the package versions that differ from the running ones."""
     if written is None:
@@ -1026,7 +1049,7 @@ def _check_versions(written: Any, *, strict: bool) -> None:
     for name, then in written.items():
         now = running.get(name)
         if name in running and (None if _is_none(then) else then) != now:
-            differ.append(f"{name} {then or 'not installed'} (now {now or 'not installed'})")
+            differ.append(f"{name} {_version_text(then)} (now {_version_text(now)})")
     if not differ:
         return
     message = (
@@ -1203,7 +1226,17 @@ def dump_toml(stage: Stage, path: str | PathLike[str], *, versions: bool = True)
         The file written.
     """
     out = Path(path)
-    out.write_text(dumps_toml(stage, versions=versions), encoding="utf-8")
+    text = dumps_toml(stage, versions=versions)
+    # Write a temporary file next to it and rename it, so an existing file is replaced
+    # whole or not at all.
+    fd, tmp = tempfile.mkstemp(dir=out.parent, prefix=f".{out.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+        Path(tmp).replace(out)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
     return out
 
 

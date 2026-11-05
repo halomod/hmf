@@ -155,9 +155,11 @@ def test_every_registered_model_round_trips(kind, name):
     if changed is not None:
         assert changed != model
         variants.append(changed)
+    fields = {a.alias or a.name for a in attrs.fields(type(model)) if a.init}
     for value in variants:
         data = config.unstructure(value)
         assert data["model"] == name
+        assert set(data) == {"model", *fields}  # every field is written
         assert config.structure(data, kind) == value
         assert config.unstructure(config.structure(data, kind)) == data
         roundtrip(_holder(kind, value))
@@ -328,6 +330,8 @@ def test_files_and_disk_cache(tmp_path):
         "directory": str(tmp_path)
     }
     path = config.dump_toml(mf, tmp_path / "mf.toml")
+    config.dump_toml(mf, path)  # replaces it
+    assert sorted(p.name for p in tmp_path.glob("*.toml*")) == ["mf.toml"]
     loaded = config.load_toml(path)
     assert loaded == mf
     assert loaded.linear_power.transfer.disk_cache == mf.linear_power.transfer.disk_cache
@@ -469,8 +473,15 @@ def test_other_package_versions_are_logged_or_raise(monkeypatch, caplog):
     cfg["hmf"]["versions"]["camb"] = "0.1"
     with caplog.at_level(logging.WARNING, logger="hmf.core.config"):
         assert config.from_config(cfg) == Transfer(model="EH")
-    assert "camb 0.1" in caplog.text
-    with pytest.raises(ValueError, match=r"camb 0\.1"):
+    assert "camb '0.1'" in caplog.text
+    # A crafted version is quoted, so it can't fake a log line.
+    crafted = copy.deepcopy(cfg)
+    crafted["hmf"]["versions"]["camb"] = "0.1\nCRITICAL fake"
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="hmf.core.config"):
+        config.from_config(crafted)
+    assert "\n" not in caplog.text.strip()
+    with pytest.raises(ValueError, match=r"camb '0\.1'"):
         config.from_config(cfg, strict=True)
     caplog.clear()
     with caplog.at_level(logging.WARNING, logger="hmf.core.config"):
@@ -502,6 +513,9 @@ def test_content_hash_is_stable_and_physics_only(tmp_path, monkeypatch):
     assert config.content_hash(mf.evolve(sigma_8=0.81)) != key
     assert config.content_hash(mf.evolve(k_accuracy=KAccuracy.fast())) != key
     assert config.content_hash(mf.evolve(cosmology=Planck15, n_s=0.96, sigma_8=0.8)) != key
+    # Each physical parameter of the cosmology alone changes it.
+    for change in ({"Om0": 0.31}, {"m_nu": [0.0, 0.0, 0.1] * u.eV}, {"Tcmb0": 2.7 * u.K}):
+        assert config.content_hash(mf.evolve(cosmology=Planck18.clone(**change))) != key
     # The versions of the packages that compute results are part of it; others not.
     versions = dict(config.package_versions())
     monkeypatch.setattr(config, "package_versions", lambda: {**versions, "numpy": "0.0"})
@@ -619,6 +633,13 @@ def test_arrays_and_dtypes_round_trip():
     assert config.unstructure(np.float32(0.5)) == 0.5
     assert config.unstructure(Path("a/b")) == "a/b"
     assert config.unstructure(h_Mpc) == {"unit": "littleh / Mpc"}
+    assert config.structure(config.unstructure(h_Mpc), u.UnitBase) is h_Mpc
+    assert config.structure("Mpc", u.UnitBase) == u.Mpc
+    assert config.structure(3, u.UnitBase) == 3
+    zero_d = config.structure(config.unstructure(np.array(2.5)), np.ndarray)
+    assert isinstance(zero_d, np.ndarray)
+    assert zero_d.shape == ()
+    assert zero_d == 2.5
 
 
 def test_quantity_edge_cases():
@@ -653,7 +674,7 @@ def test_plain_value_edge_cases():
     assert config.structure({"a": 1}, tuple[tuple[str, typing.Any], ...]) == (("a", 1),)
     assert config.structure(3, typing.Any) == 3
     assert config.structure(3, "AnUnresolvedAnnotation") == 3
-    assert config.structure(3.0, np.ndarray) == 3.0
+    assert config.structure("x", np.ndarray) == "x"  # the converter rejects it
     assert config.structure(SMT(), FittingFunction) == SMT()
     assert config.structure(None, float | None) is None
     assert config.structure({"none": True}, float | None) is None
@@ -779,3 +800,17 @@ def test_package_versions_of_a_missing_package(monkeypatch):
     versions = config.package_versions.__wrapped__()
     assert versions["classy"] is None
     assert versions["hmf"] == real("hmf")
+
+
+def test_a_failed_write_keeps_the_old_file(tmp_path, monkeypatch):
+    path = config.dump_toml(Transfer(model="EH"), tmp_path / "t.toml")
+    before = path.read_text()
+
+    def fail(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(Path, "replace", fail)
+    with pytest.raises(OSError, match="disk full"):
+        config.dump_toml(Transfer(model="BBKS"), path)
+    assert path.read_text() == before
+    assert [p.name for p in tmp_path.iterdir()] == ["t.toml"]
