@@ -15,15 +15,16 @@ A parameter (a field of a stage of the tree that is not itself a stage) is reach
 by:
 
 * its **dotted path** from the root, always: ``"linear_power.sigma_8"``,
-  ``"variance.filter"``, ``"linear_power.transfer.model"``;
+  ``"linear_power.transfer.model"``;
 * its **flat name**, if no other field of the tree has the same name: ``sigma_8``,
   ``filter``, ``delta_c``;
 * a **flat alias** declared by a stage in :attr:`Stage.parameter_aliases
-  <hmf.core.stage.Stage.parameter_aliases>`, for a field whose name is repeated or
-  reads badly flat: ``transfer_model`` for ``linear_power.transfer.model``;
-* a **shared** name: a field declared with ``field(..., shared=True)`` in every stage
-  that holds it (``cosmology``, ``k_accuracy``, ``disk_cache``) is one parameter,
-  and a change to it changes every holder, so that they stay equal.
+  <hmf.core.stage.Stage.parameter_aliases>`, for a field whose name reads badly
+  flat: ``transfer_model`` for ``linear_power.transfer.model``;
+* a **shared** name: a name that a stage lists in :attr:`Stage.shared_parameters
+  <hmf.core.stage.Stage.shared_parameters>` is one parameter in that stage's tree,
+  and a change to it changes every field of that name below the stage, so that they
+  stay equal. The stage that composes the others declares it.
 
 A field of the root is also reached by its own name. Any other repeated name is
 *ambiguous*: it raises a :class:`TypeError` that lists the dotted paths. A name that
@@ -34,22 +35,20 @@ A dotted path into a *model* field (``"fit.A"``, ``"transfer_model.z_max"``) cha
 that field of the model. A model's class is known only from the stage's value, so
 these are resolved when they are used, without computing anything.
 
-Derived fields
---------------
-Some fields are computed from others, and are not parameters. A stage declares them
-in :attr:`Stage.derivations <hmf.core.stage.Stage.derivations>`, as
-:class:`Derivation` objects: the field (a dotted path below the stage), the paths it is
-computed from, and how. :meth:`~hmf.core.stage.Stage.evolve` computes a derived field
-again when one of its sources changes, if it held its derived value before (a link
-the user did not make is left alone), and if its new value differs from the current
-one. :meth:`~hmf.core.stage.Stage.from_flat` always computes it.
+Derived properties
+------------------
+A stage computed from other stages' fields, such as a mass function's mass variance,
+is not a field but a :func:`~hmf.core.stage.derived_property`: a cached property
+that declares its inputs. It is not a parameter; its own settings are fields of the
+stage that holds it. The table knows the derived properties of each class, so that
+:meth:`~hmf.core.stage.Stage.invalidated_by` names those a change recomputes.
 
 Structural sharing
 ------------------
-``evolve`` rebuilds only the stages on the path from each changed field to the root
-(and the stages holding a derived field that changes), each with its own
-:meth:`~hmf.core.stage.Stage.evolve_own`. Every other stage is shared, by identity,
-with the original tree, and so are its cached results.
+``evolve`` rebuilds only the stages on the path from each changed field to the
+root, each with its own :meth:`~hmf.core.stage.Stage.evolve_own`, which carries
+every derived property whose inputs do not change. Every other stage is shared, by
+identity, with the original tree, and so are its cached results.
 """
 
 from __future__ import annotations
@@ -63,13 +62,12 @@ from typing import TYPE_CHECKING, Any, cast
 
 import attrs
 
-from ._fields import DOC_KEY, NO_DEFAULT, SHARED_KEY
+from ._fields import DOC_KEY, NO_DEFAULT, _resolved_fields
 
 if TYPE_CHECKING:
     from .stage import Stage
 
 __all__ = [
-    "Derivation",
     "GivenParameters",
     "ParameterInfo",
     "Router",
@@ -99,16 +97,6 @@ def _overlaps(a: FieldPath, b: FieldPath) -> bool:
     return a[:n] == b[:n]
 
 
-def _same(a: Any, b: Any) -> bool:
-    """Whether two values are the same object or compare equal (False if eq fails)."""
-    if a is b:
-        return True
-    try:
-        return bool(a == b)
-    except Exception:  # noqa: BLE001 - an eq that can't answer means "not the same"
-        return False
-
-
 def _walk(obj: Any, path: FieldPath) -> Any:
     """The value at ``path`` below ``obj``."""
     for name in path:
@@ -120,60 +108,6 @@ def _suggest(name: str, candidates: list[str]) -> str:
     """A " Did you mean ...?" sentence for an unknown name, or an empty string."""
     close = difflib.get_close_matches(name, candidates, n=3)
     return f" Did you mean {' or '.join(repr(c) for c in close)}?" if close else ""
-
-
-@attrs.frozen(kw_only=True)
-class Derivation:
-    """A field of a stage tree that is computed from other fields, not set.
-
-    A stage lists them in :attr:`Stage.derivations
-    <hmf.core.stage.Stage.derivations>`, with paths relative to itself: the derived
-    field is below one of the stage's stage fields (or is a field of the stage), and
-    the sources are anywhere below the stage. A derivation whose source is another's
-    field comes after it.
-
-    Parameters
-    ----------
-    field
-        The dotted path of the derived field, e.g. ``"variance.power"``.
-    sources
-        The dotted paths it is computed from. A change to one of them, or to a field
-        below one, or to a stage above one, computes the field again.
-    derive
-        Computes the field's value. It is called with one argument, ``get``: a
-        function returning the value at a dotted path (one of ``sources``) in the
-        tree being built.
-    doc
-        What the derivation is, for the documentation.
-
-    Examples
-    --------
-    The variance of a :class:`~hmf.core.mass_function.MassFunction` is of the
-    unnormalised power of its linear power's species::
-
-        Derivation(
-            field="variance.power",
-            sources=("linear_power.transfer", "linear_power.species"),
-            derive=lambda get: get("linear_power.transfer").power_source(
-                get("linear_power.species")
-            ),
-        )
-    """
-
-    field: str
-    sources: tuple[str, ...]
-    derive: Callable[[Callable[[str], Any]], Any] = attrs.field(eq=False)
-    doc: str = ""
-
-    @cached_property
-    def target(self) -> FieldPath:
-        """The derived field's path, as a tuple."""
-        return _split(self.field)
-
-    @cached_property
-    def source_paths(self) -> tuple[FieldPath, ...]:
-        """The sources' paths, as tuples."""
-        return tuple(_split(s) for s in self.sources)
 
 
 @attrs.frozen(kw_only=True)
@@ -257,29 +191,21 @@ class GivenParameters(Mapping[str, Any]):
 
 
 @attrs.frozen
-class _Leaf:
-    """A parameter field of the tree: where it is, and its attribute."""
-
-    path: FieldPath
-    attribute: attrs.Attribute[Any]
-    shared: bool
-
-
-@attrs.frozen
 class _Node:
     """What evolve and from_flat need to know of one stage class."""
 
     cls: type
     #: The constructor's keyword of each field.
     fields: Mapping[str, attrs.Attribute[Any]]
-    #: The stage fields, not derived: name -> (stage class, whether it may be None).
+    #: The stage fields: name -> (stage class, whether it may be None).
     children: Mapping[str, tuple[type, bool]]
-    derivations: tuple[Derivation, ...]
     required: tuple[str, ...]
+    #: The derived properties: name -> (their inputs, the stage class they give, if one).
+    derived: Mapping[str, tuple[tuple[FieldPath, ...], type | None]]
 
 
 def _stage_type(tp: Any) -> tuple[type | None, bool]:
-    """The stage class of a field's annotation, and whether it may be None."""
+    """The stage class of an annotation, and whether it may be None."""
     from .stage import Stage
 
     if isinstance(tp, type):
@@ -290,6 +216,15 @@ def _stage_type(tp: Any) -> tuple[type | None, bool]:
         if len(stages) == 1:
             return stages[0], type(None) in args
     return None, False
+
+
+def _derived_stage_type(prop: Any) -> type | None:
+    """The stage class a derived property gives, from its return annotation, if one."""
+    try:
+        hints = typing.get_type_hints(prop.func)
+    except NameError:
+        return None
+    return _stage_type(hints.get("return"))[0]
 
 
 _NODES: dict[type, _Node] = {}
@@ -307,23 +242,18 @@ def _node(cls: type) -> _Node:
 
 def _describe(cls: type) -> _Node:
     """The static description of a stage class."""
-    with_types = attrs.resolve_types(cls) if attrs.has(cls) else cls
-    fields = {a.alias or a.name: a for a in attrs.fields(with_types) if a.init}
-    derivations: tuple[Derivation, ...] = tuple(cls.derivations)  # type: ignore[attr-defined]
-    derived_here = {d.target[0] for d in derivations if len(d.target) == 1}
+    fields = {a.alias or a.name: a for a in _resolved_fields(cls) if a.init}
     children = {}
     for name, a in fields.items():
         stage_cls, optional = _stage_type(a.type)
-        if stage_cls is not None and name not in derived_here:
+        if stage_cls is not None:
             children[name] = (stage_cls, optional)
     required = tuple(n for n, a in fields.items() if a.default is NO_DEFAULT)
-    return _Node(
-        cls=cls,
-        fields=fields,
-        children=children,
-        derivations=derivations,
-        required=required,
-    )
+    derived = {
+        name: (tuple(_split(p) for p in prop.inputs), _derived_stage_type(prop))
+        for name, prop in getattr(cls, "_derived_properties", {}).items()
+    }
+    return _Node(cls=cls, fields=fields, children=children, required=required, derived=derived)
 
 
 def _is_field(cls: type, path: FieldPath) -> bool:
@@ -369,8 +299,9 @@ class Router:
     """The routing table of a stage class: every parameter of its tree, and its name.
 
     Build it with :func:`router` (cached per class). It is computed from the classes'
-    ``attrs`` fields, :attr:`~hmf.core.stage.Stage.parameter_aliases` and
-    :attr:`~hmf.core.stage.Stage.derivations`; it creates no stage.
+    ``attrs`` fields, :attr:`~hmf.core.stage.Stage.parameter_aliases`,
+    :attr:`~hmf.core.stage.Stage.shared_parameters` and their derived properties; it
+    creates no stage.
 
     Parameters
     ----------
@@ -380,20 +311,24 @@ class Router:
     Raises
     ------
     TypeError
-        If a stage of the tree declares an alias or a derivation that is not a field
-        of the tree, or an alias that is also a field's name.
+        If a stage of the tree declares an alias that is not a parameter of its tree
+        or is also a field's name, or a derived property whose input is not a field.
     """
 
     def __init__(self, cls: type[Stage]) -> None:
         self.cls = cls
-        #: The parameter fields, in depth-first order.
-        self.leaves: dict[FieldPath, _Leaf] = {}
-        #: The stages of the tree (the root is ``()``), and their classes.
+        #: The parameter fields (in depth-first order), and their attributes.
+        self.leaves: dict[FieldPath, attrs.Attribute[Any]] = {}
+        #: The stages that are fields of the tree (the root is ``()``), and their classes.
         self.stages: dict[FieldPath, type] = {}
-        #: The derived fields: path -> (path of the declaring stage, derivation).
-        self.derived: dict[FieldPath, tuple[FieldPath, Derivation]] = {}
+        #: The derived properties of the tree's stages: path -> their inputs' paths.
+        self.derived: dict[FieldPath, tuple[FieldPath, ...]] = {}
+        #: The derived properties that are stages, and their classes.
+        self.derived_stages: dict[FieldPath, type] = {}
         aliases: dict[str, set[FieldPath]] = {}
-        self._visit(cls, (), aliases)
+        #: The stages declaring each shared name.
+        sharers: dict[str, list[FieldPath]] = {}
+        self._visit(cls, (), aliases, sharers)
 
         by_name: dict[str, list[FieldPath]] = {}
         for path in self.leaves:
@@ -406,8 +341,9 @@ class Router:
         for name, found in by_name.items():
             paths = tuple(found)
             if len(paths) == 1:
-                self.names[name] = (paths[0],)
-            elif all(self.leaves[p].shared for p in paths):
+                self.names[name] = paths
+            elif any(all(p[: len(s)] == s for p in paths) for s in sharers.get(name, ())):
+                # A stage above all of them declares the name shared.
                 self.names[name] = paths
             elif (name,) in self.leaves:
                 self.names[name] = ((name,),)
@@ -424,14 +360,15 @@ class Router:
             else:
                 self.ambiguous[alias] = tuple(sorted(targets))
 
-        #: The name each parameter field is routed by.
+        #: The name each parameter field is routed by: its alias, if a stage declares
+        #: one, else its flat (or shared) name, else its dotted path.
         self.preferred: dict[FieldPath, str] = {}
+        for alias, targets in aliases.items():
+            if alias in self.names:
+                self.preferred[next(iter(targets))] = alias
         for name, paths in self.names.items():
             for path in paths:
-                current = self.preferred.get(path)
-                # A field's own (flat or shared) name beats an alias.
-                if current is None or (name == path[-1] and current != path[-1]):
-                    self.preferred[path] = name
+                self.preferred.setdefault(path, name)
         for path in self.leaves:
             self.preferred.setdefault(path, _dotted(path))
 
@@ -441,36 +378,42 @@ class Router:
 
     # -- building --------------------------------------------------------------------
 
-    def _visit(self, cls: type, prefix: FieldPath, aliases: dict[str, set[FieldPath]]) -> None:
+    def _visit(
+        self,
+        cls: type,
+        prefix: FieldPath,
+        aliases: dict[str, set[FieldPath]],
+        sharers: dict[str, list[FieldPath]],
+    ) -> None:
         """Add the fields of the stage class ``cls`` at ``prefix`` (depth first)."""
         node = _node(cls)
         self.stages[prefix] = cls
-        for d in node.derivations:
-            self.derived[prefix + d.target] = (prefix, d)
+        for name in getattr(cls, "shared_parameters", ()):
+            sharers.setdefault(name, []).append(prefix)
         for name, a in node.fields.items():
             path = (*prefix, name)
-            if path in self.derived:
-                continue
             if name in node.children:
-                self._visit(node.children[name][0], path, aliases)
+                self._visit(node.children[name][0], path, aliases, sharers)
             else:
-                self.leaves[path] = _Leaf(path, a, bool(a.metadata.get(SHARED_KEY, False)))
+                self.leaves[path] = a
+        for name, (inputs, stage_cls) in node.derived.items():
+            for p in inputs:
+                if not _is_field(cls, p):
+                    raise TypeError(
+                        f"{cls.__name__}.{name}: the input {_dotted(p)!r} is not a field of "
+                        "the stage tree."
+                    )
+            self.derived[(*prefix, name)] = tuple(prefix + p for p in inputs)
+            if stage_cls is not None:
+                self.derived_stages[(*prefix, name)] = stage_cls
         for alias, target in getattr(cls, "parameter_aliases", {}).items():
-            aliases.setdefault(alias, set()).add(prefix + _split(target))
-        # Checked once the whole subtree is known.
-        for alias, target in getattr(cls, "parameter_aliases", {}).items():
-            if prefix + _split(target) not in self.leaves:
+            full = prefix + _split(target)
+            if full not in self.leaves:
                 raise TypeError(
                     f"{cls.__name__}.parameter_aliases: {alias!r} -> {target!r} is not a "
                     "parameter field."
                 )
-        for d in node.derivations:
-            for p in (d.target, *d.source_paths):
-                if not _is_field(cls, p):
-                    raise TypeError(
-                        f"{cls.__name__}.derivations: {_dotted(p)!r} is not a field of the "
-                        "stage tree."
-                    )
+            aliases.setdefault(alias, set()).add(full)
 
     # -- resolving names -------------------------------------------------------------
 
@@ -513,7 +456,7 @@ class Router:
         Raises
         ------
         TypeError
-            If the name is unknown, ambiguous, or a derived field.
+            If the name is unknown, ambiguous, or a derived property.
         """
         found = self.names.get(name)
         if found is not None:
@@ -523,13 +466,13 @@ class Router:
         path = _split(name)
         if path in self.leaves or (path in self.stages and path):
             return (path,), ()
-        if path in self.derived:
-            declared, d = self.derived[path]
-            sources = ", ".join(repr(_dotted(declared + s)) for s in d.source_paths)
-            raise TypeError(
-                f"{self.cls.__name__}: {name!r} is derived from {sources}, and cannot be "
-                "set. Change what it is derived from."
-            )
+        for i in range(len(path), 0, -1):
+            if path[:i] in self.derived:
+                inputs = ", ".join(repr(_dotted(p)) for p in self.derived[path[:i]])
+                raise TypeError(
+                    f"{self.cls.__name__}: {name!r} is computed (in {_dotted(path[:i])!r}, "
+                    f"from {inputs}), and cannot be set. Change what it is computed from."
+                )
         # A path into a model field: the longest prefix that is a parameter.
         for i in range(len(path) - 1, 0, -1):
             head = _dotted(path[:i])
@@ -619,48 +562,44 @@ class Router:
     def parameter_info(self) -> dict[str, ParameterInfo]:
         """A :class:`ParameterInfo` per parameter, by the name it is routed by."""
         out: dict[str, ParameterInfo] = {}
-        for path, leaf in self.leaves.items():
+        for path, attribute in self.leaves.items():
             name = self.preferred[path]
             if name in out:
                 continue
             paths = self.names.get(name, (path,))
-            holders = [self.leaves[p].attribute for p in paths]
+            holders = [self.leaves[p] for p in paths]
             static = [a.default for a in holders if not _takes_self(a.default)]
             default = static[0] if static else holders[0].default
             out[name] = ParameterInfo(
                 name=name,
                 paths=tuple(_dotted(p) for p in paths),
-                type=leaf.attribute.type,
+                type=attribute.type,
                 default=default,
-                doc=leaf.attribute.metadata.get(DOC_KEY, ""),
+                doc=attribute.metadata.get(DOC_KEY, ""),
                 shared=len(paths) > 1,
             )
         return out
 
     def invalidated_by(self, name: str) -> tuple[str, ...]:
-        """The stages that a change of ``name`` rebuilds (see :meth:`Stage.invalidated_by`)."""
+        """What a change of ``name`` rebuilds (see :meth:`Stage.invalidated_by`)."""
         paths, _ = self.paths_of(name)
-        changed = set(paths)
-        derived = sorted(self.derived.items())
-        grew = True
-        while grew:
-            grew = False
-            for target, (prefix, d) in derived:
-                if target in changed:
-                    continue
-                if any(_overlaps(c, prefix + s) for c in changed for s in d.source_paths):
-                    changed.add(target)
-                    grew = True
         rebuilt: set[FieldPath] = set()
-        for path in changed:
+        for path in paths:
             if path in self.stages:
                 rebuilt.add(path)
             rebuilt.update(path[:i] for i in range(len(path)))
+        for derived, inputs in self.derived.items():
+            if any(_overlaps(p, i) for p in paths for i in inputs):
+                rebuilt.add(derived)
         return tuple(_dotted(p) for p in sorted(rebuilt, key=lambda p: (len(p), p)))
 
     def quantities_available(self) -> dict[str, tuple[str, ...]]:
         """The public outputs of each stage of the tree (see :meth:`Stage.quantities_available`)."""
-        return {_dotted(path): _quantities(cls) for path, cls in self.stages.items()}
+        out = {}
+        for path, cls in (*self.stages.items(), *self.derived_stages.items()):
+            stages_here = {p[-1] for p in self.derived_stages if p[:-1] == path}
+            out[_dotted(path)] = tuple(n for n in _quantities(cls) if n not in stages_here)
+        return out
 
 
 def _takes_self(default: Any) -> bool:
@@ -774,8 +713,7 @@ def _apply_models(
     """The resolved values, with the model changes applied to their models."""
     values = dict(resolved.values)
     for path, changes in resolved.models.items():
-        leaf = table.leaves[path]
-        model = _convert(leaf.attribute, values[path]) if path in values else base(path)
+        model = _convert(table.leaves[path], values[path]) if path in values else base(path)
         values[path] = _evolve_model(model, changes, table.preferred[path])
     return values
 
@@ -799,7 +737,7 @@ def evolve(stage: Stage, changes: Mapping[str, Any]) -> Stage:
     values = resolved.values
     if resolved.models:
         values = _apply_models(table, resolved, lambda p: _walk(stage, p))
-    return _Rebuild(type(stage), stage, values, resolved.soft, ()).run()  # type: ignore[no-any-return]
+    return _rebuild(type(stage), stage, values, resolved.soft, ())  # type: ignore[no-any-return]
 
 
 def from_flat(cls: type[Stage], mapping: Mapping[str, Any]) -> Stage:
@@ -820,12 +758,12 @@ def from_flat(cls: type[Stage], mapping: Mapping[str, Any]) -> Stage:
     resolved = _with_computed_defaults(table, table.resolve(mapping))
 
     def base(path: FieldPath) -> Any:
-        return _default(table.leaves[path].attribute, repr(table.preferred[path]))
+        return _default(table.leaves[path], repr(table.preferred[path]))
 
     values = resolved.values
     if resolved.models:
         values = _apply_models(table, resolved, base)
-    return _Rebuild(cls, None, values, resolved.soft, ()).run()  # type: ignore[no-any-return]
+    return _rebuild(cls, None, values, resolved.soft, ())  # type: ignore[no-any-return]
 
 
 def _with_computed_defaults(table: Router, resolved: _Resolved) -> _Resolved:
@@ -886,137 +824,52 @@ def parameter_defaults(cls: type[Stage]) -> dict[str, Any]:
     return out
 
 
-#: A derived value that is left as it is.
-_UNSET: Any = object()
-
-
-class _Rebuild:
+def _rebuild(
+    cls: type,
+    old: Any,
+    changes: Mapping[FieldPath, Any],
+    soft: frozenset[FieldPath],
+    where: FieldPath,
+) -> Any:
     """Rebuild one stage of a tree with changes (or, with ``old`` None, build it).
 
     ``changes`` are by path relative to the stage; ``soft`` are the paths set by a
     shared name, which a stage field that is None (e.g. ``Growth.transfer``) ignores;
     ``where`` is the stage's path from the root, for messages.
     """
+    node = _node(cls)
+    kwargs: dict[str, Any] = {}
+    sub: dict[str, dict[FieldPath, Any]] = {}
+    for path, value in changes.items():
+        if len(path) == 1:
+            kwargs[path[0]] = value
+        else:
+            sub.setdefault(path[0], {})[path[1:]] = value
 
-    def __init__(
-        self,
-        cls: type,
-        old: Any,
-        changes: Mapping[FieldPath, Any],
-        soft: frozenset[FieldPath],
-        where: FieldPath,
-    ) -> None:
-        self.cls, self.old, self.soft, self.where = cls, old, soft, where
-        self.node = node = _node(cls)
-        self.own: dict[str, Any] = {}
-        self.sub: dict[str, dict[FieldPath, Any]] = {}
-        for path, value in changes.items():
-            if len(path) == 1:
-                self.own[path[0]] = value
-            else:
-                self.sub.setdefault(path[0], {})[path[1:]] = value
-        # The derivations to compute: those whose sources change (in declaration
-        # order, so that a derived source counts as changed), or all, to build.
-        self.fired: list[Derivation] = []
-        if node.derivations:
-            changed = list(changes)
-            for d in node.derivations:
-                if d.target[0] in self.own:
-                    continue
-                if old is None or any(_overlaps(c, s) for c in changed for s in d.source_paths):
-                    self.fired.append(d)
-                    changed.append(d.target)
-        #: The fired derivations of this stage's own fields.
-        self.derived_own = {d.target[0]: d for d in self.fired if len(d.target) == 1}
-        self.built: dict[str, Any] = {}
-
-    def get(self, dotted: str) -> Any:
-        """The value at a dotted path in the new tree."""
-        path = _split(dotted)
-        return _walk(self.child(path[0]), path[1:])
-
-    def get_old(self, dotted: str) -> Any:
-        """The value at a dotted path in the old tree."""
-        return _walk(self.old, _split(dotted))
-
-    def derived_value(self, d: Derivation) -> Any:
-        """The new value of a derived field, or ``_UNSET`` to leave it.
-
-        A field is left if its value does not change, or if it did not hold its
-        derived value before (a link the user did not make).
-        """
-        value = d.derive(self.get)
-        if self.old is None:
-            return value
-        current = _walk(self.old, d.target)
-        if _same(current, value) or not _same(current, d.derive(self.get_old)):
-            return _UNSET
-        return value
-
-    def child(self, name: str) -> Any:
-        """The new value of the field ``name`` (built once)."""
-        if name not in self.built:
-            if name in self.own:
-                value = self.own[name]
-            elif name in self.node.children:
-                value = self.stage_field(name)
-            elif name in self.derived_own:
-                value = self.derived_value(self.derived_own[name])
-                if value is _UNSET:
-                    value = getattr(self.old, name)
-            elif self.old is not None:
-                value = getattr(self.old, name)
-            else:
-                value = _default(self.node.fields[name], repr(_dotted((*self.where, name))))
-            self.built[name] = value
-        return self.built[name]
-
-    def stage_field(self, name: str) -> Any:
-        """The new value of the stage field ``name``, not given whole."""
-        child_cls, optional = self.node.children[name]
-        changes = dict(self.sub.get(name, {}))
-        hard = any((name, *p) not in self.soft for p in changes)
-        for d in self.fired:
-            if d.target[0] == name and len(d.target) > 1:
-                new = self.derived_value(d)
-                if new is not _UNSET:
-                    changes[d.target[1:]] = new
-                    hard = True
-        old_child = None if self.old is None else getattr(self.old, name)
-        if self.old is not None and not changes:
-            return old_child
-        if optional and old_child is None and not hard:
+    for name, (child_cls, optional) in node.children.items():
+        if name in kwargs or (old is not None and name not in sub):
+            continue
+        child_changes = sub.get(name, {})
+        old_child = None if old is None else getattr(old, name)
+        if optional and old_child is None and all((name, *p) in soft for p in child_changes):
             # Only shared parameters: an absent optional stage stays absent.
-            return old_child if self.old is not None else _UNSET
-        if self.old is not None and old_child is None:
-            given = ", ".join(repr(_dotted((*self.where, name, *p))) for p in changes)
+            continue
+        if old is not None and old_child is None:
+            given = ", ".join(repr(_dotted((*where, name, *p))) for p in child_changes)
             raise ValueError(
-                f"{_dotted((*self.where, name))} is None, so {given} cannot be set. Give "
-                "the stage first."
+                f"{_dotted((*where, name))} is None, so {given} cannot be set. Give the "
+                "stage first."
             )
-        soft = frozenset(p[1:] for p in self.soft if p[0] == name and len(p) > 1)
-        return _Rebuild(child_cls, old_child, changes, soft, (*self.where, name)).run()
+        child_soft = frozenset(p[1:] for p in soft if p[0] == name and len(p) > 1)
+        new = _rebuild(child_cls, old_child, child_changes, child_soft, (*where, name))
+        if old is None or new is not old_child:
+            kwargs[name] = new
 
-    def run(self) -> Any:
-        """The new stage (the old one if nothing changes)."""
-        old = self.old
-        kwargs = dict(self.own)
-        for name in self.node.children:
-            if name in self.own:
-                continue
-            if old is None or name in self.sub or any(d.target[0] == name for d in self.fired):
-                value = self.child(name)
-                if value is not _UNSET and (old is None or value is not getattr(old, name)):
-                    kwargs[name] = value
-        for name in self.derived_own:
-            value = self.child(name)
-            if old is None or value is not getattr(old, name):
-                kwargs[name] = value
-        if old is None:
-            missing = [_dotted((*self.where, n)) for n in self.node.required if n not in kwargs]
-            if missing:
-                raise TypeError(f"{self.cls.__name__}: missing required parameter(s) {missing}.")
-            return self.cls(**kwargs)
-        if not kwargs:
-            return old
-        return old.evolve_own(**kwargs)
+    if old is None:
+        missing = [_dotted((*where, n)) for n in node.required if n not in kwargs]
+        if missing:
+            raise TypeError(f"{cls.__name__}: missing required parameter(s) {missing}.")
+        return cls(**kwargs)
+    if not kwargs:
+        return old
+    return old.evolve_own(**kwargs)

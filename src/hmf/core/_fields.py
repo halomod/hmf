@@ -17,14 +17,11 @@ import attrs
 #: The metadata key holding a field's documentation.
 DOC_KEY = "hmf_doc"
 
-#: The metadata key marking a field as a shared parameter (see :func:`field`).
-SHARED_KEY = "hmf_shared"
-
 #: The ``default`` of a :class:`FieldInfo` for a field without a default.
 NO_DEFAULT: Any = attrs.NOTHING
 
 
-def field(*, doc: str, shared: bool = False, **kwargs: Any) -> Any:
+def field(*, doc: str, **kwargs: Any) -> Any:
     """Define an ``attrs`` field with documentation.
 
     Parameters
@@ -32,11 +29,6 @@ def field(*, doc: str, shared: bool = False, **kwargs: Any) -> Any:
     doc
         One or more sentences describing the field. They become its entry in the
         class's generated "Parameters" docstring section and in ``fields_info()``.
-    shared
-        Whether the field of a stage is a *shared parameter*: one that several stages
-        of a tree hold and that must be equal in all of them (e.g. ``cosmology``). A
-        flat change to a name that every holder declares shared changes them all
-        (see :mod:`hmf.core.routing`).
     **kwargs
         Passed on to :func:`attrs.field` (``default``, ``validator``,
         ``converter``, ...).
@@ -48,8 +40,6 @@ def field(*, doc: str, shared: bool = False, **kwargs: Any) -> Any:
     """
     metadata = dict(kwargs.pop("metadata", None) or {})
     metadata[DOC_KEY] = doc
-    if shared:
-        metadata[SHARED_KEY] = True
     return attrs.field(metadata=metadata, **kwargs)
 
 

@@ -10,13 +10,14 @@ import pytest
 from astropy.cosmology import Planck15, Planck18
 
 from hmf.core import _boltzmann, field, routing
+from hmf.core import stage as stage_module
 from hmf.core.accuracy import KAccuracy, MassAccuracy
 from hmf.core.growth import Growth
 from hmf.core.linear_power import LinearPower
 from hmf.core.mass_function import MassFunction
 from hmf.core.mass_variance import MassVariance
-from hmf.core.routing import Derivation, GivenParameters
-from hmf.core.stage import Stage
+from hmf.core.routing import GivenParameters
+from hmf.core.stage import Stage, derived_property
 from hmf.core.transfer import Transfer
 from hmf.core.transfer_models import FromArray
 from hmf.core.units import Msun_h, h_Mpc
@@ -82,33 +83,29 @@ def test_parameter_info():
     assert not info["sigma_8"].shared
     assert info["sigma_8"].required  # computed from the cosmology by build
     assert info["transfer_model"].paths == ("linear_power.transfer.model",)
-    assert info["growth_model"].paths == ("linear_power.growth.model",)
-    assert info["filter"].path == "variance.filter"
+    assert info["growth_model"].paths == ("linear_power.growth_model",)
+    assert info["filter"].path == "filter"
     assert info["delta_c"].default == 1.686
     assert info["delta_c"].type is float
     assert "critical overdensity" in info["delta_c"].doc
-    assert info["cosmology"].shared
-    assert set(info["cosmology"].paths) == {
-        "linear_power.transfer.cosmology",
-        "linear_power.growth.cosmology",
-        "linear_power.cosmology",
-    }
+    # Each value lives in one stage: the growth and variance take them from the transfer.
+    assert info["cosmology"].paths == ("linear_power.transfer.cosmology",)
     assert info["cosmology"].default is Planck18
-    assert set(info["k_accuracy"].paths) == {
-        "linear_power.transfer.k_accuracy",
-        "linear_power.growth.k_accuracy",
-        "linear_power.k_accuracy",
-        "variance.k_accuracy",
-    }
-    assert set(info["disk_cache"].paths) == {
-        "linear_power.transfer.disk_cache",
-        "linear_power.growth.disk_cache",
-    }
-    assert {name for name, i in info.items() if i.shared} == {
-        "cosmology",
-        "k_accuracy",
-        "disk_cache",
-    }
+    assert info["k_accuracy"].paths == ("linear_power.transfer.k_accuracy",)
+    assert info["disk_cache"].paths == ("linear_power.transfer.disk_cache",)
+    assert not any(i.shared for i in info.values())
+
+
+def test_shared_parameters_of_a_growth_stage():
+    """Growth declares the names it holds twice (with a transfer stage) as shared."""
+    info = Growth.parameter_info()
+    assert info["cosmology"].shared
+    assert set(info["cosmology"].paths) == {"cosmology", "transfer.cosmology"}
+    assert set(info["k_accuracy"].paths) == {"k_accuracy", "transfer.k_accuracy"}
+    assert set(info["disk_cache"].paths) == {"disk_cache", "transfer.disk_cache"}
+    # The growth model is the root's own field; the transfer's is reached by its path.
+    assert info["model"].paths == ("model",)
+    assert "transfer.model" in info
 
 
 def test_parameter_defaults():
@@ -124,7 +121,7 @@ def test_parameter_defaults():
 
 
 def test_every_field_is_routable():
-    """Every field of every stage of the MassFunction tree has a name, or is derived."""
+    """Every field of every stage of the MassFunction tree is a parameter, or a stage."""
     info = MassFunction.parameter_info()
     routed = {path for i in info.values() for path in i.paths}
     table = routing.router(MassFunction)
@@ -132,21 +129,19 @@ def test_every_field_is_routable():
     for path, cls in table.stages.items():
         for a in attrs.fields(cls):
             full = (*path, a.name)
-            if full in table.stages or full in table.derived:
-                continue
-            fields.add(".".join(full))
+            if full not in table.stages:
+                fields.add(".".join(full))
     assert fields == routed
-    # The derived fields are the declared ones, and the stages are the tree's.
+    assert set(table.stages) == {(), ("linear_power",), ("linear_power", "transfer")}
+    # The derived properties are known from the classes, with their stage classes.
     assert {".".join(p) for p in table.derived} == {
-        "variance.power",
-        "linear_power.growth.transfer",
+        "variance",
+        "linear_power.growth",
+        "linear_power.unnormalised_sigma_8",
     }
-    assert set(table.stages) == {
-        (),
-        ("linear_power",),
-        ("linear_power", "transfer"),
-        ("linear_power", "growth"),
-        ("variance",),
+    assert table.derived_stages == {
+        ("variance",): MassVariance,
+        ("linear_power", "growth"): Growth,
     }
 
 
@@ -256,7 +251,7 @@ def test_evolve_on_a_sub_stage_routes_its_own_tree(mf):
 
 
 # ---------------------------------------------------------------------------------
-# Structural sharing, shared parameters and derived fields
+# Structural sharing, derived properties and shared parameters
 # ---------------------------------------------------------------------------------
 
 
@@ -276,17 +271,18 @@ def test_structural_sharing(mf):
     growth = mf.evolve(growth_model="Carroll92")
     assert growth.variance is mf.variance
     assert growth.linear_power.transfer is mf.linear_power.transfer
+    assert growth.linear_power.unnormalised_sigma_8 == mf.linear_power.unnormalised_sigma_8
 
 
-def test_sigma_8_change_shares_the_normalisation(mf):
-    """Routing rebuilds LinearPower with its own evolve_own, which shares sigma_8,raw."""
+def test_sigma_8_change_carries_the_normalisation(mf, monkeypatch):
+    """sigma_8,raw is a derived property of the transfer and sigma_8_species: carried."""
     raw = mf.linear_power.unnormalised_sigma_8
+    monkeypatch.setattr(MassVariance, "ln_sigma_at_radius_kernel", None)  # must not run
     lower = mf.evolve(sigma_8=0.7)
-    assert lower.linear_power._normalisation_memo is mf.linear_power._normalisation_memo
     assert lower.linear_power.unnormalised_sigma_8 == raw
 
 
-def test_shared_cosmology_is_consistent(mf):
+def test_cosmology_change_is_consistent(mf):
     new = mf.evolve(cosmology=Planck15)
     lp = new.linear_power
     for stage in (lp, lp.transfer, lp.growth):
@@ -296,7 +292,7 @@ def test_shared_cosmology_is_consistent(mf):
     assert new == MassFunction.from_flat({**mf.to_flat(), "cosmology": Planck15})
 
 
-def test_shared_k_accuracy_is_consistent(mf):
+def test_k_accuracy_change_is_consistent(mf):
     high = KAccuracy.high()
     new = mf.evolve(k_accuracy=high)
     lp = new.linear_power
@@ -305,52 +301,61 @@ def test_shared_k_accuracy_is_consistent(mf):
     assert new.variance.power.transfer is lp.transfer
 
 
-def test_shared_name_skips_a_stage_given_whole(mf):
-    """A stage given whole has its own value of a shared parameter."""
-    transfer = mf.linear_power.transfer.evolve(cosmology=Planck15)
-    lp = mf.linear_power.evolve(
-        transfer=transfer, growth=Growth.from_transfer(transfer), cosmology=Planck15
-    )
-    assert lp.cosmology is Planck15
-    assert lp.transfer is transfer
-
-
-def test_derived_fields_are_rederived(mf):
+def test_derived_stages_are_recomputed(mf):
     new = mf.evolve(transfer_model="BBKS")
     lp = new.linear_power
     assert new.variance.power.transfer is lp.transfer
     assert lp.growth.transfer is lp.transfer
     assert new.variance.power == lp.power_source
-    # Replacing the linear power whole re-derives the variance's power too.
+    # Replacing the linear power whole recomputes the variance of its power ...
     whole = mf.evolve(linear_power=lp)
     assert whole.variance.power.transfer is lp.transfer
-    # ... and keeps the variance when the power does not change.
+    # ... and carries it when the transfer and species do not change.
     assert mf.evolve(linear_power=mf.linear_power.evolve(sigma_8=0.7)).variance is mf.variance
 
 
-def test_species_rederives_the_variance(mf):
+def test_species_recomputes_the_variance(mf):
     new = mf.evolve(species="tot")
     assert new.variance.power.species == "tot"
     assert new.variance.power.transfer is mf.linear_power.transfer
+    assert new.linear_power.growth is mf.linear_power.growth
 
 
-def test_a_link_the_user_did_not_make_is_left():
-    """A Growth without a transfer stage keeps none when the transfer changes."""
-    transfer = Transfer(model="EH")
-    lp = LinearPower(transfer=transfer, growth=Growth(), sigma_8=0.8)
-    new = lp.evolve(n_s=0.9)
-    assert new.growth.transfer is None
-    assert new.growth is lp.growth
+def test_derived_values_are_carried_only_once_computed():
+    """evolve_own carries a derived value already computed; one not computed is not."""
+    fresh = MassFunction.build(transfer_model="EH")
+    lower = fresh.evolve(sigma_8=0.7)
+    variance = lower.variance  # computed on the new stage, not the old one
+    assert fresh.evolve(sigma_8=0.7).variance is not variance
+    assert lower.evolve(sigma_8=0.8).variance is variance
 
 
-def test_derived_field_cannot_be_set(mf):
-    with pytest.raises(TypeError, match=r"'variance.power' is derived from"):
+def test_derived_property_cannot_be_set(mf):
+    with pytest.raises(TypeError, match=r"'variance' is computed .*'linear_power.transfer'"):
+        mf.evolve(variance=mf.variance)
+    with pytest.raises(TypeError, match=r"'variance.power' is computed \(in 'variance'"):
         mf.evolve(**{"variance.power": mf.variance.power})
-    with pytest.raises(TypeError, match=r"derived from 'linear_power.transfer'"):
-        mf.evolve(**{"linear_power.growth.transfer": None})
+    with pytest.raises(TypeError, match=r"'linear_power.growth.model' is computed"):
+        mf.evolve(**{"linear_power.growth.model": "ODE"})
 
 
-def test_optional_stage(mf):
+def test_shared_name_skips_a_stage_given_whole():
+    """A stage given whole has its own value of a shared parameter."""
+    growth = Growth.from_transfer(Transfer(model="EH"))
+    transfer = Transfer(model="EH", cosmology=Planck15)
+    new = growth.evolve(transfer=transfer, cosmology=Planck15)
+    assert new.cosmology is Planck15
+    assert new.transfer is transfer
+
+
+def test_shared_name_changes_every_holder():
+    growth = Growth.from_transfer(Transfer(model="EH"))
+    new = growth.evolve(cosmology=Planck15, k_accuracy=KAccuracy.fast())
+    assert new.cosmology is new.transfer.cosmology is Planck15
+    assert new.k_accuracy == new.transfer.k_accuracy == KAccuracy.fast()
+
+
+def test_optional_stage():
     """A shared name skips an absent optional stage; other changes to it raise."""
     growth = Growth(model="Carroll92")
     assert growth.transfer is None
@@ -378,8 +383,8 @@ def test_model_field_by_dotted_path(mf):
     assert mf.evolve(fit="ST", **{"fit.a": 0.75}).fit == changed.fit
     growth = mf.evolve(**{"growth_model.dln_a": 0.02})
     assert growth.linear_power.growth.model.dln_a == 0.02
-    assert growth.evolve(**{"linear_power.growth.model.dln_a": 0.01}).linear_power.growth.model == (
-        mf.linear_power.growth.model
+    assert growth.evolve(**{"linear_power.growth_model.dln_a": 0.01}).linear_power.growth_model == (
+        mf.linear_power.growth_model
     )
     built = MassFunction.build(transfer_model="EH", fit="ST", **{"fit.a": 0.75})
     assert built.fit == changed.fit
@@ -394,11 +399,13 @@ def test_model_field_errors(mf):
     with pytest.raises(TypeError, match="given twice"):
         mf.evolve(**{"fit.A_200": 0.2, "fit": mf.fit, "linear_power.sigma_8": 0.7, "sigma_8": 0.7})
     with pytest.raises(TypeError, match="given twice"):
-        mf.evolve(**{"growth_model.dln_a": 0.2, "linear_power.growth.model.dln_a": 0.1})
+        mf.evolve(**{"growth_model.dln_a": 0.2, "linear_power.growth_model.dln_a": 0.1})
     with pytest.raises(TypeError, match="ambiguous"):
-        mf.evolve(**{"model.z_max": 10.0})
+        HaloModel.from_flat({"delta_c.real": 1.0})
     with pytest.raises(TypeError, match="no default to change"):
         LinearPower.from_flat({"transfer_model": "EH", "sigma_8.x": 1.0})
+    with pytest.raises(TypeError, match="'delta_c' is a float, not a model"):
+        MassFunction.from_flat({"delta_c.real": 1.0})
 
 
 # ---------------------------------------------------------------------------------
@@ -409,8 +416,10 @@ def test_model_field_errors(mf):
 def test_unknown_name_suggests(mf):
     with pytest.raises(TypeError, match=r"no parameter 'sigma8'.*Did you mean 'sigma_8'"):
         mf.evolve(sigma8=0.8)
-    with pytest.raises(TypeError, match=r"no parameter 'variance.filtr'.*'variance.filter'"):
-        mf.evolve(**{"variance.filtr": "SharpK"})
+    with pytest.raises(
+        TypeError, match=r"no parameter 'linear_power.sigma8'.*'linear_power.sigma_8'"
+    ):
+        mf.evolve(**{"linear_power.sigma8": 0.8})
     with pytest.raises(TypeError, match=r"no parameter 'Mminn'"):
         MassFunction.build(Mminn=3)
     with pytest.raises(TypeError, match=r"no parameter 'tranfer_model'.*'transfer_model'"):
@@ -418,28 +427,28 @@ def test_unknown_name_suggests(mf):
 
 
 def test_ambiguous_name_lists_paths(mf):
+    hm = HaloModel(mass_function=mf)
     with pytest.raises(TypeError, match="ambiguous") as err:
-        mf.evolve(model="EH")
+        hm.evolve(delta_c=1.6)
     message = str(err.value)
-    assert "'linear_power.transfer.model'" in message
-    assert "'linear_power.growth.model'" in message
-    assert "'transfer_model'" in message
-    assert "'growth_model'" in message
+    assert "'mass_function.delta_c'" in message
+    assert "'profile.delta_c'" in message
+    assert "'profile_delta_c'" in message
 
 
 def test_conflicts(mf):
     with pytest.raises(TypeError, match="given twice"):
         mf.evolve(sigma_8=0.7, **{"linear_power.sigma_8": 0.75})
     with pytest.raises(TypeError, match="given twice"):
-        mf.evolve(cosmology=Planck15, **{"linear_power.cosmology": Planck15})
+        mf.evolve(cosmology=Planck15, **{"linear_power.transfer.cosmology": Planck15})
     with pytest.raises(TypeError, match="which is also given"):
         mf.evolve(linear_power=mf.linear_power, sigma_8=0.7)
 
 
 def test_unknown_names_raise_before_anything_is_built(mf, monkeypatch):
     built = []
-    real = routing._Rebuild.run
-    monkeypatch.setattr(routing._Rebuild, "run", lambda self: built.append(1) or real(self))
+    real = routing._rebuild
+    monkeypatch.setattr(routing, "_rebuild", lambda *args: built.append(1) or real(*args))
     with pytest.raises(TypeError):
         mf.evolve(sigma_8=0.7, sigma8=0.7)
     with pytest.raises(TypeError):
@@ -495,6 +504,9 @@ def test_from_flat_nested_and_dotted():
     assert nested == dotted == MassFunction.build(transfer_model="EH", sigma_8=0.7, n_s=0.95)
     assert nested.linear_power.growth.transfer is nested.linear_power.transfer
     assert nested.variance.power.transfer is nested.linear_power.transfer
+    assert MassFunction.from_flat({"linear_power": {"sigma_8": 0.7}}) == MassFunction.build(
+        sigma_8=0.7
+    )
 
 
 def test_from_flat_with_a_stage_given_whole(mf):
@@ -503,7 +515,7 @@ def test_from_flat_with_a_stage_given_whole(mf):
     assert built.linear_power is mf.linear_power
     assert built.variance.power.transfer is mf.linear_power.transfer
     transfer = Transfer(model="EH", cosmology=Planck15, n_s=0.9)
-    lp_built = MassFunction.from_flat({"linear_power.transfer": transfer, "cosmology": Planck15})
+    lp_built = MassFunction.from_flat({"linear_power.transfer": transfer})
     assert lp_built.linear_power.transfer is transfer
     assert lp_built.linear_power.growth.transfer is transfer
     # sigma_8 comes from the given transfer's cosmology.
@@ -543,25 +555,37 @@ def test_invalidated_by():
         "linear_power",
         "linear_power.growth",
     )
-    everything = ("", "linear_power", "variance", "linear_power.growth", "linear_power.transfer")
+    assert MassFunction.invalidated_by("sigma_8_species") == (
+        "",
+        "linear_power",
+        "linear_power.unnormalised_sigma_8",
+    )
+    everything = (
+        "",
+        "linear_power",
+        "variance",
+        "linear_power.growth",
+        "linear_power.transfer",
+        "linear_power.unnormalised_sigma_8",
+    )
     assert MassFunction.invalidated_by("transfer_model") == everything
     assert MassFunction.invalidated_by("n_s") == everything
     assert MassFunction.invalidated_by("cosmology") == everything
     assert MassFunction.invalidated_by("species") == ("", "linear_power", "variance")
     assert MassFunction.invalidated_by("linear_power.transfer") == everything
-    with pytest.raises(TypeError, match="ambiguous"):
-        MassFunction.invalidated_by("model")
+    with pytest.raises(TypeError, match="computed"):
+        MassFunction.invalidated_by("variance")
 
 
 def test_invalidated_by_matches_evolve(mf):
-    """The stages invalidated_by names are exactly the ones evolve rebuilds."""
+    """What invalidated_by names is exactly what evolve rebuilds or recomputes."""
     table = routing.router(MassFunction)
     for name, (value, _) in CHANGES.items():
         if name == "disk_cache":
             continue
         new = mf.evolve(**{name: value})
         rebuilt = set()
-        for path in table.stages:
+        for path in (*table.stages, *table.derived):
             a, b = mf, new
             for part in path:
                 a, b = getattr(a, part), getattr(b, part)
@@ -586,6 +610,9 @@ def test_quantities_available():
     assert "power_source" not in q["linear_power.transfer"]
     assert {"power", "amplitude", "power_source", "unnormalised_sigma_8"} <= set(q["linear_power"])
     assert "growth_factor" in q["linear_power.growth"]
+    # A derived stage has its own entry, not one in its parent's.
+    assert "variance" not in q[""]
+    assert "growth" not in q["linear_power"]
     for names in q.values():
         for name in names:
             assert not name.startswith("_")
@@ -598,7 +625,7 @@ def test_quantities_available():
                 "parameter_info",
                 "fields_info",
                 "same_cosmology",
-                "derivations",
+                "shared_parameters",
                 "parameter_aliases",
             }
             assert not name.isupper()
@@ -660,22 +687,22 @@ class HaloModel(Stage):
     """A toy extension stage holding a MassFunction and a Profile."""
 
     parameter_aliases: ClassVar = MappingProxyType({"profile_delta_c": "profile.delta_c"})
-    derivations: ClassVar = (
-        Derivation(
-            field="profile.concentration",
-            sources=("mass_function.delta_c",),
-            derive=lambda get: 3 * get("mass_function.delta_c"),
-        ),
-    )
 
-    mass_function: MassFunction = field(doc="The mass function.")
+    mass_function: MassFunction = field(
+        factory=lambda: MassFunction.build(transfer_model="EH"), doc="The mass function."
+    )
     profile: Profile = field(factory=Profile, doc="The profile.")
     bias: str = field(default="Tinker10", doc="The bias model.")
+
+    @derived_property("mass_function.delta_c", "profile")
+    def boosted(self) -> Profile:
+        """A derived stage."""
+        return self.profile.evolve(concentration=3 * self.mass_function.delta_c)
 
     @cached_property
     def power(self) -> float:
         """A toy output."""
-        return self.mass_function.delta_c * self.profile.concentration
+        return self.mass_function.delta_c * self.boosted.concentration
 
     def halo_power_kernel(self) -> float:
         """A kernel entry point: not a quantity."""
@@ -683,23 +710,25 @@ class HaloModel(Stage):
 
 
 def test_extension_stage(mf):
-    hm = HaloModel(mass_function=mf, profile=Profile(concentration=3 * mf.delta_c))
+    hm = HaloModel(mass_function=mf)
     names = set(HaloModel.parameter_names())
     assert BUILD_KEYWORDS - {"delta_c"} <= names
     assert {"bias", "profile_delta_c", "mass_function.delta_c"} <= names
-    with pytest.raises(TypeError, match="ambiguous"):
-        hm.evolve(delta_c=1.6)
     lower = hm.evolve(sigma_8=0.7)
     assert lower.mass_function.variance is mf.variance
     assert lower.profile is hm.profile
-    # The derivation follows the mass function's delta_c.
+    # The derived stage follows the mass function's delta_c, and is carried otherwise.
+    boosted = hm.boosted
+    assert hm.evolve(bias="SMT").boosted is boosted
+    assert hm.evolve(sigma_8=0.7).boosted is boosted
     new = hm.evolve(**{"mass_function.delta_c": 1.6})
-    assert new.profile.concentration == pytest.approx(4.8)
+    assert new.boosted.concentration == pytest.approx(4.8)
     assert hm.evolve(profile_delta_c=2.0).profile.delta_c == 2.0
-    assert HaloModel.invalidated_by("mass_function.delta_c") == ("", "mass_function", "profile")
-    assert HaloModel.quantities_available()[""] == ("power",)
-    built = HaloModel.from_flat({"mass_function": mf, "bias": "SMT"})
-    assert built.profile.concentration == pytest.approx(3 * mf.delta_c)
+    assert HaloModel.invalidated_by("mass_function.delta_c") == ("", "boosted", "mass_function")
+    q = HaloModel.quantities_available()
+    assert q[""] == ("power",)
+    assert q["boosted"] == ()
+    assert q["mass_function.variance"]
     # The mass function's computed defaults (sigma_8, n_s) apply inside the tree too.
     fresh = HaloModel.from_flat({"transfer_model": "EH"})
     assert fresh.mass_function == MassFunction.build(transfer_model="EH")
@@ -723,14 +752,15 @@ def test_bad_hooks_raise_when_the_table_is_built():
         ClashingAlias.parameter_names()
 
     @attrs.frozen(kw_only=True)
-    class BadDerivation(Stage):
-        derivations: ClassVar = (
-            Derivation(field="profile.nope", sources=(), derive=lambda get: 0),
-        )
+    class BadInput(Stage):
         profile: Profile = field(factory=Profile, doc="The profile.")
 
-    with pytest.raises(TypeError, match="not a field of the stage tree"):
-        BadDerivation.parameter_names()
+        @derived_property("profile.nope")
+        def derived(self) -> int:
+            return 0
+
+    with pytest.raises(TypeError, match=r"BadInput.derived: the input 'profile.nope'"):
+        BadInput.parameter_names()
 
 
 def test_repeated_alias_is_ambiguous():
@@ -779,55 +809,65 @@ class Outer:
 
 @attrs.frozen(kw_only=True)
 class Leafy(Stage):
-    """A toy stage with a shared field."""
+    """A toy stage with a setting that a stage composing two of them shares."""
 
-    acc: int = field(default=1, shared=True, doc="A shared setting.")
+    acc: int = field(default=1, doc="A setting.")
     thing: Outer = field(factory=Outer, doc="A model.")
     count: int = field(default=0, converter=attrs.Converter(int), doc="A count.")
 
 
 @attrs.frozen(kw_only=True)
 class Holder(Stage):
-    """A toy stage with derivations from its own fields, and a computed default."""
+    """A toy stage composing two Leafy stages, sharing their setting, with a computed default."""
 
-    derivations: ClassVar = (
-        Derivation(field="double", sources=("base",), derive=lambda get: 2 * get("base")),
-        # A chain: derived from a derived field of the stage.
-        Derivation(field="right.count", sources=("double",), derive=lambda get: get("double")),
-        Derivation(
-            field="left.count",
-            sources=("base", "right.acc"),
-            derive=lambda get: get("base") + get("right.acc"),
-        ),
-    )
+    shared_parameters: ClassVar = frozenset({"acc"})
 
     left: Leafy = field(factory=Leafy, doc="One.")
     right: Leafy = field(factory=Leafy, doc="Two.")
     base: int = field(default=3, doc="A base.")
-    double: int = field(default=6, doc="Twice the base.")
+
+    @derived_property("base", "left.acc")
+    def double(self) -> int:
+        """Twice the base, times the setting."""
+        return 2 * self.base * self.left.acc
+
+    @derived_property("base")
+    def unannotated(self):
+        """No return annotation."""
+        return self.base
+
+    @derived_property("base")
+    def unresolved(self) -> "NotAType":  # noqa: F821 - an annotation that can't be resolved
+        """A return annotation that can't be resolved."""
+        return self.base
 
     @classmethod
     def computed_defaults(cls, given):
         return {"acc": 2} if "base" not in given else {}
 
 
-def test_toy_derivations_from_own_fields():
+def test_toy_shared_parameter_and_derived_properties():
     built = Holder.from_flat({})
-    assert (built.base, built.double, built.right.count, built.left.count) == (3, 6, 6, 5)
     assert built.left.acc == built.right.acc == 2  # a shared computed default
     assert Holder.from_flat({"base": 5}).left.acc == 1
-    new = built.evolve(base=4)
-    assert (new.double, new.right.count, new.left.count) == (8, 8, 6)
-    assert built.evolve(**{"right.acc": 4}).left.count == 7
-    assert Holder.invalidated_by("base") == ("", "left", "right")
-    # The right count is derived: its link holds until it is set by hand.
-    with pytest.raises(TypeError, match="derived from"):
-        built.evolve(**{"right.count": 2})
-    other = built.evolve(**{"left.acc": 5})
-    assert other.right is built.right
-    # A derived field set by hand (the link does not hold) is left alone.
-    by_hand = Holder(double=7)
-    assert by_hand.evolve(base=4).double == 7
+    assert Holder.parameter_info()["acc"].paths == ("left.acc", "right.acc")
+    new = built.evolve(acc=4)
+    assert new.left.acc == new.right.acc == 4
+    double = built.double
+    assert built.evolve(**{"right.count": 2}).double is double
+    assert built.evolve(acc=3).double == 18
+    assert built.evolve(base=4).double == 16
+    assert Holder.invalidated_by("acc") == ("", "double", "left", "right")
+    assert Holder.invalidated_by("base") == ("", "double", "unannotated", "unresolved")
+    # Without the composing stage's declaration, the name is ambiguous.
+    with pytest.raises(TypeError, match=r"'acc' is ambiguous.*'a.acc'"):
+
+        @attrs.frozen(kw_only=True)
+        class Unshared(Stage):
+            a: Leafy = field(factory=Leafy, doc="One.")
+            b: Leafy = field(factory=Leafy, doc="Two.")
+
+        Unshared().evolve(acc=2)
 
 
 def test_toy_nested_model_fields():
@@ -841,21 +881,26 @@ def test_toy_nested_model_fields():
         stage.evolve(**{"count": "3", "count.real": 1})
     with pytest.raises(TypeError, match="not a model with fields"):
         stage.evolve(**{"acc": 3, "acc.real": 1})
+    with pytest.raises(TypeError, match="ambiguous"):
+        Holder().evolve(**{"count.real": 1})
 
 
 def test_toy_unknown_dotted_names():
     with pytest.raises(TypeError, match=r"no parameter 'nothing\.at\.all'"):
         Leafy().evolve(**{"nothing.at.all": 1})
-    with pytest.raises(TypeError, match="not a field of the stage tree"):
+    with pytest.raises(TypeError, match=r"the input 'base.x' is not a field"):
 
         @attrs.frozen(kw_only=True)
         class Through(Stage):
-            derivations: ClassVar = (Derivation(field="base.x", sources=(), derive=lambda get: 0),)
             base: int = field(default=3, doc="Not a stage.")
+
+            @derived_property("base.x")
+            def derived(self) -> int:
+                return 0
 
         Through.parameter_names()
 
 
 def test_same():
-    assert routing._same(1, 1)
-    assert not routing._same(np.ones(2), np.ones(2))  # an eq that can't answer
+    assert stage_module._same(1, 1)
+    assert not stage_module._same(np.ones(2), np.ones(2))  # an eq that can't answer

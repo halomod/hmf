@@ -54,7 +54,6 @@ def _power_law(n: float, sigma_8: float, fit="PS", cosmo=Planck18, **kwargs) -> 
     transfer = Transfer(cosmology=cosmo, model=UnitTransfer(), n_s=n)
     lp = LinearPower(
         transfer=transfer,
-        growth=Growth.from_transfer(transfer),
         sigma_8=sigma_8,
         species="cb",
         sigma_8_species="cb",
@@ -516,27 +515,23 @@ def test_build_needs_sigma_8_and_n_s_without_cosmology_meta():
     assert mf.linear_power.sigma_8 == 0.8
 
 
-def test_default_variance_is_the_linear_powers(mf):
-    stage = MassFunction(linear_power=mf.linear_power)
-    assert stage.variance == mf.variance
+def test_variance_is_of_the_linear_powers_power(mf):
+    """The variance is built from the linear power, with the mass function's settings."""
+    stage = MassFunction(linear_power=mf.linear_power, filter="SharpK")
     assert stage.variance.power == mf.linear_power.power_source
+    assert stage.variance.k_accuracy == mf.linear_power.k_accuracy
+    assert stage.variance.filter == stage.filter
+    assert stage.variance.mass_accuracy == stage.mass_accuracy
+    assert stage.variance.truncation_rtol == stage.truncation_rtol
 
 
-def test_inconsistent_stages_raise(mf):
-    lp = mf.linear_power
-    tot = MassVariance(power=lp.transfer.power_source("tot"), k_accuracy=lp.k_accuracy)
-    with pytest.raises(ValueError, match="power_source"):
-        MassFunction(linear_power=lp, variance=tot)
-    other = Transfer(model="EH", n_s=0.9).power_source("cb")
-    with pytest.raises(ValueError, match="power_source"):
-        MassFunction(linear_power=lp, variance=MassVariance(power=other))
-    with pytest.raises(ValueError, match="KAccuracy"):
-        MassFunction(
-            linear_power=lp,
-            variance=MassVariance(power=lp.power_source, k_accuracy=KAccuracy.fast()),
-        )
+def test_invalid_fields_raise(mf):
     with pytest.raises(ValueError, match="delta_c"):
         mf.evolve(delta_c=0.0)
+    with pytest.raises(ValueError, match="truncation_rtol"):
+        mf.evolve(truncation_rtol=-1.0)
+    with pytest.raises(TypeError, match="computed"):
+        mf.evolve(variance=mf.variance)
 
 
 def test_evolve_shares_the_variance(mf):
@@ -554,8 +549,7 @@ def test_evolve_is_atomic(mf):
     m = M * Msun_h
     before = mf.dndm(m=m, z=0.0)
     fields = {f.name: getattr(mf, f.name) for f in mf.fields_info()}
-    bad = MassVariance(power=Transfer(model="EH", n_s=0.9).power_source("cb"))
-    for changes in ({"variance": bad}, {"delta_c": -1.0}, {"fit": "NotAFit"}):
+    for changes in ({"filter": "NotAFilter"}, {"delta_c": -1.0}, {"fit": "NotAFit"}):
         with pytest.raises((ValueError, LookupError)):
             mf.evolve(**changes)
     assert {f.name: getattr(mf, f.name) for f in mf.fields_info()} == fields
@@ -595,11 +589,7 @@ def test_no_stale_results(mf):
     assert not np.allclose(second, first, rtol=1e-6, atol=0)
 
     cosmo = Planck18.clone(Om0=0.28)
-    transfer = stage.linear_power.transfer.evolve(cosmology=cosmo)
-    lp = stage.linear_power.evolve(
-        transfer=transfer, growth=Growth.from_transfer(transfer), cosmology=cosmo
-    )
-    stage = stage.evolve(linear_power=lp, variance=stage.variance.evolve(power=lp.power_source))
+    stage = stage.evolve(cosmology=cosmo)
     third = stage.dndm(m=m, z=1.0)
     assert not np.allclose(third, second, rtol=1e-6, atol=0)
     fresh = _rebuilt(stage, cosmology=cosmo)

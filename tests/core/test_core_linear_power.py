@@ -12,7 +12,6 @@ from power_models import UnitTransfer
 from scipy.integrate import simpson
 
 from hmf.core import linear_power as lp_module
-from hmf.core.accuracy import KAccuracy
 from hmf.core.domain import DomainError
 from hmf.core.growth import Growth
 from hmf.core.linear_power import SIGMA_8_RADIUS, LinearPower
@@ -24,7 +23,7 @@ from hmf.exceptions import HMFExtrapolationWarning
 
 
 def _linear_power(transfer: Transfer, **kwargs) -> LinearPower:
-    return LinearPower(transfer=transfer, growth=Growth.from_transfer(transfer), **kwargs)
+    return LinearPower(transfer=transfer, **kwargs)
 
 
 @pytest.fixture(scope="module")
@@ -120,6 +119,11 @@ def test_defaults_come_from_the_transfer_stage(eh):
     stage = _linear_power(eh, sigma_8=0.8)
     assert stage.cosmology is eh.cosmology
     assert stage.k_accuracy == eh.k_accuracy
+    # The growth stage is built from the transfer stage: one cosmology and KAccuracy.
+    assert stage.growth.transfer is eh
+    assert stage.growth.cosmology is eh.cosmology
+    assert stage.growth.k_accuracy == eh.k_accuracy
+    assert stage.growth == Growth.from_transfer(eh)
     assert stage.species == "cb"
     assert stage.sigma_8_species == "tot"
     assert stage.power_source == eh.power_source("cb")
@@ -154,16 +158,9 @@ def test_domains_raise(lp):
         lp.sigma_scale_kernel(np.inf)
 
 
-def test_inconsistent_stages_raise(eh):
-    other = Growth(cosmology=Planck18.clone(Om0=0.25))
-    with pytest.raises(ValueError, match="cosmology"):
-        LinearPower(transfer=eh, growth=other, sigma_8=0.8)
-    with pytest.raises(ValueError, match="KAccuracy"):
-        LinearPower(
-            transfer=eh, growth=Growth.from_transfer(eh, k_accuracy=KAccuracy.fast()), sigma_8=0.8
-        )
-    with pytest.raises(ValueError, match="KAccuracy"):
-        _linear_power(eh, sigma_8=0.8, k_accuracy=KAccuracy.high())
+def test_invalid_fields_raise(eh):
+    with pytest.raises(ValueError, match="dark energy"):
+        _linear_power(eh, sigma_8=0.8, growth_model="Heath77")  # Planck18 has a Lambda
     with pytest.raises(ValueError, match="sigma_8"):
         _linear_power(eh, sigma_8=-0.8)
     with pytest.raises(ValueError, match="species"):
@@ -171,7 +168,11 @@ def test_inconsistent_stages_raise(eh):
 
 
 def test_evolve_shares_the_unnormalised_sigma_8(monkeypatch, eh):
-    """Changing sigma_8 (or species) reuses sigma_8,raw; changing what it depends on doesn't."""
+    """Changing sigma_8 (or species) reuses sigma_8,raw; changing what it depends on doesn't.
+
+    sigma_8,raw is a derived property of the transfer stage and sigma_8_species, carried
+    by evolve; so is the growth stage, of the transfer stage and the growth model.
+    """
     calls = []
     real = MassVariance.ln_sigma_at_radius_kernel
 
@@ -183,14 +184,19 @@ def test_evolve_shares_the_unnormalised_sigma_8(monkeypatch, eh):
     stage = _linear_power(eh, sigma_8=0.8)
     raw = stage.unnormalised_sigma_8
     assert len(calls) == 1
+    growth = stage.growth
     for changed in (stage.evolve(sigma_8=0.7), stage.evolve(species="tot")):
         assert changed.unnormalised_sigma_8 == raw
+        assert changed.growth is growth
+    assert len(calls) == 1
+    assert stage.evolve(growth_model="Carroll92").unnormalised_sigma_8 == raw
     assert len(calls) == 1
 
     # A different transfer (n_s) changes sigma_8,raw: it is computed again.
     tilted = eh.evolve(n_s=0.9)
-    new = stage.evolve(transfer=tilted, growth=Growth.from_transfer(tilted))
+    new = stage.evolve(transfer=tilted)
     assert new.unnormalised_sigma_8 != raw
+    assert new.growth.transfer is tilted
     assert len(calls) == 2
     assert new.unnormalised_sigma_8 == _linear_power(tilted, sigma_8=0.8).unnormalised_sigma_8
 

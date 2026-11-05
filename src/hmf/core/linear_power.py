@@ -1,7 +1,8 @@
 r"""The :class:`LinearPower` stage: the linear power spectrum P(k, z), normalised to sigma_8.
 
 The stage combines a :class:`~hmf.core.transfer.Transfer` stage (the shape of the
-power at z = 0) and a :class:`~hmf.core.growth.Growth` stage (its growth) with the
+power at z = 0) and its growth, a :class:`~hmf.core.growth.Growth` stage built from
+the transfer stage and ``growth_model`` (:attr:`LinearPower.growth`), with the
 normalisation :math:`\sigma_8`:
 
 .. math:: P(k, z) = A\, D^2(z)\, P_{\rm raw}(k),
@@ -18,7 +19,7 @@ unnormalised power of ``sigma_8_species``, smoothed with a top-hat of radius
 8 Mpc/h: :meth:`MassVariance.ln_sigma_at_radius_kernel
 <hmf.core.mass_variance.MassVariance.ln_sigma_at_radius_kernel>` of a
 :class:`~hmf.core.filters.TopHat` :class:`~hmf.core.mass_variance.MassVariance` of
-that species' power, on the k grid of ``k_accuracy``. By default ``species`` is
+that species' power, on the k grid of the transfer stage's ``k_accuracy``. By default ``species`` is
 ``"cb"`` and ``sigma_8_species`` is ``"tot"``, as in hmf 3.x: the CDM + baryon power,
 normalised so that the *total* matter field has the rms sigma_8 that CMB experiments
 quote. With massive neutrinos the CDM + baryon field then has a slightly larger rms
@@ -48,7 +49,7 @@ import math
 from collections.abc import Mapping
 from functools import cached_property
 from types import MappingProxyType
-from typing import Any, ClassVar, Self
+from typing import Any, ClassVar
 
 import attrs
 import numpy as np
@@ -60,18 +61,17 @@ import hmf.core.growth
 import hmf.core.transfer
 
 from ._fields import field
-from ._serialise import cosmology_key
 from ._validators import positive
-from .accuracy import KAccuracy, check_consistent
+from .accuracy import KAccuracy
 from .domain import check_extent
 from .filters import TopHat
 from .growth import Growth
+from .growth_models import GrowthModel, ODEGrowth
 from .mass_variance import MassVariance
-from .routing import Derivation
 from .species import check_species
-from .stage import CosmologyStage
+from .stage import Stage, derived_property
 from .transfer import Transfer, UnnormalisedPower
-from .units import h_Mpc, power_unit, unit_boundary
+from .units import UnitContext, h_Mpc, power_unit, unit_boundary
 
 __all__ = ["SIGMA_8_RADIUS", "LinearPower"]
 
@@ -81,52 +81,40 @@ FloatArray = npt.NDArray[np.float64]
 SIGMA_8_RADIUS = 8.0
 
 
-def _transfer_cosmology(stage: LinearPower) -> FLRW:
-    """The default cosmology of a LinearPower: its transfer stage's."""
-    return stage.transfer.cosmology
-
-
-def _transfer_k_accuracy(stage: LinearPower) -> KAccuracy:
-    """The default k_accuracy of a LinearPower: its transfer stage's."""
-    return stage.transfer.k_accuracy
+def _check_growth_model(instance: LinearPower, attribute: attrs.Attribute[Any], value: Any) -> None:
+    """Validate the growth model: it must apply to the transfer stage's cosmology."""
+    value.check_cosmology(instance.transfer.cosmology)
 
 
 @attrs.frozen(kw_only=True)
-class LinearPower(CosmologyStage):
+class LinearPower(Stage):
     """The linear power spectrum P(k, z), normalised to sigma_8.
 
     See the module documentation.
 
     Examples
     --------
-    >>> from hmf.core.growth import Growth
     >>> from hmf.core.transfer import Transfer
     >>> from hmf.core.units import Mpc_h, h_Mpc
-    >>> transfer = Transfer(model="EH")
-    >>> lp = LinearPower(transfer=transfer, growth=Growth.from_transfer(transfer), sigma_8=0.8)
+    >>> lp = LinearPower(transfer=Transfer(model="EH"), sigma_8=0.8)
     >>> p = lp.power(k=[0.01, 0.1, 1.0] * h_Mpc, z=0.0)
     >>> p.unit == (Mpc_h**3)
     True
     """
 
-    # Fully qualified, so that the docs can tell them from v3's Transfer and growth.
+    # Fully qualified, so that the docs can tell it from v3's Transfer.
     transfer: hmf.core.transfer.Transfer = field(
         validator=attrs.validators.instance_of(Transfer),
-        doc="The transfer stage: the shape of the power at z = 0.",
-    )
-    growth: hmf.core.growth.Growth = field(
-        validator=attrs.validators.instance_of(Growth),
-        doc="The growth stage: the growth factor D(z). It must have the transfer's cosmology.",
-    )
-    cosmology: FLRW = field(
-        default=attrs.Factory(_transfer_cosmology, takes_self=True),
-        validator=attrs.validators.instance_of(FLRW),
-        eq=cosmology_key,
-        shared=True,
         doc=(
-            "The cosmology, an astropy FLRW, compared by its class and parameter values. "
-            "It defaults to the transfer stage's, and must equal it and the growth stage's."
+            "The transfer stage: the shape of the power at z = 0. Its cosmology, "
+            "k_accuracy and disk cache are the growth's too."
         ),
+    )
+    growth_model: GrowthModel = field(
+        factory=ODEGrowth,
+        converter=GrowthModel.coerce,
+        validator=_check_growth_model,
+        doc="The growth model: an instance, a class or a registered name (e.g. 'ODE').",
     )
     sigma_8: float = field(
         converter=float,
@@ -149,77 +137,37 @@ class LinearPower(CosmologyStage):
             "CMB experiments, and hmf 3.x's default) or 'cb'."
         ),
     )
-    k_accuracy: KAccuracy = field(
-        default=attrs.Factory(_transfer_k_accuracy, takes_self=True),
-        validator=attrs.validators.instance_of(KAccuracy),
-        shared=True,
-        doc=(
-            "The wavenumber accuracy of the whole k-space calculation: it defaults to the "
-            "transfer stage's, and the transfer and growth stages must have the same."
-        ),
-    )
 
-    #: The transfer and growth models, whose field names (``model``) are repeated.
+    #: The transfer model, whose field name (``model``) reads badly flat.
     parameter_aliases: ClassVar[Mapping[str, str]] = MappingProxyType(
-        {"transfer_model": "transfer.model", "growth_model": "growth.model"}
-    )
-    #: The growth stage goes with the transfer stage (see Growth.from_transfer).
-    derivations: ClassVar[tuple[Derivation, ...]] = (
-        Derivation(
-            field="growth.transfer",
-            sources=("transfer",),
-            derive=lambda get: get("transfer"),
-            doc="The growth stage's transfer stage is the linear power's.",
-        ),
+        {"transfer_model": "transfer.model"}
     )
 
-    def __attrs_post_init__(self) -> None:
-        """Check that the stages share one cosmology and one KAccuracy."""
-        for name in ("transfer", "growth"):
-            stage = getattr(self, name)
-            if stage.cosmology is not self.cosmology and not self.same_cosmology(stage):
-                raise ValueError(
-                    f"LinearPower: the {name} stage's cosmology differs from the cosmology "
-                    "of the stage. Build the growth stage with Growth.from_transfer(transfer)."
-                )
-        check_consistent(self, self.transfer, self.growth)
+    @property
+    def cosmology(self) -> FLRW:
+        """The cosmology (the transfer stage's)."""
+        return self.transfer.cosmology
 
-    def evolve_own(self, **changes: Any) -> Self:
-        """Return a copy with some of its own fields changed (see :meth:`Stage.evolve_own`).
-
-        The unnormalised sigma_8 depends only on the transfer stage, ``sigma_8_species``
-        and ``k_accuracy``. If none of them changes (e.g. only ``sigma_8`` does), the
-        copy shares this stage's, once computed, rather than evaluating it again.
-
-        Parameters
-        ----------
-        **changes
-            New values of fields, by name.
-
-        Returns
-        -------
-        LinearPower
-            A new stage.
-
-        Raises
-        ------
-        TypeError
-            If a name is not a field (with suggestions).
-        """
-        new = super().evolve_own(**changes)
-        if (
-            new.transfer is self.transfer
-            and new.sigma_8_species == self.sigma_8_species
-            and new.k_accuracy == self.k_accuracy
-        ):
-            # The memo is not part of the value: sharing it changes no result.
-            object.__setattr__(new, "_normalisation_memo", self._normalisation_memo)
-        return new
+    @property
+    def k_accuracy(self) -> KAccuracy:
+        """The wavenumber accuracy of the whole k-space calculation (the transfer stage's)."""
+        return self.transfer.k_accuracy
 
     @cached_property
-    def _normalisation_memo(self) -> dict[str, float]:
-        """The memo of the unnormalised sigma_8, shared by :meth:`evolve` (not in the value)."""
-        return {}
+    def _unit_context(self) -> UnitContext:
+        """Units context with the cosmology's H0, to convert physical units to h-units."""
+        return UnitContext(self.cosmology.H0)
+
+    # Fully qualified, so that the docs can tell it from v3's growth.
+    @derived_property("transfer", "growth_model")
+    def growth(self) -> hmf.core.growth.Growth:
+        """The growth stage: the growth factor D(z) of ``growth_model``.
+
+        Built from the transfer stage (:meth:`Growth.from_transfer
+        <hmf.core.growth.Growth.from_transfer>`), so a CAMB or CLASS growth model
+        shares its Boltzmann run.
+        """
+        return Growth.from_transfer(self.transfer, model=self.growth_model)
 
     @cached_property
     def power_source(self) -> UnnormalisedPower:
@@ -231,22 +179,19 @@ class LinearPower(CosmologyStage):
         """
         return self.transfer.power_source(self.species)
 
-    @cached_property
+    @derived_property("transfer", "sigma_8_species")
     def unnormalised_sigma_8(self) -> float:
         """sigma_8 of the unnormalised power of ``sigma_8_species``, a plain float.
 
-        A direct evaluation (no mass lattice), with a top-hat on the k grid of
-        ``k_accuracy`` (see the module documentation).
+        A direct evaluation (no mass lattice), with a top-hat on the k grid of the
+        transfer stage's ``k_accuracy`` (see the module documentation).
         """
-        memo = self._normalisation_memo
-        if "sigma_8" not in memo:
-            variance = MassVariance(
-                power=self.transfer.power_source(self.sigma_8_species),
-                filter=TopHat(),
-                k_accuracy=self.k_accuracy,
-            )
-            memo["sigma_8"] = math.exp(float(variance.ln_sigma_at_radius_kernel(SIGMA_8_RADIUS)))
-        return memo["sigma_8"]
+        variance = MassVariance(
+            power=self.transfer.power_source(self.sigma_8_species),
+            filter=TopHat(),
+            k_accuracy=self.k_accuracy,
+        )
+        return math.exp(float(variance.ln_sigma_at_radius_kernel(SIGMA_8_RADIUS)))
 
     @cached_property
     def amplitude(self) -> float:

@@ -15,12 +15,15 @@ as a field. The conventions every stage follows:
   turns these into slots on slotted classes, so a stage keeps no ``__dict__``.
   Because stages are immutable, a cached result can never go stale; and because
   ``evolve()`` shares the unchanged sub-stages, their caches carry over.
+* **Derived stages** (a stage computed from others, e.g. a mass function's mass
+  variance) are :func:`derived_property` cached properties, not fields. Each
+  declares the fields it is computed from, and :meth:`Stage.evolve_own` carries it,
+  with its caches, to the new stage when none of them changes.
 * **Parameters by name**: :meth:`Stage.evolve` and :meth:`Stage.from_flat` take the
   parameters of the whole stage tree by flat name, alias or dotted path, through a
   routing table built from the classes (see :mod:`hmf.core.routing`). A stage that
-  holds stages declares its flat aliases in :attr:`Stage.parameter_aliases`, its
-  derived fields in :attr:`Stage.derivations`, and its shared parameters with
-  ``field(..., shared=True)``.
+  holds stages declares its flat aliases in :attr:`Stage.parameter_aliases`, and the
+  names of its subtree that are one parameter in :attr:`Stage.shared_parameters`.
 * **Introspection without instantiation**: :meth:`Stage.fields_info`,
   :meth:`Stage.parameter_info`, :meth:`Stage.quantities_available` and
   :meth:`Stage.invalidated_by` describe a stage tree from the classes alone.
@@ -36,10 +39,10 @@ as a field. The conventions every stage follows:
 from __future__ import annotations
 
 import difflib
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from functools import cached_property
 from types import MappingProxyType
-from typing import Any, ClassVar, Self
+from typing import Any, ClassVar, Self, TypeVar
 
 import attrs
 from astropy.cosmology import FLRW, Planck18
@@ -50,9 +53,108 @@ from ._serialise import cosmology_key
 from .cache import to_disk_cache
 from .units import UnitContext
 
-__all__ = ["CosmologyStage", "Stage"]
+__all__ = ["CosmologyStage", "DerivedProperty", "Stage", "derived_property"]
 
 _NO_ALIASES: Mapping[str, str] = MappingProxyType({})
+
+_T = TypeVar("_T")
+
+#: The class attribute holding a stage class's derived properties (see
+#: :func:`derived_property`), by name.
+DERIVED_ATTRIBUTE = "_derived_properties"
+
+
+class DerivedProperty(cached_property[_T]):
+    """A cached property computed from some fields of its stage (see :func:`derived_property`).
+
+    Parameters
+    ----------
+    func
+        Computes the value from the stage.
+    inputs
+        The dotted paths, below the stage, of the fields it is computed from.
+    """
+
+    def __init__(self, func: Callable[[Any], _T], inputs: tuple[str, ...]) -> None:
+        super().__init__(func)
+        self.inputs = inputs
+
+    def __set_name__(self, owner: type, name: str) -> None:
+        """Record the property and its inputs on the class (``attrs`` removes the descriptor)."""
+        super().__set_name__(owner, name)
+        own = owner.__dict__.get(DERIVED_ATTRIBUTE)
+        if own is None:
+            own = {}
+            for base in reversed(owner.__mro__[1:]):
+                own.update(base.__dict__.get(DERIVED_ATTRIBUTE, {}))
+            setattr(owner, DERIVED_ATTRIBUTE, own)
+        own[name] = self
+
+
+def derived_property(*inputs: str) -> Callable[[Callable[[Any], _T]], DerivedProperty[_T]]:
+    """Declare a cached property of a stage computed from some of its fields.
+
+    The property is computed once per stage, like a :func:`functools.cached_property`.
+    :meth:`Stage.evolve_own` carries its value, once computed, to the new stage when
+    none of its inputs changes (each is the same object, or equal), so that the
+    caches of a derived stage (e.g. the mass variance of a mass function) survive a
+    change that does not affect it.
+
+    Parameters
+    ----------
+    *inputs
+        The dotted paths, below the stage, of the fields the value is computed from
+        (e.g. ``"linear_power.transfer"``, ``"filter"``). Everything the value depends
+        on must be in them, or below one of them.
+
+    Returns
+    -------
+    callable
+        The decorator.
+
+    Examples
+    --------
+    >>> import attrs
+    >>> from hmf.core import field
+    >>> @attrs.frozen(kw_only=True)
+    ... class Sum(Stage):
+    ...     a: int = field(default=1, doc="One term.")
+    ...     b: int = field(default=2, doc="Another.")
+    ...     scale: int = field(default=1, doc="Not an input of total.")
+    ...
+    ...     @derived_property("a", "b")
+    ...     def total(self) -> list[int]:
+    ...         return [self.a + self.b]
+    >>> s = Sum()
+    >>> total = s.total
+    >>> s.evolve(scale=3).total is total
+    True
+    >>> s.evolve(a=5).total
+    [7]
+    """
+
+    def decorator(func: Callable[[Any], _T]) -> DerivedProperty[_T]:
+        return DerivedProperty(func, tuple(inputs))
+
+    return decorator
+
+
+def _same(a: Any, b: Any) -> bool:
+    """Whether two values are the same object or compare equal (False if eq fails)."""
+    if a is b:
+        return True
+    try:
+        return bool(a == b)
+    except Exception:  # noqa: BLE001 - an eq that can't answer means "not the same"
+        return False
+
+
+def _computed_value(stage: Any, name: str) -> Any:
+    """The value of a cached property of ``stage`` if computed, else raise AttributeError."""
+    # On a slotted class it is a slot: an empty one raises AttributeError, without
+    # computing the value.
+    return getattr(type(stage), name).__get__(stage, type(stage))
+
 
 #: The documentation of the ``cosmology`` field of a :class:`CosmologyStage`.
 _COSMOLOGY_DOC = (
@@ -93,10 +195,14 @@ class Stage(Documented):
     #: (e.g. ``{"transfer_model": "transfer.model"}``). A stage holding this one
     #: routes the alias too.
     parameter_aliases: ClassVar[Mapping[str, str]] = _NO_ALIASES
-    #: The fields of the stage tree computed from other fields, as
-    #: :class:`~hmf.core.routing.Derivation` objects, with paths relative to this stage.
-    #: :meth:`evolve` computes them again when what they are derived from changes.
-    derivations: ClassVar[tuple[routing.Derivation, ...]] = ()
+    #: Names that are one parameter in this stage's tree: every field of that name
+    #: below this stage (e.g. a ``cosmology`` held by two stages it composes) is set
+    #: together by the flat name, so that they stay equal. The stage that composes the
+    #: others declares it, whatever the stages it holds declare.
+    shared_parameters: ClassVar[frozenset[str]] = frozenset()
+    #: The derived properties of the class (see :func:`derived_property`), by name,
+    #: recorded when the class is created.
+    _derived_properties: ClassVar[Mapping[str, DerivedProperty[Any]]] = MappingProxyType({})
 
     def evolve(self, **changes: Any) -> Self:
         """Return a copy of this stage tree with some parameters changed.
@@ -106,9 +212,8 @@ class Stage(Documented):
         dotted path into a model field (``"fit.A"``) changes that field of the model,
         and a stage's dotted path replaces that stage. Only the stages on the path
         from each changed field to this one are rebuilt, each by its
-        :meth:`evolve_own`; every other stage is shared, with its cached results.
-        Derived fields (:attr:`derivations`) are computed again when what they are
-        derived from changes.
+        :meth:`evolve_own`; every other stage is shared, with its cached results, and
+        so is every :func:`derived_property` whose inputs do not change.
 
         Every name is checked before anything is built. The new stages are built,
         and so validated, by their constructors; if that fails, the error propagates
@@ -128,7 +233,7 @@ class Stage(Documented):
         ------
         TypeError
             If a name is not a parameter (with suggestions), is ambiguous (with the
-            dotted paths to choose from), is derived, or is given twice.
+            dotted paths to choose from), is a derived property, or is given twice.
         """
         return routing.evolve(self, changes)  # type: ignore[return-value]
 
@@ -136,9 +241,9 @@ class Stage(Documented):
         """Return a copy of this stage with some of its own fields changed.
 
         No routing: each name is a field of this stage, and nothing else changes. It
-        is the step :meth:`evolve` takes at each stage it rebuilds, which a stage may
-        override (e.g. to share a memo the change does not affect). Cached results
-        are not copied: the new stage computes its own.
+        is the step :meth:`evolve` takes at each stage it rebuilds. The value of each
+        :func:`derived_property` already computed is carried to the new stage if none
+        of its inputs changes; every other cached result is computed again.
 
         Parameters
         ----------
@@ -165,7 +270,17 @@ class Stage(Documented):
                 msg += f" Did you mean {' or '.join(repr(c) for c in close)}?"
             msg += f" Fields: {names}."
             raise TypeError(msg)
-        return attrs.evolve(self, **changes)
+        new = attrs.evolve(self, **changes)
+        for name, prop in self._derived_properties.items():
+            try:
+                value = _computed_value(self, name)
+            except AttributeError:
+                continue
+            if all(_same(_walk_path(self, p), _walk_path(new, p)) for p in prop.inputs):
+                # A derived value is not part of the stage's value: sharing it changes
+                # no result.
+                object.__setattr__(new, name, value)
+        return new
 
     @classmethod
     def from_flat(cls, mapping: Mapping[str, Any]) -> Self:
@@ -331,9 +446,9 @@ def _cosmology_field(*, also: str = "") -> Any:
     """The ``cosmology`` field of a :class:`CosmologyStage`.
 
     It defaults to Planck18, must be an astropy FLRW, and is compared and hashed by
-    :func:`~hmf.core._serialise.cosmology_key`. It is a shared parameter. A subclass
-    whose cosmology has a further constraint redefines the field with this, stating
-    the constraint in ``also``.
+    :func:`~hmf.core._serialise.cosmology_key`. A subclass whose cosmology has a
+    further constraint redefines the field with this, stating the constraint in
+    ``also``.
 
     Parameters
     ----------
@@ -349,7 +464,6 @@ def _cosmology_field(*, also: str = "") -> Any:
         default=Planck18,
         validator=attrs.validators.instance_of(FLRW),
         eq=cosmology_key,
-        shared=True,
         doc=f"{_COSMOLOGY_DOC} {also}" if also else _COSMOLOGY_DOC,
     )
 
@@ -371,7 +485,7 @@ def _disk_cache_field(*, doc: str) -> Any:
     Any
         The field definition.
     """
-    return field(default=None, converter=to_disk_cache, eq=False, shared=True, doc=doc)
+    return field(default=None, converter=to_disk_cache, eq=False, doc=doc)
 
 
 def _check_model_cosmology(
