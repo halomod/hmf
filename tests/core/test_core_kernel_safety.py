@@ -494,9 +494,8 @@ def test_kernels_import_nothing_from_hmf_outside_kernels():
             else:
                 continue
             for name in names:
-                assert name.split(".")[0] != "hmf" or name.startswith("hmf.core._kernels"), (
-                    f"{path.name} imports {name}"
-                )
+                inside = name == "hmf.core._kernels" or name.startswith("hmf.core._kernels.")
+                assert name.split(".")[0] != "hmf" or inside, f"{path.name} imports {name}"
 
 
 def test_validators_reuse_the_kernel_array_checks():
