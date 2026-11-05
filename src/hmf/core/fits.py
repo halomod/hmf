@@ -34,9 +34,10 @@ is that of CDM + baryons, the matter species ``"cb"``
 (:func:`hmf.core.species.omega_m`), as is the mean density of the mass function:
 the fits are universal in the CDM + baryon field when neutrinos are massive (Costanzi
 et al. 2013; Castorina et al. 2014), and none was calibrated with massive neutrinos.
-The overdensity of a fit's own mass definition follows from it with
-:meth:`MeasuredMassDefinition.delta_halo_mean_kernel`, and ``n_eff`` from the slope
-of sigma with :func:`hmf.core.mass_variance.n_eff_kernel`.
+The overdensity of a mass definition follows from it with
+:meth:`MassDefinition.delta_halo_mean_kernel
+<hmf.core.mass_definitions.MassDefinition.delta_halo_mean_kernel>`, and ``n_eff``
+from the slope of sigma with :func:`hmf.core.mass_variance.n_eff_kernel`.
 
 Evaluating a fit
 ----------------
@@ -94,10 +95,24 @@ The bounds of both are in these variables: the inputs above, and the derived
 
 Mass definitions
 ----------------
-Each fit records the mass definition it was measured in, as a
-:class:`MeasuredMassDefinition`, which also gives its overdensity relative to the
-mean density (:meth:`MeasuredMassDefinition.delta_halo_mean_kernel`). Converting
-between mass definitions is not part of this module (issue #392).
+Each fit records the mass definition it was measured in,
+:attr:`FittingFunction.measured_mass_definition`, a value of
+:mod:`hmf.core.mass_definitions` (with its source in the paper,
+:attr:`FittingFunction.measured_mass_definition_note`). Its masses ``m`` and its
+``delta_halo`` are in that definition, except for a fit parameterised by the
+overdensity (an :class:`~hmf.core.mass_definitions.SOGeneric`, e.g.
+:class:`Tinker08`), which can be evaluated in every SO definition, with that
+definition's ``delta_halo``. Whether a fit can be evaluated in a definition is
+``measured_mass_definition.accepts(definition)``; converting masses to the fit's
+definition when it can't is the job of a
+:class:`~hmf.core.mass_conversion.MassConversion`, which a
+:class:`~hmf.core.mass_function.MassFunction` applies.
+
+The mass ratio of the Bocquet 200c and 500c fits
+(:meth:`Bocquet200mDMOnly.mass_ratio_to_200m`) is part of those fits, from their
+paper: their mass function, from
+:meth:`~FittingFunction.modify_dndm`, is in their own definition (SO-crit(200) or
+SO-crit(500)), and a mass conversion starts from it.
 """
 
 from __future__ import annotations
@@ -107,7 +122,7 @@ import functools
 from collections.abc import Callable, Mapping
 from functools import cached_property
 from types import MappingProxyType
-from typing import Any, ClassVar, Literal, get_args
+from typing import Any, ClassVar, Literal
 
 import astropy.units as u
 import attrs
@@ -118,7 +133,7 @@ from . import _references as refs
 from ._arrays import float_array, optional_float_array
 from ._fields import field
 from ._kernels import fits as _k
-from ._validators import check_finite_positive, less_than, one_of, positive
+from ._validators import check_finite_positive, less_than, positive
 from .domain import (
     Domain,
     DomainError,
@@ -126,6 +141,15 @@ from .domain import (
     Interval,
     apply_domain_policy,
     check_extent,
+)
+from .mass_definitions import (
+    FOF,
+    MassDefinition,
+    SelfBound,
+    SOCritical,
+    SOGeneric,
+    SOMean,
+    SOVirial,
 )
 from .model import Model
 from .units import (
@@ -166,7 +190,6 @@ __all__ = [
     "Ishiyama",
     "Jenkins",
     "Manera",
-    "MeasuredMassDefinition",
     "Peacock",
     "Pillepich",
     "Reed03",
@@ -194,153 +217,6 @@ _POSITIVE = (0, None, "(]")
 #: :mod:`hmf.core._kernels`): masses, h and density parameters are > 0, z >= 0.
 _POSITIVE_INTERVAL = Interval(0, None, lower_open=True)
 _Z_INTERVAL = Interval(0, None)
-
-
-# ---------------------------------------------------------------------------------
-# Metadata: measured mass definitions
-# ---------------------------------------------------------------------------------
-MassDefinitionKind = Literal["fof", "so_mean", "so_critical", "so_virial", "so_any", "self_bound"]
-
-
-@attrs.frozen(kw_only=True)
-class MeasuredMassDefinition:
-    """The halo mass definition a fit was measured in.
-
-    This is a simple, hashable record, to be mapped onto the mass-definition types
-    of issue #392. It does no conversion, but gives the overdensity relative to the
-    mean density (:meth:`delta_halo_mean_kernel`), the ``delta_halo`` input of the
-    fits.
-
-    Parameters
-    ----------
-    kind
-        ``"fof"`` (friends-of-friends), ``"so_mean"`` / ``"so_critical"``
-        (spherical overdensity relative to the mean / critical density),
-        ``"so_virial"`` (the Bryan & Norman 1998 virial overdensity), or ``"so_any"``
-        (a fit parameterised by the SO overdensity, which accepts any SO definition),
-        or ``"self_bound"`` (the bound mass of SUBFIND (sub)haloes).
-    linking_length
-        The FoF linking length b, in units of the mean interparticle separation.
-    overdensity
-        The SO overdensity, relative to the density named by ``kind``.
-    preferred
-        For ``"so_any"``: the definition used when none is given.
-    note
-        Anything else worth knowing (halo finder, unbinding, ...).
-    """
-
-    kind: MassDefinitionKind = attrs.field(validator=one_of(get_args(MassDefinitionKind)))
-    linking_length: float | None = None
-    overdensity: float | None = None
-    preferred: MeasuredMassDefinition | None = None
-    note: str = ""
-
-    def __attrs_post_init__(self) -> None:
-        """Check that the fields given match ``kind``."""
-        if (self.kind == "fof") != (self.linking_length is not None):
-            raise ValueError("A linking length is given for, and only for, kind='fof'.")
-        if (self.kind in ("so_mean", "so_critical")) != (self.overdensity is not None):
-            raise ValueError("An overdensity is given for, and only for, SO-mean/critical.")
-        if (self.kind == "so_any") != (self.preferred is not None):
-            raise ValueError("A preferred definition is given for, and only for, 'so_any'.")
-
-    def delta_halo_mean_kernel(self, omega_m_z: npt.ArrayLike) -> FloatArray:
-        r"""The halo overdensity relative to the mean density, :math:`\Delta_m`.
-
-        A pure, elementwise kernel of :math:`\Omega_m(z)` (of CDM + baryons, see
-        the :mod:`module documentation <hmf.core.fits>`), on plain arrays:
-
-        ``"so_mean"``
-            the overdensity itself;
-        ``"so_critical"``
-            :math:`\Delta_c/\Omega_m(z)`;
-        ``"so_virial"``
-            Bryan & Norman (1998): :math:`(18\pi^2 + 82x - 39x^2)/\Omega_m(z)`, with
-            :math:`x = \Omega_m(z) - 1` (so :math:`18\pi^2` in Einstein-de Sitter);
-        ``"fof"``
-            the overdensity of the isodensity surface the linking length b selects,
-            for a singular isothermal sphere: :math:`9/(2\pi b^3)`, independent of
-            :math:`\Omega_m(z)` (White, Hernquist & Springel 2001; about 179 for
-            b = 0.2), as hmf 3.x's ``FOF``;
-        ``"so_any"``
-            that of the ``preferred`` definition.
-
-        Parameters
-        ----------
-        omega_m_z
-            :math:`\Omega_m(z)`, dimensionless.
-
-        Returns
-        -------
-        numpy.ndarray
-            :math:`\Delta_m`, dimensionless, with the shape of ``omega_m_z``.
-
-        Raises
-        ------
-        DomainError
-            If an :math:`\Omega_m(z)` is not finite and > 0.
-        ValueError
-            For ``"self_bound"``, which has no overdensity.
-        """
-        if self.kind == "so_any":
-            assert self.preferred is not None
-            return self.preferred.delta_halo_mean_kernel(omega_m_z)
-        om = check_extent(
-            "omega_m_z",
-            omega_m_z,
-            _POSITIVE_INTERVAL,
-            where=f"MeasuredMassDefinition.delta_halo_mean_kernel ({self})",
-        )
-        if self.kind == "so_mean":
-            assert self.overdensity is not None
-            return np.full_like(om, self.overdensity)
-        out: FloatArray
-        if self.kind == "so_critical":
-            assert self.overdensity is not None
-            out = self.overdensity / om
-            return out
-        if self.kind == "so_virial":
-            x = om - 1
-            out = (18 * np.pi**2 + 82 * x - 39 * x**2) / om
-            return out
-        if self.kind == "fof":
-            assert self.linking_length is not None
-            return np.full_like(om, 9 / (2 * np.pi * self.linking_length**3))
-        raise ValueError(f"The mass definition {self} has no overdensity.")
-
-    def __str__(self) -> str:
-        """A short label, e.g. ``FoF(b=0.2)`` or ``SO-crit(500)``."""
-        if self.kind == "fof":
-            return f"FoF(b={self.linking_length:g})"
-        if self.kind == "so_mean":
-            return f"SO-mean({self.overdensity:g})"
-        if self.kind == "so_critical":
-            return f"SO-crit({self.overdensity:g})"
-        if self.kind == "so_virial":
-            return "SO-virial"
-        if self.kind == "self_bound":
-            return "self-bound"
-        return f"SO-any (preferred {self.preferred})"
-
-
-def _fof(b: float = 0.2, note: str = "") -> MeasuredMassDefinition:
-    return MeasuredMassDefinition(kind="fof", linking_length=b, note=note)
-
-
-def _so_mean(overdensity: float, note: str = "") -> MeasuredMassDefinition:
-    return MeasuredMassDefinition(kind="so_mean", overdensity=overdensity, note=note)
-
-
-def _so_crit(overdensity: float, note: str = "") -> MeasuredMassDefinition:
-    return MeasuredMassDefinition(kind="so_critical", overdensity=overdensity, note=note)
-
-
-def _so_virial(note: str = "") -> MeasuredMassDefinition:
-    return MeasuredMassDefinition(kind="so_virial", note=note)
-
-
-def _so_any(preferred: MeasuredMassDefinition, note: str = "") -> MeasuredMassDefinition:
-    return MeasuredMassDefinition(kind="so_any", preferred=preferred, note=note)
 
 
 # ---------------------------------------------------------------------------------
@@ -650,8 +526,13 @@ class FittingFunction(Model, kind=True):
     #: a fit that was not calibrated (e.g. an analytic one).
     calibration_domain: ClassVar[Domain | None]
 
-    #: The halo mass definition the fit was measured in.
-    measured_mass_definition: ClassVar[MeasuredMassDefinition]
+    #: The halo mass definition the fit was measured in (see "Mass definitions" in the
+    #: :mod:`module documentation <hmf.core.fits>`).
+    measured_mass_definition: ClassVar[MassDefinition]
+
+    #: Where :attr:`measured_mass_definition` comes from in the paper, and anything else
+    #: worth knowing about it (halo finder, unbinding, ...).
+    measured_mass_definition_note: ClassVar[str] = ""
 
     #: The simulations the fit was calibrated on (None for a fit to no simulations).
     simulations: ClassVar[SimulationDetails | None]
@@ -1216,8 +1097,9 @@ class PS(FittingFunction, alias="PS"):
     )
     #: Analytic (spherical collapse): not calibrated on simulations.
     calibration_domain: ClassVar[Domain | None] = None
-    measured_mass_definition: ClassVar[MeasuredMassDefinition] = _so_virial(
-        note="Analytic: spherical collapse, i.e. virialised haloes."
+    measured_mass_definition: ClassVar[MassDefinition] = SOVirial()
+    measured_mass_definition_note: ClassVar[str] = (
+        "Analytic: spherical collapse, i.e. virialised haloes."
     )
     simulations: ClassVar[SimulationDetails | None] = None
     _normalized: ClassVar[bool] = True
@@ -1262,12 +1144,11 @@ class SMT(FittingFunction, alias="SMT"):
             "(Sec. 3)."
         ),
     )
-    measured_mass_definition: ClassVar[MeasuredMassDefinition] = _so_virial(
-        note=(
-            "Sheth & Tormen 1999, Sec. 3: a spherical-overdensity group finder (Tormen "
-            "1998). Sheth, Mo & Tormen 2001, Sec. 4.1, instead associate a = 0.707 with "
-            "FoF(b=0.2)."
-        )
+    measured_mass_definition: ClassVar[MassDefinition] = SOVirial()
+    measured_mass_definition_note: ClassVar[str] = (
+        "Sheth & Tormen 1999, Sec. 3: a spherical-overdensity group finder (Tormen "
+        "1998). Sheth, Mo & Tormen 2001, Sec. 4.1, instead associate a = 0.707 with "
+        "FoF(b=0.2)."
     )
     simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
         box_size=[84.5, 141.3, 141.3] * Mpc_h,
@@ -1311,7 +1192,8 @@ class ST(SMT, alias="ST"):
 
     calibration_domain: ClassVar[Domain | None] = SMT.calibration_domain
     valid_domain: ClassVar[Domain] = SMT.valid_domain
-    measured_mass_definition: ClassVar[MeasuredMassDefinition] = SMT.measured_mass_definition
+    measured_mass_definition: ClassVar[MassDefinition] = SMT.measured_mass_definition
+    measured_mass_definition_note: ClassVar[str] = SMT.measured_mass_definition_note
     simulations: ClassVar[SimulationDetails | None] = SMT.simulations
 
 
@@ -1336,9 +1218,8 @@ class Reed03(SMT, alias="Reed03"):
             "~20% above (Sec. 4)."
         ),
     )
-    measured_mass_definition: ClassVar[MeasuredMassDefinition] = _fof(
-        note="Reed et al. 2003, Sec. 2.1."
-    )
+    measured_mass_definition: ClassVar[MassDefinition] = FOF()
+    measured_mass_definition_note: ClassVar[str] = "Reed et al. 2003, Sec. 2.1."
     simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
         box_size=[50.0, 50.0] * Mpc_h,
         n_particles=432**3,
@@ -1387,9 +1268,8 @@ class Courtin(SMT, alias="Courtin"):
             "0.26, sigma_8 = 0.79 (Table 1). Accuracy 5-10% (Sec. 5.1)."
         ),
     )
-    measured_mass_definition: ClassVar[MeasuredMassDefinition] = _fof(
-        note="Courtin et al. 2011, Sec. 3.2."
-    )
+    measured_mass_definition: ClassVar[MassDefinition] = FOF()
+    measured_mass_definition_note: ClassVar[str] = "Courtin et al. 2011, Sec. 3.2."
     simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
         box_size=[162, 648, 1296] * Mpc_h,
         n_particles=512**3,
@@ -1434,8 +1314,9 @@ class Manera(SMT, alias="Manera"):
             "sigma_8 = 0.9; Sec. 3.1). sigma range: not stated."
         ),
     )
-    measured_mass_definition: ClassVar[MeasuredMassDefinition] = _fof(
-        note="Manera et al. 2010, Sec. 3.2, with the Warren et al. mass correction."
+    measured_mass_definition: ClassVar[MassDefinition] = FOF()
+    measured_mass_definition_note: ClassVar[str] = (
+        "Manera et al. 2010, Sec. 3.2, with the Warren et al. mass correction."
     )
     simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
         box_size=[1280.0] * Mpc_h,
@@ -1482,9 +1363,8 @@ class Jenkins(FittingFunction, alias="Jenkins"):
             "0.3 <= Omega_m <= 1, open and flat (Table 2). Accuracy ~20% (Sec. 5.2)."
         ),
     )
-    measured_mass_definition: ClassVar[MeasuredMassDefinition] = _fof(
-        note="Jenkins et al. 2001, Sec. 5.2."
-    )
+    measured_mass_definition: ClassVar[MassDefinition] = FOF()
+    measured_mass_definition_note: ClassVar[str] = "Jenkins et al. 2001, Sec. 5.2."
     simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
         box_size=[84.5, 141.3, 479.0, 3000.0] * Mpc_h,
         n_particles=(256**3, 256**3, 512**3, 1000**3),
@@ -1537,8 +1417,9 @@ class Warren(FittingFunction, alias="Warren"):
             "n, h, sigma_8) = (0.3, 0.04, 1, 0.7, 0.9) (eq. 1)."
         ),
     )
-    measured_mass_definition: ClassVar[MeasuredMassDefinition] = _fof(
-        note="Warren et al. 2006, Sec. 2, with the N(1 - N^-0.6) correction (eq. 3)."
+    measured_mass_definition: ClassVar[MassDefinition] = FOF()
+    measured_mass_definition_note: ClassVar[str] = (
+        "Warren et al. 2006, Sec. 2, with the N(1 - N^-0.6) correction (eq. 3)."
     )
     simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
         box_size=[96, 135, 192, 272, 384, 543, 768, 1086, 1536, 2172, 2583, 3072] * Mpc_h,
@@ -1601,9 +1482,8 @@ class Reed07(FittingFunction, alias="Reed07"):
             "Accuracy 4% rms (Sec. 4.2). Omega_m = 0.25, sigma_8 = 0.9 (Sec. 1)."
         ),
     )
-    measured_mass_definition: ClassVar[MeasuredMassDefinition] = _fof(
-        note="Reed et al. 2007, Sec. 2."
-    )
+    measured_mass_definition: ClassVar[MassDefinition] = FOF()
+    measured_mass_definition_note: ClassVar[str] = "Reed et al. 2007, Sec. 2."
     simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
         box_size=[1.0, 2.5, 2.5, 2.5, 2.5, 4.64, 11.6, 20, 50, 100, 500, 1340, 3000] * Mpc_h,
         n_particles=(
@@ -1667,9 +1547,8 @@ class Peacock(FittingFunction, alias="Peacock"):
             "so this is Warren's domain (see Warren)."
         ),
     )
-    measured_mass_definition: ClassVar[MeasuredMassDefinition] = _fof(
-        note="Inherited from Warren et al. 2006."
-    )
+    measured_mass_definition: ClassVar[MassDefinition] = FOF()
+    measured_mass_definition_note: ClassVar[str] = "Inherited from Warren et al. 2006."
     simulations: ClassVar[SimulationDetails | None] = None
     _normalized: ClassVar[bool] = True
     a: float = _p(1.529, "The parameter a.")
@@ -1709,9 +1588,8 @@ class Angulo(FittingFunction, alias="Angulo"):
             "than 5% over most of the range (Sec. 2.2)."
         ),
     )
-    measured_mass_definition: ClassVar[MeasuredMassDefinition] = _fof(
-        note="Angulo et al. 2012, Sec. 2.2."
-    )
+    measured_mass_definition: ClassVar[MassDefinition] = FOF()
+    measured_mass_definition_note: ClassVar[str] = "Angulo et al. 2012, Sec. 2.2."
     simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
         box_size=[3000.0] * Mpc_h,
         n_particles=6720**3,
@@ -1754,9 +1632,9 @@ class AnguloBound(Angulo, alias="AnguloBound"):
     parameter_source: ClassVar[str] = "Angulo et al. 2012 (arXiv v2), eq. 3."
     valid_domain: ClassVar[Domain] = _SIGMA_VALID
     calibration_domain: ClassVar[Domain | None] = Angulo.calibration_domain
-    measured_mass_definition: ClassVar[MeasuredMassDefinition] = MeasuredMassDefinition(
-        kind="self_bound",
-        note="Angulo et al. 2012, Sec. 2.2: all SUBFIND self-bound subhaloes.",
+    measured_mass_definition: ClassVar[MassDefinition] = SelfBound()
+    measured_mass_definition_note: ClassVar[str] = (
+        "Angulo et al. 2012, Sec. 2.2: all SUBFIND self-bound subhaloes."
     )
     simulations: ClassVar[SimulationDetails | None] = Angulo.simulations
     A: float = _p(0.265, "The amplitude A.")
@@ -1785,9 +1663,8 @@ class Watson_FoF(Warren, alias="Watson_FoF"):
             "(Sec. 4.4)."
         ),
     )
-    measured_mass_definition: ClassVar[MeasuredMassDefinition] = _fof(
-        note="Watson et al. 2013, Sec. 3 (Gadget-3 FoF)."
-    )
+    measured_mass_definition: ClassVar[MassDefinition] = FOF()
+    measured_mass_definition_note: ClassVar[str] = "Watson et al. 2013, Sec. 3 (Gadget-3 FoF)."
     simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
         box_size=[11.4, 20, 114, 425, 1000, 3200, 6000] * Mpc_h,
         n_particles=(3072**3, 5488**3, 3072**3, 5488**3, 3456**3, 4000**3, 6000**3),
@@ -1862,12 +1739,12 @@ class Watson(FittingFunction, alias="Watson"):
             "at z = 0, 1 and 3 (Sec. 4.6). WMAP5 (Omega_m = 0.27, sigma_8 = 0.8)."
         ),
     )
-    measured_mass_definition: ClassVar[MeasuredMassDefinition] = _so_any(
-        _so_mean(178),
-        note=(
-            "Watson et al. 2013, Sec. 3.3: SO with Delta = 178 times the mean density "
-            "(where Gamma = 1); AHF host haloes. hmf 3.x preferred the virial definition."
-        ),
+    measured_mass_definition: ClassVar[MassDefinition] = SOGeneric(
+        preferred=SOMean(overdensity=178)
+    )
+    measured_mass_definition_note: ClassVar[str] = (
+        "Watson et al. 2013, Sec. 3.3: SO with Delta = 178 times the mean density "
+        "(where Gamma = 1); AHF host haloes. hmf 3.x preferred the virial definition."
     )
     simulations: ClassVar[SimulationDetails | None] = _derived(
         Watson_FoF.simulations,
@@ -1976,8 +1853,9 @@ class Crocce(FittingFunction, alias="Crocce"):
             "3.2e14 Msun/h (Sec. 8). Omega_m = 0.25, sigma_8 = 0.8 (Sec. 2)."
         ),
     )
-    measured_mass_definition: ClassVar[MeasuredMassDefinition] = _fof(
-        note="Crocce et al. 2010, Sec. 3, with the Warren et al. mass correction."
+    measured_mass_definition: ClassVar[MassDefinition] = FOF()
+    measured_mass_definition_note: ClassVar[str] = (
+        "Crocce et al. 2010, Sec. 3, with the Warren et al. mass correction."
     )
     simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
         box_size=[7680, 3072, 4500, 768, 384, 179] * Mpc_h,
@@ -2049,8 +1927,9 @@ class Bhattacharya(FittingFunction, alias="Bhattacharya"):
             "Omega_m = 0.25, sigma_8 = 0.8 (Table 1)."
         ),
     )
-    measured_mass_definition: ClassVar[MeasuredMassDefinition] = _fof(
-        note="Bhattacharya et al. 2011, Sec. 3, with FoF and finite-volume corrections."
+    measured_mass_definition: ClassVar[MassDefinition] = FOF()
+    measured_mass_definition_note: ClassVar[str] = (
+        "Bhattacharya et al. 2011, Sec. 3, with FoF and finite-volume corrections."
     )
     simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
         box_size=[1000 * 0.72, 1736 * 0.72, 2778 * 0.72, 178 * 0.72, 1300 * 0.72] * Mpc_h,
@@ -2178,8 +2057,11 @@ class Tinker08(FittingFunction, alias="Tinker08"):
             "and WMAP3-like cosmologies (Table 1). Accuracy <~5% at z = 0 (abstract)."
         ),
     )
-    measured_mass_definition: ClassVar[MeasuredMassDefinition] = _so_any(
-        _so_mean(200), note="Tinker et al. 2008, Sec. 2.2: SO about density peaks."
+    measured_mass_definition: ClassVar[MassDefinition] = SOGeneric(
+        preferred=SOMean(overdensity=200)
+    )
+    measured_mass_definition_note: ClassVar[str] = (
+        "Tinker et al. 2008, Sec. 2.2: SO about density peaks."
     )
     simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
         box_size=[
@@ -2374,8 +2256,9 @@ class Behroozi(Tinker08, alias="Behroozi"):
             "Delta range at z >~ 1, deliberately."
         ),
     )
-    measured_mass_definition: ClassVar[MeasuredMassDefinition] = _so_virial(
-        note="Behroozi et al. 2013, Sec. 4: Bryan & Norman (1998) virial SO, ROCKSTAR."
+    measured_mass_definition: ClassVar[MassDefinition] = SOVirial()
+    measured_mass_definition_note: ClassVar[str] = (
+        "Behroozi et al. 2013, Sec. 4: Bryan & Norman (1998) virial SO, ROCKSTAR."
     )
     simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
         box_size=[420.0] * Mpc_h,
@@ -2482,8 +2365,11 @@ class Tinker10(FittingFunction, alias="Tinker10"):
             "~5% for nu > 0.6 relative to T08 (Sec. 4)."
         ),
     )
-    measured_mass_definition: ClassVar[MeasuredMassDefinition] = _so_any(
-        _so_mean(200), note="Tinker et al. 2010, Sec. 1: SO relative to the background."
+    measured_mass_definition: ClassVar[MassDefinition] = SOGeneric(
+        preferred=SOMean(overdensity=200)
+    )
+    measured_mass_definition_note: ClassVar[str] = (
+        "Tinker et al. 2010, Sec. 1: SO relative to the background."
     )
     simulations: ClassVar[SimulationDetails | None] = _derived(
         Tinker08.simulations,
@@ -2627,9 +2513,8 @@ class Pillepich(Warren, alias="Pillepich"):
             "z < 1.6. WMAP5 and WMAP3 (Table 2). Accuracy a few per cent (Sec. 3.1)."
         ),
     )
-    measured_mass_definition: ClassVar[MeasuredMassDefinition] = _fof(
-        note="Pillepich et al. 2010, Sec. 2.1."
-    )
+    measured_mass_definition: ClassVar[MassDefinition] = FOF()
+    measured_mass_definition_note: ClassVar[str] = "Pillepich et al. 2010, Sec. 2.1."
     simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
         box_size=[1200, 1200, 150] * Mpc_h,
         n_particles=1024**3,
@@ -2675,9 +2560,8 @@ class Ishiyama(Warren, alias="Ishiyama"):
             "Planck cosmology (Omega_m = 0.31, sigma_8 = 0.83; Sec. 2)."
         ),
     )
-    measured_mass_definition: ClassVar[MeasuredMassDefinition] = _fof(
-        note="Ishiyama et al. 2015, Sec. 2."
-    )
+    measured_mass_definition: ClassVar[MassDefinition] = FOF()
+    measured_mass_definition_note: ClassVar[str] = "Ishiyama et al. 2015, Sec. 2."
     simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
         box_size=[1120, 560, 280, 140, 70] * Mpc_h,
         n_particles=(8192**3, 4096**3, 2048**3, 2048**3, 2048**3),
@@ -2732,8 +2616,9 @@ class Bocquet200mDMOnly(FittingFunction, alias="Bocquet200mDMOnly"):
     requires: ClassVar[frozenset[str]] = frozenset({"z"})
     valid_domain: ClassVar[Domain] = _Z_VALID
     calibration_domain: ClassVar[Domain | None] = _BOCQUET_DOMAIN
-    measured_mass_definition: ClassVar[MeasuredMassDefinition] = _so_mean(
-        200, note="Bocquet et al. 2016, Sec. 2.2: SO masses about SUBFIND potential minima."
+    measured_mass_definition: ClassVar[MassDefinition] = SOMean(overdensity=200)
+    measured_mass_definition_note: ClassVar[str] = (
+        "Bocquet et al. 2016, Sec. 2.2: SO masses about SUBFIND potential minima."
     )
     simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
         box_size=[68.1 * 0.704, 182 * 0.704, 1274 * 0.704] * Mpc_h,
@@ -2922,9 +2807,8 @@ class Bocquet200mHydro(Bocquet200mDMOnly, alias="Bocquet200mHydro"):
 
     valid_domain: ClassVar[Domain] = _Z_VALID
     calibration_domain: ClassVar[Domain | None] = _BOCQUET_DOMAIN
-    measured_mass_definition: ClassVar[MeasuredMassDefinition] = (
-        Bocquet200mDMOnly.measured_mass_definition
-    )
+    measured_mass_definition: ClassVar[MassDefinition] = Bocquet200mDMOnly.measured_mass_definition
+    measured_mass_definition_note: ClassVar[str] = Bocquet200mDMOnly.measured_mass_definition_note
     simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
         box_size=[68.1 * 0.704, 182 * 0.704, 1274 * 0.704, 3818 * 0.704] * Mpc_h,
         n_particles=(576**3, 576**3, 1526**3, 4563**3),
@@ -2976,9 +2860,8 @@ class Bocquet200cDMOnly(Bocquet200mDMOnly, alias="Bocquet200cDMOnly"):
 
     valid_domain: ClassVar[Domain] = _Z_VALID
     calibration_domain: ClassVar[Domain | None] = _BOCQUET_DOMAIN
-    measured_mass_definition: ClassVar[MeasuredMassDefinition] = _so_crit(
-        200, note=_BOCQUET_200C_NOTE
-    )
+    measured_mass_definition: ClassVar[MassDefinition] = SOCritical(overdensity=200)
+    measured_mass_definition_note: ClassVar[str] = _BOCQUET_200C_NOTE
     simulations: ClassVar[SimulationDetails | None] = Bocquet200mDMOnly.simulations
     A: float = _p(0.222, "The amplitude A at z = 0.")
     b: float = _p(1.71, "The exponent b of e/sigma at z = 0 (the paper's a).")
@@ -3011,9 +2894,8 @@ class Bocquet200cHydro(Bocquet200cDMOnly, alias="Bocquet200cHydro"):
 
     valid_domain: ClassVar[Domain] = _Z_VALID
     calibration_domain: ClassVar[Domain | None] = _BOCQUET_DOMAIN
-    measured_mass_definition: ClassVar[MeasuredMassDefinition] = (
-        Bocquet200cDMOnly.measured_mass_definition
-    )
+    measured_mass_definition: ClassVar[MassDefinition] = Bocquet200cDMOnly.measured_mass_definition
+    measured_mass_definition_note: ClassVar[str] = Bocquet200cDMOnly.measured_mass_definition_note
     simulations: ClassVar[SimulationDetails | None] = Bocquet200mHydro.simulations
     A: float = _p(0.202, "The amplitude A at z = 0.")
     b: float = _p(2.21, "The exponent b of e/sigma at z = 0 (the paper's a).")
@@ -3037,9 +2919,8 @@ class Bocquet500cDMOnly(Bocquet200mDMOnly, alias="Bocquet500cDMOnly"):
 
     valid_domain: ClassVar[Domain] = _Z_VALID
     calibration_domain: ClassVar[Domain | None] = _BOCQUET_DOMAIN
-    measured_mass_definition: ClassVar[MeasuredMassDefinition] = _so_crit(
-        500, note=_BOCQUET_200C_NOTE.replace("App. A", "eq. 6")
-    )
+    measured_mass_definition: ClassVar[MassDefinition] = SOCritical(overdensity=500)
+    measured_mass_definition_note: ClassVar[str] = _BOCQUET_200C_NOTE.replace("App. A", "eq. 6")
     simulations: ClassVar[SimulationDetails | None] = Bocquet200mDMOnly.simulations
     A: float = _p(0.241, "The amplitude A at z = 0.")
     b: float = _p(2.18, "The exponent b of e/sigma at z = 0 (the paper's a).")
@@ -3072,9 +2953,8 @@ class Bocquet500cHydro(Bocquet500cDMOnly, alias="Bocquet500cHydro"):
 
     valid_domain: ClassVar[Domain] = _Z_VALID
     calibration_domain: ClassVar[Domain | None] = _BOCQUET_DOMAIN
-    measured_mass_definition: ClassVar[MeasuredMassDefinition] = (
-        Bocquet500cDMOnly.measured_mass_definition
-    )
+    measured_mass_definition: ClassVar[MassDefinition] = Bocquet500cDMOnly.measured_mass_definition
+    measured_mass_definition_note: ClassVar[str] = Bocquet500cDMOnly.measured_mass_definition_note
     simulations: ClassVar[SimulationDetails | None] = Bocquet200mHydro.simulations
     A: float = _p(0.18, "The amplitude A at z = 0.")
     b: float = _p(2.29, "The exponent b of e/sigma at z = 0 (the paper's a).")
@@ -3181,8 +3061,9 @@ class Yung24(FittingFunction, alias="Yung24"):
             "Planck cosmology (Omega_m = 0.307, sigma_8 = 0.829; Sec. 2)."
         ),
     )
-    measured_mass_definition: ClassVar[MeasuredMassDefinition] = _so_virial(
-        note="Yung et al. 2024, Sec. 2: ROCKSTAR, Bryan & Norman virial; includes subhaloes."
+    measured_mass_definition: ClassVar[MassDefinition] = SOVirial()
+    measured_mass_definition_note: ClassVar[str] = (
+        "Yung et al. 2024, Sec. 2: ROCKSTAR, Bryan & Norman virial; includes subhaloes."
     )
     simulations: ClassVar[SimulationDetails | None] = SimulationDetails(
         box_size=[5, 15, 35, 90, 250, 160] * Mpc_h,

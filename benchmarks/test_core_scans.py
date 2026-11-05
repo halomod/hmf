@@ -90,3 +90,36 @@ def test_v4_fit_scan_dndm(bench, mf, no_boltzmann_run):
             mf.evolve(fit=name).dndm_kernel(m=M, z=z)
 
     bench(scan, rounds=5, warmup_rounds=1, n_items=len(FITS))
+
+
+def test_v4_mass_conversion_z_loop_dndm(bench, mf, no_boltzmann_run):
+    """``dndm`` of SMT (virial) converted to SO-mean(200) by ProfileConversion, at 20 redshifts.
+
+    The v4 counterpart of ``test_mass_conversion_z_loop`` (``test_derived.py``): v3 runs
+    one brentq per mass, and imports halomod for the concentration.
+    """
+    converted = mf.evolve(fit="SMT", mass_definition="200m", mass_conversion="profile")
+    for z in ZS:
+        converted.dndm_kernel(m=M, z=z)
+
+    def scan():
+        for z in ZS:
+            converted.dndm_kernel(m=M, z=z)
+
+    bench(scan, rounds=10, warmup_rounds=1, n_items=ZS.size)
+
+
+def test_v4_mass_conversion_first_dndm(bench, mf, no_boltzmann_run):
+    """A new converting stage (``evolve``) and its first ``dndm``, with the variance warm.
+
+    The v4 counterpart of ``test_mass_conversion_first``, which v3 runs after importing
+    halomod (about 650 ms on its own).
+    """
+    mf.evolve(fit="SMT", mass_definition="200m", mass_conversion="profile").dndm_kernel(m=M, z=1.0)
+
+    def first():
+        mf.evolve(fit="SMT", mass_definition="200m", mass_conversion="profile").dndm_kernel(
+            m=M, z=1.0
+        )
+
+    bench(first, rounds=20, warmup_rounds=1)

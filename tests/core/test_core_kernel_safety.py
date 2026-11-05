@@ -17,21 +17,29 @@ import numpy as np
 import pytest
 from power_models import RHO_CRIT0, AnalyticPower, EisensteinHuNoWiggle
 
+import hmf.core.concentration
 import hmf.core.filters
 import hmf.core.fits
 import hmf.core.growth
+import hmf.core.mass_conversion
+import hmf.core.mass_definitions
 import hmf.core.mass_variance
 import hmf.core.power_source
+import hmf.core.profiles
 import hmf.core.transfer
 from hmf.core import fits, growth_models, transfer_models
 from hmf.core._kernels import growth as kg
 from hmf.core.accuracy import KAccuracy
+from hmf.core.concentration import Duffy08
 from hmf.core.domain import Domain, DomainError, Interval, check_extent, warn_once
 from hmf.core.filters import TopHat
 from hmf.core.fits import FitInputs, evaluate_fsigma
 from hmf.core.growth import Growth
+from hmf.core.mass_conversion import ProfileConversion
+from hmf.core.mass_definitions import SOCritical, SOMean
 from hmf.core.mass_variance import MassVariance, n_eff_kernel
 from hmf.core.power_source import TableRange, TabulatedPower
+from hmf.core.profiles import NFW
 from hmf.core.transfer import Transfer
 from hmf.core.units import Msun_h, h_Mpc, power_unit, rho_unit
 from hmf.exceptions import HMFExtrapolationWarning
@@ -391,8 +399,52 @@ KERNEL_CASES = [
         lambda: TopHat().window_derivatives_kernel(np.array([1.0, -0.5])),
     ),
     (
-        "MeasuredMassDefinition.delta_halo_mean_kernel",
+        "MassDefinition.delta_halo_mean_kernel",
         lambda: fits.Tinker08.measured_mass_definition.delta_halo_mean_kernel([0.3, -0.1]),
+    ),
+    (
+        "MassDefinition.halo_density_kernel",
+        lambda: SOMean().halo_density_kernel(omega_m_z=0.3, rho_mean0=[1.0, 0.0]),
+    ),
+    (
+        "MassDefinition.m_to_r_kernel",
+        lambda: SOMean().m_to_r_kernel([1e12, -1.0], omega_m_z=0.3, rho_mean0=1e11),
+    ),
+    (
+        "MassDefinition.r_to_m_kernel",
+        lambda: SOMean().r_to_m_kernel([1.0, np.nan], omega_m_z=0.3, rho_mean0=1e11),
+    ),
+    (
+        "ConcentrationModel.ln_concentration_and_slope_kernel",
+        lambda: Duffy08().ln_concentration_and_slope_kernel([1e12, 0.0], z=0.0),
+    ),
+    (
+        "ConcentrationModel.in_calibration_domain_kernel",
+        lambda: Duffy08().in_calibration_domain_kernel(1e12, z=[0.0, -1.0]),
+    ),
+    (
+        "DensityProfile.ln_mu_and_slope_kernel",
+        lambda: NFW().ln_mu_and_slope_kernel([1.0, 0.0]),
+    ),
+    (
+        "DensityProfile.convert_concentration_kernel",
+        lambda: NFW().convert_concentration_kernel([5.0, -1.0], slope=-0.1, ln_q=0.5),
+    ),
+    (
+        "DensityProfile.convert_concentration_kernel ln_q",
+        lambda: NFW().convert_concentration_kernel(5.0, slope=-0.1, ln_q=np.inf),
+    ),
+    (
+        "ProfileConversion.convert_kernel",
+        lambda: ProfileConversion().convert_kernel(
+            [1e12, np.inf], z=0.0, omega_m_z=0.3, source=SOMean(), target=SOCritical()
+        ),
+    ),
+    (
+        "ProfileConversion.convert_kernel omega_m_z",
+        lambda: ProfileConversion().convert_kernel(
+            1e12, z=0.0, omega_m_z=0.0, source=SOMean(), target=SOCritical()
+        ),
     ),
     ("FittingFunction.modify_dndm_kernel", lambda: _modify_dndm(fits.PS(), m=-1.0)),
     ("Behroozi.modify_dndm_kernel z", lambda: _modify_dndm(fits.Behroozi(), z=-0.5)),
@@ -427,11 +479,15 @@ def _public_kernels():
     """The qualified names of every public *_kernel of the stage and model modules."""
     names = set()
     modules = (
+        hmf.core.concentration,
         hmf.core.filters,
         hmf.core.fits,
         hmf.core.growth,
+        hmf.core.mass_conversion,
+        hmf.core.mass_definitions,
         hmf.core.mass_variance,
         hmf.core.power_source,
+        hmf.core.profiles,
     )
     for module in (*modules, hmf.core.transfer):
         for obj_name, obj in vars(module).items():
@@ -450,8 +506,9 @@ def _public_kernels():
 def test_every_public_kernel_has_an_out_of_domain_case():
     covered = {name.split(" ")[0] for name, _ in KERNEL_CASES}
     kernels = _public_kernels()
-    # The PowerSource protocol only declares the method.
+    # The PowerSource protocol and the MassConversion kind only declare the method.
     kernels.discard("PowerSource.ln_power_kernel")
+    kernels.discard("MassConversion.convert_kernel")
     # Overrides are covered through the checking method of their base class.
     overrides = {
         "Bocquet200cDMOnly.mass_ratio_to_200m_kernel",

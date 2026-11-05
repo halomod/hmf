@@ -66,11 +66,36 @@ gives the quantities at one z and fixed masses, as cached arrays.
 
 The mass definition
 -------------------
-The mass function is that of the fit's own mass definition
-(:attr:`FittingFunction.measured_mass_definition
-<hmf.core.fits.FittingFunction.measured_mass_definition>`), whose overdensity it
-passes to the fit: a Tinker08 mass function is in SO-mean(200), a Jenkins one in
-FoF(b = 0.2). Masses are not converted between definitions.
+The masses of dn/dm, dn/dln m, dn/dlog10 m, n(>m) and rho(>m) are in
+:attr:`~MassFunction.resolved_mass_definition`: the field ``mass_definition`` (a
+:mod:`~hmf.core.mass_definitions` value, or its name, e.g. ``"200c"``), or by default
+(``None``) the fit's own, :attr:`FittingFunction.measured_mass_definition
+<hmf.core.fits.FittingFunction.measured_mass_definition>` (the ``preferred`` one of
+an :class:`~hmf.core.mass_definitions.SOGeneric`): by default a Tinker08 mass
+function is in SO-mean(200), a Jenkins one in FoF(b = 0.2).
+
+* If the fit's measured definition accepts it
+  (:meth:`~hmf.core.mass_definitions.MassDefinition.accepts`: itself, or any SO
+  definition for an SOGeneric fit such as Tinker08), the fit is evaluated in it
+  directly, with its overdensity: no mass is converted.
+* Otherwise the masses are converted, by the field ``mass_conversion`` (e.g.
+  :class:`~hmf.core.mass_conversion.ProfileConversion`), which must then be given
+  (``ValueError`` if not). With M' = M'(M) the mass in the fit's definition
+  (:attr:`~MassFunction.fit_mass_definition`) of a halo of mass M, halo number is
+  conserved:
+
+  .. math:: \frac{dn}{dM}(M) = \frac{dn'}{dM'}\big(M'(M)\big)\frac{dM'}{dM},
+            \qquad n(>M) = n'(>M'(M)),
+
+  with the fit, sigma, its slope and n_eff evaluated at M' (and its
+  ``modify_dndm_kernel``: Behroozi's correction takes the n'(>M') of the fit's
+  definition, and the Bocquet 200c/500c fits' published mass ratio gives their mass
+  function in their own definition, which is then converted like any other).
+  rho(>M) is the mass in the new definition, :math:`\int M\,dn`, integrated on
+  the lattice of M' (with M(M') at its nodes), so it is as deterministic as n(>M).
+
+``sigma``, ``dlnsigma_dlnm``, ``peak_height`` and ``fsigma`` are functions of the mass
+given, unconverted, with the fit in :attr:`~MassFunction.fit_mass_definition`.
 
 The cumulative mass function
 ----------------------------
@@ -98,7 +123,10 @@ Domains
 -------
 The fit's valid domain always raises. Outside its calibration domain,
 ``domain_policy`` applies to each mass and redshift asked for (#390): ``"ignore"``
-(the default), ``"warn"`` (once per stage), ``"mask"`` (NaN) or ``"raise"``.
+(the default), ``"warn"`` (once per stage), ``"mask"`` (NaN) or ``"raise"``. With a
+mass conversion, the fit's domain is checked at the converted masses M', and the
+policy also applies to the calibration domain of the conversion's concentration
+model; its valid domain always raises.
 :meth:`MassFunction.in_calibration_domain` gives the mask. Masses are bounded by the
 variance's ``valid_domain``, and by :math:`M_{\rm top}` for n(>m) and rho(>m); redshifts
 by the growth model's domain and table.
@@ -131,11 +159,15 @@ from .domain import (
     Domain,
     DomainPolicy,
     Interval,
+    apply_domain_policy,
     check_extent,
 )
 from .filters import Filter, TopHat
 from .fits import FitInputs, FittingFunction, Tinker08, evaluate_fsigma
 from .linear_power import LinearPower
+from .mass_conversion import ConvertedMasses, MassConversion
+from .mass_definitions import MassDefinition, SOGeneric
+from .mass_definitions import coerce as coerce_mass_definition
 from .mass_variance import MassVariance, n_eff_kernel
 from .routing import GivenParameters
 from .species import omega_m, omega_m0
@@ -247,6 +279,45 @@ class MassFunction(Stage):
             "'ignore', 'warn' (once per stage), 'mask' (NaN) or 'raise'."
         ),
     )
+    mass_definition: MassDefinition | None = field(
+        default=None,
+        converter=attrs.converters.optional(coerce_mass_definition),
+        doc=(
+            "The mass definition of the mass function's masses: a MassDefinition or its "
+            "name (e.g. '200c'). None: the fit's measured definition (an SOGeneric's "
+            "preferred one)."
+        ),
+    )
+    mass_conversion: MassConversion | None = field(
+        default=None,
+        converter=attrs.converters.optional(MassConversion.coerce),
+        doc=(
+            "How to convert masses from mass_definition to the fit's measured definition, "
+            "when that does not accept it (e.g. ProfileConversion()); None: no conversion."
+        ),
+    )
+
+    def __attrs_post_init__(self) -> None:
+        """Check that the fit can be evaluated in ``mass_definition``."""
+        requested = self.mass_definition
+        if requested is None:
+            return
+        if isinstance(requested, SOGeneric):
+            raise ValueError(  # noqa: TRY004 (a configuration error: see hmf.core.domain)
+                f"MassFunction.mass_definition can't be an SOGeneric ({requested}): masses "
+                "are in a definition with an overdensity, e.g. SOMean(overdensity=200)."
+            )
+        measured = self.fit.measured_mass_definition
+        if measured.accepts(requested):
+            return
+        if self.mass_conversion is None:
+            raise ValueError(
+                f"{type(self.fit).__name__} was measured in {measured}, which does not "
+                f"accept mass_definition={requested}: converting masses needs a mass "
+                "conversion, e.g. mass_conversion=ProfileConversion() (from "
+                "hmf.core.mass_conversion), or leave mass_definition=None."
+            )
+        self.mass_conversion.check_definitions(requested, measured.resolved)
 
     # ---------------------------------------------------------------------------------
     # Construction
@@ -294,6 +365,11 @@ class MassFunction(Stage):
             The critical overdensity (default 1.686).
         domain_policy
             The calibration-domain policy (default ``"ignore"``).
+        mass_definition
+            The mass definition of the masses (default ``None``: the fit's own).
+        mass_conversion
+            The conversion of masses to the fit's definition, needed when that does not
+            accept ``mass_definition`` (default ``None``: no conversion).
         k_accuracy
             The wavenumber accuracy (default ``KAccuracy()``).
         mass_accuracy
@@ -403,6 +479,59 @@ class MassFunction(Stage):
         return omega_m0(self.cosmology, "cb")
 
     @cached_property
+    def resolved_mass_definition(self) -> MassDefinition:
+        """The mass definition of dn/dm, n(>m) and rho(>m): ``mass_definition``, or the fit's.
+
+        For a fit measured in an :class:`~hmf.core.mass_definitions.SOGeneric`, its
+        ``preferred`` definition.
+        """
+        if self.mass_definition is not None:
+            return self.mass_definition
+        return self.fit.measured_mass_definition.resolved
+
+    @cached_property
+    def converts_masses(self) -> bool:
+        """Whether masses are converted: the fit's measured definition does not accept them."""
+        return not self.fit.measured_mass_definition.accepts(self.resolved_mass_definition)
+
+    @cached_property
+    def fit_mass_definition(self) -> MassDefinition:
+        """The mass definition the fit is evaluated in, with its overdensity.
+
+        :attr:`resolved_mass_definition` if the fit's measured definition accepts it
+        (e.g. any SO definition for Tinker08), else the measured definition (an
+        SOGeneric's preferred one), from which the masses are converted.
+        """
+        if self.converts_masses:
+            return self.fit.measured_mass_definition.resolved
+        return self.resolved_mass_definition
+
+    def _conversion(self, m: npt.ArrayLike, z: npt.ArrayLike, *, to_fit: bool) -> ConvertedMasses:
+        """The masses m (in the output definition, or the fit's) converted to the other."""
+        assert self.mass_conversion is not None
+        out, fit = self.resolved_mass_definition, self.fit_mass_definition
+        return self.mass_conversion.convert_kernel(
+            m,
+            z=z,
+            omega_m_z=omega_m(self.cosmology, z, "cb"),
+            source=out if to_fit else fit,
+            target=fit if to_fit else out,
+        )
+
+    def _conversion_policy(self, values: FloatArray, conversion: ConvertedMasses) -> FloatArray:
+        """Apply the domain policy to the conversion's calibration domain."""
+        if self.domain_policy == "ignore" or not conversion.calibration_description:
+            return values
+        out: FloatArray = apply_domain_policy(
+            values,
+            np.broadcast_to(conversion.in_calibration_domain, np.shape(values)),
+            self.domain_policy,
+            description=conversion.calibration_description,
+            owner=self,
+        )
+        return out
+
+    @cached_property
     def _needs_delta_halo(self) -> bool:
         """Whether the fit, or one of its domains, needs the halo overdensity."""
         return "delta_halo" in self.fit.domain_inputs()
@@ -506,7 +635,7 @@ class MassFunction(Stage):
         """The inputs of the fit at (m, z), from sigma and its slope there."""
         omega_m_z = omega_m(self.cosmology, z, "cb")
         delta_halo = (
-            self.fit.measured_mass_definition.delta_halo_mean_kernel(omega_m_z)
+            self.fit_mass_definition.delta_halo_mean_kernel(omega_m_z)
             if self._needs_delta_halo
             else None
         )
@@ -530,7 +659,23 @@ class MassFunction(Stage):
     def _dndm(
         self, m: npt.ArrayLike, z: npt.ArrayLike, *, policy: bool, raw: bool = False
     ) -> FloatArray:
-        """dn/dm at (m, z), in h^4 / (Msun Mpc^3).
+        """dn/dm at (m, z) in the output definition, in h^4 / (Msun Mpc^3).
+
+        Converted from the fit's definition, dn/dm(m) = dn'/dm'(m'(m)) dm'/dm, when
+        :attr:`converts_masses`. Arguments as :meth:`_dndm_fit`.
+        """
+        if not self.converts_masses:
+            return self._dndm_fit(m, z, policy=policy, raw=raw)
+        conversion = self._conversion(m, z, to_fit=True)
+        dndm: FloatArray = (
+            self._dndm_fit(conversion.m, z, policy=policy, raw=raw) * conversion.dm_dm
+        )
+        return self._conversion_policy(dndm, conversion) if policy else dndm
+
+    def _dndm_fit(
+        self, m: npt.ArrayLike, z: npt.ArrayLike, *, policy: bool, raw: bool = False
+    ) -> FloatArray:
+        """dn/dm at (m, z) in :attr:`fit_mass_definition`, in h^4 / (Msun Mpc^3).
 
         With ``policy``, the domain policy applies to f(sigma); ``raw`` skips the fit's
         modify_dndm_kernel (the mass function from f(sigma) alone).
@@ -545,7 +690,7 @@ class MassFunction(Stage):
         if raw or not self.fit.modifies_dndm:
             return dndm
         if self.fit.modify_dndm_needs_ngtm:
-            ngtm_raw = self._integral(m, z, raw=True, moment=0)
+            ngtm_raw = self._integral_fit(m, z, raw=True, moment=0)
         else:
             # Not used: NaN would make any use of it show.
             ngtm_raw = np.full(dndm.shape, np.nan)
@@ -582,12 +727,15 @@ class MassFunction(Stage):
     def _node_values(self, n_lo: int, z: FloatArray, *, raw: bool, moment: int) -> FloatArray:
         """m^moment dn/dln m at the nodes n_lo to the top, for each z (no domain policy).
 
-        Shape ``(z.size, top - n_lo + 1)``. Without ``raw``, the fit's modify_dndm_kernel
-        is applied, with n(>m) at the nodes from :meth:`_lattice_integrals`.
+        In the fit's definition, with masses m at the nodes. Shape
+        ``(z.size, top - n_lo + 1)``. Without ``raw``, the fit's modify_dndm_kernel is
+        applied, with n(>m) at the nodes from :meth:`_lattice_integrals`. When
+        :attr:`converts_masses`, the mass weighting of ``moment=1`` is the mass in the
+        output definition, so that the integral is rho(>m) in it.
         """
         m = np.exp(np.arange(n_lo, self._j_top + 1, dtype=np.int64) * np.float64(self._ln_m_step))
         zz = z[:, None]
-        dndm = self._dndm(m, zz, policy=False, raw=True)
+        dndm = self._dndm_fit(m, zz, policy=False, raw=True)
         if not raw and self.fit.modifies_dndm:
             if self.fit.modify_dndm_needs_ngtm:
                 ngtm_raw = self._lattice_integrals(n_lo, z, raw=True, moment=0)[2]
@@ -596,7 +744,11 @@ class MassFunction(Stage):
             dndm = self.fit.modify_dndm_kernel(
                 m, dndm, z=zz, ngtm=ngtm_raw, h=self._h, omega_m0=self._omega_m0
             )
-        out: FloatArray = dndm * m ** (1 + moment)
+        out: FloatArray
+        if moment == 1 and self.converts_masses:
+            out = dndm * m * self._conversion(m, zz, to_fit=False).m
+        else:
+            out = dndm * m ** (1 + moment)
         return out
 
     def _lattice_integrals(
@@ -623,9 +775,23 @@ class MassFunction(Stage):
     def _integral(
         self, m: npt.ArrayLike, z: npt.ArrayLike, *, raw: bool, moment: int
     ) -> FloatArray:
+        """n(>m) (moment 0) or rho(>m) (moment 1) at (m, z), in the output definition.
+
+        Converted by number conservation, n(>m) = n'(>m'(m)), when
+        :attr:`converts_masses` (see :meth:`_node_values` for rho).
+        """
+        if not self.converts_masses:
+            return self._integral_fit(m, z, raw=raw, moment=moment)
+        m_fit = self._conversion(m, z, to_fit=True).m
+        return self._integral_fit(m_fit, z, raw=raw, moment=moment)
+
+    def _integral_fit(
+        self, m: npt.ArrayLike, z: npt.ArrayLike, *, raw: bool, moment: int
+    ) -> FloatArray:
         """The integral of m^moment dn/dln m from m to :attr:`m_top`, at (m, z).
 
-        On the mass lattice: see "The cumulative mass function" in the module
+        In the fit's definition (but see :meth:`_node_values` for ``moment=1``). On
+        the mass lattice: see "The cumulative mass function" in the module
         documentation.
         """
         m = check_extent(
@@ -661,6 +827,10 @@ class MassFunction(Stage):
         """Apply the domain policy at (m, z) to values computed without it (e.g. n(>m))."""
         if self.domain_policy == "ignore":
             return values
+        if self.converts_masses:
+            conversion = self._conversion(m, z, to_fit=True)
+            values = self._conversion_policy(values, conversion)
+            m = conversion.m
         x, _ = self._inputs_at(m, z)
         result = evaluate_fsigma(self.fit, x, policy=self.domain_policy, owner=self)
         inside = np.broadcast_to(result.in_calibration_domain, values.shape)
@@ -785,9 +955,15 @@ class MassFunction(Stage):
         DomainError
             As :meth:`ln_sigma_and_slope_kernel`.
         """
-        x, _ = self._inputs_at(m, z)
-        shape = np.broadcast_shapes(np.shape(x.sigma), np.shape(m), np.shape(z))
-        return np.array(np.broadcast_to(self.fit.in_calibration_domain(x), shape))
+        if not self.converts_masses:
+            x, _ = self._inputs_at(m, z)
+            shape = np.broadcast_shapes(np.shape(x.sigma), np.shape(m), np.shape(z))
+            return np.array(np.broadcast_to(self.fit.in_calibration_domain(x), shape))
+        conversion = self._conversion(m, z, to_fit=True)
+        x, _ = self._inputs_at(conversion.m, z)
+        shape = np.broadcast_shapes(np.shape(x.sigma), np.shape(conversion.m))
+        inside = self.fit.in_calibration_domain(x) & conversion.in_calibration_domain
+        return np.array(np.broadcast_to(inside, shape))
 
     def m_from_sigma_kernel(self, *, sigma: npt.ArrayLike, z: npt.ArrayLike) -> FloatArray:
         """The mass at which sigma(m, z) takes the given values, at kernel level.
@@ -933,7 +1109,7 @@ class MassFunction(Stage):
         Parameters
         ----------
         m : Quantity
-            Masses, in Msun/h (or Msun), in the fit's mass definition.
+            Masses, in Msun/h (or Msun), in :attr:`resolved_mass_definition`.
         z : float or array_like
             Redshifts, broadcast with ``m``.
 
@@ -962,7 +1138,7 @@ class MassFunction(Stage):
         Parameters
         ----------
         m : Quantity
-            Masses, in Msun/h (or Msun).
+            Masses, in Msun/h (or Msun), in :attr:`resolved_mass_definition`.
         z : float or array_like
             Redshifts, broadcast with ``m``.
 
@@ -992,7 +1168,7 @@ class MassFunction(Stage):
         Parameters
         ----------
         m : Quantity
-            Masses, in Msun/h (or Msun).
+            Masses, in Msun/h (or Msun), in :attr:`resolved_mass_definition`.
         z : float or array_like
             Redshifts, broadcast with ``m``.
 
@@ -1026,7 +1202,8 @@ class MassFunction(Stage):
         Parameters
         ----------
         m : Quantity
-            Masses, in Msun/h (or Msun), at most :attr:`m_top`.
+            Masses, in Msun/h (or Msun), in :attr:`resolved_mass_definition`, at most
+            :attr:`m_top`.
         z : float or array_like
             Redshifts, broadcast with ``m``.
 
@@ -1059,7 +1236,8 @@ class MassFunction(Stage):
         Parameters
         ----------
         m : Quantity
-            Masses, in Msun/h (or Msun), at most :attr:`m_top`.
+            Masses, in Msun/h (or Msun), in :attr:`resolved_mass_definition`, at most
+            :attr:`m_top`.
         z : float or array_like
             Redshifts, broadcast with ``m``.
 

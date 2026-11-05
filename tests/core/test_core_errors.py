@@ -19,11 +19,14 @@ from power_models import RHO_CRIT0, AnalyticPower, EisensteinHuNoWiggle
 
 from hmf.core import fits, growth_models, transfer_models
 from hmf.core.accuracy import MassAccuracy
+from hmf.core.concentration import Duffy08
 from hmf.core.domain import Domain, DomainError
 from hmf.core.filters import Filter, SharpK, TopHat
 from hmf.core.fits import FitInputs, FittingFunction, evaluate_fsigma
 from hmf.core.growth import Growth
 from hmf.core.growth_models import GrowthModel
+from hmf.core.mass_definitions import FOF, MassDefinition, SOGeneric, SOMean
+from hmf.core.mass_function import MassFunction
 from hmf.core.mass_variance import MassVariance
 from hmf.core.power_source import TabulatedPower
 from hmf.core.transfer import Transfer
@@ -225,7 +228,15 @@ SITES = [
     ),
     ("fit-bad-parameters", lambda: fits.Bhattacharya(p=1.0, q=1.0), "value"),
     ("fit-model-not-found", lambda: FittingFunction.get("Nope"), "value"),
-    ("fit-mass-definition-kind", lambda: fits.MeasuredMassDefinition(kind="bogus"), "value"),
+    ("mass-definition-name", lambda: MassDefinition.from_name("bogus"), "value"),
+    ("mass-definition-overdensity", lambda: SOMean(overdensity=-1), "value"),
+    ("mass-definition-preferred", lambda: SOGeneric(preferred=FOF()), "type"),
+    ("concentration-sample", lambda: Duffy08(sample="bogus"), "value"),
+    (
+        "mass-function-mdef-without-conversion",
+        lambda: MassFunction.build(**{"transfer.model": "EH"}, fit="SMT", mass_definition="200m"),
+        "value",
+    ),
     # Domains.
     ("domain-unknown-variable", lambda: Domain({"z": (0, 1)}).contains(zz=0.5), "value"),
     ("domain-bad-brackets", lambda: Domain({"z": (0, 1, "{}")}), "value"),

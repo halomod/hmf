@@ -41,6 +41,8 @@ BUILD_KEYWORDS = {
     "mass_accuracy",
     "disk_cache",
     "truncation_rtol",
+    "mass_definition",
+    "mass_conversion",
 }
 
 
@@ -187,6 +189,10 @@ CHANGES = {
     "delta_c": (1.6, ("peak_height", 0.0)),
     # z = 4 is outside Tinker08's calibration (z <= 2.5): masked to NaN.
     "domain_policy": ("mask", ("dndm", 4.0)),
+    # Tinker08 accepts every SO definition: its overdensity changes, nothing is converted.
+    "mass_definition": ("200c", ("dndm", 0.0)),
+    # Tinker08 accepts the (default) mass definition, so nothing is converted.
+    "mass_conversion": ("profile", None),
 }
 
 
