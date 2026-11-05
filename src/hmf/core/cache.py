@@ -84,11 +84,27 @@ class DiskCache(Documented):
     )
 
     def path(self, key: str) -> Path:
-        """The file holding the entry with content hash ``key``."""
+        """The file holding the entry with content hash ``key``.
+
+        Parameters
+        ----------
+        key
+            The content hash of the entry.
+
+        Returns
+        -------
+        pathlib.Path
+            The path of the file (which may not exist).
+        """
         return self.directory / "boltzmann" / f"{key}.npz"
 
     def load(self, key: str) -> dict[str, npt.NDArray[Any]] | None:
         """Load the arrays stored under ``key``.
+
+        Parameters
+        ----------
+        key
+            The content hash of the entry.
 
         Returns
         -------

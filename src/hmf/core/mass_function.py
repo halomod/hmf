@@ -510,8 +510,8 @@ class MassFunction(Stage):
             if self._needs_delta_halo
             else None
         )
-        return FitInputs(
-            sigma=sigma,
+        return self.fit.inputs_from_arrays(
+            sigma,
             z=z,
             omega_m_z=omega_m_z,
             delta_halo=delta_halo,

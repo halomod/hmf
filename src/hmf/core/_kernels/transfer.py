@@ -22,8 +22,7 @@ import attrs
 import numpy as np
 import numpy.typing as npt
 
-from .._validators import check_finite_positive, check_increasing, check_table
-from .arrays import read_only
+from .arrays import check_finite_positive, check_increasing, check_table, read_only
 from .interpolation import FrozenSpline
 
 __all__ = [
@@ -344,7 +343,18 @@ class TabulatedTransfer:
         return float(np.exp(self.ln_k[-1]))
 
     def ln_residual(self, ln_k: Array) -> Array:
-        """The residual R(ln k) from the EH98 no-wiggle fit (see the class docs)."""
+        """The residual R(ln k) from the EH98 no-wiggle fit (see the class docs).
+
+        Parameters
+        ----------
+        ln_k
+            ln k, with k in h/Mpc.
+
+        Returns
+        -------
+        numpy.ndarray
+            R(ln k), with the shape of ``ln_k``.
+        """
         ln_k = np.asarray(ln_k, dtype=float)
         x0, xj = self.ln_k[0], self.ln_k[-1]
         inside = self.spline(np.clip(ln_k, x0, xj))
@@ -356,7 +366,18 @@ class TabulatedTransfer:
         return out
 
     def ln_t(self, k: Array) -> Array:
-        """Ln T(k), with k in h/Mpc."""
+        """Ln T(k), with k in h/Mpc.
+
+        Parameters
+        ----------
+        k
+            Wavenumbers in h/Mpc.
+
+        Returns
+        -------
+        numpy.ndarray
+            ln T(k), with the shape of ``k``.
+        """
         k = np.asarray(k, dtype=float)
         out: Array = ln_t_eh98_no_wiggle(k, self.scales) + self.ln_residual(np.log(k))
         return out

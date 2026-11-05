@@ -27,7 +27,8 @@ units, for library code.
   warns, with :meth:`TableRange.warn_outside`;
 * ``_unit_context``: the :class:`~hmf.core.units.UnitContext` (with its H0) used by
   the units boundary of the stages built on it (see
-  :class:`~hmf.core.units.HasUnitContext`).
+  :class:`~hmf.core.units.HasUnitContext`). Every implementation must provide it,
+  despite its leading underscore (see :class:`PowerSource` for why).
 
 :meth:`Transfer.power_source <hmf.core.transfer.Transfer.power_source>` implements it
 for the power of a :class:`~hmf.core.transfer.Transfer` stage, and
@@ -146,9 +147,19 @@ class PowerSource(HasUnitContext, Protocol):
 
     See the module documentation. Implementations must be immutable and hashable
     (they are fields of frozen stages), and ``ln_power_kernel`` must be a pure,
-    elementwise function, so that results do not depend on the batch size. The
-    ``_unit_context`` (with the H0) of stages built on the source comes from
-    :class:`~hmf.core.units.HasUnitContext`.
+    elementwise function, so that results do not depend on the batch size.
+
+    Implementations must also provide ``_unit_context``, the member this protocol
+    takes from :class:`~hmf.core.units.HasUnitContext`: the
+    :class:`~hmf.core.units.UnitContext` (with the H0) that the units boundary of
+    every stage built on the source uses, e.g. to convert masses in physical M☉ to
+    M☉/h. Implement it as in :class:`~hmf.core.units.HasUnitContext`, as a
+    :func:`functools.cached_property`. It is part of the protocol despite its leading
+    underscore: :func:`~hmf.core.units.unit_boundary` reads it on its fast path
+    (``getattr(instance, "_unit_context", ...)``) on every call of every boundary
+    method, and the underscore keeps it out of the public outputs of a stage
+    (:meth:`~hmf.core.stage.Stage.quantities_available`) and of its namespace, since
+    it is a detail of the units machinery, not a result.
     """
 
     def ln_power_kernel(self, ln_k: NDArray[np.float64]) -> NDArray[np.float64]:

@@ -26,7 +26,7 @@ from hmf.core.accuracy import Accuracy, KAccuracy
 from hmf.core.cache import DiskCache
 from hmf.core.model import Model, qualified_name
 from hmf.core.stage import Stage
-from hmf.core.units import RHO_CRIT0_H2, rho_unit
+from hmf.core.units import RHO_CRIT0_H2, RHO_CRIT0_H2_CANONICAL, rho_unit
 
 # ---------------------------------------------------------------------------------
 # Arrays
@@ -296,3 +296,9 @@ def test_critical_density():
     expected = 3 * 100.0**2 / (8 * np.pi * g)
     assert RHO_CRIT0_H2.value == pytest.approx(expected, rel=1e-4)
     assert RHO_CRIT0_H2.value == pytest.approx(2.775366e11, rel=1e-6)
+
+
+def test_critical_density_float_is_the_quantity_in_canonical_units():
+    """The float constant for plain-array code is the Quantity's value, exactly."""
+    assert isinstance(RHO_CRIT0_H2_CANONICAL, float)
+    assert RHO_CRIT0_H2.to_value(rho_unit) == RHO_CRIT0_H2_CANONICAL

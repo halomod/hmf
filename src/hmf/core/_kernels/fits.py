@@ -70,12 +70,34 @@ def peak_height(sigma: npt.ArrayLike, delta_c: npt.ArrayLike) -> FloatArray:
 
 
 def ln_sigma_inv(sigma: npt.ArrayLike) -> FloatArray:
-    r"""The natural log of the inverse of :math:`\sigma`, :math:`\ln\sigma^{-1}`."""
+    r"""The natural log of the inverse of :math:`\sigma`, :math:`\ln\sigma^{-1}`.
+
+    Parameters
+    ----------
+    sigma
+        :math:`\sigma(m, z)`.
+
+    Returns
+    -------
+    numpy.ndarray
+        :math:`\ln\sigma^{-1}`, with the broadcast shape of the inputs.
+    """
     return -np.log(float_array(sigma))
 
 
 def press_schechter(nu: npt.ArrayLike) -> FloatArray:
-    r"""Press & Schechter (1974): :math:`\sqrt{2/\pi}\,\nu\exp(-\nu^2/2)`."""
+    r"""Press & Schechter (1974): :math:`\sqrt{2/\pi}\,\nu\exp(-\nu^2/2)`.
+
+    Parameters
+    ----------
+    nu
+        The peak height, :math:`\nu = \delta_c/\sigma`.
+
+    Returns
+    -------
+    numpy.ndarray
+        :math:`f(\sigma)` (dimensionless), with the broadcast shape of the inputs.
+    """
     nu = float_array(nu)
     return float_array(np.sqrt(2.0 / np.pi) * nu * np.exp(-0.5 * nu**2))
 
@@ -85,6 +107,16 @@ def sheth_tormen_norm(p: npt.ArrayLike) -> FloatArray:
 
     :math:`A = [1 + 2^{-p}\Gamma(1/2 - p)/\Gamma(1/2)]^{-1}`, which requires
     :math:`p < 1/2`.
+
+    Parameters
+    ----------
+    p
+        The Sheth-Tormen exponent, < 1/2.
+
+    Returns
+    -------
+    numpy.ndarray
+        The amplitude A, with the broadcast shape of the inputs.
     """
     p = float_array(p)
     return float_array(1.0 / (1.0 + 2.0**-p * sp.gamma(0.5 - p) / sp.gamma(0.5)))
@@ -93,7 +125,24 @@ def sheth_tormen_norm(p: npt.ArrayLike) -> FloatArray:
 def sheth_tormen(
     nu: npt.ArrayLike, A: npt.ArrayLike, a: npt.ArrayLike, p: npt.ArrayLike
 ) -> FloatArray:
-    r"""Sheth-Tormen: :math:`A\sqrt{2a/\pi}\,\nu e^{-a\nu^2/2}[1 + (a\nu^2)^{-p}]`."""
+    r"""Sheth-Tormen: :math:`A\sqrt{2a/\pi}\,\nu e^{-a\nu^2/2}[1 + (a\nu^2)^{-p}]`.
+
+    Parameters
+    ----------
+    nu
+        The peak height, :math:`\nu = \delta_c/\sigma`.
+    A
+        The amplitude.
+    a
+        The rescaling of the peak height.
+    p
+        The low-mass exponent.
+
+    Returns
+    -------
+    numpy.ndarray
+        :math:`f(\sigma)` (dimensionless), with the broadcast shape of the inputs.
+    """
     nu, A, a, p = float_array(nu), float_array(A), float_array(a), float_array(p)
     anu2 = a * nu**2
     return A * np.sqrt(2.0 * a / np.pi) * nu * np.exp(-anu2 / 2.0) * (1.0 + anu2**-p)
@@ -102,7 +151,24 @@ def sheth_tormen(
 def jenkins(
     sigma: npt.ArrayLike, A: npt.ArrayLike, b: npt.ArrayLike, c: npt.ArrayLike
 ) -> FloatArray:
-    r"""Jenkins et al. (2001): :math:`A\exp(-|\ln\sigma^{-1} + b|^c)`."""
+    r"""Jenkins et al. (2001): :math:`A\exp(-|\ln\sigma^{-1} + b|^c)`.
+
+    Parameters
+    ----------
+    sigma
+        :math:`\sigma(m, z)`.
+    A
+        The amplitude.
+    b
+        The offset of :math:`\ln\sigma^{-1}`.
+    c
+        The exponent.
+
+    Returns
+    -------
+    numpy.ndarray
+        :math:`f(\sigma)` (dimensionless), with the broadcast shape of the inputs.
+    """
     return float_array(A) * np.exp(
         -(np.abs(ln_sigma_inv(sigma) + float_array(b)) ** float_array(c))
     )
@@ -119,6 +185,26 @@ def warren(
     r"""The Warren et al. (2006) form: :math:`A[(e/\sigma)^b + c]\exp(-d/\sigma^2)`.
 
     Many later fits share it, with other parameters (and c = 1 for some).
+
+    Parameters
+    ----------
+    sigma
+        :math:`\sigma(m, z)`.
+    A
+        The amplitude.
+    b
+        The exponent of the power law.
+    c
+        The constant added to the power law.
+    d
+        The coefficient of :math:`\sigma^{-2}` in the exponential.
+    e
+        The scale of sigma in the power law.
+
+    Returns
+    -------
+    numpy.ndarray
+        :math:`f(\sigma)` (dimensionless), with the broadcast shape of the inputs.
     """
     sigma = float_array(sigma)
     return (
@@ -135,12 +221,44 @@ def angulo(
     c: npt.ArrayLike,
     d: npt.ArrayLike,
 ) -> FloatArray:
-    r"""Angulo et al. (2012): :math:`A[(d/\sigma)^b + 1]\exp(-c/\sigma^2)`."""
+    r"""Angulo et al. (2012): :math:`A[(d/\sigma)^b + 1]\exp(-c/\sigma^2)`.
+
+    Parameters
+    ----------
+    sigma
+        :math:`\sigma(m, z)`.
+    A
+        The amplitude.
+    b
+        The exponent of the power law.
+    c
+        The coefficient of :math:`\sigma^{-2}` in the exponential.
+    d
+        The scale of sigma in the power law.
+
+    Returns
+    -------
+    numpy.ndarray
+        :math:`f(\sigma)` (dimensionless), with the broadcast shape of the inputs.
+    """
     return warren(sigma, A=A, b=b, c=1.0, d=c, e=d)
 
 
 def reed03_factor(sigma: npt.ArrayLike, c: npt.ArrayLike) -> FloatArray:
-    r"""The Reed et al. (2003) factor on Sheth-Tormen: :math:`\exp[-c/(\sigma\cosh^5 2\sigma)]`."""
+    r"""The Reed et al. (2003) factor on Sheth-Tormen: :math:`\exp[-c/(\sigma\cosh^5 2\sigma)]`.
+
+    Parameters
+    ----------
+    sigma
+        :math:`\sigma(m, z)`.
+    c
+        The coefficient in the exponent.
+
+    Returns
+    -------
+    numpy.ndarray
+        The factor (dimensionless), with the broadcast shape of the inputs.
+    """
     sigma = float_array(sigma)
     return float_array(np.exp(-float_array(c) / (sigma * np.cosh(2.0 * sigma) ** 5)))
 
@@ -163,6 +281,28 @@ def reed07(
 
     with :math:`G_1 = \exp[-(\ln\sigma^{-1} - 0.4)^2 / (2\cdot 0.6^2)]` and
     :math:`G_2 = \exp[-(\ln\sigma^{-1} - 0.75)^2 / (2\cdot 0.2^2)]`.
+
+    Parameters
+    ----------
+    sigma
+        :math:`\sigma(m, z)`.
+    nu
+        The peak height, :math:`\nu = \delta_c/\sigma`.
+    n_eff
+        The effective spectral index.
+    A
+        The amplitude.
+    a
+        The rescaling of the peak height.
+    c
+        The factor on :math:`a\nu^2/2` in the exponent.
+    p
+        The low-mass exponent.
+
+    Returns
+    -------
+    numpy.ndarray
+        :math:`f(\sigma)` (dimensionless), with the broadcast shape of the inputs.
     """
     nu, n_eff, A, a, c, p = (
         float_array(nu),
@@ -189,6 +329,22 @@ def peacock(nu: npt.ArrayLike, a: npt.ArrayLike, b: npt.ArrayLike, c: npt.ArrayL
 
     That is :math:`\nu e^{-c\nu^2}(2cd\nu + ab\nu^{b-1})/d^2` with
     :math:`d = 1 + a\nu^b`.
+
+    Parameters
+    ----------
+    nu
+        The peak height, :math:`\nu = \delta_c/\sigma`.
+    a
+        The coefficient of :math:`\nu^b`.
+    b
+        The exponent of the peak height.
+    c
+        The coefficient of :math:`\nu^2` in the exponential.
+
+    Returns
+    -------
+    numpy.ndarray
+        :math:`f(\sigma)` (dimensionless), with the broadcast shape of the inputs.
     """
     nu, a, b, c = float_array(nu), float_array(a), float_array(b), float_array(c)
     d = 1.0 + a * nu**b
@@ -215,6 +371,30 @@ def watson_gamma(
     with :math:`C = \exp[C_a(\Delta/178 - 1)]` and
     :math:`d = -d_a\Omega_m(z) - d_b`. ``delta_halo`` is relative to the mean density.
     It is exactly 1 at :math:`\Delta = 178`.
+
+    Parameters
+    ----------
+    sigma
+        :math:`\sigma(m, z)`.
+    delta_halo
+        The halo overdensity relative to the mean density, :math:`\Delta`.
+    omega_m_z
+        :math:`\Omega_m(z)`.
+    C_a
+        The coefficient :math:`C_a` of :math:`C(\Delta)`.
+    d_a
+        The coefficient :math:`d_a` of :math:`d(z)`.
+    d_b
+        The constant :math:`d_b` of :math:`d(z)`.
+    p
+        The coefficient in the exponential.
+    q
+        The exponent of sigma.
+
+    Returns
+    -------
+    numpy.ndarray
+        :math:`\Gamma` (dimensionless), with the broadcast shape of the inputs.
     """
     x = float_array(delta_halo) / 178.0
     C = np.exp(float_array(C_a) * (x - 1.0))
@@ -280,6 +460,16 @@ def tinker08_b_exponent(delta_halo: npt.ArrayLike) -> FloatArray:
     r"""Tinker et al. (2008) eq. 8: :math:`\log_{10}\alpha = -[0.75/\log_{10}(\Delta/75)]^{1.2}`.
 
     Defined for :math:`\Delta > 75` only.
+
+    Parameters
+    ----------
+    delta_halo
+        The halo overdensity relative to the mean density, :math:`\Delta > 75`.
+
+    Returns
+    -------
+    numpy.ndarray
+        :math:`\alpha` (dimensionless), with the broadcast shape of the inputs.
     """
     return float_array(10.0 ** (-((0.75 / np.log10(float_array(delta_halo) / 75.0)) ** 1.2)))
 
@@ -291,7 +481,26 @@ def tinker08(
     b: npt.ArrayLike,
     c: npt.ArrayLike,
 ) -> FloatArray:
-    r"""Tinker et al. (2008) eq. 3: :math:`A[(\sigma/b)^{-a} + 1]\exp(-c/\sigma^2)`."""
+    r"""Tinker et al. (2008) eq. 3: :math:`A[(\sigma/b)^{-a} + 1]\exp(-c/\sigma^2)`.
+
+    Parameters
+    ----------
+    sigma
+        :math:`\sigma(m, z)`.
+    A
+        The amplitude.
+    a
+        The exponent of the power law.
+    b
+        The scale of sigma in the power law.
+    c
+        The coefficient of :math:`\sigma^{-2}` in the exponential.
+
+    Returns
+    -------
+    numpy.ndarray
+        :math:`f(\sigma)` (dimensionless), with the broadcast shape of the inputs.
+    """
     sigma = float_array(sigma)
     return (
         float_array(A)
@@ -307,6 +516,22 @@ def tinker10_norm(
 
     Requires :math:`\beta > 0`, :math:`\gamma > 0`, :math:`\eta > -1/2` and
     :math:`\eta - \phi > -1/2`.
+
+    Parameters
+    ----------
+    beta
+        :math:`\beta`, > 0.
+    gamma
+        :math:`\gamma`, > 0.
+    phi
+        :math:`\phi`.
+    eta
+        :math:`\eta`.
+
+    Returns
+    -------
+    numpy.ndarray
+        :math:`\alpha`, with the broadcast shape of the inputs.
     """
     beta, gamma, phi, eta = (
         float_array(beta),
@@ -339,6 +564,26 @@ def tinker10(
     r"""Tinker et al. (2010) eq. 8, times :math:`\nu`.
 
     :math:`\alpha[1 + (\beta\nu)^{-2\phi}]\nu^{2\eta + 1}\exp(-\gamma\nu^2/2)`.
+
+    Parameters
+    ----------
+    nu
+        The peak height, :math:`\nu = \delta_c/\sigma`.
+    alpha
+        The amplitude :math:`\alpha`.
+    beta
+        :math:`\beta`, the scale of the peak height in the power law.
+    gamma
+        :math:`\gamma`, the coefficient of :math:`\nu^2/2` in the exponential.
+    phi
+        :math:`\phi`, the exponent of the power law.
+    eta
+        :math:`\eta`, the exponent of :math:`\nu^2`.
+
+    Returns
+    -------
+    numpy.ndarray
+        :math:`f(\sigma)` (dimensionless), with the broadcast shape of the inputs.
     """
     nu = float_array(nu)
     return (
@@ -355,6 +600,18 @@ def bhattacharya_norm(p: npt.ArrayLike, q: npt.ArrayLike) -> FloatArray:
     The integral of :math:`f/A` over :math:`\ln\sigma^{-1}` is
     :math:`2^{q/2 - p - 1/2}[2^p\Gamma(q/2) + \Gamma(q/2 - p)]/\sqrt{\pi}`, finite for
     :math:`q > 0` and :math:`2p < q`; this returns its reciprocal.
+
+    Parameters
+    ----------
+    p
+        The low-mass exponent of the Sheth-Tormen part.
+    q
+        The exponent of :math:`\sqrt{a}\,\nu`, > 0 and > 2p.
+
+    Returns
+    -------
+    numpy.ndarray
+        The amplitude A, with the broadcast shape of the inputs.
     """
     p, q = float_array(p), float_array(q)
     return float_array(
@@ -370,7 +627,26 @@ def bhattacharya(
     p: npt.ArrayLike,
     q: npt.ArrayLike,
 ) -> FloatArray:
-    r"""Bhattacharya et al. (2011) eq. 12: Sheth-Tormen times :math:`(\sqrt{a}\,\nu)^{q-1}`."""
+    r"""Bhattacharya et al. (2011) eq. 12: Sheth-Tormen times :math:`(\sqrt{a}\,\nu)^{q-1}`.
+
+    Parameters
+    ----------
+    nu
+        The peak height, :math:`\nu = \delta_c/\sigma`.
+    A
+        The amplitude.
+    a
+        The rescaling of the peak height.
+    p
+        The low-mass exponent.
+    q
+        The exponent of :math:`\sqrt{a}\,\nu`, plus 1.
+
+    Returns
+    -------
+    numpy.ndarray
+        :math:`f(\sigma)` (dimensionless), with the broadcast shape of the inputs.
+    """
     return sheth_tormen(nu, A, a, p) * (np.sqrt(float_array(a)) * float_array(nu)) ** (
         float_array(q) - 1.0
     )
@@ -438,7 +714,7 @@ def bocquet16_mass_ratio_200c(
     z
         Redshift.
     omega_m0
-        The matter density parameter today.
+        The density parameter of CDM + baryons today.
 
     Returns
     -------
@@ -463,7 +739,19 @@ def bocquet16_mass_ratio_500c(
 ) -> FloatArray:
     r"""Bocquet et al. (2016) eq. 6: the mass ratio :math:`M_{500c}/M_{200m}`.
 
-    Parameters are as for :func:`bocquet16_mass_ratio_200c`.
+    Parameters
+    ----------
+    m_msun
+        Halo mass in Msun (the fit takes :math:`\ln(M/M_\odot)`).
+    z
+        Redshift.
+    omega_m0
+        The density parameter of CDM + baryons today.
+
+    Returns
+    -------
+    numpy.ndarray
+        The ratio, with the broadcast shape of the inputs.
     """
     m_msun, z, om = float_array(m_msun), float_array(z), float_array(omega_m0)
     alpha_0 = 0.880 + 0.329 * om

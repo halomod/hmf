@@ -241,6 +241,11 @@ class TopHat(Filter, alias="TopHat"):
 
         For :math:`x \ll 1`, :math:`W \le 1`, :math:`|W'| \le x^2/5` and
         :math:`|W''| \le 2x^2/5`.
+
+        Returns
+        -------
+        TailBounds
+            The bounds on :math:`W^2` and :math:`|W W'|` at both ends.
         """
         return TailBounds(
             high_w2=((4.5, -4.0), (4.5, -6.0)),
@@ -316,7 +321,13 @@ class SharpK(Filter, alias="SharpK"):
         return (kernels.sharpk_window(x),)
 
     def tail_bounds(self) -> TailBounds:
-        """See :meth:`Filter.tail_bounds`. The window is exactly 0 beyond the cut-off."""
+        """See :meth:`Filter.tail_bounds`. The window is exactly 0 beyond the cut-off.
+
+        Returns
+        -------
+        TailBounds
+            The bounds on :math:`W^2` and :math:`|W W'|` at both ends.
+        """
         return TailBounds(high_w2=(), high_wdw=(), low_w2=((1.0, 0.0),), low_wdw=())
 
 
@@ -366,6 +377,11 @@ class SmoothK(Filter, alias="SmoothK"):
         and :math:`|W'^2 + W W''| = \beta^2 W^2 (1-W) |2 - 3W| \le 2\beta^2 W^2` for
         large x; :math:`W \le 1`, :math:`|W'| \le \beta x^\beta` and
         :math:`|W'^2 + W W''| \le 2\beta^2 x^\beta` for small x.
+
+        Returns
+        -------
+        TailBounds
+            The bounds on :math:`W^2` and :math:`|W W'|` at both ends.
         """
         b = self.beta
         return TailBounds(

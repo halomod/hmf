@@ -36,7 +36,7 @@ import numpy as np
 import numpy.typing as npt
 from astropy.cosmology import FLRW
 
-from .units import RHO_CRIT0_H2, rho_unit
+from .units import RHO_CRIT0_H2_CANONICAL
 
 __all__ = [
     "CAMB_COLUMNS",
@@ -62,9 +62,6 @@ CAMB_COLUMNS: Mapping[str, int] = MappingProxyType({"tot": 6, "cb": 7})
 #: The energy density of one massless neutrino species relative to the photons',
 #: :math:`\frac78(4/11)^{4/3}`, before astropy's factor ``Neff / N`` per species.
 _MASSLESS_NU_PER_PHOTON = 7 / 8 * (4 / 11) ** (4 / 3)
-
-#: The critical density today, as a float in the canonical density unit.
-_RHO_CRIT0_H2 = float(RHO_CRIT0_H2.to_value(rho_unit))
 
 
 def check_species(species: str) -> str:
@@ -154,7 +151,7 @@ def rho_mean0(cosmology: FLRW, species: str = "cb") -> float:
     ValueError
         If ``species`` is not a matter species.
     """
-    return omega_m0(cosmology, species) * _RHO_CRIT0_H2
+    return omega_m0(cosmology, species) * RHO_CRIT0_H2_CANONICAL
 
 
 def omega_m(cosmology: FLRW, z: npt.ArrayLike, species: str = "cb") -> npt.NDArray[np.float64]:

@@ -383,12 +383,34 @@ class GrowthTable:
         return out
 
     def growth_factor(self, z: Array) -> Array:
-        """The normalised growth factor at redshifts ``z`` (NaN outside the table)."""
+        """The normalised growth factor at redshifts ``z`` (NaN outside the table).
+
+        Parameters
+        ----------
+        z
+            Redshifts (dimensionless).
+
+        Returns
+        -------
+        numpy.ndarray
+            D(z)/D(0), with the shape of ``z``.
+        """
         out: Array = np.exp(self.ln_d_spline(self._ln_a(z)))
         return out
 
     def growth_rate(self, z: Array) -> Array:
-        """The growth rate at redshifts ``z`` (NaN outside the table)."""
+        """The growth rate at redshifts ``z`` (NaN outside the table).
+
+        Parameters
+        ----------
+        z
+            Redshifts (dimensionless).
+
+        Returns
+        -------
+        numpy.ndarray
+            d ln D / d ln a, with the shape of ``z``.
+        """
         out: Array = self.f_spline(self._ln_a(z))
         return out
 

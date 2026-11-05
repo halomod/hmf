@@ -134,7 +134,8 @@ def test_quantity_fields_are_stored_in_the_canonical_unit():
     assert content_hash(transfer_models.CAMB(k_max=20 * h_Mpc)) == content_hash(
         transfer_models.CAMB()
     )
-    # Changing another field keeps it (the evolve that used to raise).
+    # attrs.evolve of another field passes the stored Quantity back through the
+    # converter: it must accept it and keep the value.
     ppf = attrs.evolve(camb, dark_energy_model="ppf")
     assert ppf.k_max == camb.k_max
     table = _make(transfer_models.FromArray)

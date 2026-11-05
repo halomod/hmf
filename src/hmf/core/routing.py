@@ -551,7 +551,23 @@ class Router:
         return out
 
     def invalidated_by(self, name: str) -> tuple[str, ...]:
-        """What a change of ``name`` rebuilds (see :meth:`Stage.invalidated_by`)."""
+        """What a change of ``name`` rebuilds (see :meth:`Stage.invalidated_by`).
+
+        Parameters
+        ----------
+        name
+            A parameter name: flat, a dotted suffix or a dotted path.
+
+        Returns
+        -------
+        tuple of str
+            The dotted paths of the stages that are rebuilt (``""`` for the root).
+
+        Raises
+        ------
+        TypeError
+            If ``name`` is not a parameter of the tree, or is ambiguous.
+        """
         paths, _ = self.paths_of(name)
         rebuilt: set[FieldPath] = set()
         for path in paths:
@@ -564,7 +580,13 @@ class Router:
         return tuple(_dotted(p) for p in sorted(rebuilt, key=lambda p: (len(p), p)))
 
     def quantities_available(self) -> dict[str, tuple[str, ...]]:
-        """The public outputs of each stage of the tree (see :meth:`Stage.quantities_available`)."""
+        """The public outputs of each stage of the tree (see :meth:`Stage.quantities_available`).
+
+        Returns
+        -------
+        dict
+            The names of the outputs (a tuple of str) of each stage, by its dotted path.
+        """
         out = {}
         for path, cls in (*self.stages.items(), *self.derived_stages.items()):
             stages_here = {p[-1] for p in self.derived_stages if p[:-1] == path}

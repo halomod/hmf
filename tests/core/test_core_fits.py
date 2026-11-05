@@ -892,6 +892,21 @@ def test_library_path_takes_plain_canonical_arrays():
         evaluate_fsigma(model, FitInputs(sigma=sigma))
 
 
+def test_inputs_from_arrays_is_inputs_without_units():
+    """The plain-array constructor fills the same inputs as the Quantity one."""
+    model = fits.Bocquet200cHydro()
+    m = np.geomspace(1e12, 1e15, 4)
+    sigma = np.linspace(0.6, 2.0, 4)
+    x = model.inputs_from_arrays(sigma, z=0.5, m=m)
+    public = model.inputs(sigma, z=0.5, m=m * Msun_h)
+    for name in ("sigma", "z", "m"):
+        np.testing.assert_array_equal(getattr(x, name), getattr(public, name))
+    np.testing.assert_array_equal(x.m, m)
+    assert not x.given("delta_c")
+    with pytest.raises(ValueError, match="needs the input"):
+        model.inputs_from_arrays(sigma, m=m)
+
+
 def test_does_not_import_v3_modules():
     """hmf.core must not depend on the v3 modules, which are removed at 4.0."""
     import ast

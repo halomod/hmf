@@ -471,3 +471,37 @@ def test_kernel_checks_do_not_change_values():
     om = np.array([0.3, 0.5])
     np.testing.assert_array_equal(mdef.delta_halo_mean_kernel(om), np.full(2, 200.0))
     np.testing.assert_array_equal(n_eff_kernel([-0.5, 0.0]), [0.0, -3.0])
+
+
+def test_kernels_import_nothing_from_hmf_outside_kernels():
+    """The pure kernels depend on no other part of hmf (only on each other)."""
+    import ast
+    import pkgutil
+    from pathlib import Path
+
+    import hmf.core._kernels as kernels
+
+    for info in pkgutil.iter_modules(kernels.__path__):
+        path = Path(kernels.__path__[0]) / f"{info.name}.py"
+        for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.ImportFrom):
+                if node.level:
+                    assert node.level == 1, f"{path.name} imports from outside _kernels"
+                    continue
+                names = [node.module or ""]
+            elif isinstance(node, ast.Import):
+                names = [a.name for a in node.names]
+            else:
+                continue
+            for name in names:
+                inside = name == "hmf.core._kernels" or name.startswith("hmf.core._kernels.")
+                assert name.split(".")[0] != "hmf" or inside, f"{path.name} imports {name}"
+
+
+def test_validators_reuse_the_kernel_array_checks():
+    """The array checkers have one implementation, in hmf.core._kernels.arrays."""
+    from hmf.core import _validators
+    from hmf.core._kernels import arrays
+
+    for name in ("check_finite_positive", "check_in_range", "check_increasing", "check_table"):
+        assert getattr(_validators, name) is getattr(arrays, name)

@@ -50,8 +50,9 @@ With Quantities
 With plain arrays in canonical units
     Code that already holds every input as a plain array in the canonical units of
     :data:`hmf.core.units.CANONICAL_UNITS` (mass in Msun/h), such as a
-    :class:`~hmf.core.stage.Stage`, puts them in a :class:`FitInputs` and calls
-    :func:`evaluate_fsigma` (or :meth:`FittingFunction.fsigma_kernel`). This
+    :class:`~hmf.core.stage.Stage`, puts them in a :class:`FitInputs` (with
+    :meth:`FittingFunction.inputs_from_arrays`) and calls :func:`evaluate_fsigma`
+    (or :meth:`FittingFunction.fsigma_kernel`). This
     skips the unit checks and conversions, which matters inside loops, and is also
     where the domain policy (below) is applied.
 
@@ -128,7 +129,7 @@ from .domain import (
 )
 from .model import Model
 from .units import (
-    RHO_CRIT0_H2,
+    RHO_CRIT0_H2_CANONICAL,
     H0_unit,
     Mpc_h,
     Msun_h,
@@ -138,7 +139,6 @@ from .units import (
     kpc_h,
     number_density_unit,
     quantity_field,
-    rho_unit,
     to_canonical,
     unit_boundary,
 )
@@ -456,7 +456,7 @@ class SimulationDetails:
         if self.omega_m is None or any(om is None for om in self.omega_m):
             return None
         volume = self.box_size.to_value(Mpc_h) ** 3
-        mass = np.array(self.omega_m, dtype=float) * RHO_CRIT0_H2.to_value(rho_unit) * volume
+        mass = np.array(self.omega_m, dtype=float) * RHO_CRIT0_H2_CANONICAL * volume
         return (mass / np.array(self.n_particles, dtype=float)) << Msun_h
 
 
@@ -506,7 +506,18 @@ class FitInputs:
     _m: FloatArray | None = attrs.field(default=None, converter=optional_float_array, alias="m")
 
     def given(self, name: str) -> bool:
-        """Whether the input ``name`` was given."""
+        """Whether the input ``name`` was given.
+
+        Parameters
+        ----------
+        name
+            The name of the input (``"sigma"`` or one of :data:`INPUTS`).
+
+        Returns
+        -------
+        bool
+            Whether it was given (``sigma`` always is).
+        """
         return name == "sigma" or getattr(self, f"_{name}") is not None
 
     def _get(self, name: str) -> FloatArray:
@@ -559,6 +570,21 @@ class FitInputs:
         """The value of a domain variable (an input, or one derived from them).
 
         Masses are returned as Quantities in Msun/h, as :class:`Domain` expects.
+
+        Parameters
+        ----------
+        name
+            The name of the variable: ``"sigma"``, an input, or a derived variable.
+
+        Returns
+        -------
+        numpy.ndarray or astropy.units.Quantity
+            Its value.
+
+        Raises
+        ------
+        ValueError
+            If ``name`` is not a domain variable, or is an input that was not given.
         """
         derived: Mapping[str, Callable[[FitInputs], Any]] = _DERIVED
         if name in derived:
@@ -666,16 +692,76 @@ class FittingFunction(Model, kind=True):
         n_eff: npt.ArrayLike | None = None,
         m: npt.ArrayLike | None = None,
     ) -> FitInputs:
-        """Collect the inputs, checking that the required ones are given.
+        r"""Collect the inputs, checking that the required ones are given.
 
         Parameters are as for :meth:`fsigma` (``m`` is a Quantity). Code that already
-        has plain arrays in canonical units builds :class:`FitInputs` directly (see
-        "Evaluating a fit" in the :mod:`module documentation <hmf.core.fits>`).
+        has plain arrays in canonical units calls :meth:`inputs_from_arrays` instead
+        (see "Evaluating a fit" in the :mod:`module documentation <hmf.core.fits>`).
+
+        Parameters
+        ----------
+        sigma
+            :math:`\sigma(m, z)`.
+        z, omega_m_z, delta_halo, delta_c, n_eff
+            As for :meth:`fsigma`.
+        m
+            The halo mass, a Quantity (e.g. in :data:`~hmf.core.units.Msun_h`).
 
         Returns
         -------
         FitInputs
             The inputs as plain arrays, in canonical units.
+
+        Raises
+        ------
+        ValueError
+            If an input in :attr:`requires` (or needed to check :attr:`valid_domain`)
+            is missing.
+        UnitBoundaryError
+            If ``m`` is not a Quantity.
+        """
+        return self.inputs_from_arrays(
+            sigma,
+            z=z,
+            omega_m_z=omega_m_z,
+            delta_halo=delta_halo,
+            delta_c=delta_c,
+            n_eff=n_eff,
+            m=m,
+        )
+
+    def inputs_from_arrays(
+        self,
+        sigma: npt.ArrayLike,
+        *,
+        z: npt.ArrayLike | None = None,
+        omega_m_z: npt.ArrayLike | None = None,
+        delta_halo: npt.ArrayLike | None = None,
+        delta_c: npt.ArrayLike | None = None,
+        n_eff: npt.ArrayLike | None = None,
+        m: npt.ArrayLike | None = None,
+    ) -> FitInputs:
+        r"""Collect inputs that are plain arrays, checking that the required ones are given.
+
+        The one place where a :class:`FitInputs` is filled in: :meth:`inputs`,
+        :meth:`fsigma` and library code (e.g. a mass-function
+        :class:`~hmf.core.stage.Stage`) all build theirs here. It does not check the
+        values against :attr:`valid_domain`: :meth:`fsigma_kernel` and
+        :func:`evaluate_fsigma` do.
+
+        Parameters
+        ----------
+        sigma
+            :math:`\sigma(m, z)` (dimensionless).
+        z, omega_m_z, delta_halo, delta_c, n_eff
+            As for :meth:`fsigma` (dimensionless); ``None`` if not given.
+        m
+            The halo mass in Msun/h, a plain array; ``None`` if not given.
+
+        Returns
+        -------
+        FitInputs
+            The inputs as float arrays.
 
         Raises
         ------
@@ -698,6 +784,11 @@ class FittingFunction(Model, kind=True):
     def check_required(self, x: FitInputs) -> None:
         """Raise if an input needed to evaluate the fit is missing from ``x``.
 
+        Parameters
+        ----------
+        x
+            The inputs.
+
         Raises
         ------
         ValueError
@@ -714,6 +805,11 @@ class FittingFunction(Model, kind=True):
 
     def check_valid(self, x: FitInputs) -> None:
         """Raise if any input is outside :attr:`valid_domain`.
+
+        Parameters
+        ----------
+        x
+            The inputs.
 
         Raises
         ------
@@ -801,8 +897,8 @@ class FittingFunction(Model, kind=True):
             If any input is outside :attr:`valid_domain`, or makes the fit's
             parameters unphysical.
         """
-        x = FitInputs(
-            sigma=sigma,
+        x = self.inputs_from_arrays(
+            sigma,
             z=z,
             omega_m_z=omega_m_z,
             delta_halo=delta_halo,
@@ -1012,9 +1108,10 @@ def evaluate_fsigma(
 ) -> FSigmaResult:
     r"""Evaluate a fit, applying a domain policy to its calibration domain.
 
-    The inputs are a :class:`FitInputs`: plain arrays in canonical units, built
-    directly (by code such as a mass-function :class:`~hmf.core.stage.Stage`, which
-    already has them) or by :meth:`FittingFunction.inputs` from Quantities. See
+    The inputs are a :class:`FitInputs`: plain arrays in canonical units, built by
+    :meth:`FittingFunction.inputs_from_arrays` (by code such as a mass-function
+    :class:`~hmf.core.stage.Stage`, which already has them) or by
+    :meth:`FittingFunction.inputs` from Quantities. See
     "Evaluating a fit" in the :mod:`module documentation <hmf.core.fits>`.
 
     The valid domain always raises (see :meth:`FittingFunction.fsigma`); the policy
@@ -2671,7 +2768,18 @@ class Bocquet200mDMOnly(FittingFunction, alias="Bocquet200mDMOnly"):
 
     @unit_boundary(returns=(None, None, None, None))
     def parameters(self, z: npt.ArrayLike) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray]:
-        """The parameters (A, b, d, e) at redshift ``z``."""
+        """The parameters (A, b, d, e) at redshift ``z``.
+
+        Parameters
+        ----------
+        z
+            Redshift.
+
+        Returns
+        -------
+        tuple of numpy.ndarray
+            The parameters, each with the shape of ``z``.
+        """
         return self._parameters(z)
 
     def _parameters(
@@ -2708,7 +2816,7 @@ class Bocquet200mDMOnly(FittingFunction, alias="Bocquet200mDMOnly"):
         z
             Redshift.
         omega_m0
-            The matter density parameter today.
+            The density parameter of CDM + baryons today.
         H0
             The Hubble constant, a scalar Quantity (e.g. ``70 * H0_unit``). It converts
             physical masses, and gives h to the fits, which take ln(M / Msun).
@@ -2726,10 +2834,26 @@ class Bocquet200mDMOnly(FittingFunction, alias="Bocquet200mDMOnly"):
     def mass_ratio_to_200m_kernel(
         self, m: npt.ArrayLike, *, z: npt.ArrayLike, omega_m0: npt.ArrayLike, h: npt.ArrayLike
     ) -> FloatArray:
-        """:meth:`mass_ratio_to_200m` at kernel level: ``m`` a plain array in Msun/h.
+        r""":meth:`mass_ratio_to_200m` at kernel level: ``m`` a plain array in Msun/h.
 
         A pure kernel (see :mod:`hmf.core._kernels`): ``z``, ``omega_m0`` and ``h``
         (dimensionless) broadcast with ``m``. It checks them from their extent.
+
+        Parameters
+        ----------
+        m
+            Halo masses in the fit's definition, in Msun/h: a plain array.
+        z
+            Redshift.
+        omega_m0
+            The density parameter of CDM + baryons today.
+        h
+            The dimensionless Hubble parameter (the ratios take ln(M / Msun)).
+
+        Returns
+        -------
+        numpy.ndarray
+            :math:`M_\Delta/M_{200m}`, with the broadcast shape of the inputs.
 
         Raises
         ------
@@ -3103,7 +3227,18 @@ class Yung24(FittingFunction, alias="Yung24"):
 
     @unit_boundary(returns=(None, None, None, None))
     def parameters(self, z: npt.ArrayLike) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray]:
-        """The parameters (A, a, b, c) at redshift ``z``."""
+        """The parameters (A, a, b, c) at redshift ``z``.
+
+        Parameters
+        ----------
+        z
+            Redshift.
+
+        Returns
+        -------
+        tuple of numpy.ndarray
+            The parameters, each with the shape of ``z``.
+        """
         return self._parameters(z)
 
     def _parameters(

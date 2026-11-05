@@ -79,6 +79,7 @@ from ._serialise import quantity_key
 __all__ = [
     "CANONICAL_UNITS",
     "RHO_CRIT0_H2",
+    "RHO_CRIT0_H2_CANONICAL",
     "H0_unit",
     "HasUnitContext",
     "Mpc_h",
@@ -980,8 +981,13 @@ def unit_boundary(
 # ---------------------------------------------------------------------------------
 
 #: The critical density today over h², :math:`3 (100\,{\rm km\,s^{-1}\,Mpc^{-1}})^2 /
-#: (8\pi G)`, from astropy's G and M☉: a Quantity in :data:`rho_unit` (M☉ h² / Mpc³),
-#: about 2.775e11.
-RHO_CRIT0_H2 = (3 * (100 * u.km / u.s / u.Mpc) ** 2 / (8 * np.pi * _constants.G)).to(
-    u.Msun / u.Mpc**3
-).value * rho_unit
+#: (8\pi G)`, from astropy's G and M☉, as a float in the canonical density unit,
+#: :data:`rho_unit` (M☉ h² / Mpc³): about 2.775e11. For kernels and other code on
+#: plain arrays; :data:`RHO_CRIT0_H2` is the same value as a Quantity.
+RHO_CRIT0_H2_CANONICAL: float = float(
+    (3 * (100 * u.km / u.s / u.Mpc) ** 2 / (8 * np.pi * _constants.G)).to_value(u.Msun / u.Mpc**3)
+)
+
+#: The critical density today over h², :data:`RHO_CRIT0_H2_CANONICAL` as a Quantity
+#: in :data:`rho_unit` (M☉ h² / Mpc³).
+RHO_CRIT0_H2 = RHO_CRIT0_H2_CANONICAL * rho_unit
