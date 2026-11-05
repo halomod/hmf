@@ -10,8 +10,12 @@ hashed by, as ``field(eq=key)``: :func:`cosmology_key` for a cosmology, and
 :func:`quantity_key` for a Quantity. Astropy cosmologies compare by value but are
 not hashable, and Quantities compare elementwise.
 
-This is deliberately small. The config schema (issue #391) will serialise models and
-stages through cattrs; when it does, :func:`canonical` should be routed through it.
+Plain data (numbers, strings, booleans, None, paths, and lists and mappings of these)
+is serialised here. Every other value (a stage, a model, a Quantity, an array, a
+cosmology, ...) is encoded by the converter of the configurations
+(:func:`hmf.core.config.canonical_value`), so a content hash and a configuration
+describe a value in the same way. A stage is encoded as its configuration without the
+fields that change no result, with the versions of the packages that compute results.
 """
 
 from __future__ import annotations
@@ -24,7 +28,6 @@ from pathlib import PurePath
 from typing import Any
 
 import astropy.units as u
-import attrs
 import numpy as np
 from astropy.cosmology import FLRW
 
@@ -105,10 +108,10 @@ def canonical(obj: Any) -> Any:
     Parameters
     ----------
     obj
-        ``None``, a bool, int, float, str or path; a numpy scalar or array; an
-        astropy Quantity or FLRW cosmology; an ``attrs`` instance (a model, an
-        accuracy object, ...: its class and the fields that take part in its
-        equality); or a mapping, list or tuple of these.
+        ``None``, a bool, int, float, str or path; a numpy scalar; a mapping, list or
+        tuple of these; or any value the configurations encode (a stage, model,
+        Quantity, array, cosmology, unit, accuracy setting, ...: see
+        :func:`hmf.core.config.canonical_value`).
 
     Returns
     -------
@@ -132,21 +135,6 @@ def canonical(obj: Any) -> Any:
         return str(obj)
     if isinstance(obj, np.generic):
         return canonical(obj.item())
-    if isinstance(obj, u.Quantity):  # before ndarray, which it subclasses
-        return {"__quantity__": canonical(obj.value), "unit": obj.unit.to_string()}
-    if isinstance(obj, np.ndarray):
-        return {"__ndarray__": canonical(obj.tolist()), "dtype": obj.dtype.str}
-    if isinstance(obj, u.UnitBase):
-        return {"__unit__": obj.to_string()}
-    if isinstance(obj, FLRW):
-        return {"__cosmology__": canonical(cosmology_key(obj))}
-    if attrs.has(type(obj)):
-        cls = type(obj)
-        out: dict[str, Any] = {"__class__": qualified_name(cls)}
-        for a in attrs.fields(cls):
-            if a.eq:
-                out[a.name] = canonical(getattr(obj, a.name))
-        return out
     if isinstance(obj, Mapping):
         keys = [str(k) for k in obj]
         if len(set(keys)) != len(keys):
@@ -154,7 +142,9 @@ def canonical(obj: Any) -> Any:
         return {str(k): canonical(v) for k, v in obj.items()}
     if isinstance(obj, (list, tuple)):
         return [canonical(v) for v in obj]
-    raise TypeError(f"Can't serialise a {type(obj).__name__} canonically.")
+    from . import config  # imports every stage: not at import time
+
+    return canonical(config.canonical_value(obj))
 
 
 def canonical_json(obj: Any) -> str:

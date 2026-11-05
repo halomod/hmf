@@ -17,11 +17,16 @@ import attrs
 #: The metadata key holding a field's documentation.
 DOC_KEY = "hmf_doc"
 
+#: The metadata key marking a field that changes no result (e.g. a cache directory).
+#: Configurations keep such a field, and content hashes leave it out (see
+#: :mod:`hmf.core.config`).
+NON_PHYSICS_KEY = "hmf_non_physics"
+
 #: The ``default`` of a :class:`FieldInfo` for a field without a default.
 NO_DEFAULT: Any = attrs.NOTHING
 
 
-def field(*, doc: str, **kwargs: Any) -> Any:
+def field(*, doc: str, physics: bool = True, **kwargs: Any) -> Any:
     """Define an ``attrs`` field with documentation.
 
     Parameters
@@ -29,6 +34,10 @@ def field(*, doc: str, **kwargs: Any) -> Any:
     doc
         One or more sentences describing the field. They become its entry in the
         class's generated "Parameters" docstring section and in ``fields_info()``.
+    physics
+        Whether the field can change a result. A field that can't (e.g. where to cache
+        output on disk) is written in a configuration but left out of its content
+        hash (see :mod:`hmf.core.config`).
     **kwargs
         Passed on to :func:`attrs.field` (``default``, ``validator``,
         ``converter``, ...).
@@ -40,7 +49,25 @@ def field(*, doc: str, **kwargs: Any) -> Any:
     """
     metadata = dict(kwargs.pop("metadata", None) or {})
     metadata[DOC_KEY] = doc
+    if not physics:
+        metadata[NON_PHYSICS_KEY] = True
     return attrs.field(metadata=metadata, **kwargs)
+
+
+def is_physics(attribute: attrs.Attribute[Any]) -> bool:
+    """Whether a field can change a result (see :func:`field`'s ``physics``).
+
+    Parameters
+    ----------
+    attribute
+        An ``attrs`` field.
+
+    Returns
+    -------
+    bool
+        False for a field defined with ``physics=False``.
+    """
+    return not attribute.metadata.get(NON_PHYSICS_KEY, False)
 
 
 @attrs.frozen

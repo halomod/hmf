@@ -1,0 +1,104 @@
+# The configuration of an hmf.core MassFunction (schema version 1): see hmf.core.config.
+truncation_rtol = 0.001
+delta_c = 1.686
+domain_policy = "ignore"
+
+[hmf]
+schema_version = 1
+stage = "hmf.core.mass_function:MassFunction"
+
+[linear_power]
+sigma_8 = 0.8102
+species = "cb"
+sigma_8_species = "tot"
+
+[linear_power.transfer]
+n_s = 0.9665
+
+[linear_power.transfer.cosmology]
+class = "FlatLambdaCDM"
+name = "Planck18"
+H0 = { value = 67.66, unit = "km / (Mpc s)" }
+Om0 = 0.30966
+Tcmb0 = { value = 2.7255, unit = "K" }
+Neff = 3.046
+m_nu = { value = [0.0, 0.0, 0.06], unit = "eV" }
+Ob0 = 0.04897
+
+[linear_power.transfer.cosmology.meta]
+Oc0 = 0.2607
+n = 0.9665
+sigma8 = 0.8102
+tau = 0.0561
+z_reion = { value = 7.82, unit = "redshift" }
+t0 = { value = 13.787, unit = "Gyr" }
+reference = "Planck Collaboration 2018, 2020, A&A, 641, A6  (Paper VI), Table 2 (TT, TE, EE + lowE + lensing + BAO)"
+
+[linear_power.transfer.model]
+model = "hmf.core.transfer_models:CAMB"
+tail_decay_ln_k = 1.0
+k_max = { value = 20.0, unit = "littleh / Mpc" }
+z_max = 20.0
+dark_energy_model = "fluid"
+settings = {}
+
+[linear_power.transfer.k_accuracy]
+dln_k = 0.02
+ln_k_min = -18.420680743952367
+k_max_r_min = 20.0
+
+[linear_power.growth_model]
+model = "hmf.core.growth_models:ODEGrowth"
+a_min = 1e-08
+dln_a = 0.01
+
+[filter]
+model = "hmf.core.filters:TopHat"
+
+[mass_accuracy]
+dlog10_m = 0.02
+log10_m_min = 0.0
+log10_m_max = 17.5
+extension = "auto"
+second_derivative = true
+
+[fit]
+model = "hmf.core.fits:Tinker08"
+A_200 = 0.1858659
+A_300 = 0.1995973
+A_400 = 0.2115659
+A_600 = 0.2184113
+A_800 = 0.2480968
+A_1200 = 0.2546053
+A_1600 = 0.26
+A_2400 = 0.26
+A_3200 = 0.26
+a_200 = 1.466904
+a_300 = 1.521782
+a_400 = 1.559186
+a_600 = 1.614585
+a_800 = 1.869936
+a_1200 = 2.128056
+a_1600 = 2.301275
+a_2400 = 2.529241
+a_3200 = 2.661983
+b_200 = 2.571104
+b_300 = 2.254217
+b_400 = 2.048674
+b_600 = 1.869559
+b_800 = 1.588649
+b_1200 = 1.507134
+b_1600 = 1.464374
+b_2400 = 1.436827
+b_3200 = 1.40521
+c_200 = 1.193958
+c_300 = 1.270316
+c_400 = 1.335191
+c_600 = 1.446266
+c_800 = 1.581345
+c_1200 = 1.79505
+c_1600 = 1.965613
+c_2400 = 2.237466
+c_3200 = 2.439729
+A_exp = 0.14
+a_exp = 0.06

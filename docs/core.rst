@@ -500,6 +500,77 @@ Extension stages
     of the extension, it returns the fields each one reads but does not declare.
     Declaring an input that is read only on some branches is safe.
 
+Configurations
+--------------
+A *configuration* (:mod:`hmf.core.config`) describes a stage tree completely, as plain
+data: the **resolved** value of every field of every stage, under a header with the
+schema version and the versions of hmf, camb, classy, astropy, numpy and scipy. It is
+what a stage tree is saved, pickled and hashed as::
+
+    from hmf.core import config
+
+    mf = MassFunction.build(fit="ST", sigma_8=0.8)
+    config.dump_toml(mf, "mf.toml")            # or config.dumps_toml(mf), a string
+    same = config.load_toml("mf.toml")         # == mf, with bit-identical results
+    data = config.to_config(mf)                # the same, as nested dicts
+    config.from_config(data) == mf             # True
+
+**Resolved values.** The configuration mirrors the stage tree's fields: each stage held
+as a field is a table (``[linear_power.transfer]``), and derived stages are not written,
+but rebuilt. Every field is written, defaults and computed defaults included: the
+default configuration gives ``sigma_8 = 0.8102`` and ``n_s = 0.9665`` (Planck18's), the
+cosmology's every parameter, and every setting of ``k_accuracy`` and ``mass_accuracy``.
+So a configuration means the same calculation whatever defaults a later version of hmf
+has. A partial configuration, written by hand, also reads: it takes the names of
+:meth:`~hmf.core.stage.Stage.from_flat` (nested tables, dotted keys, flat names, paths
+into a model's fields), and every field it does not give takes its default, as
+:meth:`~hmf.core.mass_function.MassFunction.build` would give it. Only the header is
+required:
+
+.. code-block:: toml
+
+    sigma_8 = 0.8
+    fit = "ST"
+    "transfer.model" = "EH"
+
+    [hmf]
+    schema_version = 1
+    stage = "hmf.core.mass_function:MassFunction"
+
+**Encodings.** A model is a table of its registered (qualified) name and every field,
+``{model = "hmf.core.fits:Tinker08", A_200 = 0.1858659, ...}``, and is read through its
+kind's registry, so aliases and plugins work. A Quantity is its value and unit, with
+h-units written explicitly: ``{value = 20.0, unit = "littleh / Mpc"}``. Units are parsed
+with littleh enabled, and a unit with littleh goes through
+:func:`~hmf.core.units.to_canonical`, so a wrong power of littleh raises as at the
+units boundary. A cosmology is a table of every parameter (``m_nu`` as a Quantity
+array), its astropy class, and its name and ``meta`` (which are information only).
+Mass definitions, and other values whose class is not the field's declared class, carry
+a ``class`` key with their import path. TOML has no null: a field that is ``None`` is
+left out if that is its default, and written ``{none = true}`` otherwise.
+
+**Schema versions.** The header's ``schema_version`` (:data:`~hmf.core.config.SCHEMA_VERSION`)
+versions the layout *and the defaults*: a change to any default is a schema change (see
+:doc:`developing`). Reading a configuration of an older schema applies the registered
+migrations (:func:`~hmf.core.config.register_migration`) one version at a time, and
+logs what each changed; with ``migrate=False`` it raises instead. A newer schema, or one
+with no migration, raises a :class:`ValueError`. Package versions that differ from the
+running ones are logged as a warning, or raise with ``strict=True``. Nothing is read in
+another meaning silently.
+
+**Content hash.** :func:`config.content_hash(stage) <hmf.core.config.content_hash>` is
+the SHA-256 hash of the canonical form of the configuration's physics, plus the
+versions of hmf, camb, classy and astropy. It leaves out fields that change no result
+(declared with ``field(physics=False)``, e.g. ``disk_cache``), and a cosmology's name
+and ``meta``, so it is unchanged by a round trip through a configuration, a pickle or a
+TOML file. The disk cache's keys use the same canonical form
+(:func:`hmf.core._serialise.canonical`).
+
+**Pickling.** A stage pickles, and deep-copies, as its configuration, with the
+Boltzmann-code runs its tree has already used, as plain arrays. Unpickling rebuilds the
+tree and reuses those runs, so it does not run CAMB or CLASS again, and gives
+bit-identical results. No CAMB or CLASS object is ever pickled.
+
 API
 ---
 The modules are listed in the :doc:`hmf.core API reference <api_core>`.

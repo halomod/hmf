@@ -56,7 +56,7 @@ from __future__ import annotations
 import difflib
 import types
 import typing
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Collection, Iterator, Mapping
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, cast
 
@@ -72,6 +72,7 @@ __all__ = [
     "ParameterInfo",
     "Router",
     "field_names",
+    "from_paths",
     "parameter_defaults",
     "router",
 ]
@@ -756,6 +757,62 @@ def from_flat(cls: type[Stage], mapping: Mapping[str, Any]) -> Stage:
     if resolved.models:
         values = _apply_models(table, resolved, base)
     return _rebuild(cls, None, values, resolved.soft, ())  # type: ignore[no-any-return]
+
+
+def from_paths(
+    cls: type[Stage], values: Mapping[str, Any], *, shared: Collection[str] = ()
+) -> Stage:
+    """Build a stage tree from values given by their full dotted paths.
+
+    The step of :func:`from_flat` after the names are resolved, for code that has
+    resolved them itself (e.g. :func:`hmf.core.config.from_config`, which reads a
+    nested table). Every field not given takes its default, or the one
+    :meth:`~hmf.core.stage.Stage.computed_defaults` gives.
+
+    Parameters
+    ----------
+    cls
+        The stage class at the root of the tree.
+    values
+        Values by the full dotted path of a field of the tree: a parameter, or a stage
+        (which replaces that whole stage). Models are given whole.
+    shared
+        The paths among ``values`` that were set by a shared name. Inside a stage that
+        is given whole, or is ``None``, they are ignored.
+
+    Returns
+    -------
+    Stage
+
+    Raises
+    ------
+    TypeError
+        If a path is not a field of the tree, or a field is given with a stage above
+        it (unless it is in ``shared``), or a required parameter is missing.
+    """
+    table = router(cls)
+    paths: dict[FieldPath, Any] = {}
+    for name, value in values.items():
+        path = _split(name)
+        if path not in table.leaves and not (path and path in table.stages):
+            raise TypeError(table._unknown_message(name))
+        paths[path] = value
+    soft = {_split(name) for name in shared}
+    for path in list(paths):
+        for i in range(1, len(path)):
+            if path[:i] in paths and path[:i] in table.stages:
+                if path in soft:
+                    del paths[path]
+                    soft.discard(path)
+                    break
+                raise TypeError(
+                    f"{cls.__name__}: {_dotted(path)!r} is given, and so is the stage "
+                    f"{_dotted(path[:i])!r} above it. Give one or the other."
+                )
+    resolved = _with_computed_defaults(
+        table, _Resolved(values=paths, soft=frozenset(soft & set(paths)), models={})
+    )
+    return _rebuild(cls, None, resolved.values, resolved.soft, ())  # type: ignore[no-any-return]
 
 
 def _with_computed_defaults(table: Router, resolved: _Resolved) -> _Resolved:
