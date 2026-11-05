@@ -78,6 +78,48 @@ def test_config_vs_cli(tmpdir: Path):
     assert np.allclose(dndm_cfg, dndm_cli)
 
 
+def test_cli_value_containing_equals(tmpdir: Path):
+    """A ``--key=value`` option keeps the whole value, even when it contains "="."""
+    cfgdir = tmpdir / "cfg"
+    cfgdir.mkdir()
+
+    clidir = tmpdir / "cli"
+    clidir.mkdir()
+
+    runner = CliRunner()
+
+    cfg = """
+    [params]
+    hmf_model = 'ST'
+    hmf_params = {A = 0.3}
+    transfer_model = 'EH'
+    """
+
+    with (tmpdir / "cfg.toml").open("w") as fl:
+        fl.write(cfg)
+
+    result_cfg = runner.invoke(main, ["run", "-i", str(tmpdir / "cfg.toml"), "-o", str(cfgdir)])
+    result_cli = runner.invoke(
+        main,
+        [
+            "run",
+            "-o",
+            str(clidir),
+            "--",
+            '--hmf_model="ST"',
+            "--hmf_params=dict(A=0.3)",
+            '--transfer_model="EH"',
+        ],
+    )
+
+    assert result_cfg.exit_code == 0, result_cfg.output
+    assert result_cli.exit_code == 0, result_cli.output
+
+    np.testing.assert_allclose(
+        np.genfromtxt(clidir / "hmf_dndm.txt"), np.genfromtxt(cfgdir / "hmf_dndm.txt"), rtol=1e-10
+    )
+
+
 def test_list_of_parameters(tmpdir):
     runner = CliRunner()
 
@@ -153,4 +195,79 @@ def test_roundtrip_cfg_default_mdef(tmpdir, hmf_model):
 
     np.testing.assert_allclose(
         np.genfromtxt(second / "hmf_dndm.txt"), np.genfromtxt(first / "hmf_dndm.txt"), rtol=1e-10
+    )
+
+
+def test_ctx_to_dct_bare_string_with_equals():
+    """Bare string option values containing '=' are preserved as strings without SyntaxError."""
+    from hmf._cli import _ctx_to_dct
+
+    res = _ctx_to_dct(["--z=1.0", "--hmf_model=ST", "--custom_tag=foo=bar"])
+    assert res == {"z": 1.0, "hmf_model": "ST", "custom_tag": "foo=bar"}
+
+
+def test_ctx_to_dct_safe_eval(tmp_path: Path):
+    """Verify that _ctx_to_dct safely parses literals without code execution."""
+    from hmf._cli import _ctx_to_dct
+
+    # Numbers and booleans
+    assert _ctx_to_dct(["--z=1.0", "--flag=True"]) == {"z": 1.0, "flag": True}
+    # Builtin names must not evaluate to functions
+    assert _ctx_to_dct(["--hmf_model=sum"]) == {"hmf_model": "sum"}
+    # Import-path models containing colons and dots must not raise SyntaxError
+    assert _ctx_to_dct(["--hmf_model=hmf.mass_function.fitting_functions:PS"]) == {
+        "hmf_model": "hmf.mass_function.fitting_functions:PS"
+    }
+    # Arbitrary code strings must remain unexecuted strings
+    marker = tmp_path / "executed"
+    payload = f"__import__('pathlib').Path({marker.as_posix()!r}).touch()"
+    assert _ctx_to_dct([f"--z={payload}"]) == {"z": payload}
+    assert not marker.exists()
+    # Dicts from dict() call or JSON-like dict syntax
+    assert _ctx_to_dct(["--hmf_params=dict(A=0.3)"]) == {"hmf_params": {"A": 0.3}}
+    assert _ctx_to_dct(['--hmf_params={"A": 0.3}']) == {"hmf_params": {"A": 0.3}}
+    # dict() calls nested in their keyword values, or with a positional mapping
+    assert _ctx_to_dct(["--transfer_params=dict(a=dict(b=1))"]) == {
+        "transfer_params": {"a": {"b": 1}}
+    }
+    assert _ctx_to_dct(['--hmf_params=dict({"A": 0.3}, a=1)']) == {"hmf_params": {"A": 0.3, "a": 1}}
+
+
+def test_cli_import_path_model(tmpdir: Path):
+    """A model given by its import path on the CLI resolves as in a config file."""
+    cfgdir = tmpdir / "cfg"
+    cfgdir.mkdir()
+
+    clidir = tmpdir / "cli"
+    clidir.mkdir()
+
+    runner = CliRunner()
+
+    cfg = """
+    [params]
+    hmf_model = 'hmf.mass_function.fitting_functions:PS'
+    transfer_model = 'EH'
+    """
+
+    with (tmpdir / "cfg.toml").open("w") as fl:
+        fl.write(cfg)
+
+    result_cfg = runner.invoke(main, ["run", "-i", str(tmpdir / "cfg.toml"), "-o", str(cfgdir)])
+    result_cli = runner.invoke(
+        main,
+        [
+            "run",
+            "-o",
+            str(clidir),
+            "--",
+            "--hmf_model=hmf.mass_function.fitting_functions:PS",
+            "--transfer_model=EH",
+        ],
+    )
+
+    assert result_cfg.exit_code == 0, result_cfg.output
+    assert result_cli.exit_code == 0, result_cli.output
+
+    np.testing.assert_allclose(
+        np.genfromtxt(clidir / "hmf_dndm.txt"), np.genfromtxt(cfgdir / "hmf_dndm.txt"), rtol=1e-10
     )

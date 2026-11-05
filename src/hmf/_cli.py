@@ -1,9 +1,11 @@
 """Module that contains the command line app."""
 
+import ast
 import importlib
 import tomllib
 from pathlib import Path
 from time import time
+from typing import Any
 
 import click
 import numpy as np
@@ -62,29 +64,54 @@ def _get_config(config=None):
     return cfg
 
 
+def _literal_value(node: ast.expr) -> Any:
+    """Evaluate a literal node, or a ``dict(...)`` call whose arguments are literals.
+
+    The call may have one positional mapping (or iterable of pairs) and keyword
+    arguments, and may be nested in its own arguments. Nothing is executed: any
+    other node raises ``ValueError`` (or ``TypeError``, from ``dict``).
+    """
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "dict"
+        and len(node.args) <= 1
+        and all(kw.arg is not None for kw in node.keywords)
+    ):
+        out = dict(_literal_value(node.args[0])) if node.args else {}
+        out.update({kw.arg: _literal_value(kw.value) for kw in node.keywords})
+        return out
+    return ast.literal_eval(node)
+
+
+def _parse_cli_val(v: str) -> Any:
+    """Convert a CLI value to the literal it spells, or keep it as a string.
+
+    Numbers, booleans, strings, lists, tuples, dicts and ``dict(...)`` calls of
+    literals are converted. Anything else (e.g. a model name or an import path) is
+    returned unchanged, and never evaluated.
+    """
+    try:
+        return _literal_value(ast.parse(v.lstrip(" \t"), mode="eval").body)
+    except (ValueError, TypeError, SyntaxError):
+        return v
+
+
 def _ctx_to_dct(args):
     dct = {}
     j = 0
     while j < len(args):
         arg = args[j]
         if "=" in arg:
-            a = arg.split("=")
-            k = a[0].replace("--", "")
-            v = a[-1]
+            k, v = arg.split("=", 1)
+            k = k.replace("--", "")
             j += 1
         else:
             k = arg.replace("--", "")
             v = args[j + 1]
             j += 2
 
-        try:
-            # For most arguments, this will convert it to the right type.
-            v = eval(v)
-        except NameError:
-            # If it's supposed to be a string, but quotes weren't supplied.
-            v = eval('"' + v + '"')
-
-        dct[k] = v
+        dct[k] = _parse_cli_val(v)
 
     return dct
 
