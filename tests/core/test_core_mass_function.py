@@ -40,7 +40,7 @@ Z = np.array([0.0, 0.5, 1.0, 2.0])
 @pytest.fixture(scope="module")
 def mf():
     """A Planck18 mass function with EH: no Boltzmann run, Tinker08."""
-    return MassFunction.build(transfer_model="EH")
+    return MassFunction.build(**{"transfer.model": "EH"})
 
 
 def _rho_cb(cosmo) -> float:
@@ -54,7 +54,6 @@ def _power_law(n: float, sigma_8: float, fit="PS", cosmo=Planck18, **kwargs) -> 
     transfer = Transfer(cosmology=cosmo, model=UnitTransfer(), n_s=n)
     lp = LinearPower(
         transfer=transfer,
-        growth=Growth.from_transfer(transfer),
         sigma_8=sigma_8,
         species="cb",
         sigma_8_species="cb",
@@ -111,7 +110,7 @@ def test_sigma_8_is_recovered_for_each_species():
 def test_growth_in_einstein_de_sitter():
     """In Einstein-de Sitter, D = a, so sigma(m, z) = sigma(m, 0) / (1 + z)."""
     eds = FlatLambdaCDM(H0=70.0, Om0=1.0, Ob0=0.05, Tcmb0=0.0)
-    mf = MassFunction.build(cosmology=eds, transfer_model="EH", sigma_8=0.8, n_s=0.96)
+    mf = MassFunction.build(cosmology=eds, **{"transfer.model": "EH"}, sigma_8=0.8, n_s=0.96)
     s = mf.sigma(m=M[None, :] * Msun_h, z=Z[:, None])
     expected = s[0] / (1 + Z[:, None])
     np.testing.assert_allclose(s, expected, rtol=1e-6)
@@ -216,8 +215,10 @@ def test_ngtm_is_continuous_across_nodes(mf):
 
 def test_ngtm_truncation_at_the_top_is_negligible():
     """Integrating to 10^18.5 instead of 10^17.5 changes n(>m <= 10^16) by < 1e-12."""
-    base = MassFunction.build(transfer_model="EH")
-    wider = MassFunction.build(transfer_model="EH", mass_accuracy=MassAccuracy(log10_m_max=18.5))
+    base = MassFunction.build(**{"transfer.model": "EH"})
+    wider = MassFunction.build(
+        **{"transfer.model": "EH"}, mass_accuracy=MassAccuracy(log10_m_max=18.5)
+    )
     m = np.logspace(8, 16, 9)
     for z in (0.0, 2.0):
         np.testing.assert_allclose(
@@ -385,7 +386,7 @@ def test_invalid_inputs_raise(mf):
 
 def test_extension_raise_bounds_the_masses():
     mf = MassFunction.build(
-        transfer_model="EH", mass_accuracy=MassAccuracy(log10_m_min=8.0, extension="raise")
+        **{"transfer.model": "EH"}, mass_accuracy=MassAccuracy(log10_m_min=8.0, extension="raise")
     )
     assert mf.ngtm(m=1e8 * Msun_h, z=0.0).value > 0
     with pytest.raises(DomainError):
@@ -496,9 +497,11 @@ def test_build_defaults():
 
 
 def test_build_accepts_names_or_instances():
-    by_name = MassFunction.build(transfer_model="EH", fit="ST", filter="SharpK", growth_model="ODE")
+    by_name = MassFunction.build(
+        **{"transfer.model": "EH"}, fit="ST", filter="SharpK", growth_model="ODE"
+    )
     by_instance = MassFunction.build(
-        transfer_model=Transfer(model="EH").model,
+        **{"transfer.model": Transfer(model="EH").model},
         fit=fits.ST(),
         filter=MassVariance(power=by_name.variance.power, filter="SharpK").filter,
         growth_model=Growth().model,
@@ -509,34 +512,30 @@ def test_build_accepts_names_or_instances():
 def test_build_needs_sigma_8_and_n_s_without_cosmology_meta():
     cosmo = FlatLambdaCDM(H0=70.0, Om0=0.3, Ob0=0.05, Tcmb0=2.7255)
     with pytest.raises(ValueError, match="sigma_8"):
-        MassFunction.build(cosmology=cosmo, transfer_model="EH", n_s=0.96)
+        MassFunction.build(cosmology=cosmo, **{"transfer.model": "EH"}, n_s=0.96)
     with pytest.raises(ValueError, match="n_s"):
-        MassFunction.build(cosmology=cosmo, transfer_model="EH", sigma_8=0.8)
-    mf = MassFunction.build(cosmology=cosmo, transfer_model="EH", sigma_8=0.8, n_s=0.96)
+        MassFunction.build(cosmology=cosmo, **{"transfer.model": "EH"}, sigma_8=0.8)
+    mf = MassFunction.build(cosmology=cosmo, **{"transfer.model": "EH"}, sigma_8=0.8, n_s=0.96)
     assert mf.linear_power.sigma_8 == 0.8
 
 
-def test_default_variance_is_the_linear_powers(mf):
-    stage = MassFunction(linear_power=mf.linear_power)
-    assert stage.variance == mf.variance
+def test_variance_is_of_the_linear_powers_power(mf):
+    """The variance is built from the linear power, with the mass function's settings."""
+    stage = MassFunction(linear_power=mf.linear_power, filter="SharpK")
     assert stage.variance.power == mf.linear_power.power_source
+    assert stage.variance.k_accuracy == mf.linear_power.k_accuracy
+    assert stage.variance.filter == stage.filter
+    assert stage.variance.mass_accuracy == stage.mass_accuracy
+    assert stage.variance.truncation_rtol == stage.truncation_rtol
 
 
-def test_inconsistent_stages_raise(mf):
-    lp = mf.linear_power
-    tot = MassVariance(power=lp.transfer.power_source("tot"), k_accuracy=lp.k_accuracy)
-    with pytest.raises(ValueError, match="power_source"):
-        MassFunction(linear_power=lp, variance=tot)
-    other = Transfer(model="EH", n_s=0.9).power_source("cb")
-    with pytest.raises(ValueError, match="power_source"):
-        MassFunction(linear_power=lp, variance=MassVariance(power=other))
-    with pytest.raises(ValueError, match="KAccuracy"):
-        MassFunction(
-            linear_power=lp,
-            variance=MassVariance(power=lp.power_source, k_accuracy=KAccuracy.fast()),
-        )
+def test_invalid_fields_raise(mf):
     with pytest.raises(ValueError, match="delta_c"):
         mf.evolve(delta_c=0.0)
+    with pytest.raises(ValueError, match="truncation_rtol"):
+        mf.evolve(truncation_rtol=-1.0)
+    with pytest.raises(TypeError, match="computed"):
+        mf.evolve(variance=mf.variance)
 
 
 def test_evolve_shares_the_variance(mf):
@@ -554,8 +553,7 @@ def test_evolve_is_atomic(mf):
     m = M * Msun_h
     before = mf.dndm(m=m, z=0.0)
     fields = {f.name: getattr(mf, f.name) for f in mf.fields_info()}
-    bad = MassVariance(power=Transfer(model="EH", n_s=0.9).power_source("cb"))
-    for changes in ({"variance": bad}, {"delta_c": -1.0}, {"fit": "NotAFit"}):
+    for changes in ({"filter": "NotAFilter"}, {"delta_c": -1.0}, {"fit": "NotAFit"}):
         with pytest.raises((ValueError, LookupError)):
             mf.evolve(**changes)
     assert {f.name: getattr(mf, f.name) for f in mf.fields_info()} == fields
@@ -567,7 +565,7 @@ def _rebuilt(mf: MassFunction, **changes) -> MassFunction:
     lp = mf.linear_power
     kwargs = {
         "cosmology": lp.cosmology,
-        "transfer_model": lp.transfer.model,
+        "transfer.model": lp.transfer.model,
         "n_s": lp.transfer.n_s,
         "sigma_8": lp.sigma_8,
         "fit": mf.fit,
@@ -595,11 +593,7 @@ def test_no_stale_results(mf):
     assert not np.allclose(second, first, rtol=1e-6, atol=0)
 
     cosmo = Planck18.clone(Om0=0.28)
-    transfer = stage.linear_power.transfer.evolve(cosmology=cosmo)
-    lp = stage.linear_power.evolve(
-        transfer=transfer, growth=Growth.from_transfer(transfer), cosmology=cosmo
-    )
-    stage = stage.evolve(linear_power=lp, variance=stage.variance.evolve(power=lp.power_source))
+    stage = stage.evolve(cosmology=cosmo)
     third = stage.dndm(m=m, z=1.0)
     assert not np.allclose(third, second, rtol=1e-6, atol=0)
     fresh = _rebuilt(stage, cosmology=cosmo)
@@ -644,7 +638,7 @@ def test_ngtm_is_bit_identical_under_extension(filt):
     wide = np.logspace(5, 16, 111)
 
     def build():
-        return MassFunction.build(transfer_model="EH", filter=filt, fit="ST")
+        return MassFunction.build(**{"transfer.model": "EH"}, filter=filt, fit="ST")
 
     narrow_first = build()
     n1 = narrow_first.ngtm_kernel(m=narrow, z=1.0)

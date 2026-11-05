@@ -2,30 +2,35 @@ r"""The :class:`MassFunction` stage: the halo mass function as a function of (m,
 
 The stage tree
 --------------
-A mass function is built from three stages and a fit, each stage holding the stages
-it is computed from as fields (the *stage tree*)::
+A mass function is built from a linear power stage, which holds a transfer stage,
+and a fit (the *stage tree*). The growth and the mass variance are *derived* stages
+(:func:`~hmf.core.stage.derived_property`), built from the fields above them::
 
     MassFunction
     ├── linear_power: LinearPower       (sigma_8, the amplitude A, D(z))
     │   ├── transfer: Transfer          (the shape of the power, one Boltzmann run)
-    │   └── growth: Growth              (D(z))
-    ├── variance: MassVariance          (sigma(m) of the power before normalisation)
+    │   └── growth (derived): Growth    (D(z), of linear_power.growth_model)
+    ├── variance (derived): MassVariance (sigma(m) of the power before normalisation)
     └── fit: FittingFunction            (f(sigma))
 
-with the critical overdensity ``delta_c`` and the calibration-domain policy
+with the variance's settings (``filter``, ``mass_accuracy``, ``truncation_rtol``),
+the critical overdensity ``delta_c`` and the calibration-domain policy
 ``domain_policy`` as fields. :meth:`MassFunction.build` builds the whole tree from
-keyword arguments, with hmf 3.x-like defaults.
+parameters by name, with hmf 3.x-like defaults, and :meth:`~MassFunction.evolve` takes
+the same names (see :mod:`hmf.core.routing`): ``mf.evolve(sigma_8=0.75)``,
+``mf.evolve(**{"transfer.model": "EH"})``.
 
-The variance is a field of its own, not built inside the linear-power stage, because
-it does not depend on sigma_8 or z: its power is :attr:`LinearPower.power_source
+The variance belongs to the mass function, not the linear-power stage, because it
+does not depend on sigma_8 or z: its power is :attr:`LinearPower.power_source
 <hmf.core.linear_power.LinearPower.power_source>`, the power before it is normalised,
-and sigma_8 and z only multiply sigma(m). So
-``mf.evolve(linear_power=mf.linear_power.evolve(sigma_8=0.75))`` keeps ``mf.variance``,
-the same object, with every value of sigma(m) it has already computed. Changing z, the
-fit, ``delta_c`` or the policy keeps the variance and the linear-power stage too:
-sigma(m) is not computed again, and no Boltzmann code runs again. A stage is immutable,
-and the constructor validates every combination of fields, so a cached result can
-never be stale (see :mod:`hmf.core.stage`).
+and sigma_8 and z only multiply sigma(m). It is computed from the linear power's
+transfer stage and species and the variance settings only, so
+``mf.evolve(sigma_8=0.75)`` keeps ``mf.variance``, the same object, with every value
+of sigma(m) it has already computed. Changing z, the fit, ``delta_c`` or the policy
+keeps the variance and the linear-power stage too: sigma(m) is not computed again,
+and no Boltzmann code runs again. A stage is immutable, and the constructor validates
+every combination of fields, so a cached result can never be stale (see
+:mod:`hmf.core.stage`).
 
 Quantities
 ----------
@@ -102,6 +107,7 @@ by the growth model's domain and table.
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from functools import cached_property
 from typing import Any
 
@@ -119,8 +125,7 @@ from ._kernels import fits as fit_kernels
 from ._kernels import mass_function as mf_kernels
 from ._kernels.lattice import LATTICE_RTOL, lattice_index
 from ._validators import positive
-from .accuracy import KAccuracy, MassAccuracy, check_consistent
-from .cache import DiskCache, to_disk_cache
+from .accuracy import MassAccuracy
 from .domain import (
     DOMAIN_POLICIES,
     Domain,
@@ -128,16 +133,13 @@ from .domain import (
     Interval,
     check_extent,
 )
-from .filters import Filter
+from .filters import Filter, TopHat
 from .fits import FitInputs, FittingFunction, Tinker08, evaluate_fsigma
-from .growth import Growth
-from .growth_models import GrowthModel
 from .linear_power import LinearPower
 from .mass_variance import MassVariance, n_eff_kernel
+from .routing import GivenParameters
 from .species import omega_m, omega_m0
-from .stage import Stage
-from .transfer import Transfer, UnnormalisedPower
-from .transfer_models import TransferModel
+from .stage import Stage, derived_property
 from .units import (
     Mpc_h,
     Msun_h,
@@ -170,12 +172,6 @@ _POSITIVE_DOMAIN = Domain(
 )
 
 
-def _default_variance(stage: MassFunction) -> MassVariance:
-    """The default variance: a TopHat MassVariance of the linear power's power source."""
-    lp = stage.linear_power
-    return MassVariance(power=lp.power_source, k_accuracy=lp.k_accuracy)
-
-
 def _cosmology_parameter(cosmology: FLRW, key: str, name: str) -> float:
     """A parameter from an astropy cosmology's ``meta`` (e.g. Planck18's ``sigma8``)."""
     value = cosmology.meta.get(key)
@@ -197,13 +193,15 @@ class MassFunction(Stage):
     --------
     >>> import numpy as np
     >>> from hmf.core.units import Msun_h
-    >>> mf = MassFunction.build(transfer_model="EH")
+    >>> mf = MassFunction.build(**{"transfer.model": "EH"})
     >>> m = np.logspace(10, 15, 6) * Msun_h
     >>> mf.dndm(m=m[None, :], z=np.array([0.0, 1.0])[:, None]).shape
     (2, 6)
-    >>> mf2 = mf.evolve(linear_power=mf.linear_power.evolve(sigma_8=0.75))
+    >>> mf2 = mf.evolve(sigma_8=0.75)
     >>> mf2.variance is mf.variance
     True
+    >>> MassFunction.invalidated_by("sigma_8")
+    ('', 'linear_power')
     """
 
     # Fully qualified, so that the docs can tell it from v3's classes.
@@ -211,13 +209,23 @@ class MassFunction(Stage):
         validator=attrs.validators.instance_of(LinearPower),
         doc="The linear power: sigma_8 normalisation and growth.",
     )
-    variance: MassVariance = field(
-        default=attrs.Factory(_default_variance, takes_self=True),
-        validator=attrs.validators.instance_of(MassVariance),
+    filter: Filter = field(
+        factory=TopHat,
+        converter=Filter.coerce,
+        doc="The smoothing filter of the mass variance: a Filter instance, or its alias.",
+    )
+    mass_accuracy: MassAccuracy = field(
+        factory=MassAccuracy,
+        validator=attrs.validators.instance_of(MassAccuracy),
+        doc="The settings of the mass variance's mass lattice.",
+    )
+    truncation_rtol: float = field(
+        default=1e-3,
+        converter=float,
+        validator=positive,
         doc=(
-            "The mass variance of the unnormalised power: its power must be "
-            "linear_power.power_source, and its k_accuracy linear_power's. It defaults to "
-            "a TopHat MassVariance with the default mass accuracy."
+            "The largest bound on the relative error in sigma or its slope, from "
+            "truncating the mass variance's k integrals, accepted for a mass."
         ),
     )
     fit: FittingFunction = field(
@@ -240,65 +248,38 @@ class MassFunction(Stage):
         ),
     )
 
-    def __attrs_post_init__(self) -> None:
-        """Check that the variance is of the linear power's power, at the same accuracy."""
-        power, lp = self.variance.power, self.linear_power
-        same = (
-            isinstance(power, UnnormalisedPower)
-            and power.species == lp.species
-            and (power.transfer is lp.transfer or power.transfer == lp.transfer)
-        )
-        if not same:
-            raise ValueError(
-                "MassFunction: the variance's power must be linear_power.power_source (the "
-                "unnormalised power of the linear power's species, from its transfer "
-                "stage). Build it as MassVariance(power=linear_power.power_source, ...)."
-            )
-        check_consistent(self.linear_power, self.variance)
-
     # ---------------------------------------------------------------------------------
     # Construction
     # ---------------------------------------------------------------------------------
 
     @classmethod
-    def build(
-        cls,
-        *,
-        cosmology: FLRW = Planck18,
-        transfer_model: TransferModel | str = "CAMB",
-        growth_model: GrowthModel | str = "ODE",
-        n_s: float | None = None,
-        sigma_8: float | None = None,
-        species: str = "cb",
-        sigma_8_species: str = "tot",
-        fit: FittingFunction | str = "Tinker08",
-        filter: Filter | str = "TopHat",  # noqa: A002
-        delta_c: float = 1.686,
-        domain_policy: DomainPolicy = "ignore",
-        k_accuracy: KAccuracy | None = None,
-        mass_accuracy: MassAccuracy | None = None,
-        disk_cache: DiskCache | bool | str | None = None,
-    ) -> MassFunction:
-        """Build the whole stage tree, from explicit keyword arguments.
+    def build(cls, **parameters: Any) -> MassFunction:
+        """Build the whole stage tree from parameters by name, with hmf 3.x-like defaults.
 
-        Models may be given as instances, classes or registered names. One
-        ``k_accuracy`` is given to the transfer, growth, linear-power and variance
-        stages, so a CAMB or CLASS growth model shares the transfer's Boltzmann run.
+        The same as :meth:`from_flat`, whose names are those of :meth:`evolve`: the
+        flat names below, dotted paths (``"linear_power.transfer.n_s"``) or unique
+        suffixes of them (``"transfer.model"``), dotted paths into model fields
+        (``"fit.A"``) or nested mappings. Models may be given as instances, classes or
+        registered names. The growth and the mass variance are built from the transfer
+        stage, with its cosmology, ``k_accuracy`` and disk cache, so a CAMB or CLASS
+        growth model shares the transfer's Boltzmann run.
 
         Parameters
         ----------
         cosmology
             The astropy cosmology (default Planck18).
-        transfer_model
-            The transfer model (default CAMB).
+        transfer.model
+            The transfer model (default CAMB); also ``model`` while it is unique.
         growth_model
             The growth model (default the growth ODE).
         n_s
-            The spectral index; by default the cosmology's (``cosmology.meta["n"]``,
-            which astropy's realisations give: 0.9665 for Planck18).
+            The spectral index; by default the cosmology's
+            (``cosmology.meta["n"]``, which astropy's realisations give: 0.9665 for
+            Planck18).
         sigma_8
             The rms of the ``sigma_8_species`` field at 8 Mpc/h today; by default the
-            cosmology's (``cosmology.meta["sigma8"]``: 0.8102 for Planck18).
+            cosmology's (``cosmology.meta["sigma8"]``: 0.8102 for
+            Planck18).
         species
             The matter species of the power: ``"cb"`` (CDM + baryons, default) or
             ``"tot"``.
@@ -317,6 +298,9 @@ class MassFunction(Stage):
             The wavenumber accuracy (default ``KAccuracy()``).
         mass_accuracy
             The mass lattice's accuracy (default ``MassAccuracy()``).
+        truncation_rtol
+            The mass variance's tolerance for truncating its k integrals (default
+            1e-3).
         disk_cache
             Where to cache Boltzmann-code output on disk (see
             :attr:`Transfer.disk_cache <hmf.core.transfer.Transfer.disk_cache>`).
@@ -327,48 +311,68 @@ class MassFunction(Stage):
 
         Raises
         ------
+        TypeError
+            For a name that is not a parameter (with suggestions), or is ambiguous.
         ValueError
             If ``n_s`` or ``sigma_8`` is not given and the cosmology's ``meta`` does
             not have it, or for any invalid argument.
         """
-        k_accuracy = KAccuracy() if k_accuracy is None else k_accuracy
-        mass_accuracy = MassAccuracy() if mass_accuracy is None else mass_accuracy
-        if n_s is None:
-            n_s = _cosmology_parameter(cosmology, "n", "n_s")
-        if sigma_8 is None:
-            sigma_8 = _cosmology_parameter(cosmology, "sigma8", "sigma_8")
-        transfer = Transfer(
-            cosmology=cosmology,
-            model=TransferModel.coerce(transfer_model),
-            n_s=n_s,
-            k_accuracy=k_accuracy,
-            disk_cache=to_disk_cache(disk_cache),
-        )
-        growth = Growth.from_transfer(transfer, model=growth_model)
-        linear_power = LinearPower(
-            transfer=transfer,
-            growth=growth,
-            sigma_8=sigma_8,
-            species=species,
-            sigma_8_species=sigma_8_species,
-        )
-        variance = MassVariance(
-            power=linear_power.power_source,
-            filter=Filter.coerce(filter),
-            mass_accuracy=mass_accuracy,
-            k_accuracy=k_accuracy,
-        )
-        return cls(
-            linear_power=linear_power,
-            variance=variance,
-            fit=FittingFunction.coerce(fit),
-            delta_c=delta_c,
-            domain_policy=domain_policy,
-        )
+        return cls.from_flat(parameters)
+
+    @classmethod
+    def computed_defaults(cls, given: GivenParameters) -> Mapping[str, Any]:
+        """The defaults of n_s and sigma_8: the cosmology's (see :meth:`build`).
+
+        Parameters
+        ----------
+        given
+            The parameters given, by dotted path.
+
+        Returns
+        -------
+        Mapping
+            ``n_s`` and ``sigma_8``, from ``cosmology.meta``.
+
+        Raises
+        ------
+        ValueError
+            If one of them is not given and the cosmology's ``meta`` does not have it.
+        """
+        cosmology = given.get("linear_power.transfer.cosmology", Planck18)
+        out = {}
+        if "linear_power.transfer.n_s" not in given:
+            out["linear_power.transfer.n_s"] = _cosmology_parameter(cosmology, "n", "n_s")
+        if "linear_power.sigma_8" not in given:
+            out["linear_power.sigma_8"] = _cosmology_parameter(cosmology, "sigma8", "sigma_8")
+        return out
 
     # ---------------------------------------------------------------------------------
     # Setup
     # ---------------------------------------------------------------------------------
+
+    @derived_property(
+        "linear_power.transfer",
+        "linear_power.species",
+        "filter",
+        "mass_accuracy",
+        "truncation_rtol",
+    )
+    def variance(self) -> MassVariance:
+        """The mass variance of the linear power's unnormalised power, at z = 0.
+
+        Of :attr:`LinearPower.power_source
+        <hmf.core.linear_power.LinearPower.power_source>` (sigma_8 and z do not change
+        it), with ``filter``, ``mass_accuracy``, ``truncation_rtol`` and the transfer
+        stage's ``k_accuracy``.
+        """
+        lp = self.linear_power
+        return MassVariance(
+            power=lp.power_source,
+            filter=self.filter,
+            mass_accuracy=self.mass_accuracy,
+            k_accuracy=lp.k_accuracy,
+            truncation_rtol=self.truncation_rtol,
+        )
 
     @property
     def cosmology(self) -> FLRW:

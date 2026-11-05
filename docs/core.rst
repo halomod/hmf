@@ -89,8 +89,11 @@ Models (:mod:`hmf.core.model`)
 Stages (:mod:`hmf.core.stage`)
     A stage is one immutable step of a calculation. Parameters change through
     ``evolve()``, which returns a new stage; expensive results are cached with
-    :func:`functools.cached_property`. ``fields_info()`` describes the parameters
-    without creating an instance. A stage computed from a cosmology
+    :func:`functools.cached_property`. ``evolve()`` and ``from_flat()`` take the
+    parameters of the whole stage tree by name, through a routing table built from
+    the classes (:mod:`hmf.core.routing`, see `Changing parameters`_), and
+    ``fields_info()``, ``parameter_info()``, ``quantities_available()`` and
+    ``invalidated_by()`` describe a stage tree without creating an instance. A stage computed from a cosmology
     (:class:`~hmf.core.transfer.Transfer`, :class:`~hmf.core.growth.Growth`)
     subclasses :class:`~hmf.core.stage.CosmologyStage`, which holds the
     ``cosmology`` field and converts physical units with its H0.
@@ -164,7 +167,9 @@ Errors
     * :class:`ValueError`: a bad option, configuration or combination, or a missing
       input. A model that does not apply to the cosmology it is given (e.g.
       ``Eisenstein97Growth`` with a non-flat cosmology) is a configuration error.
-    * :class:`TypeError`: an object of the wrong kind.
+    * :class:`TypeError`: an object of the wrong kind, or a parameter name that is
+      not one: unknown (with the closest names), ambiguous (with the dotted paths
+      to choose from), derived, given twice, or a required one that is missing.
 
     So ``except ValueError`` catches every bad input, and ``except DomainError`` only
     values out of range.
@@ -281,16 +286,19 @@ Composing stages
 ----------------
 :class:`~hmf.core.mass_function.MassFunction` combines the stages above and a fitting
 function into the halo mass function, as a function of mass and redshift. Each stage
-holds the stages it is computed from as fields, so together they form a *stage tree*::
+holds the stages it is computed from as fields, so together they form a *stage tree*.
+A stage computed from the fields above it, rather than given, is a *derived* stage
+(:func:`~hmf.core.stage.derived_property`)::
 
     MassFunction
     ├── linear_power: LinearPower    σ8 normalisation and P(k, z)
     │   ├── transfer: Transfer       T(k), from one Boltzmann-code run
-    │   └── growth: Growth           the growth factor D(z)
-    ├── variance: MassVariance       σ(m) of the power before normalisation
+    │   └── growth (derived): Growth the growth factor D(z), of growth_model
+    ├── variance (derived): MassVariance  σ(m) of the power before normalisation
     └── fit: FittingFunction         f(σ), e.g. Tinker08
 
-plus the critical overdensity ``delta_c`` and the ``domain_policy`` as fields of
+plus the variance's ``filter``, ``mass_accuracy`` and ``truncation_rtol``, the
+critical overdensity ``delta_c`` and the ``domain_policy`` as fields of
 ``MassFunction``. :meth:`MassFunction.build <hmf.core.mass_function.MassFunction.build>`
 builds the whole tree, with hmf 3.x-like defaults (Planck18, CAMB, the growth ODE, σ8
 and n_s from the cosmology, Tinker08, a top-hat filter, and the CDM + baryon power
@@ -311,7 +319,7 @@ normalised by the σ8 of total matter). Every method takes its arguments by keyw
 
 Changing a parameter gives a new stage, with ``evolve``; the old one is unchanged::
 
-    lower = mf.evolve(linear_power=mf.linear_power.evolve(sigma_8=0.75))
+    lower = mf.evolve(sigma_8=0.75)
     lower.variance is mf.variance  # True: the mass variance is reused, not recomputed
 
 What each part does:
@@ -319,8 +327,9 @@ What each part does:
 * :class:`~hmf.core.linear_power.LinearPower` normalises the power spectrum to σ8:
   P(k, z) = A D²(z) P_raw(k), where P_raw is the transfer stage's k^n_s T²(k) and the
   amplitude A = (σ8/σ8,raw)² is a single number (σ8,raw is the rms of P_raw in a
-  sphere of 8 Mpc/h). It holds the one :class:`~hmf.core.accuracy.KAccuracy` of the
-  tree, and checks that the transfer and growth stages use it and the same cosmology.
+  sphere of 8 Mpc/h). Its growth stage is built from its transfer stage, so the
+  cosmology, the one :class:`~hmf.core.accuracy.KAccuracy` of the tree and the disk
+  cache are the transfer stage's, held in one place.
 * The :class:`~hmf.core.mass_variance.MassVariance` is computed from P_raw, the power
   *before* it is normalised and scaled to a redshift: σ8 and z only multiply it, by
   √A D(z). So changing σ8, z, the fit, δc or the domain policy reuses the mass
@@ -335,20 +344,97 @@ What each part does:
   calibrated on, ``domain_policy`` (``"ignore"``, ``"warn"``, ``"mask"`` or ``"raise"``)
   decides what happens at each mass and redshift asked for.
 
-``evolve`` changes a stage's own fields. To change a parameter deeper in the tree,
-evolve the stage that holds it, and the ones above it. A change of the power spectrum
-itself (``n_s``, the cosmology, ``species``) also needs a new mass variance, of the
-new power::
+Changing parameters
+-------------------
+A stage tree's parameters are routed by a table that :mod:`hmf.core.routing` builds
+once per stage class, from the ``attrs`` fields of the classes: it creates no stage
+and computes nothing. :meth:`~hmf.core.stage.Stage.evolve`,
+:meth:`~hmf.core.stage.Stage.from_flat` and
+:meth:`MassFunction.build <hmf.core.mass_function.MassFunction.build>` take the same
+names, of three kinds:
 
-    transfer = mf.linear_power.transfer.evolve(n_s=0.95)
-    linear_power = mf.linear_power.evolve(transfer=transfer)
-    tilted = mf.evolve(
-        linear_power=linear_power,
-        variance=mf.variance.evolve(power=linear_power.power_source),
-    )
+* **Flat names**, for every field whose name appears once in the tree:
+  ``cosmology``, ``n_s``, ``k_accuracy``, ``disk_cache``, ``growth_model``,
+  ``sigma_8``, ``species``, ``sigma_8_species``, ``filter``, ``mass_accuracy``,
+  ``truncation_rtol``, ``fit``, ``delta_c``, ``domain_policy``. More generally, any
+  dotted suffix of a field's path that ends no other field's path names it:
+  ``"transfer.model"`` is the transfer model however many other stages have a
+  ``model``. A stage lists the fields whose names are too generic to stand alone
+  in ``qualified_parameters``; :meth:`~hmf.core.stage.Stage.parameter_names` gives
+  them with the stage's name, so the transfer model is listed as
+  ``"transfer.model"`` (a bare ``model`` still works while it is unique).
+* **Shared parameters**: a name that a stage lists in ``shared_parameters`` is one
+  parameter in its tree, and a change to it changes every field of that name below
+  the stage, so that they stay equal. A :class:`~hmf.core.growth.Growth` stage with a
+  transfer stage shares ``cosmology``, ``k_accuracy`` and ``disk_cache`` with it. In a
+  mass function each of them is held once, by the transfer stage.
+* **Dotted paths**, always: ``"linear_power.sigma_8"``,
+  ``"linear_power.transfer.model"``; a suffix that ends several paths is ambiguous,
+  and its error lists the names to choose from. A stage's path replaces the whole stage
+  (``mf.evolve(linear_power=lp)``), and a path into a model field changes that field
+  of the model (``"fit.a"``, ``"transfer.model.z_max"``).
 
-Each step is validated: ``mf.evolve(linear_power=linear_power)`` alone raises a
-:class:`ValueError`, because its mass variance would still be of the old power.
+So the flat names of a mass function are exactly :meth:`build
+<hmf.core.mass_function.MassFunction.build>`'s keywords::
+
+    mf = MassFunction.build(**{"transfer.model": "EH"}, fit="ST", sigma_8=0.8)
+    mf.evolve(sigma_8=0.85, n_s=0.95)
+    mf.evolve(cosmology=Planck15)              # the cosmology of the whole tree
+    mf.evolve(**{"fit.a": 0.75})               # a parameter of the fit
+    mf.evolve(**{"linear_power.transfer.n_s": 0.95})
+    MassFunction.from_flat({"transfer.model": "EH", "linear_power": {"sigma_8": 0.8}})
+
+A name that is not a parameter raises a :class:`TypeError` at once, before anything
+is built, with the closest names (``mf.evolve(sigma8=0.8)``: "Did you mean
+'sigma_8'?"); an ambiguous one lists the dotted paths to choose from.
+
+``evolve`` rebuilds only the stages on the path from each changed field up to the
+root, with each stage's own ``evolve_own``; every other stage is *shared*, the same
+object, with every result it has cached. A derived stage is computed from fields it
+declares (the variance from the linear power's transfer stage and species and the
+variance settings; the growth from the transfer stage and ``growth_model``), and
+``evolve_own`` carries it, once computed, to the new stage when none of them
+changes. So ``mf.evolve(sigma_8=0.85)`` rebuilds the linear power and the mass
+function, and keeps the transfer, growth and variance stages;
+``mf.evolve(filter="SharpK")`` keeps the linear power; ``mf.evolve(fit="ST")`` keeps
+both; ``mf.evolve(**{"transfer.model": "BBKS"})`` gives a new variance, of the new power.
+Each new stage is validated by its constructor; if any fails, ``evolve`` raises and
+the original tree is unchanged.
+
+Every question about the parameters is answered from the classes, without building
+a stage or running a Boltzmann code::
+
+    MassFunction.parameter_names()        # ('cosmology', 'transfer.model', 'n_s', ...)
+    MassFunction.parameter_info()["sigma_8"].path    # 'linear_power.sigma_8'
+    MassFunction.parameter_defaults()["sigma_8"]     # 0.8102, from Planck18
+    MassFunction.quantities_available()[""]          # ('dlnsigma_dlnm', 'dndlnm', ...)
+    MassFunction.invalidated_by("sigma_8")           # ('', 'linear_power')
+    mf.to_flat()                          # every parameter's value, for from_flat
+
+Extension stages
+    A stage that holds other stages (as fields whose type is a
+    :class:`~hmf.core.stage.Stage`) gets a routing table of its own, which includes
+    the tables of the stages it holds: a stage holding a ``MassFunction`` takes
+    ``evolve(sigma_8=...)`` with no further code. It declares
+
+    * the stages it computes from its fields with
+      :func:`@derived_property(*inputs) <hmf.core.stage.derived_property>`, naming
+      the fields (dotted paths below the stage) each is computed from, so that
+      ``evolve`` carries it when none of them changes;
+    * the names of its tree that are one parameter in the class attribute
+      ``shared_parameters``: the stage that composes the others decides, whatever
+      the stages it holds declare;
+    * the fields whose names are too generic to stand alone in
+      ``qualified_parameters``, listed with the stage's name;
+    * and defaults that depend on other parameters (as ``build`` takes σ8 and n_s from
+      the cosmology) in the class method ``computed_defaults``.
+
+    A derived property's input that is not a field of the tree raises a
+    :class:`TypeError` when the table is first built.
+    :func:`~hmf.core.stage.undeclared_inputs` checks, in a test, that each derived
+    property declares every field it reads (and every stage it holds): run on a stage
+    of the extension, it returns the fields each one reads but does not declare.
+    Declaring an input that is read only on some branches is safe.
 
 API
 ---

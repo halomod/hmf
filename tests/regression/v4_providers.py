@@ -49,7 +49,7 @@ from hmf.core.fits import FittingFunction, MeasuredMassDefinition, Watson
 from hmf.core.growth import Growth
 from hmf.core.linear_power import LinearPower
 from hmf.core.mass_function import MassFunction
-from hmf.core.mass_variance import MassVariance, n_eff_kernel
+from hmf.core.mass_variance import n_eff_kernel
 from hmf.core.species import omega_m, omega_m0
 from hmf.core.transfer import Transfer
 from hmf.core.transfer_models import CAMB, FromArray
@@ -269,7 +269,7 @@ def _linear_power(reference: Reference, cosmology: str, transfer_model: str) -> 
     stage = Transfer(cosmology=reference.cosmology(cosmology), model=model, n_s=settings["n"])
     return LinearPower(
         transfer=stage,
-        growth=Growth.from_transfer(stage, model="ODE"),
+        growth_model="ODE",
         sigma_8=settings["sigma_8"],
         species="cb",
         sigma_8_species="tot",
@@ -280,8 +280,7 @@ def _linear_power(reference: Reference, cosmology: str, transfer_model: str) -> 
 def _mass_function(reference: Reference, cosmology: str, transfer: str, filt: str) -> MassFunction:
     """The v4 MassFunction of a case (its fit is set per case with ``evolve``)."""
     lp = _linear_power(reference, cosmology, transfer)
-    variance = MassVariance(power=lp.power_source, filter=filt, k_accuracy=lp.k_accuracy)
-    return MassFunction(linear_power=lp, variance=variance, delta_c=reference.settings["delta_c"])
+    return MassFunction(linear_power=lp, filter=filt, delta_c=reference.settings["delta_c"])
 
 
 def _quiet_extrapolation(fn):

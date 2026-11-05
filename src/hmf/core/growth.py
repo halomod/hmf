@@ -26,7 +26,7 @@ outside the redshifts it covers.
 from __future__ import annotations
 
 from functools import cached_property
-from typing import Any
+from typing import Any, ClassVar
 
 import attrs
 import numpy as np
@@ -94,6 +94,12 @@ class Growth(CosmologyStage):
             "Where to cache Boltzmann-code output on disk (see Transfer.disk_cache), for "
             "a run the growth model makes itself."
         ),
+    )
+
+    #: A growth stage with a transfer stage holds their cosmology, k_accuracy and disk
+    #: cache twice; each is one parameter (see Stage.shared_parameters).
+    shared_parameters: ClassVar[frozenset[str]] = frozenset(
+        {"cosmology", "k_accuracy", "disk_cache"}
     )
 
     @transfer.validator
