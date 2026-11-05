@@ -97,11 +97,47 @@ class GrowthSolution:
     run: BoltzmannRun | None = None
 
     def growth_factor(self, z: Array, species: str = "cb") -> Array:
-        """D(z)/D(0) of ``species`` (NaN outside ``0 <= z <= z_max``)."""
+        """D(z)/D(0) of ``species`` (NaN outside ``0 <= z <= z_max``).
+
+        Parameters
+        ----------
+        z
+            Redshifts (dimensionless).
+        species
+            ``"cb"`` or ``"tot"``.
+
+        Returns
+        -------
+        numpy.ndarray
+            D(z)/D(0), with the shape of ``z``.
+
+        Raises
+        ------
+        ValueError
+            If ``species`` is not one of :data:`~hmf.core.species.MATTER_SPECIES`.
+        """
         return self.tables[check_species(species)].growth_factor(z)
 
     def growth_rate(self, z: Array, species: str = "cb") -> Array:
-        """The growth rate d ln D / d ln a of ``species`` (NaN outside the table)."""
+        """The growth rate d ln D / d ln a of ``species`` (NaN outside the table).
+
+        Parameters
+        ----------
+        z
+            Redshifts (dimensionless).
+        species
+            ``"cb"`` or ``"tot"``.
+
+        Returns
+        -------
+        numpy.ndarray
+            d ln D / d ln a, with the shape of ``z``.
+
+        Raises
+        ------
+        ValueError
+            If ``species`` is not one of :data:`~hmf.core.species.MATTER_SPECIES`.
+        """
         return self.tables[check_species(species)].growth_rate(z)
 
 
@@ -235,7 +271,18 @@ class _Gridded(GrowthModel, abstract=True):
         disk_cache: DiskCache | None = None,
         k_accuracy: KAccuracy = _DEFAULT_K_ACCURACY,
     ) -> GrowthSolution:
-        """Compute the growth (see :meth:`GrowthModel.solve`)."""
+        """Compute the growth (see :meth:`GrowthModel.solve`).
+
+        Parameters
+        ----------
+        cosmology, run, disk_cache, k_accuracy
+            As for :meth:`GrowthModel.solve`.
+
+        Returns
+        -------
+        GrowthSolution
+            The growth of every species.
+        """
         self.check_cosmology(cosmology)
         ln_a = kg.ln_a_grid(self.a_min, self.dln_a)
         d, f = self._growth(cosmology, ln_a)
@@ -310,7 +357,18 @@ class IntegralGrowth(_Gridded, alias="Integral"):
     references: ClassVar[tuple[str, ...]] = (refs.HEATH77,)
 
     def check_cosmology(self, cosmology: FLRW) -> None:
-        """Raise unless the cosmology has a cosmological constant."""
+        """Raise unless the cosmology has a cosmological constant.
+
+        Parameters
+        ----------
+        cosmology
+            The cosmology.
+
+        Raises
+        ------
+        ValueError
+            If the dark energy is not a cosmological constant.
+        """
         _check_lambda(cosmology, type(self).__name__)
 
     def _growth(self, cosmology: FLRW, ln_a: Array) -> tuple[Array, Array | None]:
@@ -329,7 +387,18 @@ class Eisenstein97Growth(_Gridded, alias="Eisenstein97"):
     references: ClassVar[tuple[str, ...]] = (refs.EH97,)
 
     def check_cosmology(self, cosmology: FLRW) -> None:
-        """Raise unless the cosmology is flat with a cosmological constant."""
+        """Raise unless the cosmology is flat with a cosmological constant.
+
+        Parameters
+        ----------
+        cosmology
+            The cosmology.
+
+        Raises
+        ------
+        ValueError
+            If the dark energy is not a cosmological constant, or the cosmology is not flat.
+        """
         _check_lambda(cosmology, type(self).__name__)
         if not cosmology.is_flat:
             raise ValueError("Eisenstein97Growth only applies to flat cosmologies.")
@@ -349,7 +418,18 @@ class Heath77Growth(_Gridded, alias="Heath77"):
     references: ClassVar[tuple[str, ...]] = (refs.HEATH77,)
 
     def check_cosmology(self, cosmology: FLRW) -> None:
-        """Raise unless the cosmology has no dark energy."""
+        """Raise unless the cosmology has no dark energy.
+
+        Parameters
+        ----------
+        cosmology
+            The cosmology.
+
+        Raises
+        ------
+        ValueError
+            If the cosmology has dark energy.
+        """
         if cosmology.Ode0 != 0:
             raise ValueError("Heath77Growth only applies to cosmologies without dark energy.")
 
@@ -370,7 +450,18 @@ class GenMFGrowth(_Gridded, alias="GenMF"):
     references: ClassVar[tuple[str, ...]] = (refs.REED07,)
 
     def check_cosmology(self, cosmology: FLRW) -> None:
-        """Raise unless the cosmology is a flat or open LambdaCDM."""
+        """Raise unless the cosmology is a flat or open LambdaCDM.
+
+        Parameters
+        ----------
+        cosmology
+            The cosmology.
+
+        Raises
+        ------
+        ValueError
+            If the dark energy is not a cosmological constant, or the cosmology is closed.
+        """
         _check_lambda(cosmology, type(self).__name__)
         if cosmology.Ok0 < -1e-12:
             raise ValueError("GenMFGrowth only applies to flat or open cosmologies.")
@@ -432,7 +523,18 @@ class FromArray(GrowthModel, alias="FromArray"):
         disk_cache: DiskCache | None = None,
         k_accuracy: KAccuracy = _DEFAULT_K_ACCURACY,
     ) -> GrowthSolution:
-        """Compute the growth (see :meth:`GrowthModel.solve`)."""
+        """Compute the growth (see :meth:`GrowthModel.solve`).
+
+        Parameters
+        ----------
+        cosmology, run, disk_cache, k_accuracy
+            As for :meth:`GrowthModel.solve`.
+
+        Returns
+        -------
+        GrowthSolution
+            The growth of every species.
+        """
         z, d = self._arrays()
         order = np.argsort(z)[::-1]
         table = kg.tabulate_growth(-np.log1p(z[order]), d[order])
@@ -457,7 +559,18 @@ class FromFile(GrowthModel, alias="FromFile"):
         disk_cache: DiskCache | None = None,
         k_accuracy: KAccuracy = _DEFAULT_K_ACCURACY,
     ) -> GrowthSolution:
-        """Compute the growth (see :meth:`GrowthModel.solve`)."""
+        """Compute the growth (see :meth:`GrowthModel.solve`).
+
+        Parameters
+        ----------
+        cosmology, run, disk_cache, k_accuracy
+            As for :meth:`GrowthModel.solve`.
+
+        Returns
+        -------
+        GrowthSolution
+            The growth of every species.
+        """
         data = np.atleast_2d(np.genfromtxt(self.fname))
         z, d = dimensionless_floats(data[:, 0]), dimensionless_floats(data[:, 1])
         return FromArray(z=z, d=d).solve(cosmology)
@@ -488,7 +601,18 @@ class _BoltzmannGrowth(_BoltzmannBacked, GrowthModel, abstract=True):
         disk_cache: DiskCache | None = None,
         k_accuracy: KAccuracy = _DEFAULT_K_ACCURACY,
     ) -> GrowthSolution:
-        """Compute the growth (see :meth:`GrowthModel.solve`)."""
+        """Compute the growth (see :meth:`GrowthModel.solve`).
+
+        Parameters
+        ----------
+        cosmology, run, disk_cache, k_accuracy
+            As for :meth:`GrowthModel.solve`.
+
+        Returns
+        -------
+        GrowthSolution
+            The growth of every species.
+        """
         self.check_cosmology(cosmology)
         usable = (
             run is not None

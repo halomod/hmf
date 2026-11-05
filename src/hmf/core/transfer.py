@@ -287,9 +287,7 @@ class UnnormalisedPower:
             where=f"UnnormalisedPower.ln_power_kernel ({model.__name__})",
             ln_values=True,
         )
-        ln_t = self.transfer.solution.ln_transfer(np.exp(ln_k), self.species)
-        out: Array = self.transfer.n_s * ln_k + 2 * ln_t
-        return out
+        return self._shape(np.exp(ln_k), ln_k=ln_k)
 
     def power_kernel(self, k: Array) -> Array:
         """:math:`k^{n_s} T(k)^2`, dimensionless, at k in h/Mpc (a plain array).
@@ -316,8 +314,22 @@ class UnnormalisedPower:
             model.valid_domain,
             where=f"UnnormalisedPower.power_kernel ({model.__name__})",
         )
-        out: Array = k**self.transfer.n_s * self.transfer.solution.transfer(k, self.species) ** 2
-        return out
+        return self._shape(k, ln_k=None)
+
+    def _shape(self, k: Array, *, ln_k: Array | None) -> Array:
+        """:math:`k^{n_s} T(k)^2` at k in h/Mpc, or its ln if ``ln_k`` (ln k) is given.
+
+        The one definition of the shape, for both kernels. Each form is evaluated
+        directly (the power as a product, its ln as a sum), not one as the exp or ln
+        of the other, which would differ from it by round-off.
+        """
+        n_s = self.transfer.n_s
+        ln_t = self.transfer.solution.ln_transfer(k, self.species)
+        if ln_k is not None:
+            ln_power: Array = n_s * ln_k + 2 * ln_t
+            return ln_power
+        power: Array = k**n_s * np.exp(ln_t) ** 2
+        return power
 
     @cached_property
     def rho_mean0(self) -> float:

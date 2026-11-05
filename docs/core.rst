@@ -202,7 +202,9 @@ Fitting functions (:mod:`hmf.core.fits`)
     n_eff, and the mass m as a Quantity), never a cosmology or a mass-definition
     object; each fit lists the inputs it needs. Code that already holds plain
     arrays in canonical units, such as a :class:`~hmf.core.stage.Stage`, passes them
-    in a :class:`~hmf.core.fits.FitInputs` instead. Each declares a valid domain (where ``fsigma`` always
+    in a :class:`~hmf.core.fits.FitInputs` instead, built by
+    :meth:`FittingFunction.inputs_from_arrays
+    <hmf.core.fits.FittingFunction.inputs_from_arrays>`. Each declares a valid domain (where ``fsigma`` always
     raises outside) and a calibration domain taken from its paper, with the source
     cited; :func:`~hmf.core.fits.evaluate_fsigma` applies a domain policy to the
     latter. Each also records, as metadata, the mass definition it was measured in and
@@ -281,6 +283,21 @@ radius can also be evaluated directly, without the lattice
 (:meth:`~hmf.core.mass_variance.MassVariance.ln_sigma_at_radius_kernel`, e.g. σ8),
 and agrees with the lattice to
 :data:`~hmf.core.mass_variance.INTERPOLATION_RTOL` at the default settings.
+
+To use your own power spectrum, implement the
+:class:`~hmf.core.power_source.PowerSource` protocol: ``ln_power_kernel``,
+``rho_mean0``, ``table_range``, and ``_unit_context``, the
+:class:`~hmf.core.units.UnitContext` (with its H0) of the stages built on the
+source. ``_unit_context`` comes from :class:`~hmf.core.units.HasUnitContext` and is
+required, despite its leading underscore: every
+:func:`~hmf.core.units.unit_boundary` method reads it by that name on its fast path,
+and the underscore keeps it out of a stage's public outputs, since it is a detail of
+the units machinery rather than a result. Provide it as a
+:func:`functools.cached_property`::
+
+    @functools.cached_property
+    def _unit_context(self) -> UnitContext:
+        return UnitContext(self.H0)
 
 Composing stages
 ----------------

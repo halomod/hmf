@@ -103,11 +103,47 @@ class TransferSolution:
         return tuple(self.ln_t_functions)
 
     def ln_transfer(self, k: Array, species: str = "cb") -> Array:
-        """Ln T(k) of ``species``, with k in h/Mpc."""
+        """Ln T(k) of ``species``, with k in h/Mpc.
+
+        Parameters
+        ----------
+        k
+            Wavenumbers in h/Mpc: a plain array.
+        species
+            ``"cb"`` or ``"tot"``.
+
+        Returns
+        -------
+        numpy.ndarray
+            ln T(k) (dimensionless), with the shape of ``k``.
+
+        Raises
+        ------
+        ValueError
+            If ``species`` is not one of :data:`~hmf.core.species.MATTER_SPECIES`.
+        """
         return self.ln_t_functions[check_species(species)](np.asarray(k, dtype=float))
 
     def transfer(self, k: Array, species: str = "cb") -> Array:
-        """T(k) of ``species``, with k in h/Mpc."""
+        """T(k) of ``species``, with k in h/Mpc.
+
+        Parameters
+        ----------
+        k
+            Wavenumbers in h/Mpc: a plain array.
+        species
+            ``"cb"`` or ``"tot"``.
+
+        Returns
+        -------
+        numpy.ndarray
+            T(k) (dimensionless), with the shape of ``k``.
+
+        Raises
+        ------
+        ValueError
+            If ``species`` is not one of :data:`~hmf.core.species.MATTER_SPECIES`.
+        """
         out: Array = np.exp(self.ln_transfer(k, species))
         return out
 
@@ -205,14 +241,41 @@ class EH_BAO(TransferModel, alias="EH_BAO"):
     parameter_source: ClassVar[str] = "Eisenstein & Hu 1998, ApJ 496, 605, Eqs. 2-24"
 
     def check_cosmology(self, cosmology: FLRW) -> None:
-        """Raise unless the cosmology has baryons."""
+        """Raise unless the cosmology has baryons.
+
+        Parameters
+        ----------
+        cosmology
+            The cosmology.
+
+        Raises
+        ------
+        ValueError
+            If the cosmology has no baryons (``Ob0`` is 0 or ``None``).
+        """
         if not cosmology.Ob0:
             raise ValueError(f"{type(self).__name__} needs a cosmology with baryons (Ob0 > 0).")
 
     def solve(
         self, cosmology: FLRW, k_accuracy: KAccuracy, *, disk_cache: DiskCache | None = None
     ) -> TransferSolution:
-        """Compute the transfer function (see :meth:`TransferModel.solve`)."""
+        """Compute the transfer function (see :meth:`TransferModel.solve`).
+
+        Parameters
+        ----------
+        cosmology, k_accuracy, disk_cache
+            As for :meth:`TransferModel.solve`.
+
+        Returns
+        -------
+        TransferSolution
+            The transfer function of every species.
+
+        Raises
+        ------
+        ValueError
+            If the cosmology has no baryons.
+        """
         self.check_cosmology(cosmology)
         return TransferSolution(
             _all_species(functools.partial(kt.ln_t_eh98, scales=_eh98_scales(cosmology)))
@@ -238,7 +301,18 @@ class EH_NoBAO(TransferModel, alias="EH_NoBAO"):
     def solve(
         self, cosmology: FLRW, k_accuracy: KAccuracy, *, disk_cache: DiskCache | None = None
     ) -> TransferSolution:
-        """Compute the transfer function (see :meth:`TransferModel.solve`)."""
+        """Compute the transfer function (see :meth:`TransferModel.solve`).
+
+        Parameters
+        ----------
+        cosmology, k_accuracy, disk_cache
+            As for :meth:`TransferModel.solve`.
+
+        Returns
+        -------
+        TransferSolution
+            The transfer function of every species.
+        """
         return TransferSolution(
             _all_species(functools.partial(kt.ln_t_eh98_no_wiggle, scales=_eh98_scales(cosmology)))
         )
@@ -309,7 +383,18 @@ class BBKS(TransferModel, alias="BBKS"):
     def solve(
         self, cosmology: FLRW, k_accuracy: KAccuracy, *, disk_cache: DiskCache | None = None
     ) -> TransferSolution:
-        """Compute the transfer function (see :meth:`TransferModel.solve`)."""
+        """Compute the transfer function (see :meth:`TransferModel.solve`).
+
+        Parameters
+        ----------
+        cosmology, k_accuracy, disk_cache
+            As for :meth:`TransferModel.solve`.
+
+        Returns
+        -------
+        TransferSolution
+            The transfer function of every species.
+        """
         fn = functools.partial(
             kt.ln_t_bbks,
             gamma=self._shape_parameter(cosmology),
@@ -345,7 +430,18 @@ class BondEfs(TransferModel, alias="BondEfs"):
     def solve(
         self, cosmology: FLRW, k_accuracy: KAccuracy, *, disk_cache: DiskCache | None = None
     ) -> TransferSolution:
-        """Compute the transfer function (see :meth:`TransferModel.solve`)."""
+        """Compute the transfer function (see :meth:`TransferModel.solve`).
+
+        Parameters
+        ----------
+        cosmology, k_accuracy, disk_cache
+            As for :meth:`TransferModel.solve`.
+
+        Returns
+        -------
+        TransferSolution
+            The transfer function of every species.
+        """
         fn = functools.partial(
             kt.ln_t_bond_efs,
             gamma=float(cosmology.Om0 * cosmology.h),
@@ -657,7 +753,18 @@ class CAMB(_Boltzmann, alias="CAMB"):
             check_camb_settings(name for name, _ in value)
 
     def run_input(self, cosmology: FLRW, k_accuracy: KAccuracy) -> dict[str, Any]:
-        """The CAMB input (see :meth:`_Boltzmann.run_input`)."""
+        """The CAMB input (see :meth:`_Boltzmann.run_input`).
+
+        Parameters
+        ----------
+        cosmology, k_accuracy
+            As for :meth:`_Boltzmann.run_input`.
+
+        Returns
+        -------
+        dict
+            As for :meth:`_Boltzmann.run_input`.
+        """
         return {
             "cosmology": camb_cosmology_input(cosmology),
             "dark_energy_model": self.dark_energy_model,
@@ -736,7 +843,18 @@ class CLASS(_Boltzmann, alias="CLASS"):
             )
 
     def run_input(self, cosmology: FLRW, k_accuracy: KAccuracy) -> dict[str, Any]:
-        """The CLASS input (see :meth:`_Boltzmann.run_input`)."""
+        """The CLASS input (see :meth:`_Boltzmann.run_input`).
+
+        Parameters
+        ----------
+        cosmology, k_accuracy
+            As for :meth:`_Boltzmann.run_input`.
+
+        Returns
+        -------
+        dict
+            As for :meth:`_Boltzmann.run_input`.
+        """
         params: dict[str, Any] = dict(self.class_params)
         k_per_decade = _class_k_per_decade(k_accuracy)
         if k_per_decade is not None and "k_per_decade_for_pk" not in params:
