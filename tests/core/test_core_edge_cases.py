@@ -181,11 +181,11 @@ def test_canonical_handles_every_supported_type(tmp_path):
     out = _serialise.canonical(obj)
     assert out["path"] == "a/b"
     assert out["scalar"] == 0.5
-    assert out["array"] == {"__ndarray__": [0, 1, 2], "dtype": np.arange(3).dtype.str}
+    assert out["array"] == {"value": [0, 1, 2], "dtype": np.arange(3).dtype.name}
     assert out["quantity"]["unit"] == "Mpc"
-    assert "littleh" in out["unit"]["__unit__"]
+    assert "littleh" in out["unit"]["unit"]
     assert out["cosmology"] == _serialise.canonical(Planck18.clone(name="x"))
-    assert out["model"]["__class__"] == "hmf.core.transfer_models:BBKS"
+    assert out["model"]["model"] == "hmf.core.transfer_models:BBKS"
     assert out["nested"] == [{"x": None}]
     with pytest.raises(TypeError, match="collide"):
         _serialise.canonical({1: "a", "1": "b"})

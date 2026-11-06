@@ -101,6 +101,28 @@ Getting started
 
 6. Make a Pull Request from your fork/branch.
 
+Changes to defaults and results (hmf.core)
+------------------------------------------
+In :mod:`hmf.core`, **a change to a default is a schema change.** A configuration
+(:mod:`hmf.core.config`) records the resolved value of every parameter, but a partial,
+hand-written one takes the defaults of the version of hmf that reads it, so changing a
+default changes what it means. A pull request that changes the default of any physics
+parameter (of a stage, a model or an accuracy setting) must therefore:
+
+1. bump :data:`hmf.core.config.SCHEMA_VERSION`;
+2. register a migration from the previous schema version with
+   :func:`hmf.core.config.register_migration`, saying in its description what changed
+   (e.g. it sets the old default explicitly), so that an old configuration is migrated
+   with a logged note rather than silently read in a new meaning;
+3. replace the golden file of the default configuration in ``tests/core/data/``, which
+   ``tests/core/test_core_config.py`` compares ``MassFunction.build()`` with (the test's
+   failure message says how to write it);
+4. be labelled ``changes results``, so that the release notes list it under "Changes
+   results".
+
+The same label applies to any other change that changes a result of a default
+calculation (e.g. a fix of a physics bug), even if no default changes.
+
 Code review process
 -------------------
 The core team looks at pull requests on a regular basis and tries to provide feedback as

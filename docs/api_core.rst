@@ -74,12 +74,15 @@ Fitting functions (their parameters are listed in each class's "Parameters" sect
 
 Utilities
 ---------
+The disk cache of Boltzmann-code output, and configurations: a stage tree as a TOML
+file, a pickle or a content hash.
 
 .. autosummary::
    :toctree: _autosummary
    :template: core-module.rst
 
    cache
+   config
 
 Kernels (internal)
 ------------------

@@ -3,6 +3,9 @@ categories:
   - title: ":boom: Breaking Changes"
     labels:
       - "API Breaking"
+  - title: ":warning: Changes results"
+    labels:
+      - "changes results"
   - title: ":rocket: Features"
     labels:
       - "type: feature: ui"

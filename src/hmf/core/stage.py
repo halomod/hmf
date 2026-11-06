@@ -31,6 +31,9 @@ as a field. The conventions every stage follows:
   base stage's ``_unit_context`` has no H0, so it accepts only h-units; a stage that
   can convert physical units (because it has a cosmology, or an H0) should override
   ``_unit_context`` to provide its H0.
+* **Pickling**: a stage pickles (and copies) as its configuration
+  (:mod:`hmf.core.config`), with the Boltzmann-code runs it has used as plain arrays,
+  never as live objects.
 * **Cosmology**: a stage computed from a cosmology subclasses
   :class:`CosmologyStage`, which holds the ``cosmology`` field and takes its units
   context from the cosmology's H0.
@@ -429,6 +432,18 @@ class Stage(Documented):
         """
         return routing.router(cls).invalidated_by(name)
 
+    def __reduce__(self) -> tuple[Any, ...]:
+        """Pickle (and copy) the stage as its configuration, never as live objects.
+
+        The state is the stage tree's configuration (:func:`hmf.core.config.to_config`)
+        and the Boltzmann-code runs it has already used, as plain arrays; unpickling
+        rebuilds the tree from the configuration, without running the code again (see
+        :mod:`hmf.core.config`).
+        """
+        from . import config
+
+        return (config._unpickle, config._pickle_state(self))
+
     @cached_property
     def _unit_context(self) -> UnitContext:
         """The units context of this stage's boundary methods (see :mod:`hmf.core.units`).
@@ -596,7 +611,8 @@ def _disk_cache_field(*, doc: str) -> Any:
 
     It is converted by :func:`~hmf.core.cache.to_disk_cache` (a DiskCache, True for
     the default directory, a directory, or None), defaults to None, and is not part of
-    the stage's value (``eq=False``), since it changes no result.
+    the stage's value (``eq=False``) or of its content hash (``physics=False``), since it
+    changes no result.
 
     Parameters
     ----------
@@ -608,7 +624,7 @@ def _disk_cache_field(*, doc: str) -> Any:
     Any
         The field definition.
     """
-    return field(default=None, converter=to_disk_cache, eq=False, doc=doc)
+    return field(default=None, converter=to_disk_cache, eq=False, physics=False, doc=doc)
 
 
 def _check_model_cosmology(

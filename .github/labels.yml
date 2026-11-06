@@ -46,6 +46,9 @@
   description: Build System and Dependencies
   color: bfdadc
 
+- name: "changes results"
+  description: "Changes the results of a default calculation, e.g. a changed default"
+  color: "fbca04"
 - name: "type: accuracy"
   description: "Enhancement that improves accuracy"
   color: "bfd4f2"

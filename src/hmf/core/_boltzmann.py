@@ -18,6 +18,12 @@ each at a reference wavenumber, so one run serves both the transfer and the grow
 The memo holds read-only results only; it is not state that objects share and
 mutate. :func:`run_counts` counts the actual runs, for tests and benchmarks.
 
+A pickled stage carries the runs it has already used, as plain arrays under their
+keys (:func:`export_runs`); unpickling puts them back in the memo
+(:func:`import_runs`), so the unpickled stage does not run the code again. A run is
+found again only under the key computed in the new process, which includes the
+versions of hmf and of the code, so a run from other versions is never reused.
+
 CAMB and classy are imported here only when a run is needed.
 """
 
@@ -25,6 +31,7 @@ from __future__ import annotations
 
 import importlib.metadata
 import threading
+import weakref
 from collections import Counter, OrderedDict
 from collections.abc import Callable, Iterable, Mapping
 from types import MappingProxyType
@@ -48,7 +55,9 @@ __all__ = [
     "check_camb_settings",
     "class_cosmology_input",
     "clear_memo",
+    "export_runs",
     "get_run",
+    "import_runs",
     "run_counts",
     "run_key",
 ]
@@ -457,6 +466,8 @@ def run_key(backend: str, inputs: Mapping[str, Any]) -> str:
 _memo: OrderedDict[str, BoltzmannRun] = OrderedDict()
 _counts: Counter[str] = Counter()
 _lock = threading.Lock()
+#: The key of each run returned by :func:`get_run`, for :func:`export_runs`.
+_keys: weakref.WeakKeyDictionary[BoltzmannRun, str] = weakref.WeakKeyDictionary()
 
 
 def run_counts() -> Mapping[str, int]:
@@ -515,9 +526,51 @@ def get_run(
         if disk_cache is not None:
             disk_cache.store(key, run.to_arrays())
 
+    _remember(key, run)
+    return run
+
+
+def _remember(key: str, run: BoltzmannRun) -> None:
+    """Put a run in the memo under ``key``."""
     with _lock:
+        _keys[run] = key
         _memo[key] = run
         _memo.move_to_end(key)
         while len(_memo) > MEMO_SIZE:
             _memo.popitem(last=False)
-    return run
+
+
+def export_runs(runs: Iterable[BoltzmannRun]) -> dict[str, dict[str, Any]]:
+    """Runs as plain arrays, by their keys: what a pickled stage carries.
+
+    Parameters
+    ----------
+    runs
+        Runs returned by :func:`get_run` (others, which have no key, are left out).
+
+    Returns
+    -------
+    dict
+        ``{key: {"backend": str, "arrays": {name: ndarray}}}``.
+    """
+    out: dict[str, dict[str, Any]] = {}
+    for run in runs:
+        key = _keys.get(run)
+        if key is not None:
+            out[key] = {"backend": run.backend, "arrays": run.to_arrays()}
+    return out
+
+
+def import_runs(runs: Mapping[str, Mapping[str, Any]]) -> None:
+    """Put runs from :func:`export_runs` in the memo, so they are not run again.
+
+    Parameters
+    ----------
+    runs
+        The output of :func:`export_runs`.
+    """
+    for key, entry in runs.items():
+        with _lock:
+            known = key in _memo
+        if not known:
+            _remember(key, BoltzmannRun.from_arrays(entry["backend"], entry["arrays"]))
