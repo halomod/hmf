@@ -447,10 +447,32 @@ So the flat names of a mass function are exactly :meth:`build
 
     mf = MassFunction.build(**{"transfer.model": "EH"}, fit="ST", sigma_8=0.8)
     mf.evolve(sigma_8=0.85, n_s=0.95)
-    mf.evolve(cosmology=Planck15)              # the cosmology of the whole tree
+    mf.evolve(cosmology=Planck15)              # the cosmology of the whole tree, with
+                                               # sigma_8 and n_s from Planck15
     mf.evolve(**{"fit.a": 0.75})               # a parameter of the fit
     mf.evolve(**{"linear_power.transfer.n_s": 0.95})
     MassFunction.from_flat({"transfer.model": "EH", "linear_power": {"sigma_8": 0.8}})
+
+**Computed defaults.** ``build`` takes σ8 and n_s, when they are not given, from the
+cosmology's ``meta`` (the mass function's
+:meth:`~hmf.core.stage.Stage.computed_defaults`). They are computed from the cosmology,
+so ``evolve`` computes them again whenever it changes the cosmology (or a stage holding
+it, such as ``"linear_power.transfer"``): each takes the new cosmology's value unless it
+is given in the same call. Any other change leaves them as they are::
+
+    mf = MassFunction.build(sigma_8=0.8, n_s=0.95)
+    mf.evolve(cosmology=Planck15)                  # sigma_8 = 0.8159, n_s = 0.9667
+    mf.evolve(cosmology=Planck15, sigma_8=0.8)     # sigma_8 = 0.8, n_s = 0.9667
+    mf.evolve(sigma_8=0.85)                        # n_s stays 0.95
+
+So ``mf.evolve(cosmology=c)`` equals ``build`` with ``c`` and every other parameter of
+``mf`` except σ8 and n_s, and a cosmology scan done with ``evolve`` gives the same models
+as one done with ``build``. To keep σ8 fixed through a scan, pass it with each
+cosmology. The result depends only on the stage and the changes: a stage read back from
+a configuration or a pickle evolves as the original does. If the new cosmology does not
+give a parameter that is not passed (its ``meta`` has no ``sigma8``, as for a
+cosmology made by hand), ``evolve`` raises the :class:`ValueError` ``build`` raises,
+which names the parameter: set it explicitly.
 
 A name that is not a parameter raises a :class:`TypeError` at once, before anything
 is built, with the closest names (``mf.evolve(sigma8=0.8)``: "Did you mean
@@ -495,13 +517,18 @@ Extension stages
     * the fields whose names are too generic to stand alone in
       ``qualified_parameters``, listed with the stage's name;
     * and defaults that depend on other parameters (as ``build`` takes σ8 and n_s from
-      the cosmology) in the class method ``computed_defaults``.
+      the cosmology) in the class method ``computed_defaults``, with the parameters
+      they are computed from in ``computed_defaults_inputs`` (dotted paths below the
+      stage), so that ``evolve`` computes them again when one of those changes. The
+      inputs are required: a stage that defines ``computed_defaults`` without them
+      raises a :class:`TypeError` when its routing table is first built.
 
-    A derived property's input that is not a field of the tree raises a
-    :class:`TypeError` when the table is first built.
+    A derived property's input, or a computed default's, that is not a field of the
+    tree raises a :class:`TypeError` when the table is first built.
     :func:`~hmf.core.stage.undeclared_inputs` checks, in a test, that each derived
-    property declares every field it reads (and every stage it holds): run on a stage
-    of the extension, it returns the fields each one reads but does not declare.
+    property declares every field it reads (and every stage it holds), and that
+    ``computed_defaults`` reads only its declared inputs: run on a stage of the
+    extension, it returns the fields each one reads but does not declare.
     Declaring an input that is read only on some branches is safe.
 
 Configurations
@@ -548,7 +575,9 @@ h-units written explicitly: ``{value = 20.0, unit = "littleh / Mpc"}``. Units ar
 with littleh enabled, and a unit with littleh goes through
 :func:`~hmf.core.units.to_canonical`, so a wrong power of littleh raises as at the
 units boundary. A cosmology is a table of every parameter (``m_nu`` as a Quantity
-array), its astropy class, and its name and ``meta`` (which are information only).
+array), its astropy class, and its name and ``meta`` (which are information only: a
+``meta`` entry that can't be written, e.g. a date, is left out with a warning, unless the
+stages read it, as ``n`` and ``sigma8``).
 Mass definitions, and other values whose class is not the field's declared class, carry
 a ``class`` key with their import path. TOML has no null: a field that is ``None`` is
 left out if that is its default, and written ``{none = true}`` otherwise.
@@ -570,10 +599,11 @@ and ``meta``, so it is unchanged by a round trip through a configuration, a pick
 TOML file. The disk cache's keys use the same canonical form
 (:func:`hmf.core._serialise.canonical`).
 
-**Pickling.** A stage pickles, and deep-copies, as its configuration, with the
-Boltzmann-code runs its tree has already used, as plain arrays. Unpickling rebuilds the
-tree and reuses those runs, so it does not run CAMB or CLASS again, and gives
-bit-identical results. No CAMB or CLASS object is ever pickled.
+**Pickling.** A stage pickles as its configuration, with the Boltzmann-code runs its
+tree has already used, as plain arrays. Unpickling rebuilds the tree and reuses those
+runs, so it does not run CAMB or CLASS again, and gives bit-identical results. No CAMB or
+CLASS object is ever pickled. A stage is immutable, so ``copy.copy`` and
+``copy.deepcopy`` return the stage itself, with its caches.
 
 API
 ---

@@ -140,6 +140,15 @@ def test_copy_and_pickle():
         assert t.values == s.values
 
 
+def test_copies_are_the_stage_with_its_caches():
+    s = Squares(n=5)
+    values = s.values
+    assert copy.copy(s) is s
+    assert copy.deepcopy(s) is s
+    assert copy.deepcopy({"s": s})["s"] is s
+    assert copy.deepcopy(s).values is values
+
+
 def test_equality_ignores_cache():
     a, b = Squares(), Squares()
     a.values

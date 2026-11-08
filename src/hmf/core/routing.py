@@ -158,7 +158,10 @@ class GivenParameters(Mapping[str, Any]):
 
     A read-only mapping from dotted paths to values, passed to
     :meth:`Stage.computed_defaults <hmf.core.stage.Stage.computed_defaults>`. Looking
-    up a path below a stage given whole returns the value in that stage.
+    up a path below a stage given whole returns the value in that stage. It records
+    the paths looked up (:attr:`reads`), so that
+    :func:`~hmf.core.stage.undeclared_inputs` can check a stage's
+    :attr:`~hmf.core.stage.Stage.computed_defaults_inputs`.
 
     Parameters
     ----------
@@ -166,14 +169,21 @@ class GivenParameters(Mapping[str, Any]):
         The given values, by path.
     """
 
-    __slots__ = ("_values",)
+    __slots__ = ("_reads", "_values")
 
     def __init__(self, values: Mapping[FieldPath, Any]) -> None:
         self._values = dict(values)
+        self._reads: set[FieldPath] = set()
+
+    @property
+    def reads(self) -> frozenset[FieldPath]:
+        """The paths looked up so far (``()`` if the mapping was iterated: every path)."""
+        return frozenset(self._reads)
 
     def __getitem__(self, key: str) -> Any:
         """The value at a dotted path (a ``KeyError`` if it is not given)."""
         path = _split(key)
+        self._reads.add(path)
         for i in range(len(path), 0, -1):
             if path[:i] in self._values:
                 try:
@@ -184,10 +194,12 @@ class GivenParameters(Mapping[str, Any]):
 
     def __iter__(self) -> Iterator[str]:
         """The given dotted paths."""
+        self._reads.add(())
         return (_dotted(p) for p in self._values)
 
     def __len__(self) -> int:
         """The number of given paths."""
+        self._reads.add(())
         return len(self._values)
 
 
@@ -366,6 +378,32 @@ class Router:
                     break
 
         self._candidates = sorted(set(self.names) | set(self.ambiguous))
+
+        from .stage import Stage
+
+        base_hook = getattr(Stage.computed_defaults, "__func__", None)
+        #: The stages of the tree that compute defaults (from the top), and the paths
+        #: below each that its defaults are computed from.
+        self.computing: dict[FieldPath, tuple[FieldPath, ...]] = {}
+        for prefix, stage_cls in self.stages.items():
+            hook = getattr(getattr(stage_cls, "computed_defaults", None), "__func__", None)
+            if hook is None or hook is base_hook:
+                continue
+            inputs = tuple(_split(p) for p in getattr(stage_cls, "computed_defaults_inputs", ()))
+            if not inputs:
+                raise TypeError(
+                    f"{stage_cls.__name__} defines computed_defaults but no "
+                    "computed_defaults_inputs: list the parameters its defaults are computed "
+                    "from (dotted paths below the stage), so that evolve computes them again "
+                    "when one of them changes."
+                )
+            for p in inputs:
+                if not _is_field(stage_cls, p):
+                    raise TypeError(
+                        f"{stage_cls.__name__}.computed_defaults_inputs: {_dotted(p)!r} is "
+                        "not a field of the stage tree."
+                    )
+            self.computing[prefix] = inputs
 
     # -- building --------------------------------------------------------------------
 
@@ -730,7 +768,59 @@ def evolve(stage: Stage, changes: Mapping[str, Any]) -> Stage:
     values = resolved.values
     if resolved.models:
         values = _apply_models(table, resolved, lambda p: _walk(stage, p))
-    return _rebuild(type(stage), stage, values, resolved.soft, ())  # type: ignore[no-any-return]
+    soft = resolved.soft
+    if table.computing and values:
+        values, soft = _recompute_defaults(table, stage, values, soft)
+    return _rebuild(type(stage), stage, values, soft, ())  # type: ignore[no-any-return]
+
+
+def _recompute_defaults(
+    table: Router,
+    stage: Stage,
+    values: Mapping[FieldPath, Any],
+    soft: frozenset[FieldPath],
+) -> tuple[dict[FieldPath, Any], frozenset[FieldPath]]:
+    """The changes of an evolve, with the computed defaults they change.
+
+    For each stage of the tree that computes defaults, is not changed whole, and has a
+    change to one of its :attr:`~hmf.core.stage.Stage.computed_defaults_inputs`, its
+    ``computed_defaults`` is called with the changes below it and the new values of its
+    inputs. Each default it gives for a parameter that is not changed (nor below a
+    changed stage) is added, if it differs from the old tree's value. Stages are
+    visited from the top, as in :func:`_with_computed_defaults`, so a default computed
+    above is seen below.
+
+    Returns the changes and the paths set by a shared name.
+    """
+    from .stage import _same
+
+    out = dict(values)
+    soft_out = set(soft)
+    for prefix, inputs in table.computing.items():
+        if any(prefix[:i] in values for i in range(len(prefix) + 1)):
+            continue  # given whole, or below a stage given whole
+        n = len(prefix)
+        below = {p[n:]: v for p, v in out.items() if p[:n] == prefix}
+        if not any(_overlaps(c, i) for c in below for i in inputs):
+            continue
+        old = _walk(stage, prefix)
+        if old is None:
+            continue  # an optional stage that is absent: nothing to recompute
+        given = GivenParameters(below)
+        at = {p: v for p, v in below.items() if p not in inputs}
+        at.update({i: given.get(_dotted(i), _walk(old, i)) for i in inputs})
+        computed = type(old).computed_defaults(GivenParameters(at))
+        if not computed:
+            continue
+        new = router(type(old)).resolve(computed)
+        for path, value in new.values.items():
+            if any(_overlaps(path, c) for c in below):
+                continue  # given in this evolve
+            if not _same(value, _walk(old, path)):
+                out[prefix + path] = value
+                if path in new.soft:
+                    soft_out.add(prefix + path)
+    return out, frozenset(soft_out)
 
 
 def from_flat(cls: type[Stage], mapping: Mapping[str, Any]) -> Stage:
