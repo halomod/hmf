@@ -8,7 +8,7 @@
    {#- A model's parameters are listed in the "Parameters" section generated from its
        fields. They get no pages of their own: names that differ only in case (A_200,
        a_200) would clash. Only the model's metadata is listed here. #}
-   {% set metadata = ["requires", "valid_domain", "calibration_domain",
+   {% set metadata = ["requires", "valid_domain", "calibration_domain", "calibration",
                       "measured_mass_definition", "measured_mass_definition_note",
                       "simulations", "references",
                       "parameter_source",

@@ -84,10 +84,12 @@ Each fit has two :class:`~hmf.core.domain.Domain`\ s (issue #390):
 :attr:`FittingFunction.valid_domain`
     where its formula is defined, or sensible. :meth:`FittingFunction.fsigma`
     **always raises** :class:`~hmf.core.domain.DomainError` outside it.
-:attr:`FittingFunction.calibration_domain`
+:attr:`FittingFunction.calibration`
     where it was calibrated against simulations, with its source (``None`` for a fit
     that was not, such as :class:`PS`). Outside it, the result is an extrapolation,
     handled by a :data:`~hmf.core.domain.DomainPolicy` with :func:`evaluate_fsigma`.
+    It is an instance property (see :class:`~hmf.core.domain.Calibrated`); each fit
+    declares it as the class variable :attr:`FittingFunction.calibration_domain`.
 
 The bounds of both are in these variables: the inputs above, and the derived
 ``ln_sigma_inv`` (:math:`\ln\sigma^{-1}`), ``log10_sigma_inv``
@@ -135,6 +137,7 @@ from ._fields import field
 from ._kernels import fits as _k
 from ._validators import check_finite_positive, less_than, positive
 from .domain import (
+    Calibrated,
     Domain,
     DomainError,
     DomainPolicy,
@@ -508,7 +511,7 @@ def _contains(domain: Domain | None, x: FitInputs) -> bool | BoolArray:
 # The kind
 # ---------------------------------------------------------------------------------
 @attrs.frozen(kw_only=True)
-class FittingFunction(Model, kind=True):
+class FittingFunction(Calibrated, Model, kind=True):
     r"""A halo mass function fit: the multiplicity function :math:`f(\sigma)`.
 
     Subclasses implement :meth:`_fsigma`, and declare, as class variables, the
@@ -523,7 +526,8 @@ class FittingFunction(Model, kind=True):
     valid_domain: ClassVar[Domain]
 
     #: Where the fit was calibrated against simulations, with its source; ``None`` for
-    #: a fit that was not calibrated (e.g. an analytic one).
+    #: a fit that was not calibrated (e.g. an analytic one). Ask an instance for
+    #: :attr:`calibration`.
     calibration_domain: ClassVar[Domain | None]
 
     #: The halo mass definition the fit was measured in (see "Mass definitions" in the
@@ -704,8 +708,10 @@ class FittingFunction(Model, kind=True):
             where=f"{type(self).__name__}'s valid domain",
         )
 
-    def in_calibration_domain(self, x: FitInputs) -> bool | BoolArray:
-        """Whether each input is inside :attr:`calibration_domain`.
+    def in_calibration_domain_kernel(self, x: FitInputs) -> bool | BoolArray:
+        """Whether each input is inside :attr:`calibration`, at kernel level.
+
+        It checks ``x`` against :attr:`valid_domain`, as :meth:`fsigma_kernel` does.
 
         Parameters
         ----------
@@ -722,8 +728,11 @@ class FittingFunction(Model, kind=True):
         ------
         ValueError
             If an input needed to check the domain was not given.
+        DomainError
+            If any input is outside :attr:`valid_domain`.
         """
-        return _contains(self.calibration_domain, x)
+        self.check_valid(x)
+        return _contains(self.calibration, x)
 
     @unit_boundary(m=Msun_h)
     def fsigma(
@@ -1038,14 +1047,15 @@ def evaluate_fsigma(
     """
     x = inputs
     model.check_required(x)
-    missing = sorted(name for name in _domain_inputs(model.calibration_domain) if not x.given(name))
+    missing = sorted(name for name in _domain_inputs(model.calibration) if not x.given(name))
     if missing:
         raise ValueError(
             f"Checking {type(model).__name__}'s calibration domain needs the input(s) {missing}."
         )
     f = model.fsigma_kernel(x)
-    inside = np.broadcast_to(model.in_calibration_domain(x), f.shape)
-    calibration = model.calibration_domain
+    # fsigma_kernel has checked the valid domain.
+    inside = np.broadcast_to(_contains(model.calibration, x), f.shape)
+    calibration = model.calibration
     # Without a calibration domain everything is inside: this only checks the policy.
     out = apply_domain_policy(
         f,

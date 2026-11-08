@@ -420,3 +420,70 @@ def test_warn_once_forgets_collected_owners():
 def test_warn_once_without_weak_references_warns_every_time():
     caught = _record(lambda: [warn_once(1.5, "k", "m") for _ in range(2)])
     assert len(caught) == 2
+
+
+# ---------------------------------------------------------------------------------
+# The calibration domain of a model instance
+# ---------------------------------------------------------------------------------
+
+
+def _calibrated_kinds():
+    from hmf.core.concentration import ConcentrationModel
+    from hmf.core.filters import Filter
+    from hmf.core.fits import FittingFunction
+    from hmf.core.growth_models import GrowthModel
+    from hmf.core.profiles import DensityProfile
+    from hmf.core.transfer_models import TransferModel
+
+    return [FittingFunction, ConcentrationModel, DensityProfile, Filter, TransferModel, GrowthModel]
+
+
+def test_every_kind_with_a_calibration_domain_is_calibrated():
+    """Every such kind answers ``calibration`` on its instances: by default the class's."""
+    from hmf.core.domain import Calibrated
+
+    for kind in _calibrated_kinds():
+        assert issubclass(kind, Calibrated), kind
+        for cls in kind.get_models().values():
+            if cls.calibration is not Calibrated.calibration:
+                continue  # it depends on the instance (Duffy08)
+            try:
+                model = cls()
+            except (TypeError, ValueError):
+                continue  # a model that needs arguments (e.g. a table)
+            assert model.calibration is cls.calibration_domain, cls
+
+
+def test_calibration_can_depend_on_the_instance():
+    """Duffy08 at z = 0 alone is not calibrated at z = 1.5; the class default (z = 0-2) is."""
+    from hmf.core.concentration import Duffy08
+
+    z0 = Duffy08(redshifts="0")
+    assert Duffy08.calibration_domain.contains(m=1e12 * Msun_h, z=1.5)
+    assert not z0.calibration.contains(m=1e12 * Msun_h, z=1.5)
+    assert z0.calibration.contains(m=1e12 * Msun_h, z=0.0)
+
+
+def test_evaluate_fsigma_uses_the_instance_calibration():
+    """A fit whose calibration depends on a parameter is masked by its own."""
+    import attrs
+
+    from hmf.core import fits
+
+    @attrs.frozen(kw_only=True)
+    class _Narrow(fits.PS, abstract=True):
+        sigma_min: float = 0.5
+
+        @property
+        def calibration(self):
+            return Domain({"sigma": (self.sigma_min, None)}, source="A test.")
+
+    x = fits.PS().inputs_from_arrays(np.array([0.3, 1.0]), delta_c=1.686)
+    # PS has no calibration domain: everything is inside.
+    assert fits.PS().calibration is None
+    np.testing.assert_array_equal(fits.PS().in_calibration_domain_kernel(x), [True, True])
+    for sigma_min, inside in ((0.5, [False, True]), (0.1, [True, True])):
+        model = _Narrow(sigma_min=sigma_min)
+        np.testing.assert_array_equal(model.in_calibration_domain_kernel(x), inside)
+        out = fits.evaluate_fsigma(model, x, policy="mask")
+        np.testing.assert_array_equal(np.isnan(out.fsigma), np.logical_not(inside))

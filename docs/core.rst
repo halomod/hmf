@@ -128,7 +128,11 @@ Domains (:mod:`hmf.core.domain`)
     Every model declares a *valid* domain (outside which it always raises a
     :class:`~hmf.core.domain.DomainError`) and a *calibration* domain (outside which
     a user-chosen :data:`~hmf.core.domain.DomainPolicy` applies: ``"ignore"``,
-    ``"warn"``, ``"mask"`` or ``"raise"``), or ``None`` for no calibration domain. A
+    ``"warn"``, ``"mask"`` or ``"raise"``), or ``None`` for no calibration domain.
+    Ask a model instance for its calibration domain, ``model.calibration``
+    (:class:`~hmf.core.domain.Calibrated`): it can depend on the model's parameters
+    (e.g. :class:`~hmf.core.concentration.Duffy08`'s redshift range), and defaults to
+    the class's ``calibration_domain``, that of its default parameters. A
     :class:`~hmf.core.domain.Domain` bounds each variable by an interval whose ends
     are closed (``>=``, ``<=``) or open (``>``, ``<``): ``(0, None, "(]")`` is
     ``> 0``. :meth:`~hmf.core.domain.Domain.describe` writes it as inequalities, and

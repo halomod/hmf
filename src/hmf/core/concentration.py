@@ -10,8 +10,9 @@ concentrations are in that definition. A
 Every relation is a :class:`ConcentrationModel`, a model kind with its own registry
 (``ConcentrationModel.get("Duffy08")``), so other packages (e.g. halomod) add theirs
 by subclassing it. Each declares a :attr:`~ConcentrationModel.valid_domain` (outside
-which it raises) and a :attr:`~ConcentrationModel.calibration_domain`, in its own
-mass definition.
+which it raises) and a calibration domain, in its own mass definition: an instance's
+is :attr:`~ConcentrationModel.calibration` (it can depend on the instance's
+parameters; see :class:`~hmf.core.domain.Calibrated`).
 
 Implemented:
 
@@ -34,7 +35,7 @@ import numpy.typing as npt
 from . import _references as refs
 from ._fields import field
 from ._validators import one_of
-from .domain import Domain, check_extent
+from .domain import Calibrated, Domain, check_extent
 from .mass_definitions import MassDefinition, SOCritical, SOMean, SOVirial
 from .model import Model
 from .units import Msun_h, unit_boundary
@@ -46,7 +47,7 @@ BoolArray = npt.NDArray[np.bool_]
 
 
 @attrs.frozen(kw_only=True)
-class ConcentrationModel(Model, kind=True):
+class ConcentrationModel(Calibrated, Model, kind=True):
     r"""The kind of concentration-mass relations: :math:`c(M, z)`.
 
     Subclasses implement :meth:`_ln_concentration_and_slope` (on checked plain arrays)
@@ -60,18 +61,10 @@ class ConcentrationModel(Model, kind=True):
         {"m": (0 * Msun_h, None, "(]"), "z": (0, None)}, source="m > 0, z >= 0."
     )
 
-    #: Where the relation was calibrated, with its source (``None`` if it was not).
-    calibration_domain: ClassVar[Domain | None] = None
-
     @property
     @abc.abstractmethod
     def mass_definition(self) -> MassDefinition:
         """The mass definition the relation's masses and concentrations are in."""
-
-    @property
-    def calibration(self) -> Domain | None:
-        """The calibration domain of this instance (the class's, unless it depends on it)."""
-        return type(self).calibration_domain
 
     @abc.abstractmethod
     def _ln_concentration_and_slope(
@@ -80,7 +73,7 @@ class ConcentrationModel(Model, kind=True):
         """Ln c and dln c / dln m, on checked plain arrays (m in Msun/h)."""
 
     def ln_concentration_and_slope_kernel(
-        self, m: npt.ArrayLike, *, z: npt.ArrayLike
+        self, *, m: npt.ArrayLike, z: npt.ArrayLike
     ) -> tuple[FloatArray, FloatArray]:
         r"""Ln c(M, z) and its slope :math:`d\ln c/d\ln M`, at kernel level.
 
@@ -112,7 +105,7 @@ class ConcentrationModel(Model, kind=True):
             np.array(np.broadcast_to(slope, shape)),
         )
 
-    def in_calibration_domain_kernel(self, m: npt.ArrayLike, *, z: npt.ArrayLike) -> BoolArray:
+    def in_calibration_domain_kernel(self, *, m: npt.ArrayLike, z: npt.ArrayLike) -> BoolArray:
         """Whether (m, z) is inside :attr:`calibration`, at kernel level.
 
         Parameters
@@ -145,7 +138,7 @@ class ConcentrationModel(Model, kind=True):
         )
 
     @unit_boundary(m=Msun_h)
-    def concentration(self, m: Any, *, z: npt.ArrayLike) -> FloatArray:
+    def concentration(self, *, m: Any, z: npt.ArrayLike) -> FloatArray:
         """The median concentration c(M, z), in :attr:`mass_definition`.
 
         Parameters
@@ -165,7 +158,7 @@ class ConcentrationModel(Model, kind=True):
         DomainError
             Outside :attr:`valid_domain`.
         """
-        return np.exp(self.ln_concentration_and_slope_kernel(m, z=z)[0])
+        return np.exp(self.ln_concentration_and_slope_kernel(m=m, z=z)[0])
 
 
 # ---------------------------------------------------------------------------------
@@ -259,8 +252,8 @@ class Duffy08(ConcentrationModel, alias="Duffy08"):
         doc="The redshift range the set was fitted to: '0-2', or '0' (with C = 0).",
     )
 
-    #: The calibration domain of the default set (z = 0-2); :attr:`calibration` is that
-    #: of the instance's set.
+    #: The calibration domain of the default set (z = 0-2): ask an instance for
+    #: :attr:`calibration`, that of its set.
     calibration_domain: ClassVar[Domain | None] = _DUFFY08_DOMAINS["0-2"]
 
     #: The pivot mass, in Msun/h.

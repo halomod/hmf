@@ -3,7 +3,8 @@
 :class:`_CosmologyModel` holds the class-level scaffolding that such a kind
 (:class:`~hmf.core.transfer_models.TransferModel`,
 :class:`~hmf.core.growth_models.GrowthModel`) declares: the Boltzmann ``backend``,
-the ``valid_domain`` and ``calibration_domain``, and the ``check_cosmology`` hook.
+the ``valid_domain``, the calibration domain (from
+:class:`~hmf.core.domain.Calibrated`), and the ``check_cosmology`` hook.
 :class:`_BoltzmannBacked` is the cosmology check of the models computed by a
 Boltzmann code (CAMB or CLASS), for transfer and growth alike.
 
@@ -18,10 +19,10 @@ from typing import ClassVar
 from astropy.cosmology import FLRW
 
 from ._boltzmann import check_boltzmann_cosmology
-from .domain import Domain
+from .domain import Calibrated, Domain
 
 
-class _CosmologyModel:
+class _CosmologyModel(Calibrated):
     """The class-level scaffolding of a kind of models computed from a cosmology.
 
     The kind sets :attr:`valid_domain`; the other class variables default to
@@ -36,9 +37,6 @@ class _CosmologyModel:
     #: Where the model can be evaluated. The stage checks its inputs against the
     #: model's class's domain, so a model can narrow it.
     valid_domain: ClassVar[Domain]
-
-    #: Where the model was calibrated, if that is stated by its source.
-    calibration_domain: ClassVar[Domain | None] = None
 
     def check_cosmology(self, cosmology: FLRW) -> None:
         """Raise if the model does not apply to ``cosmology`` (by default it does).

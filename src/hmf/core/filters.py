@@ -27,7 +27,7 @@ from . import _references as refs
 from ._fields import field
 from ._kernels import filters as kernels
 from ._validators import positive
-from .domain import Domain, check_extent
+from .domain import Calibrated, Domain, check_extent
 from .model import Model
 from .units import unit_boundary
 
@@ -65,7 +65,7 @@ class TailBounds(NamedTuple):
 
 
 @attrs.frozen(kw_only=True)
-class Filter(Model, kind=True):
+class Filter(Calibrated, Model, kind=True):
     r"""The kind of smoothing filters.
 
     A filter defines:

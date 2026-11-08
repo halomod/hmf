@@ -46,31 +46,52 @@ SO_DEFINITIONS = [
 
 
 def _ln_q(target, source, om=OMEGA_M0):
-    return np.log(target.delta_halo_mean_kernel(om)) - np.log(source.delta_halo_mean_kernel(om))
+    return np.log(target.delta_halo_mean_kernel(omega_m_z=om)) - np.log(
+        source.delta_halo_mean_kernel(omega_m_z=om)
+    )
+
+
+def _ln_mu(x):
+    """The NFW ln mu(x), through the profile."""
+    return NFW().ln_mu_and_slope_kernel(x=x)[0]
+
+
+def _ln_mean_density(x):
+    """Ln F(x) = ln[mu(x) / x^3], the NFW mean enclosed density over 3 rho_s."""
+    return _ln_mu(x) - 3 * np.log(x)
+
+
+def _solve(c, ln_q):
+    """The NFW concentration c' with F(c') = q F(c), through the profile."""
+    return NFW().convert_concentration_kernel(c=c, slope=0.0, ln_q=ln_q)[1]
+
+
+def _nfw_convert(c, slope, ln_q):
+    return NFW().convert_concentration_kernel(c=c, slope=slope, ln_q=ln_q)
 
 
 # ---------------------------------------------------------------------------------
-# Kernels
+# The NFW profile's kernels
 # ---------------------------------------------------------------------------------
 
 
 def test_ln_mu_closed_form_and_series():
     """mu(1) = ln 2 - 1/2; mu ~ x^2 / 2 as x -> 0; the series joins the closed form."""
-    assert kern.nfw_ln_mu(1.0) == pytest.approx(math.log(math.log(2) - 0.5), rel=1e-15)
+    assert _ln_mu(1.0) == pytest.approx(math.log(math.log(2) - 0.5), rel=1e-15)
     x = np.array([1e-8, 1e-6, 1e-4])
     np.testing.assert_allclose(
-        np.exp(kern.nfw_ln_mu(x)), x**2 / 2 * (1 - 4 * x / 3 + 1.5 * x**2), rtol=1e-11
+        np.exp(_ln_mu(x)), x**2 / 2 * (1 - 4 * x / 3 + 1.5 * x**2), rtol=1e-11
     )
     below, above = np.nextafter(0.01, 0), 0.01
-    assert kern.nfw_ln_mu(below) == pytest.approx(float(kern.nfw_ln_mu(above)), abs=1e-13)
+    assert _ln_mu(below) == pytest.approx(float(_ln_mu(above)), abs=1e-13)
     # psi = dln mu / dln x, from 2 at small x to 0 at large x.
     x = np.geomspace(1e-6, 1e6, 50)
-    psi = kern.nfw_ln_mu_slope(x)
+    psi = NFW().ln_mu_and_slope_kernel(x=x)[1]
     assert psi[0] == pytest.approx(2.0, rel=1e-5)
     assert np.all(np.diff(psi) < 0)
     assert psi[-1] < 0.1
     h = 1e-6
-    numeric = (kern.nfw_ln_mu(x * math.exp(h)) - kern.nfw_ln_mu(x * math.exp(-h))) / (2 * h)
+    numeric = (_ln_mu(x * math.exp(h)) - _ln_mu(x * math.exp(-h))) / (2 * h)
     np.testing.assert_allclose(psi, numeric, rtol=1e-7, atol=1e-9)
 
 
@@ -79,8 +100,8 @@ LN_Q_GRID = np.linspace(math.log(1e-4), math.log(1e4), 81)[None, :]
 
 
 def test_root_solve_reaches_round_off_over_a_wide_range():
-    c_new = kern.nfw_concentration_ratio_solve(C_GRID, LN_Q_GRID)
-    residual = kern.nfw_ln_mean_density(c_new) - kern.nfw_ln_mean_density(C_GRID) - LN_Q_GRID
+    c_new = _solve(C_GRID, LN_Q_GRID)
+    residual = _ln_mean_density(c_new) - _ln_mean_density(C_GRID) - LN_Q_GRID
     assert np.all(np.isfinite(c_new))
     assert np.abs(residual).max() < 2e-13
     # A denser definition has a smaller concentration (F decreases monotonically).
@@ -90,13 +111,13 @@ def test_root_solve_reaches_round_off_over_a_wide_range():
 def test_root_solve_is_elementwise_and_exact_for_the_same_density():
     c = np.geomspace(0.5, 50, 101)
     ln_q = np.linspace(-2, 2, 101)
-    full = kern.nfw_concentration_ratio_solve(c, ln_q)
+    full = _nfw_convert(c, -0.1, ln_q)
     for i in (0, 17, 100):
-        np.testing.assert_array_equal(
-            kern.nfw_concentration_ratio_solve(c[i : i + 1], ln_q[i : i + 1]), full[i : i + 1]
-        )
-    np.testing.assert_array_equal(kern.nfw_concentration_ratio_solve(c, 0.0), c)
-    ln_ratio, c_new, dln_m, _ = kern.nfw_convert(c, -0.1, 0.0)
+        part = _nfw_convert(c[i : i + 1], -0.1, ln_q[i : i + 1])
+        for got, expected in zip(part, full, strict=True):
+            np.testing.assert_array_equal(got, expected[i : i + 1])
+    np.testing.assert_array_equal(_solve(c, 0.0), c)
+    ln_ratio, c_new, dln_m, _ = _nfw_convert(c, -0.1, 0.0)
     np.testing.assert_array_equal(ln_ratio, 0.0)
     np.testing.assert_array_equal(c_new, c)
     np.testing.assert_array_equal(dln_m, 1.0)
@@ -108,7 +129,7 @@ def test_root_solve_agrees_with_v3_brentq():
 
     c = np.geomspace(0.5, 60, 25)
     for ln_q in (math.log(0.3), math.log(200 / 333), math.log(1600 / 200), math.log(5.0)):
-        rho_s = c**3 / (3 * np.exp(kern.nfw_ln_mu(c)))  # for a halo density of 1
+        rho_s = c**3 / (3 * np.exp(_ln_mu(c)))  # for a halo density of 1
         v3 = np.array(
             [
                 # A guess within v3's first bracket (x5) of the root: q^(-1/3) c.
@@ -116,14 +137,14 @@ def test_root_solve_agrees_with_v3_brentq():
                 for r, cc in zip(rho_s, c, strict=True)
             ]
         )
-        np.testing.assert_allclose(kern.nfw_concentration_ratio_solve(c, ln_q), v3, rtol=1e-10)
+        np.testing.assert_allclose(_solve(c, ln_q), v3, rtol=1e-10)
 
 
 def _hu_kravtsov_mass_error(c, ratio):
     """|M_HK / M - 1| for the mass ratio M_h / M_v = (D_h / D_v) (c_h / c_v)^3 (eq. C10)."""
     ln_q = np.log(ratio)
     c_hk = kern.hu_kravtsov_inverse(kern.nfw_ln_mean_density(c) + ln_q)
-    exact = np.exp(kern.nfw_ln_mu(kern.nfw_concentration_ratio_solve(c, ln_q)) - kern.nfw_ln_mu(c))
+    exact = np.exp(_ln_mu(_solve(c, ln_q)) - _ln_mu(c))
     return np.abs(ratio * (c_hk / c) ** 3 / exact - 1)
 
 
@@ -150,11 +171,11 @@ def test_jacobian_is_the_derivative_of_the_mapping():
     c = np.geomspace(1, 30, 20)
     slope = -0.1
     ln_q = math.log(2.5)
-    _, _, dln_m, dln_c = kern.nfw_convert(c, slope, ln_q)
+    _, _, dln_m, dln_c = _nfw_convert(c, slope, ln_q)
     h = 1e-5
     # c(M) = c0 (M / M0)^slope: a step h in ln M is a step slope h in ln c.
-    lo = kern.nfw_convert(c * math.exp(-slope * h), slope, ln_q)
-    hi = kern.nfw_convert(c * math.exp(slope * h), slope, ln_q)
+    lo = _nfw_convert(c * math.exp(-slope * h), slope, ln_q)
+    hi = _nfw_convert(c * math.exp(slope * h), slope, ln_q)
     np.testing.assert_allclose(dln_m, 1 + (hi[0] - lo[0]) / (2 * h), rtol=1e-8)
     np.testing.assert_allclose(dln_c, (np.log(hi[1]) - np.log(lo[1])) / (2 * h), rtol=1e-7)
 
@@ -181,7 +202,7 @@ def test_registered_and_cited(nfw):
 
 @pytest.mark.parametrize("definition", [*SO_DEFINITIONS, FOF()], ids=str)
 def test_converting_to_the_same_definition_is_the_identity(nfw, definition):
-    out = nfw.convert_kernel(M, z=0.5, omega_m_z=0.6, source=definition, target=definition)
+    out = nfw.convert_kernel(m=M, z=0.5, omega_m_z=0.6, source=definition, target=definition)
     np.testing.assert_array_equal(out.m, M)
     np.testing.assert_array_equal(out.dm_dm, 1.0)
 
@@ -190,7 +211,7 @@ def test_virial_is_so_mean_18pi2_in_einstein_de_sitter(nfw):
     """Omega_m(z) = 1: the same halo density, so the conversion is exactly the identity."""
     eds = SOMean(overdensity=18 * math.pi**2)
     for source, target in ((SOVirial(), eds), (eds, SOVirial())):
-        out = nfw.convert_kernel(M, z=1.0, omega_m_z=1.0, source=source, target=target)
+        out = nfw.convert_kernel(m=M, z=1.0, omega_m_z=1.0, source=source, target=target)
         np.testing.assert_array_equal(out.m, M)
         np.testing.assert_array_equal(out.dm_dm, 1.0)
 
@@ -205,8 +226,8 @@ def test_round_trip(a, b, concentration):
     """A -> B -> A returns the masses to 1e-13, and the Jacobians are reciprocal."""
     conv = ProfileConversion(concentration=concentration)
     z, om = 0.7, float(omega_m(Planck18, 0.7))
-    there = conv.convert_kernel(M, z=z, omega_m_z=om, source=a, target=b)
-    back = conv.convert_kernel(there.m, z=z, omega_m_z=om, source=b, target=a)
+    there = conv.convert_kernel(m=M, z=z, omega_m_z=om, source=a, target=b)
+    back = conv.convert_kernel(m=there.m, z=z, omega_m_z=om, source=b, target=a)
     np.testing.assert_allclose(back.m, M, rtol=1e-13)
     np.testing.assert_allclose(there.dm_dm * back.dm_dm, 1.0, rtol=1e-12)
 
@@ -223,10 +244,10 @@ def test_round_trip(a, b, concentration):
 def test_jacobian_matches_a_finite_difference(source, concentration):
     conv = ProfileConversion(concentration=concentration)
     target = SOVirial()
-    out = conv.convert_kernel(M, z=0.3, omega_m_z=0.4, source=source, target=target)
+    out = conv.convert_kernel(m=M, z=0.3, omega_m_z=0.4, source=source, target=target)
     h = 1e-5
-    hi = conv.convert_kernel(M * math.exp(h), z=0.3, omega_m_z=0.4, source=source, target=target)
-    lo = conv.convert_kernel(M * math.exp(-h), z=0.3, omega_m_z=0.4, source=source, target=target)
+    hi = conv.convert_kernel(m=M * math.exp(h), z=0.3, omega_m_z=0.4, source=source, target=target)
+    lo = conv.convert_kernel(m=M * math.exp(-h), z=0.3, omega_m_z=0.4, source=source, target=target)
     numeric = (np.log(hi.m) - np.log(lo.m)) / (2 * h) * out.m / M
     np.testing.assert_allclose(out.dm_dm, numeric, rtol=1e-8)
 
@@ -235,10 +256,10 @@ def test_concentration_is_converted_to_the_source_definition():
     """A halo converted to the relation's definition has the relation's concentration."""
     conv = ProfileConversion(concentration=Duffy08())  # in 200c
     z, om = 0.5, 0.55
-    out = conv.convert_kernel(M, z=z, omega_m_z=om, source=SOMean(), target=SOCritical())
+    out = conv.convert_kernel(m=M, z=z, omega_m_z=om, source=SOMean(), target=SOCritical())
     # Through the kernel: c in 200m from c in 200c, at the 200c masses found.
-    ln_c, slope = Duffy08().ln_concentration_and_slope_kernel(out.m, z=z)
-    ln_ratio, _, _, _ = kern.nfw_convert(np.exp(ln_c), slope, _ln_q(SOMean(), SOCritical(), om))
+    ln_c, slope = Duffy08().ln_concentration_and_slope_kernel(m=out.m, z=z)
+    ln_ratio, _, _, _ = _nfw_convert(np.exp(ln_c), slope, _ln_q(SOMean(), SOCritical(), om))
     np.testing.assert_allclose(out.m * np.exp(ln_ratio), M, rtol=1e-13)
 
 
@@ -250,15 +271,15 @@ def test_concentration_and_mass_ordering(nfw):
     M_500c < M_200c < M_vir < M_200m.
     """
     om = OMEGA_M0
-    ln_c, slope = Duffy08().ln_concentration_and_slope_kernel(M, z=0.0)
+    ln_c, slope = Duffy08().ln_concentration_and_slope_kernel(m=M, z=0.0)
     order = [SOCritical(overdensity=500), SOCritical(), SOVirial(), SOMean()]
     concentrations, masses = [], []
     for target in order:
-        ln_ratio, c_new, _, _ = kern.nfw_convert(np.exp(ln_c), slope, _ln_q(target, SOCritical()))
+        ln_ratio, c_new, _, _ = _nfw_convert(np.exp(ln_c), slope, _ln_q(target, SOCritical()))
         concentrations.append(c_new)
         masses.append(M * np.exp(ln_ratio))
         np.testing.assert_allclose(
-            nfw.convert_kernel(M, z=0.0, omega_m_z=om, source=SOCritical(), target=target).m,
+            nfw.convert_kernel(m=M, z=0.0, omega_m_z=om, source=SOCritical(), target=target).m,
             masses[-1],
             rtol=1e-14,
         )
@@ -285,9 +306,9 @@ class _ConstantConcentration(ConcentrationModel, abstract=True):
 def test_a_user_concentration_model():
     """With a constant c the mapping is a constant ratio mu(c') / mu(c), and dM'/dM it."""
     conv = ProfileConversion(concentration=_ConstantConcentration())
-    out = conv.convert_kernel(M, z=0.0, omega_m_z=0.3, source=SOMean(), target=SOCritical())
-    c_new = kern.nfw_concentration_ratio_solve(5.0, _ln_q(SOCritical(), SOMean(), 0.3))
-    ratio = math.exp(kern.nfw_ln_mu(c_new) - kern.nfw_ln_mu(5.0))
+    out = conv.convert_kernel(m=M, z=0.0, omega_m_z=0.3, source=SOMean(), target=SOCritical())
+    c_new = _solve(5.0, _ln_q(SOCritical(), SOMean(), 0.3))
+    ratio = math.exp(_ln_mu(c_new) - _ln_mu(5.0))
     np.testing.assert_allclose(out.m / M, ratio, rtol=1e-14)
     np.testing.assert_allclose(out.dm_dm, ratio, rtol=1e-14)
     # No calibration domain: everything is inside, and no policy applies to it.
@@ -305,14 +326,14 @@ def test_a_user_concentration_model():
 
 def test_fof_converts_through_its_overdensity(nfw):
     """FoF(b=0.2) is ~179 times the mean, so a little bigger than 200m: a few per cent."""
-    out = nfw.convert_kernel(M, z=0.0, omega_m_z=OMEGA_M0, source=FOF(), target=SOMean())
+    out = nfw.convert_kernel(m=M, z=0.0, omega_m_z=OMEGA_M0, source=FOF(), target=SOMean())
     assert np.all((out.m / M < 1.0) & (out.m / M > 0.95))
 
 
 def test_definitions_without_an_overdensity_raise(nfw):
     for bad in (SelfBound(), SOGeneric(preferred=SOMean())):
         with pytest.raises(ValueError, match="Can't convert masses"):
-            nfw.convert_kernel(M, z=0.0, omega_m_z=0.3, source=bad, target=SOMean())
+            nfw.convert_kernel(m=M, z=0.0, omega_m_z=0.3, source=bad, target=SOMean())
         with pytest.raises(ValueError, match="Can't convert masses"):
             nfw.check_definitions(SOMean(), bad)
 
@@ -320,30 +341,36 @@ def test_definitions_without_an_overdensity_raise(nfw):
 def test_inputs_are_checked(nfw):
     args = {"source": SOMean(), "target": SOCritical()}
     with pytest.raises(DomainError, match="m in"):
-        nfw.convert_kernel([1e12, 0.0], z=0.0, omega_m_z=0.3, **args)
+        nfw.convert_kernel(m=[1e12, 0.0], z=0.0, omega_m_z=0.3, **args)
     with pytest.raises(DomainError, match="z in"):
-        nfw.convert_kernel(1e12, z=-1.0, omega_m_z=0.3, **args)
+        nfw.convert_kernel(m=1e12, z=-1.0, omega_m_z=0.3, **args)
     with pytest.raises(DomainError, match="omega_m_z"):
-        nfw.convert_kernel(1e12, z=0.0, omega_m_z=np.nan, **args)
+        nfw.convert_kernel(m=1e12, z=0.0, omega_m_z=np.nan, **args)
 
 
 def test_calibration_domain_is_reported(nfw):
     out = nfw.convert_kernel(
-        np.array([1e9, 1e12, 1e16]), z=0.0, omega_m_z=0.3, source=SOCritical(), target=SOMean()
+        m=np.array([1e9, 1e12, 1e16]), z=0.0, omega_m_z=0.3, source=SOCritical(), target=SOMean()
     )
     np.testing.assert_array_equal(out.in_calibration_domain, [False, True, False])
     assert "Duffy08's calibration domain" in out.calibration_description
-    high_z = nfw.convert_kernel(1e12, z=3.0, omega_m_z=0.9, source=SOMean(), target=SOVirial())
+    high_z = nfw.convert_kernel(m=1e12, z=3.0, omega_m_z=0.9, source=SOMean(), target=SOVirial())
     assert not high_z.in_calibration_domain
 
 
 def test_public_convert(nfw):
-    m, jac = nfw.convert(1e12 * Msun_h, z=0.0, omega_m_z=0.3, source=SOMean(), target=SOCritical())
+    m, jac = nfw.convert(
+        m=1e12 * Msun_h, z=0.0, omega_m_z=0.3, source=SOMean(), target=SOCritical()
+    )
     assert m.unit == Msun_h
     assert m.shape == ()
     assert isinstance(jac, float)
     with pytest.raises(UnitBoundaryError):
-        nfw.convert(1e12, z=0.0, omega_m_z=0.3, source=SOMean(), target=SOCritical())
+        nfw.convert(m=1e12, z=0.0, omega_m_z=0.3, source=SOMean(), target=SOCritical())
+    with pytest.raises(TypeError, match="positional"):
+        nfw.convert(1e12 * Msun_h, z=0.0, omega_m_z=0.3, source=SOMean(), target=SOCritical())
+    with pytest.raises(TypeError, match="positional"):
+        nfw.convert_kernel(1e12, z=0.0, omega_m_z=0.3, source=SOMean(), target=SOCritical())
 
 
 # ---------------------------------------------------------------------------------
@@ -421,14 +448,14 @@ def test_halo_number_is_conserved(smt, z, target):
     m_top = 1e16
     om = omega_m(Planck18, z, "cb")
     m_meas_top = mf.mass_conversion.convert_kernel(
-        m_top, z=z, omega_m_z=om, source=target, target=SOVirial()
+        m=m_top, z=z, omega_m_z=om, source=target, target=SOVirial()
     ).m
     for m0 in m_lo:
         grid = np.geomspace(m0, m_top, 801)
         dndlnm = grid * mf.dndm(m=grid * Msun_h, z=z).value
         counted = simpson(dndlnm, x=np.log(grid))
         m_meas = mf.mass_conversion.convert_kernel(
-            m0, z=z, omega_m_z=om, source=target, target=SOVirial()
+            m=m0, z=z, omega_m_z=om, source=target, target=SOVirial()
         ).m
         expected = (
             smt.ngtm(m=m_meas * Msun_h, z=z).value - smt.ngtm(m=m_meas_top * Msun_h, z=z).value
@@ -453,7 +480,7 @@ def test_rho_gtm_is_the_mass_in_the_new_definition(smt200):
 def test_converting_to_an_equal_overdensity_is_the_identity(smt):
     """SO-mean of the virial overdensity at z is the virial definition there (#362)."""
     z = 0.5
-    delta = float(SOVirial().delta_halo_mean_kernel(omega_m(Planck18, z, "cb")))
+    delta = float(SOVirial().delta_halo_mean_kernel(omega_m_z=omega_m(Planck18, z, "cb")))
     mf = smt.evolve(mass_definition=SOMean(overdensity=delta), mass_conversion="profile")
     assert mf.converts_masses
     m = M * Msun_h
@@ -508,7 +535,7 @@ def test_behroozi_uses_the_measured_ngtm(smt):
     z = 3.0
     om = omega_m(Planck18, z, "cb")
     out = converted.mass_conversion.convert_kernel(
-        M, z=z, omega_m_z=om, source=SOMean(), target=SOVirial()
+        m=M, z=z, omega_m_z=om, source=SOMean(), target=SOVirial()
     )
     np.testing.assert_allclose(
         converted.dndm(m=M * Msun_h, z=z).value,
@@ -530,7 +557,7 @@ def test_bocquet_mass_ratio_is_applied_once(smt):
     z = 0.5
     m = np.geomspace(1e13, 1e15, 9)
     out = converted.mass_conversion.convert_kernel(
-        m, z=z, omega_m_z=omega_m(Planck18, z, "cb"), source=SOMean(), target=SOCritical()
+        m=m, z=z, omega_m_z=omega_m(Planck18, z, "cb"), source=SOMean(), target=SOCritical()
     )
     np.testing.assert_allclose(
         converted.dndm(m=m * Msun_h, z=z).value,
@@ -655,7 +682,7 @@ def test_converted_dndm_matches_v3(monkeypatch, z):
     original = v3_mdefs.BaseMassDefinition.change_definition
 
     def profile_free(self, m, mdef, profile=None, c=None, z=0, cosmo=None):
-        c = duffy.concentration(np.asarray(m) * Msun_h, z=z)
+        c = duffy.concentration(m=np.asarray(m) * Msun_h, z=z)
         return original(self, m, mdef, profile=_NFW(self, z, cosmo), c=c, z=z, cosmo=cosmo)
 
     monkeypatch.setattr(v3_mdefs.BaseMassDefinition, "change_definition", profile_free)
