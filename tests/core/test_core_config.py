@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import copy
+import datetime
 import logging
 import pickle
 import pickletools
 import tomllib
 import typing
 import warnings
+from fractions import Fraction
 from pathlib import Path
 
 import astropy.units as u
@@ -581,11 +583,119 @@ def test_pickle_without_computed_runs_runs_the_code_again():
     assert _boltzmann.run_counts()["camb"] == before + 1
 
 
-def test_deepcopy_is_an_equal_stage():
+def test_copies_are_the_stage_and_recompute_nothing(monkeypatch):
     mf = MassFunction.build(**{"transfer.model": "EH"}, fit="SMT")
-    other = copy.deepcopy(mf)
-    assert other == mf
-    assert np.array_equal(other.dndm(m=M, z=0.0), mf.dndm(m=M, z=0.0))
+    expected = mf.dndm(m=M, z=0.0)
+    computed: list[np.ndarray] = []
+    real = MassVariance._compute_nodes
+
+    def counting(self, j):
+        computed.append(np.array(j))
+        return real(self, j)
+
+    monkeypatch.setattr(MassVariance, "_compute_nodes", counting)
+    for other in (copy.copy(mf), copy.deepcopy(mf), copy.deepcopy([mf])[0]):
+        assert other is mf
+        assert np.array_equal(other.dndm(m=M, z=0.0), expected)
+    assert computed == []
+
+
+# ---------------------------------------------------------------------------------
+# A cosmology's meta
+# ---------------------------------------------------------------------------------
+
+
+def _dated(**meta) -> FlatLambdaCDM:
+    """Planck18, with meta entries that have no encoding."""
+    return Planck18.clone(meta={**Planck18.meta, "created": datetime.date(2024, 1, 1), **meta})
+
+
+def test_unencodable_meta_is_left_out_with_one_warning():
+    mf = MassFunction.build(cosmology=_dated(owner=object()), **{"transfer.model": "EH"})
+    for write in (config.to_config, config.dumps_toml, pickle.dumps):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            write(mf)
+        assert len(caught) == 1, write
+        assert caught[0].category is UserWarning
+        assert "'created', 'owner'" in str(caught[0].message)
+        assert caught[0].filename == __file__  # from the caller, not from hmf.core
+    with pytest.warns(UserWarning, match="'created', 'owner'"):
+        cosmology = config.to_config(mf)["linear_power"]["transfer"]["cosmology"]
+    assert set(cosmology["meta"]) == set(Planck18.meta)
+    with pytest.warns(UserWarning, match="'created'"):
+        assert set(config.unstructure(mf.cosmology)["meta"]) == set(Planck18.meta)
+
+
+def test_meta_entries_with_keys_that_are_not_strings_are_left_out():
+    cosmo = Planck18.clone(meta={**Planck18.meta, 1: "one", "table": {2: "two"}})
+    with pytest.warns(UserWarning, match="entries 1, 'table' can't be written"):
+        meta = config.to_config(Transfer(model="EH", cosmology=cosmo))["cosmology"]["meta"]
+    assert set(meta) == set(Planck18.meta)
+
+
+def test_mapping_keys_must_be_strings():
+    with pytest.raises(TypeError, match="keys in a configuration must be strings, not 1"):
+        config.unstructure({1: 2.0})
+
+
+def test_stage_with_unencodable_meta_pickles_copies_and_round_trips():
+    """A stage with a date in its cosmology's meta (information only) can be written."""
+    mf = MassFunction.build(cosmology=_dated(), **{"transfer.model": "EH"})
+    expected = mf.dndm(m=M, z=0.5)
+    key = config.content_hash(mf)  # the hash leaves out meta, and does not warn
+    with pytest.warns(UserWarning, match="'created'"):
+        pickled = pickle.loads(pickle.dumps(mf))
+    with pytest.warns(UserWarning, match="'created'"):
+        from_toml = config.loads_toml(config.dumps_toml(mf))
+    copies = (copy.copy(mf), copy.deepcopy(mf))
+    assert all(c is mf for c in copies)
+    for other in (pickled, from_toml):
+        assert other == mf
+        assert hash(other) == hash(mf)
+        assert config.content_hash(other) == key
+        assert "created" not in other.cosmology.meta
+        assert other.cosmology.meta["sigma8"] == Planck18.meta["sigma8"]
+        assert np.array_equal(other.dndm(m=M, z=0.5), expected)
+
+
+@pytest.mark.parametrize("key", sorted(config.READ_META_KEYS))
+def test_unencodable_meta_that_the_stages_read_raises(key):
+    # The stages read it (as a float), so it can't be left out of a configuration.
+    cosmo = Planck18.clone(meta={**Planck18.meta, key: Fraction(4, 5)})
+    mf = MassFunction.build(cosmology=cosmo, **{"transfer.model": "EH"})
+    for write in (config.to_config, config.dumps_toml, pickle.dumps, config.content_hash):
+        with pytest.raises(TypeError, match="Fraction") as error:
+            write(mf)
+        assert any(key in note for note in error.value.__notes__)
+
+
+@pytest.mark.parametrize("key", sorted(config.READ_META_KEYS))
+def test_read_meta_keys_are_read_by_build(key):
+    meta = {k: v for k, v in Planck18.meta.items() if k != key}
+    cosmo = FlatLambdaCDM(H0=67.66, Om0=0.3111, Ob0=0.0490, meta=meta)
+    with pytest.raises(ValueError, match=f"its meta has no {key!r}"):
+        MassFunction.build(cosmology=cosmo)
+
+
+def test_meta_arrays_round_trip_as_arrays():
+    arrays = {
+        "ints": np.arange(3),
+        "floats": np.linspace(0.0, 1.0, 4),
+        "singles": np.array([0.1, 0.2], dtype=np.float32),
+        "grid": np.arange(6, dtype=np.int32).reshape(2, 3),
+        "scalar": np.array(2.5),
+    }
+    cosmo = Planck18.clone(meta={**Planck18.meta, **arrays, "nested": {"ints": np.arange(2)}})
+    mf = MassFunction.build(cosmology=cosmo, **{"transfer.model": "EH"})
+    for other in (*roundtrip(mf), pickle.loads(pickle.dumps(mf))):
+        meta = other.cosmology.meta
+        for name, array in [*arrays.items(), ("nested", arrays["ints"][:2])]:
+            value = meta[name]["ints"] if name == "nested" else meta[name]
+            assert isinstance(value, np.ndarray), name
+            assert value.dtype == array.dtype, name
+            assert value.shape == array.shape, name
+            assert np.array_equal(value, array), name
 
 
 # ---------------------------------------------------------------------------------

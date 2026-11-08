@@ -544,7 +544,9 @@ h-units written explicitly: ``{value = 20.0, unit = "littleh / Mpc"}``. Units ar
 with littleh enabled, and a unit with littleh goes through
 :func:`~hmf.core.units.to_canonical`, so a wrong power of littleh raises as at the
 units boundary. A cosmology is a table of every parameter (``m_nu`` as a Quantity
-array), its astropy class, and its name and ``meta`` (which are information only).
+array), its astropy class, and its name and ``meta`` (which are information only: a
+``meta`` entry that can't be written, e.g. a date, is left out with a warning, unless the
+stages read it, as ``n`` and ``sigma8``).
 Mass definitions, and other values whose class is not the field's declared class, carry
 a ``class`` key with their import path. TOML has no null: a field that is ``None`` is
 left out if that is its default, and written ``{none = true}`` otherwise.
@@ -566,10 +568,11 @@ and ``meta``, so it is unchanged by a round trip through a configuration, a pick
 TOML file. The disk cache's keys use the same canonical form
 (:func:`hmf.core._serialise.canonical`).
 
-**Pickling.** A stage pickles, and deep-copies, as its configuration, with the
-Boltzmann-code runs its tree has already used, as plain arrays. Unpickling rebuilds the
-tree and reuses those runs, so it does not run CAMB or CLASS again, and gives
-bit-identical results. No CAMB or CLASS object is ever pickled.
+**Pickling.** A stage pickles as its configuration, with the Boltzmann-code runs its
+tree has already used, as plain arrays. Unpickling rebuilds the tree and reuses those
+runs, so it does not run CAMB or CLASS again, and gives bit-identical results. No CAMB or
+CLASS object is ever pickled. A stage is immutable, so ``copy.copy`` and
+``copy.deepcopy`` return the stage itself, with its caches.
 
 API
 ---
