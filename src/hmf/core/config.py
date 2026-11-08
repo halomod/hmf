@@ -67,7 +67,12 @@ Every value is written so that it reads back to an equal value, bit for bit:
   ``Ob0``, ...) and their ``meta`` (e.g. ``n`` and ``sigma8``), through astropy's
   mapping I/O. The name and ``meta`` are information only: they are not part of the
   cosmology's value (:func:`~hmf.core._serialise.cosmology_key`) or of the content
-  hash.
+  hash. A ``meta`` entry is written with the encodings here (an array always with its
+  ``dtype``, so that it reads back as an array); an entry that has none (e.g. a
+  :class:`datetime.date`) is left out, with one warning per configuration naming the
+  keys left out. The entries the stages read (:data:`READ_META_KEYS`) are never left
+  out: if one can't be written, writing the configuration raises, and so does the
+  content hash.
 * **Accuracy settings** and other ``attrs`` values (a
   :class:`~hmf.core.cache.DiskCache`) as a table of every field.
 * **Mass definitions** as a table of their class and fields, e.g.
@@ -145,13 +150,15 @@ cosmologies through the same converter.
 
 Pickling
 --------
-A :class:`~hmf.core.stage.Stage` pickles (and deep-copies) as its configuration, plus
-the Boltzmann-code runs its tree has already used, as plain arrays (see
+A :class:`~hmf.core.stage.Stage` pickles as its configuration, plus the Boltzmann-code
+runs its tree has already used, as plain arrays (see
 :func:`hmf.core._boltzmann.export_runs`). Unpickling rebuilds the tree from the
 configuration, and puts the runs in the in-process memo, so it does not run CAMB or
 CLASS again; results are bit-identical. No CAMB or CLASS object is ever pickled. The
 pickle also records which parameters hold computed defaults, which the configuration
-does not, so a pickled or copied stage evolves as the original does.
+does not, so an unpickled stage evolves as the original does.
+:func:`copy.copy` and :func:`copy.deepcopy` of a stage return the stage itself (it is
+immutable), with everything it has computed.
 """
 
 from __future__ import annotations
@@ -168,6 +175,7 @@ import tempfile
 import tomllib
 import types
 import typing
+import warnings
 from collections.abc import Callable, Iterable, Mapping
 from contextvars import ContextVar
 from enum import Enum
@@ -193,6 +201,7 @@ __all__ = [
     "HASHED_PACKAGES",
     "MIGRATIONS",
     "PACKAGES",
+    "READ_META_KEYS",
     "SCHEMA_VERSION",
     "Migration",
     "canonical_value",
@@ -235,9 +244,19 @@ _QUANTITY_KEYS = frozenset({"value", "unit", "dtype"})
 #: The type of the settings fields of the Boltzmann models (written as a table).
 _PAIRS = tuple[tuple[str, Any], ...]
 
+#: The keys of a cosmology's ``meta`` that the stages read: the defaults of ``n_s``
+#: and ``sigma_8`` of :meth:`MassFunction.build
+#: <hmf.core.mass_function.MassFunction.build>`. A configuration can't leave them out.
+READ_META_KEYS: frozenset[str] = frozenset({"n", "sigma8"})
+
+#: The directory of hmf.core, whose frames a warning skips to reach the caller.
+_PACKAGE_DIR = str(Path(__file__).parent)
+
 _Mode = Literal["config", "toml", "hash"]
 #: What the converter is writing: a mapping, TOML, or the input of a content hash.
 _mode: ContextVar[_Mode] = ContextVar("hmf_config_mode", default="config")
+#: The keys of the meta entries left out of the configuration being written.
+_dropped_meta: ContextVar[list[str] | None] = ContextVar("hmf_config_dropped_meta", default=None)
 
 
 # ---------------------------------------------------------------------------------
@@ -447,12 +466,14 @@ def _unstructure_sequence(value: Any) -> list[Any]:
     return [unstructure(v) for v in value]
 
 
-def _unstructure_mapping(value: Mapping[Any, Any]) -> dict[str, Any]:
+def _unstructure_mapping(
+    value: Mapping[Any, Any], encode: Callable[[Any], Any] | None = None
+) -> dict[str, Any]:
     out: dict[str, Any] = {}
     for k, v in value.items():
         if not isinstance(k, str):
             raise TypeError(f"Mapping keys in a configuration must be strings, not {k!r}.")
-        out[k] = unstructure(v)
+        out[k] = (encode or unstructure)(v)
     return out
 
 
@@ -474,19 +495,73 @@ def _unstructure_quantity(value: u.Quantity) -> dict[str, Any]:
     return out
 
 
+def _unstructure_untyped(value: Any) -> Any:
+    """Encode a value with no declared type, so that it reads back as the same type.
+
+    Arrays always carry their dtype (a bare list reads back as a list).
+    """
+    if isinstance(value, np.ndarray) and not isinstance(value, u.Quantity):
+        return {"value": _plain_values(value), "dtype": value.dtype.name}
+    if isinstance(value, Mapping):
+        return _unstructure_mapping(value, _unstructure_untyped)
+    if isinstance(value, (list, tuple)):
+        return [_unstructure_untyped(v) for v in value]
+    return unstructure(value)
+
+
+def _unstructure_meta(meta: Mapping[Any, Any]) -> tuple[dict[str, Any], list[str]]:
+    """Encode a cosmology's ``meta``: the entries that encode, and the keys of the rest.
+
+    Raises
+    ------
+    TypeError
+        If an entry that a stage reads (:data:`READ_META_KEYS`) can't be encoded.
+    """
+    out: dict[str, Any] = {}
+    dropped: list[str] = []
+    for key, value in meta.items():
+        try:
+            out.update(_unstructure_mapping({key: value}, _unstructure_untyped))
+        except TypeError as error:
+            if key in READ_META_KEYS:
+                _note(error, f"the cosmology's meta[{key!r}], which the stages read")
+                raise
+            dropped.append(repr(key))
+    return out, dropped
+
+
 def _unstructure_cosmology(value: Cosmology) -> dict[str, Any]:
     mapping = dict(value.to_format("mapping", cosmology_as_str=True))
     out: dict[str, Any] = {"class": mapping.pop("cosmology")}
     name = mapping.pop("name", None)
-    meta = mapping.pop("meta", None) or {}
+    meta, dropped = _unstructure_meta(mapping.pop("meta", None) or {})
     hashing = _mode.get() == "hash"
     if not hashing and name is not None:
         out["name"] = name
     for key, parameter in mapping.items():
         out[key] = unstructure(parameter)
-    if not hashing and meta:
-        out["meta"] = _unstructure_mapping(meta)
+    if hashing:
+        return out
+    if meta:
+        out["meta"] = meta
+    if dropped:
+        collected = _dropped_meta.get()
+        if collected is None:
+            _warn_dropped_meta(dropped)
+        else:
+            collected.extend(dropped)
     return out
+
+
+def _warn_dropped_meta(keys: Iterable[str]) -> None:
+    """Warn, from the caller outside hmf.core, that meta entries are left out."""
+    names = ", ".join(dict.fromkeys(keys))
+    warnings.warn(
+        f"The cosmology's meta entries {names} can't be written in a configuration, and "
+        "are left out of it (meta is information only).",
+        UserWarning,
+        skip_file_prefixes=(_PACKAGE_DIR,),
+    )
 
 
 def _unstructure_field(value: Any, declared: Any) -> Any:
@@ -680,12 +755,14 @@ def _structure_unit(data: Any, tp: Any) -> Any:
 
 
 def _structure_untyped(data: Any, where: str = "") -> Any:
-    """Decode data with no declared type: Quantities, None, and containers of these."""
+    """Decode data with no declared type: Quantities, arrays, None, and containers of these."""
     if _is_none(data):
         return None
     if isinstance(data, Mapping):
         if "value" in data and "unit" in data and set(data) <= _QUANTITY_KEYS:
             return _quantity(data, where)
+        if set(data) == {"value", "dtype"}:
+            return np.asarray(data["value"], dtype=np.dtype(data["dtype"]))
         return {k: _structure_untyped(v, f"{where}.{k}") for k, v in data.items()}
     if isinstance(data, list):
         return [_structure_untyped(v, where) for v in data]
@@ -946,6 +1023,8 @@ def _document(stage: Stage, mode: _Mode, *, versions: bool) -> dict[str, Any]:
     if not isinstance(stage, Stage):
         raise TypeError(f"Expected a stage, not a {type(stage).__name__}.")
     token = _mode.set(mode)
+    dropped: list[str] = []
+    dropped_token = _dropped_meta.set(dropped)
     try:
         header: dict[str, Any] = {
             "schema_version": SCHEMA_VERSION,
@@ -960,6 +1039,9 @@ def _document(stage: Stage, mode: _Mode, *, versions: bool) -> dict[str, Any]:
         body = _unstructure_attrs(stage)
     finally:
         _mode.reset(token)
+        _dropped_meta.reset(dropped_token)
+    if dropped:
+        _warn_dropped_meta(dropped)
     if HEADER in body:
         raise TypeError(f"{type(stage).__name__} has a field {HEADER!r}, the header's key.")
     return {HEADER: header, **body}

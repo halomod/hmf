@@ -31,9 +31,10 @@ as a field. The conventions every stage follows:
   base stage's ``_unit_context`` has no H0, so it accepts only h-units; a stage that
   can convert physical units (because it has a cosmology, or an H0) should override
   ``_unit_context`` to provide its H0.
-* **Pickling**: a stage pickles (and copies) as its configuration
+* **Pickling and copying**: a stage pickles as its configuration
   (:mod:`hmf.core.config`), with the Boltzmann-code runs it has used as plain arrays,
-  never as live objects.
+  never as live objects. Because it is immutable, :func:`copy.copy` and
+  :func:`copy.deepcopy` return the stage itself, with its caches.
 * **Cosmology**: a stage computed from a cosmology subclasses
   :class:`CosmologyStage`, which holds the ``cosmology`` field and takes its units
   context from the cosmology's H0.
@@ -507,8 +508,25 @@ class Stage(Documented):
         """
         return routing.router(cls).invalidated_by(name)
 
+    def __copy__(self) -> Self:
+        """The stage itself: a stage is immutable, so a copy of it is the stage."""
+        return self
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> Self:
+        """The stage itself, with everything it has computed.
+
+        A stage is immutable and its cached results never go stale, so a deep copy
+        would only repeat the work (rebuilding the tree and recomputing its caches).
+
+        Parameters
+        ----------
+        memo
+            The memo of :func:`copy.deepcopy`.
+        """
+        return self
+
     def __reduce__(self) -> tuple[Any, ...]:
-        """Pickle (and copy) the stage as its configuration, never as live objects.
+        """Pickle the stage as its configuration, never as live objects.
 
         The state is the stage tree's configuration (:func:`hmf.core.config.to_config`)
         and the Boltzmann-code runs it has already used, as plain arrays; unpickling
