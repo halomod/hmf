@@ -137,7 +137,7 @@ def test_every_field_is_routable():
     for path, cls in table.stages.items():
         for a in attrs.fields(cls):
             full = (*path, a.name)
-            if full not in table.stages:
+            if a.init and full not in table.stages:
                 fields.add(".".join(full))
     assert fields == routed
     assert set(table.stages) == {(), ("linear_power",), ("linear_power", "transfer")}
@@ -200,6 +200,17 @@ def test_changes_cover_every_parameter():
     assert set(CHANGES) == set(MassFunction.parameter_names())
 
 
+def _explicit_flat(mf):
+    """``mf.to_flat()`` without the parameters that hold computed defaults.
+
+    So that ``from_flat({**_explicit_flat(mf), name: value})`` is ``mf.evolve(name=value)``:
+    the computed defaults are computed again, from the new value.
+    """
+    computed = set(mf.computed_parameters())
+    info = MassFunction.parameter_info()
+    return {k: v for k, v in mf.to_flat().items() if info[k].path not in computed}
+
+
 def _two_species(mf):
     """``mf`` with a tabulated transfer function whose total matter is suppressed at small scales.
 
@@ -227,7 +238,7 @@ def test_evolve_every_parameter(mf, tmp_path, name):
             got, old = getattr(got, part), getattr(old, part)
         assert got is not old, path
     # A fresh tree, with every other parameter the same.
-    fresh = MassFunction.from_flat({**mf.to_flat(), name: value})
+    fresh = MassFunction.from_flat({**_explicit_flat(mf), name: value})
     assert new == fresh
     if quantity is not None:
         method, z = quantity
@@ -301,7 +312,8 @@ def test_cosmology_change_is_consistent(mf):
         assert stage.cosmology is Planck15
     assert lp.growth.transfer is lp.transfer
     assert new.variance.power.transfer is lp.transfer
-    assert new == MassFunction.from_flat({**mf.to_flat(), "cosmology": Planck15})
+    assert new == MassFunction.from_flat({**_explicit_flat(mf), "cosmology": Planck15})
+    assert new == MassFunction.build(**{"transfer.model": "EH"}, cosmology=Planck15)
 
 
 def test_k_accuracy_change_is_consistent(mf):
@@ -549,6 +561,13 @@ def test_given_parameters():
     assert "linear_power.transfer.nope" not in given
     assert sorted(given) == ["delta_c", "linear_power.transfer"]
     assert len(given) == 2
+    # It records what was looked up (() for iterating: everything).
+    fresh = GivenParameters({("delta_c",): 1.6})
+    assert "linear_power.sigma_8" not in fresh
+    assert fresh.get("delta_c") == 1.6
+    assert fresh.reads == {("linear_power", "sigma_8"), ("delta_c",)}
+    list(fresh)
+    assert () in fresh.reads
 
 
 # ---------------------------------------------------------------------------------
@@ -852,7 +871,10 @@ def test_toy_shared_parameter_and_derived_properties():
     double = built.double
     assert built.evolve(**{"right.count": 2}).double is double
     assert built.evolve(acc=3).double == 18
-    assert built.evolve(base=4).double == 16
+    # base is what acc's default is computed from: given, acc takes its own default.
+    assert built.evolve(base=4) == Holder.from_flat({"base": 4})
+    assert built.evolve(base=4).double == 8
+    assert built.evolve(acc=4).evolve(base=4).double == 32  # acc set: kept
     assert Holder.invalidated_by("acc") == ("", "double", "left", "right")
     assert Holder.invalidated_by("base") == ("", "double", "unannotated", "unresolved")
     # Without the composing stage's declaration, the name is ambiguous.

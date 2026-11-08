@@ -443,10 +443,34 @@ So the flat names of a mass function are exactly :meth:`build
 
     mf = MassFunction.build(**{"transfer.model": "EH"}, fit="ST", sigma_8=0.8)
     mf.evolve(sigma_8=0.85, n_s=0.95)
-    mf.evolve(cosmology=Planck15)              # the cosmology of the whole tree
+    mf.evolve(cosmology=Planck15)              # the cosmology of the whole tree, and
+                                               # n_s from Planck15 (sigma_8 is set above)
     mf.evolve(**{"fit.a": 0.75})               # a parameter of the fit
     mf.evolve(**{"linear_power.transfer.n_s": 0.95})
     MassFunction.from_flat({"transfer.model": "EH", "linear_power": {"sigma_8": 0.8}})
+
+**Computed defaults.** ``build`` takes σ8 and n_s, when they are not given, from the
+cosmology's ``meta`` (a stage's :meth:`~hmf.core.stage.Stage.computed_defaults`). A
+parameter that took such a default stays *computed* until it is set explicitly, and
+``evolve`` computes it again whenever a parameter it is computed from changes: so
+``build(**a).evolve(**b)`` equals ``build(**a, **b)``, and a cosmology scan done with
+``evolve`` gives the same models as one done with ``build``::
+
+    mf = MassFunction.build()                  # sigma_8 = 0.8102, n_s = 0.9665 (Planck18)
+    mf.evolve(cosmology=Planck15)              # sigma_8 = 0.8159, n_s = 0.9667 (Planck15)
+    MassFunction.build(sigma_8=0.8).evolve(cosmology=Planck15)   # sigma_8 stays 0.8
+    mf.evolve(sigma_8=0.8).evolve(cosmology=Planck15)            # so does this one
+
+A value set explicitly, in ``build`` or in any ``evolve``, is kept from then on, and so
+is every value below a stage given whole (``evolve(linear_power=lp)``).
+:meth:`~hmf.core.stage.Stage.computed_parameters` lists the parameters still computed.
+If the new cosmology does not give a computed parameter (its ``meta`` has no
+``sigma8``, as for a cosmology made by hand), ``evolve`` raises the
+:class:`ValueError` ``build`` raises, which names the parameter: set it explicitly.
+Which parameters are computed is not part of a stage's value: it does not change
+``==``, the hash or the content hash. A pickle or a copy keeps it; a configuration
+does not record it, so a stage read from one has every value the configuration gives
+explicit.
 
 A name that is not a parameter raises a :class:`TypeError` at once, before anything
 is built, with the closest names (``mf.evolve(sigma8=0.8)``: "Did you mean
@@ -491,7 +515,9 @@ Extension stages
     * the fields whose names are too generic to stand alone in
       ``qualified_parameters``, listed with the stage's name;
     * and defaults that depend on other parameters (as ``build`` takes σ8 and n_s from
-      the cosmology) in the class method ``computed_defaults``.
+      the cosmology) in the class method ``computed_defaults``. It must compute them
+      from the parameters it is given alone, looking up each one it depends on:
+      ``evolve`` calls it again when one of those it looked up changes.
 
     A derived property's input that is not a field of the tree raises a
     :class:`TypeError` when the table is first built.
@@ -569,7 +595,9 @@ TOML file. The disk cache's keys use the same canonical form
 **Pickling.** A stage pickles, and deep-copies, as its configuration, with the
 Boltzmann-code runs its tree has already used, as plain arrays. Unpickling rebuilds the
 tree and reuses those runs, so it does not run CAMB or CLASS again, and gives
-bit-identical results. No CAMB or CLASS object is ever pickled.
+bit-identical results. No CAMB or CLASS object is ever pickled. The pickle also records
+which parameters hold computed defaults (see "Computed defaults" above), so a copy
+evolves as the original does.
 
 API
 ---

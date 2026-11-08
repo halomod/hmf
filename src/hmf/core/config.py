@@ -99,6 +99,13 @@ of the default model. Only the header is required::
     sigma_8 = 0.8  # (at the top, before [hmf], in a file)
     fit = "ST"
 
+A configuration does not record which values were computed defaults (see
+:meth:`Stage.computed_parameters <hmf.core.stage.Stage.computed_parameters>`): every
+value it gives is explicit in the stage read from it, so a later
+``evolve(cosmology=...)`` keeps it. Only a value a partial configuration leaves out,
+and so takes a computed default, is computed again. A configuration written by
+:func:`to_config` gives every value, so the stage read from it has none computed.
+
 An unknown field raises a :class:`TypeError` with the closest names; an unknown model
 a :class:`~hmf.core.model.ModelNotFoundError` with suggestions; a wrong unit an
 :class:`astropy.units.UnitConversionError`. The error notes where in the
@@ -142,7 +149,9 @@ A :class:`~hmf.core.stage.Stage` pickles (and deep-copies) as its configuration,
 the Boltzmann-code runs its tree has already used, as plain arrays (see
 :func:`hmf.core._boltzmann.export_runs`). Unpickling rebuilds the tree from the
 configuration, and puts the runs in the in-process memo, so it does not run CAMB or
-CLASS again; results are bit-identical. No CAMB or CLASS object is ever pickled.
+CLASS again; results are bit-identical. No CAMB or CLASS object is ever pickled. The
+pickle also records which parameters hold computed defaults, which the configuration
+does not, so a pickled or copied stage evolves as the original does.
 """
 
 from __future__ import annotations
@@ -1342,12 +1351,45 @@ def _computed_runs(stage: Stage) -> list[BoltzmannRun]:
     return runs
 
 
-def _pickle_state(stage: Stage) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
-    """What a stage pickles as: its configuration, and the runs its tree has used."""
-    return to_config(stage), export_runs(_computed_runs(stage))
+def _pickle_state(
+    stage: Stage,
+) -> tuple[dict[str, Any], dict[str, dict[str, Any]], dict[str, tuple[list[str], list[str]]]]:
+    """What a stage pickles as: its configuration, its runs and its computed defaults.
+
+    The runs are those its tree has used; the computed defaults, which parameters hold
+    one (see :meth:`Stage.computed_parameters
+    <hmf.core.stage.Stage.computed_parameters>`), which the configuration does not
+    record.
+    """
+    records = {
+        ".".join(prefix): (
+            sorted(".".join(p) for p in record.paths),
+            sorted(".".join(p) for p in record.reads),
+        )
+        for prefix, record in routing.computed_records(stage).items()
+    }
+    return to_config(stage), export_runs(_computed_runs(stage)), records
 
 
-def _unpickle(config: Mapping[str, Any], runs: Mapping[str, Mapping[str, Any]]) -> Stage:
+def _unpickle(
+    config: Mapping[str, Any],
+    runs: Mapping[str, Mapping[str, Any]],
+    computed: Mapping[str, tuple[list[str], list[str]]] | None = None,
+) -> Stage:
     """Rebuild a pickled stage (see :meth:`Stage.__reduce__ <hmf.core.stage.Stage.__reduce__>`)."""
     import_runs(runs)
-    return from_config(config)
+    stage = from_config(config)
+    if computed:
+
+        def split(name: str) -> tuple[str, ...]:
+            return tuple(name.split(".")) if name else ()
+
+        records = {
+            split(prefix): routing.ComputedRecord(
+                paths=frozenset(split(p) for p in paths),
+                reads=frozenset(split(r) for r in reads),
+            )
+            for prefix, (paths, reads) in computed.items()
+        }
+        routing.with_records(stage, records)
+    return stage

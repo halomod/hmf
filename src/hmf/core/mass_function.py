@@ -208,9 +208,11 @@ def _cosmology_parameter(cosmology: FLRW, key: str, name: str) -> float:
     """A parameter from an astropy cosmology's ``meta`` (e.g. Planck18's ``sigma8``)."""
     value = cosmology.meta.get(key)
     if value is None:
+        label = cosmology.name or type(cosmology).__name__
         raise ValueError(
-            f"MassFunction.build: the cosmology {cosmology.name!r} does not give {name} "
-            f"(its meta has no {key!r}, as astropy's realisations do): pass {name}=..."
+            f"MassFunction: the cosmology {label!r} does not give {name}, its default "
+            f"(its meta has no {key!r}, as astropy's realisations do): set {name} "
+            f"explicitly ({name}=...)."
         )
     return float(value)
 
@@ -399,6 +401,12 @@ class MassFunction(Stage):
     def computed_defaults(cls, given: GivenParameters) -> Mapping[str, Any]:
         """The defaults of n_s and sigma_8: the cosmology's (see :meth:`build`).
 
+        They are computed again when :meth:`~hmf.core.stage.Stage.evolve` changes the
+        cosmology (or the transfer or linear-power stage), for those of them that were
+        not set explicitly, so that ``build().evolve(cosmology=c)`` equals
+        ``build(cosmology=c)``. One that was set, when building or in an ``evolve``,
+        keeps its value.
+
         Parameters
         ----------
         given
@@ -412,7 +420,8 @@ class MassFunction(Stage):
         Raises
         ------
         ValueError
-            If one of them is not given and the cosmology's ``meta`` does not have it.
+            If one of them is not given and the cosmology's ``meta`` does not have it
+            (the message names it, and asks to set it explicitly).
         """
         cosmology = given.get("linear_power.transfer.cosmology", Planck18)
         out = {}

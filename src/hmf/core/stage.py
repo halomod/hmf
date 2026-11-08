@@ -210,6 +210,19 @@ class Stage(Documented):
     #: recorded when the class is created.
     _derived_properties: ClassVar[Mapping[str, DerivedProperty[Any]]] = MappingProxyType({})
 
+    _computed: routing.ComputedRecord = field(
+        default=routing.NO_COMPUTED,
+        init=False,
+        eq=False,
+        repr=False,
+        physics=False,
+        doc=(
+            "The parameters below the stage that hold a default computed by its "
+            ":meth:`computed_defaults` (see :meth:`computed_parameters`). Not part of "
+            "the stage's value."
+        ),
+    )
+
     def evolve(self, **changes: Any) -> Self:
         """Return a copy of this stage tree with some parameters changed.
 
@@ -221,6 +234,13 @@ class Stage(Documented):
         from each changed field to this one are rebuilt, each by its
         :meth:`evolve_own`; every other stage is shared, with its cached results, and
         so is every :func:`derived_property` whose inputs do not change.
+
+        A parameter that holds a default computed from other parameters (see
+        :meth:`computed_defaults`, e.g. a mass function's sigma_8 and n_s, from the
+        cosmology's ``meta``) is computed again when a parameter it is computed from
+        changes, so that ``build(**a).evolve(**b)`` equals ``build(**a, **b)``. A
+        parameter set explicitly, here or when the tree was built, keeps its value
+        (see :meth:`computed_parameters`).
 
         Every name is checked before anything is built. The new stages are built,
         and so validated, by their constructors; if that fails, the error propagates
@@ -241,6 +261,10 @@ class Stage(Documented):
         TypeError
             If a name is not a parameter (with suggestions), is ambiguous (with the
             dotted paths to choose from), is a derived property, or is given twice.
+        ValueError
+            If a default that is computed again cannot be computed from the new
+            parameters (e.g. the new cosmology does not give sigma_8), or for an
+            invalid value.
         """
         return routing.evolve(self, changes)  # type: ignore[return-value]
 
@@ -250,7 +274,9 @@ class Stage(Documented):
         No routing: each name is a field of this stage, and nothing else changes. It
         is the step :meth:`evolve` takes at each stage it rebuilds. The value of each
         :func:`derived_property` already computed is carried to the new stage if none
-        of its inputs changes; every other cached result is computed again.
+        of its inputs changes; every other cached result is computed again. No
+        default is computed again: a field given here, and every parameter below it,
+        is explicit in the new stage (see :meth:`computed_parameters`).
 
         Parameters
         ----------
@@ -278,6 +304,12 @@ class Stage(Documented):
             msg += f" Fields: {names}."
             raise TypeError(msg)
         new = attrs.evolve(self, **changes)
+        record = self._computed
+        if record.paths:
+            # A field given here is explicit, with every parameter below it.
+            if any(p[0] in changes for p in record.paths):
+                record = record.explicit((n,) for n in changes)
+            object.__setattr__(new, "_computed", record)
         for name, prop in self._derived_properties.items():
             try:
                 value = _computed_value(self, name)
@@ -324,6 +356,15 @@ class Stage(Documented):
         the cosmology); the base stage has none. Defaults for parameters (or below
         stages) that are given are ignored.
 
+        The stage records which parameters took a computed default, and which paths of
+        ``given`` the hook looked up (see :meth:`computed_parameters`). When
+        :meth:`evolve` changes one of those paths, it calls the hook again, with every
+        parameter of the new tree except the ones still computed, and the computed
+        parameters take the new defaults. A parameter set explicitly, in
+        :meth:`from_flat` or in :meth:`evolve`, is never computed again. So the hook
+        must compute its defaults from ``given`` alone, and look up (with ``in``,
+        ``[]`` or ``get``) every parameter it depends on.
+
         Parameters
         ----------
         given
@@ -335,6 +376,40 @@ class Stage(Documented):
             Values by name or dotted path.
         """
         return {}
+
+    def computed_parameters(self) -> tuple[str, ...]:
+        """The parameters of the stage tree that hold a default computed from others.
+
+        Those that took a default from a stage's :meth:`computed_defaults` when the
+        tree was built (by :meth:`from_flat`, or :meth:`build` where a stage has one)
+        and have not been set explicitly since. :meth:`evolve` computes them again when
+        a parameter they are computed from changes (see :meth:`computed_defaults`).
+        Which parameters they are is not part of the stage's value: it does not change
+        ``==``, the hash or the content hash, and a configuration does not record it
+        (a stage read from a configuration has every value it gives explicit), but a
+        pickle or a copy keeps it.
+
+        Returns
+        -------
+        tuple of str
+            Their dotted paths, sorted.
+
+        Examples
+        --------
+        >>> from hmf.core.mass_function import MassFunction
+        >>> mf = MassFunction.build(**{"transfer.model": "EH"})
+        >>> mf.computed_parameters()
+        ('linear_power.sigma_8', 'linear_power.transfer.n_s')
+        >>> mf.evolve(sigma_8=0.8).computed_parameters()
+        ('linear_power.transfer.n_s',)
+        """
+        return tuple(
+            sorted(
+                ".".join((*prefix, *path))
+                for prefix, record in routing.computed_records(self).items()
+                for path in record.paths
+            )
+        )
 
     def to_flat(self) -> dict[str, Any]:
         """The value of every parameter of the stage tree, by the name it is routed by.
@@ -463,7 +538,7 @@ def _walk_path(obj: Any, dotted: str) -> Any:
 
 def _fresh(stage: Stage) -> Stage:
     """A copy of a stage tree with nothing computed: every stage of it is a new one."""
-    changes = {}
+    changes: dict[str, Any] = {}
     for a in attrs.fields(type(stage)):
         value = getattr(stage, a.name)
         if a.init and isinstance(value, Stage):
