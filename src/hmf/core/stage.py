@@ -210,19 +210,11 @@ class Stage(Documented):
     #: The derived properties of the class (see :func:`derived_property`), by name,
     #: recorded when the class is created.
     _derived_properties: ClassVar[Mapping[str, DerivedProperty[Any]]] = MappingProxyType({})
-
-    _computed: routing.ComputedRecord = field(
-        default=routing.NO_COMPUTED,
-        init=False,
-        eq=False,
-        repr=False,
-        physics=False,
-        doc=(
-            "The parameters below the stage that hold a default computed by its "
-            ":meth:`computed_defaults` (see :meth:`computed_parameters`). Not part of "
-            "the stage's value."
-        ),
-    )
+    #: The dotted paths, below the stage, of the parameters its
+    #: :meth:`computed_defaults` are computed from (e.g. the cosmology, for sigma_8 and
+    #: n_s). :meth:`evolve` computes the defaults again when one of them changes. A
+    #: parameter the hook only checks for (whether it is given) is not one of them.
+    computed_defaults_inputs: ClassVar[tuple[str, ...]] = ()
 
     def evolve(self, **changes: Any) -> Self:
         """Return a copy of this stage tree with some parameters changed.
@@ -236,12 +228,13 @@ class Stage(Documented):
         :meth:`evolve_own`; every other stage is shared, with its cached results, and
         so is every :func:`derived_property` whose inputs do not change.
 
-        A parameter that holds a default computed from other parameters (see
-        :meth:`computed_defaults`, e.g. a mass function's sigma_8 and n_s, from the
-        cosmology's ``meta``) is computed again when a parameter it is computed from
-        changes, so that ``build(**a).evolve(**b)`` equals ``build(**a, **b)``. A
-        parameter set explicitly, here or when the tree was built, keeps its value
-        (see :meth:`computed_parameters`).
+        A change to a parameter that a stage's defaults are computed from (its
+        :attr:`computed_defaults_inputs`, e.g. a mass function's cosmology) computes
+        them again: every parameter that :meth:`computed_defaults` gives a default for
+        takes the new default, unless it is given in the same call. So
+        ``mf.evolve(cosmology=Planck15)`` takes sigma_8 and n_s from Planck15, and
+        ``mf.evolve(cosmology=Planck15, sigma_8=0.8)`` keeps sigma_8 = 0.8. Other
+        changes compute no default again.
 
         Every name is checked before anything is built. The new stages are built,
         and so validated, by their constructors; if that fails, the error propagates
@@ -263,9 +256,9 @@ class Stage(Documented):
             If a name is not a parameter (with suggestions), is ambiguous (with the
             dotted paths to choose from), is a derived property, or is given twice.
         ValueError
-            If a default that is computed again cannot be computed from the new
-            parameters (e.g. the new cosmology does not give sigma_8), or for an
-            invalid value.
+            If a default computed again cannot be computed from the new parameters
+            (e.g. the new cosmology does not give sigma_8, and sigma_8 is not given),
+            or for an invalid value.
         """
         return routing.evolve(self, changes)  # type: ignore[return-value]
 
@@ -275,9 +268,7 @@ class Stage(Documented):
         No routing: each name is a field of this stage, and nothing else changes. It
         is the step :meth:`evolve` takes at each stage it rebuilds. The value of each
         :func:`derived_property` already computed is carried to the new stage if none
-        of its inputs changes; every other cached result is computed again. No
-        default is computed again: a field given here, and every parameter below it,
-        is explicit in the new stage (see :meth:`computed_parameters`).
+        of its inputs changes; every other cached result is computed again.
 
         Parameters
         ----------
@@ -305,12 +296,6 @@ class Stage(Documented):
             msg += f" Fields: {names}."
             raise TypeError(msg)
         new = attrs.evolve(self, **changes)
-        record = self._computed
-        if record.paths:
-            # A field given here is explicit, with every parameter below it.
-            if any(p[0] in changes for p in record.paths):
-                record = record.explicit((n,) for n in changes)
-            object.__setattr__(new, "_computed", record)
         for name, prop in self._derived_properties.items():
             try:
                 value = _computed_value(self, name)
@@ -357,14 +342,14 @@ class Stage(Documented):
         the cosmology); the base stage has none. Defaults for parameters (or below
         stages) that are given are ignored.
 
-        The stage records which parameters took a computed default, and which paths of
-        ``given`` the hook looked up (see :meth:`computed_parameters`). When
-        :meth:`evolve` changes one of those paths, it calls the hook again, with every
-        parameter of the new tree except the ones still computed, and the computed
-        parameters take the new defaults. A parameter set explicitly, in
-        :meth:`from_flat` or in :meth:`evolve`, is never computed again. So the hook
-        must compute its defaults from ``given`` alone, and look up (with ``in``,
-        ``[]`` or ``get``) every parameter it depends on.
+        A stage that defines it lists the parameters its defaults are computed from in
+        :attr:`computed_defaults_inputs`. :meth:`evolve` calls the hook again when one
+        of them changes, with the parameters changed in that call and the new values of
+        the inputs, and every parameter it gives a default for, and that the call does
+        not give, takes that default. So the hook must compute its defaults from its
+        inputs alone, and give a default for each parameter it computes whenever that
+        parameter is not given. :func:`undeclared_inputs` checks, in a test, that it
+        reads no other parameter.
 
         Parameters
         ----------
@@ -377,40 +362,6 @@ class Stage(Documented):
             Values by name or dotted path.
         """
         return {}
-
-    def computed_parameters(self) -> tuple[str, ...]:
-        """The parameters of the stage tree that hold a default computed from others.
-
-        Those that took a default from a stage's :meth:`computed_defaults` when the
-        tree was built (by :meth:`from_flat`, or :meth:`build` where a stage has one)
-        and have not been set explicitly since. :meth:`evolve` computes them again when
-        a parameter they are computed from changes (see :meth:`computed_defaults`).
-        Which parameters they are is not part of the stage's value: it does not change
-        ``==``, the hash or the content hash, and a configuration does not record it
-        (a stage read from a configuration has every value it gives explicit), but a
-        pickle or a copy keeps it.
-
-        Returns
-        -------
-        tuple of str
-            Their dotted paths, sorted.
-
-        Examples
-        --------
-        >>> from hmf.core.mass_function import MassFunction
-        >>> mf = MassFunction.build(**{"transfer.model": "EH"})
-        >>> mf.computed_parameters()
-        ('linear_power.sigma_8', 'linear_power.transfer.n_s')
-        >>> mf.evolve(sigma_8=0.8).computed_parameters()
-        ('linear_power.transfer.n_s',)
-        """
-        return tuple(
-            sorted(
-                ".".join((*prefix, *path))
-                for prefix, record in routing.computed_records(self).items()
-                for path in record.paths
-            )
-        )
 
     def to_flat(self) -> dict[str, Any]:
         """The value of every parameter of the stage tree, by the name it is routed by.
@@ -556,7 +507,7 @@ def _walk_path(obj: Any, dotted: str) -> Any:
 
 def _fresh(stage: Stage) -> Stage:
     """A copy of a stage tree with nothing computed: every stage of it is a new one."""
-    changes: dict[str, Any] = {}
+    changes = {}
     for a in attrs.fields(type(stage)):
         value = getattr(stage, a.name)
         if a.init and isinstance(value, Stage):
@@ -598,7 +549,7 @@ def _captured(
 
 
 def undeclared_inputs(stage: Stage) -> dict[str, tuple[str, ...]]:
-    """The fields each derived property of a stage reads, but does not declare as inputs.
+    """The fields each derived property (or computed default) reads but does not declare.
 
     A check for tests, of a stage's :func:`derived_property` declarations. Each derived
     property is evaluated on a fresh copy of the stage's tree (nothing computed), while
@@ -610,17 +561,26 @@ def undeclared_inputs(stage: Stage) -> dict[str, tuple[str, ...]]:
     too much is safe, declaring too little is not, because :meth:`Stage.evolve_own`
     would carry a stale value.
 
+    It also checks the stage's :meth:`~Stage.computed_defaults`, under the key
+    ``"computed_defaults"``: the hook is called with no parameters given, and every
+    parameter it looks up must be one of its
+    :attr:`~Stage.computed_defaults_inputs` (or below one), or one it gives a default
+    for (checking whether that is given). Iterating the parameters reads them all
+    (``"*"``). An undeclared input would leave a default stale after an
+    :meth:`~Stage.evolve` that changes it.
+
     Parameters
     ----------
     stage
-        A stage whose derived properties to check (those of the stages it holds are
-        not checked: call it on them too).
+        A stage whose derived properties and computed defaults to check (those of the
+        stages it holds are not checked: call it on them too).
 
     Returns
     -------
     dict
-        For each derived property that reads an undeclared field, the dotted paths
-        (below the stage) of those fields. Empty if every read is declared.
+        For each derived property (and ``"computed_defaults"``) that reads an
+        undeclared field, the dotted paths (below the stage) of those fields. Empty if
+        every read is declared.
 
     Examples
     --------
@@ -670,7 +630,25 @@ def undeclared_inputs(stage: Stage) -> dict[str, tuple[str, ...]]:
         missing = sorted(".".join(r) for r in reads if not any(r[: len(i)] == i for i in inputs))
         if missing:
             out[name] = tuple(missing)
+    hook_missing = _undeclared_default_inputs(type(stage))
+    if hook_missing:
+        out["computed_defaults"] = hook_missing
     return out
+
+
+def _undeclared_default_inputs(cls: type[Stage]) -> tuple[str, ...]:
+    """The parameters a stage class's computed_defaults reads but does not declare."""
+    inputs = routing.router(cls).computing.get(())
+    if inputs is None:
+        return ()
+    given = routing.GivenParameters({})
+    outputs = set(routing.router(cls).resolve(cls.computed_defaults(given)).values)
+    if () in given.reads:
+        return ("*",)
+    covered = [*inputs, *outputs]
+    return tuple(
+        sorted(".".join(r) for r in given.reads if not any(r[: len(c)] == c for c in covered))
+    )
 
 
 def _cosmology_field(*, also: str = "") -> Any:

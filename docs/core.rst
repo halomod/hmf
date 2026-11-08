@@ -443,34 +443,32 @@ So the flat names of a mass function are exactly :meth:`build
 
     mf = MassFunction.build(**{"transfer.model": "EH"}, fit="ST", sigma_8=0.8)
     mf.evolve(sigma_8=0.85, n_s=0.95)
-    mf.evolve(cosmology=Planck15)              # the cosmology of the whole tree, and
-                                               # n_s from Planck15 (sigma_8 is set above)
+    mf.evolve(cosmology=Planck15)              # the cosmology of the whole tree, with
+                                               # sigma_8 and n_s from Planck15
     mf.evolve(**{"fit.a": 0.75})               # a parameter of the fit
     mf.evolve(**{"linear_power.transfer.n_s": 0.95})
     MassFunction.from_flat({"transfer.model": "EH", "linear_power": {"sigma_8": 0.8}})
 
 **Computed defaults.** ``build`` takes σ8 and n_s, when they are not given, from the
-cosmology's ``meta`` (a stage's :meth:`~hmf.core.stage.Stage.computed_defaults`). A
-parameter that took such a default stays *computed* until it is set explicitly, and
-``evolve`` computes it again whenever a parameter it is computed from changes: so
-``build(**a).evolve(**b)`` equals ``build(**a, **b)``, and a cosmology scan done with
-``evolve`` gives the same models as one done with ``build``::
+cosmology's ``meta`` (the mass function's
+:meth:`~hmf.core.stage.Stage.computed_defaults`). They are computed from the cosmology,
+so ``evolve`` computes them again whenever it changes the cosmology (or a stage holding
+it, such as ``"linear_power.transfer"``): each takes the new cosmology's value unless it
+is given in the same call. Any other change leaves them as they are::
 
-    mf = MassFunction.build()                  # sigma_8 = 0.8102, n_s = 0.9665 (Planck18)
-    mf.evolve(cosmology=Planck15)              # sigma_8 = 0.8159, n_s = 0.9667 (Planck15)
-    MassFunction.build(sigma_8=0.8).evolve(cosmology=Planck15)   # sigma_8 stays 0.8
-    mf.evolve(sigma_8=0.8).evolve(cosmology=Planck15)            # so does this one
+    mf = MassFunction.build(sigma_8=0.8, n_s=0.95)
+    mf.evolve(cosmology=Planck15)                  # sigma_8 = 0.8159, n_s = 0.9667
+    mf.evolve(cosmology=Planck15, sigma_8=0.8)     # sigma_8 = 0.8, n_s = 0.9667
+    mf.evolve(sigma_8=0.85)                        # n_s stays 0.95
 
-A value set explicitly, in ``build`` or in any ``evolve``, is kept from then on, and so
-is every value below a stage given whole (``evolve(linear_power=lp)``).
-:meth:`~hmf.core.stage.Stage.computed_parameters` lists the parameters still computed.
-If the new cosmology does not give a computed parameter (its ``meta`` has no
-``sigma8``, as for a cosmology made by hand), ``evolve`` raises the
-:class:`ValueError` ``build`` raises, which names the parameter: set it explicitly.
-Which parameters are computed is not part of a stage's value: it does not change
-``==``, the hash or the content hash. A pickle or a copy keeps it; a configuration
-does not record it, so a stage read from one has every value the configuration gives
-explicit.
+So ``mf.evolve(cosmology=c)`` equals ``build`` with ``c`` and every other parameter of
+``mf`` except σ8 and n_s, and a cosmology scan done with ``evolve`` gives the same models
+as one done with ``build``. To keep σ8 fixed through a scan, pass it with each
+cosmology. The result depends only on the stage and the changes: a stage read back from
+a configuration or a pickle evolves as the original does. If the new cosmology does not
+give a parameter that is not passed (its ``meta`` has no ``sigma8``, as for a
+cosmology made by hand), ``evolve`` raises the :class:`ValueError` ``build`` raises,
+which names the parameter: set it explicitly.
 
 A name that is not a parameter raises a :class:`TypeError` at once, before anything
 is built, with the closest names (``mf.evolve(sigma8=0.8)``: "Did you mean
@@ -515,15 +513,16 @@ Extension stages
     * the fields whose names are too generic to stand alone in
       ``qualified_parameters``, listed with the stage's name;
     * and defaults that depend on other parameters (as ``build`` takes σ8 and n_s from
-      the cosmology) in the class method ``computed_defaults``. It must compute them
-      from the parameters it is given alone, looking up each one it depends on:
-      ``evolve`` calls it again when one of those it looked up changes.
+      the cosmology) in the class method ``computed_defaults``, with the parameters
+      they are computed from in ``computed_defaults_inputs`` (dotted paths below the
+      stage), so that ``evolve`` computes them again when one of those changes.
 
     A derived property's input that is not a field of the tree raises a
     :class:`TypeError` when the table is first built.
     :func:`~hmf.core.stage.undeclared_inputs` checks, in a test, that each derived
-    property declares every field it reads (and every stage it holds): run on a stage
-    of the extension, it returns the fields each one reads but does not declare.
+    property declares every field it reads (and every stage it holds), and that
+    ``computed_defaults`` reads only its declared inputs: run on a stage of the
+    extension, it returns the fields each one reads but does not declare.
     Declaring an input that is read only on some branches is safe.
 
 Configurations
@@ -599,8 +598,6 @@ tree has already used, as plain arrays. Unpickling rebuilds the tree and reuses 
 runs, so it does not run CAMB or CLASS again, and gives bit-identical results. No CAMB or
 CLASS object is ever pickled. A stage is immutable, so ``copy.copy`` and
 ``copy.deepcopy`` return the stage itself, with its caches.
-The pickle also records which parameters hold computed defaults (see "Computed
-defaults" above), so an unpickled stage evolves as the original does.
 
 API
 ---

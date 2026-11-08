@@ -137,7 +137,7 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping
 from functools import cached_property
-from typing import Any
+from typing import Any, ClassVar
 
 import astropy.units as u
 import attrs
@@ -397,15 +397,17 @@ class MassFunction(Stage):
         """
         return cls.from_flat(parameters)
 
+    computed_defaults_inputs: ClassVar[tuple[str, ...]] = ("linear_power.transfer.cosmology",)
+
     @classmethod
     def computed_defaults(cls, given: GivenParameters) -> Mapping[str, Any]:
         """The defaults of n_s and sigma_8: the cosmology's (see :meth:`build`).
 
-        They are computed again when :meth:`~hmf.core.stage.Stage.evolve` changes the
-        cosmology (or the transfer or linear-power stage), for those of them that were
-        not set explicitly, so that ``build().evolve(cosmology=c)`` equals
-        ``build(cosmology=c)``. One that was set, when building or in an ``evolve``,
-        keeps its value.
+        They are computed from the cosmology alone (its
+        :attr:`~hmf.core.stage.Stage.computed_defaults_inputs`), so
+        :meth:`~hmf.core.stage.Stage.evolve` computes them again whenever it changes the
+        cosmology (or a stage holding it): ``mf.evolve(cosmology=c)`` takes both from
+        ``c``, and ``mf.evolve(cosmology=c, sigma_8=0.8)`` takes only n_s from it.
 
         Parameters
         ----------
