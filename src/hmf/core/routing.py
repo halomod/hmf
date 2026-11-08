@@ -932,11 +932,12 @@ def _record(
 ) -> None:
     """Set the computed-defaults record of the stages at the given paths of a new tree.
 
-    Only for stages just built: a stage shared with the old tree ``old`` keeps its own.
+    Only for stages just built: a stage shared with the old tree ``old`` keeps its own,
+    and an optional stage left out (None) has none.
     """
     for prefix, record in records.items():
         node = _walk(stage, prefix)
-        if old is not None and node is _walk(old, prefix):
+        if node is None or (old is not None and node is _walk(old, prefix)):
             continue
         if node._computed is not record:
             object.__setattr__(node, "_computed", record)

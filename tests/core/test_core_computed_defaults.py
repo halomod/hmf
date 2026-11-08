@@ -7,13 +7,14 @@ computed from; one set explicitly keeps its value.
 
 import copy
 import pickle
+from typing import ClassVar
 
 import attrs
 import numpy as np
 import pytest
 from astropy.cosmology import WMAP7, WMAP9, FlatLambdaCDM, Planck13, Planck15, Planck18
 
-from hmf.core import config, field
+from hmf.core import config, field, routing
 from hmf.core.mass_function import MassFunction
 from hmf.core.routing import ComputedRecord
 from hmf.core.stage import Stage
@@ -210,3 +211,100 @@ def test_computed_record():
     assert record.explicit([("a",)]).paths == {("c",)}
     assert record.explicit([("e",)]) is record
     assert record.explicit([("c",)]).reads == record.reads
+
+
+def test_extension_stage_with_a_mass_function_given_whole(default):
+    explicit = default.evolve(sigma_8=0.7)
+    built = HaloModel.from_flat({"mass_function": default})
+    assert built.computed_parameters() == tuple(f"mass_function.{p}" for p in COMPUTED)
+    # Replacing the stage whole brings the new stage's own record, untouched.
+    replaced = built.evolve(mass_function=explicit)
+    assert replaced.mass_function is explicit
+    assert replaced.computed_parameters() == ("mass_function.linear_power.transfer.n_s",)
+
+
+# ---------------------------------------------------------------------------------
+# Toy trees: shared and optional stages with computed defaults
+# ---------------------------------------------------------------------------------
+
+
+@attrs.frozen(kw_only=True)
+class Part(Stage):
+    """A toy stage with a setting."""
+
+    acc: int = field(default=1, doc="A setting.")
+
+
+@attrs.frozen(kw_only=True)
+class Pair(Stage):
+    """A toy stage sharing its parts' setting, whose default is computed from ``base``."""
+
+    shared_parameters: ClassVar = frozenset({"acc"})
+
+    left: Part = field(factory=Part, doc="One.")
+    right: Part = field(factory=Part, doc="Two.")
+    base: int = field(default=3, doc="What acc's default is computed from.")
+
+    @classmethod
+    def computed_defaults(cls, given):
+        return {"acc": 2 * given.get("base", 3)}
+
+
+@attrs.frozen(kw_only=True)
+class Top(Stage):
+    """A toy stage holding an optional Pair."""
+
+    pair: Pair | None = field(default=None, doc="An optional pair.")
+    other: int = field(default=0, doc="Something else.")
+
+
+def test_toy_shared_computed_default_is_recomputed():
+    built = Pair.from_flat({})
+    assert built.left.acc == built.right.acc == 6
+    new = built.evolve(base=4)
+    assert new.left.acc == new.right.acc == 8
+    assert new == Pair.from_flat({"base": 4})
+    assert new.computed_parameters() == ("left.acc", "right.acc")
+    # Set by its shared name: explicit for both holders.
+    pinned = built.evolve(acc=5)
+    assert pinned.computed_parameters() == ()
+    assert pinned.evolve(base=4).left.acc == 5
+
+
+def test_toy_optional_stage_left_out_has_no_record():
+    top = Top.from_flat({})
+    assert top.pair is None
+    assert top.computed_parameters() == ()
+    # A shared name that only reaches the absent stage changes nothing.
+    assert top.evolve(acc=5).pair is None
+    with_pair = Top.from_flat({"pair.base": 2})
+    assert with_pair.pair.left.acc == 4
+    assert with_pair.evolve(**{"pair.base": 5}).pair == Pair.from_flat({"base": 5})
+
+
+def test_tree_parameters_view_of_an_evolving_tree(default):
+    computed = frozenset({("linear_power", "sigma_8")})
+    given = routing._TreeParameters(default, {("delta_c",): 1.7}, computed)
+    assert given["delta_c"] == 1.7
+    assert given["linear_power.transfer.n_s"] == default.linear_power.transfer.n_s
+    assert given["fit.A_200"] == default.fit.A_200  # into a model field
+    assert "linear_power.sigma_8" not in given  # still computed
+    assert "linear_power" not in given  # a stage, not changed whole
+    assert "fit.nope" not in given
+    names = list(given)
+    assert "delta_c" in names
+    assert "linear_power.sigma_8" not in names
+    assert len(given) == len(names)
+    assert () in given.reads
+
+
+def test_same_value_when_eq_cannot_answer():
+    a = np.array([1.0, 2.0])
+    assert routing._same_value(a, a)
+    assert not routing._same_value(a, np.array([1.0, 3.0]))
+    assert routing._same_value(1, 1.0)
+
+
+def test_base_stage_computes_no_defaults():
+    assert Stage.computed_defaults(routing.GivenParameters({})) == {}
+    assert routing.router(Part).computing == ()
