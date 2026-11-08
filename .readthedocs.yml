@@ -17,9 +17,11 @@ build:
 
   jobs:
     pre_create_environment:
-      - asdf plugin add uv
-      - asdf install uv latest
-      - asdf global uv latest
+      # uv from PyPI, not from GitHub releases (which Read the Docs' builders can't
+      # always reach). The reshim puts asdf's shim for it on PATH, which the install
+      # step, run in the activated virtualenv, needs.
+      - python -m pip install uv
+      - asdf reshim python
     create_environment:
       - uv venv "${READTHEDOCS_VIRTUALENV_PATH}"
     install:
