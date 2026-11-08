@@ -137,7 +137,7 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping
 from functools import cached_property
-from typing import Any
+from typing import Any, ClassVar
 
 import astropy.units as u
 import attrs
@@ -208,9 +208,11 @@ def _cosmology_parameter(cosmology: FLRW, key: str, name: str) -> float:
     """A parameter from an astropy cosmology's ``meta`` (e.g. Planck18's ``sigma8``)."""
     value = cosmology.meta.get(key)
     if value is None:
+        label = cosmology.name or type(cosmology).__name__
         raise ValueError(
-            f"MassFunction.build: the cosmology {cosmology.name!r} does not give {name} "
-            f"(its meta has no {key!r}, as astropy's realisations do): pass {name}=..."
+            f"MassFunction: the cosmology {label!r} does not give {name}, its default "
+            f"(its meta has no {key!r}, as astropy's realisations do): set {name} "
+            f"explicitly ({name}=...)."
         )
     return float(value)
 
@@ -395,9 +397,17 @@ class MassFunction(Stage):
         """
         return cls.from_flat(parameters)
 
+    computed_defaults_inputs: ClassVar[tuple[str, ...]] = ("linear_power.transfer.cosmology",)
+
     @classmethod
     def computed_defaults(cls, given: GivenParameters) -> Mapping[str, Any]:
         """The defaults of n_s and sigma_8: the cosmology's (see :meth:`build`).
+
+        They are computed from the cosmology alone (its
+        :attr:`~hmf.core.stage.Stage.computed_defaults_inputs`), so
+        :meth:`~hmf.core.stage.Stage.evolve` computes them again whenever it changes the
+        cosmology (or a stage holding it): ``mf.evolve(cosmology=c)`` takes both from
+        ``c``, and ``mf.evolve(cosmology=c, sigma_8=0.8)`` takes only n_s from it.
 
         Parameters
         ----------
@@ -412,7 +422,8 @@ class MassFunction(Stage):
         Raises
         ------
         ValueError
-            If one of them is not given and the cosmology's ``meta`` does not have it.
+            If one of them is not given and the cosmology's ``meta`` does not have it
+            (the message names it, and asks to set it explicitly).
         """
         cosmology = given.get("linear_power.transfer.cosmology", Planck18)
         out = {}

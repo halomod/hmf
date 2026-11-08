@@ -200,6 +200,18 @@ def test_changes_cover_every_parameter():
     assert set(CHANGES) == set(MassFunction.parameter_names())
 
 
+def _rebuilt_flat(mf, name):
+    """``mf.to_flat()``, for ``from_flat({**_rebuilt_flat(mf, name), name: value})``.
+
+    That is ``mf.evolve(name=value)``: a change of the cosmology computes sigma_8 and
+    n_s again, from the new one, so they are left out for it.
+    """
+    flat = mf.to_flat()
+    if name == "cosmology":
+        del flat["sigma_8"], flat["n_s"]
+    return flat
+
+
 def _two_species(mf):
     """``mf`` with a tabulated transfer function whose total matter is suppressed at small scales.
 
@@ -227,7 +239,7 @@ def test_evolve_every_parameter(mf, tmp_path, name):
             got, old = getattr(got, part), getattr(old, part)
         assert got is not old, path
     # A fresh tree, with every other parameter the same.
-    fresh = MassFunction.from_flat({**mf.to_flat(), name: value})
+    fresh = MassFunction.from_flat({**_rebuilt_flat(mf, name), name: value})
     assert new == fresh
     if quantity is not None:
         method, z = quantity
@@ -301,7 +313,8 @@ def test_cosmology_change_is_consistent(mf):
         assert stage.cosmology is Planck15
     assert lp.growth.transfer is lp.transfer
     assert new.variance.power.transfer is lp.transfer
-    assert new == MassFunction.from_flat({**mf.to_flat(), "cosmology": Planck15})
+    assert new == MassFunction.from_flat({**_rebuilt_flat(mf, "cosmology"), "cosmology": Planck15})
+    assert new == MassFunction.build(**{"transfer.model": "EH"}, cosmology=Planck15)
 
 
 def test_k_accuracy_change_is_consistent(mf):
@@ -549,6 +562,13 @@ def test_given_parameters():
     assert "linear_power.transfer.nope" not in given
     assert sorted(given) == ["delta_c", "linear_power.transfer"]
     assert len(given) == 2
+    # It records what was looked up (() for iterating: everything).
+    fresh = GivenParameters({("delta_c",): 1.6})
+    assert "linear_power.sigma_8" not in fresh
+    assert fresh.get("delta_c") == 1.6
+    assert fresh.reads == {("linear_power", "sigma_8"), ("delta_c",)}
+    list(fresh)
+    assert () in fresh.reads
 
 
 # ---------------------------------------------------------------------------------
@@ -817,6 +837,7 @@ class Holder(Stage):
     """A toy stage composing two Leafy stages, sharing their setting, with a computed default."""
 
     shared_parameters: ClassVar = frozenset({"acc"})
+    computed_defaults_inputs: ClassVar = ("base",)
 
     left: Leafy = field(factory=Leafy, doc="One.")
     right: Leafy = field(factory=Leafy, doc="Two.")
@@ -839,7 +860,7 @@ class Holder(Stage):
 
     @classmethod
     def computed_defaults(cls, given):
-        return {"acc": 2} if "base" not in given else {}
+        return {"acc": 2 if given.get("base", 3) == 3 else 1}
 
 
 def test_toy_shared_parameter_and_derived_properties():
@@ -852,7 +873,10 @@ def test_toy_shared_parameter_and_derived_properties():
     double = built.double
     assert built.evolve(**{"right.count": 2}).double is double
     assert built.evolve(acc=3).double == 18
-    assert built.evolve(base=4).double == 16
+    # acc's default is computed from base: a change of base computes it again.
+    assert built.evolve(base=4) == Holder.from_flat({"base": 4})
+    assert built.evolve(base=4).double == 8
+    assert built.evolve(base=4, acc=3).double == 24
     assert Holder.invalidated_by("acc") == ("", "double", "left", "right")
     assert Holder.invalidated_by("base") == ("", "double", "unannotated", "unresolved")
     # Without the composing stage's declaration, the name is ambiguous.
