@@ -837,6 +837,7 @@ class Holder(Stage):
     """A toy stage composing two Leafy stages, sharing their setting, with a computed default."""
 
     shared_parameters: ClassVar = frozenset({"acc"})
+    computed_defaults_inputs: ClassVar = ("base",)
 
     left: Leafy = field(factory=Leafy, doc="One.")
     right: Leafy = field(factory=Leafy, doc="Two.")
@@ -859,7 +860,7 @@ class Holder(Stage):
 
     @classmethod
     def computed_defaults(cls, given):
-        return {"acc": 2} if "base" not in given else {}
+        return {"acc": 2 if given.get("base", 3) == 3 else 1}
 
 
 def test_toy_shared_parameter_and_derived_properties():
@@ -872,7 +873,10 @@ def test_toy_shared_parameter_and_derived_properties():
     double = built.double
     assert built.evolve(**{"right.count": 2}).double is double
     assert built.evolve(acc=3).double == 18
-    assert built.evolve(base=4).double == 16  # no declared inputs: acc is kept
+    # acc's default is computed from base: a change of base computes it again.
+    assert built.evolve(base=4) == Holder.from_flat({"base": 4})
+    assert built.evolve(base=4).double == 8
+    assert built.evolve(base=4, acc=3).double == 24
     assert Holder.invalidated_by("acc") == ("", "double", "left", "right")
     assert Holder.invalidated_by("base") == ("", "double", "unannotated", "unresolved")
     # Without the composing stage's declaration, the name is ambiguous.

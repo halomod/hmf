@@ -390,6 +390,13 @@ class Router:
             if hook is None or hook is base_hook:
                 continue
             inputs = tuple(_split(p) for p in getattr(stage_cls, "computed_defaults_inputs", ()))
+            if not inputs:
+                raise TypeError(
+                    f"{stage_cls.__name__} defines computed_defaults but no "
+                    "computed_defaults_inputs: list the parameters its defaults are computed "
+                    "from (dotted paths below the stage), so that evolve computes them again "
+                    "when one of them changes."
+                )
             for p in inputs:
                 if not _is_field(stage_cls, p):
                     raise TypeError(
@@ -790,8 +797,8 @@ def _recompute_defaults(
     out = dict(values)
     soft_out = set(soft)
     for prefix, inputs in table.computing.items():
-        if not inputs or any(prefix[:i] in values for i in range(len(prefix) + 1)):
-            continue  # nothing to recompute from, or given whole (or below a stage given whole)
+        if any(prefix[:i] in values for i in range(len(prefix) + 1)):
+            continue  # given whole, or below a stage given whole
         n = len(prefix)
         below = {p[n:]: v for p, v in out.items() if p[:n] == prefix}
         if not any(_overlaps(c, i) for c in below for i in inputs):

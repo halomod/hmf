@@ -515,10 +515,12 @@ Extension stages
     * and defaults that depend on other parameters (as ``build`` takes σ8 and n_s from
       the cosmology) in the class method ``computed_defaults``, with the parameters
       they are computed from in ``computed_defaults_inputs`` (dotted paths below the
-      stage), so that ``evolve`` computes them again when one of those changes.
+      stage), so that ``evolve`` computes them again when one of those changes. The
+      inputs are required: a stage that defines ``computed_defaults`` without them
+      raises a :class:`TypeError` when its routing table is first built.
 
-    A derived property's input that is not a field of the tree raises a
-    :class:`TypeError` when the table is first built.
+    A derived property's input, or a computed default's, that is not a field of the
+    tree raises a :class:`TypeError` when the table is first built.
     :func:`~hmf.core.stage.undeclared_inputs` checks, in a test, that each derived
     property declares every field it reads (and every stage it holds), and that
     ``computed_defaults`` reads only its declared inputs: run on a stage of the

@@ -213,7 +213,9 @@ class Stage(Documented):
     #: The dotted paths, below the stage, of the parameters its
     #: :meth:`computed_defaults` are computed from (e.g. the cosmology, for sigma_8 and
     #: n_s). :meth:`evolve` computes the defaults again when one of them changes. A
-    #: parameter the hook only checks for (whether it is given) is not one of them.
+    #: parameter the hook only checks for (whether it is given) is not one of them. A
+    #: stage that defines :meth:`computed_defaults` must declare at least one: its
+    #: routing table raises a :class:`TypeError` otherwise.
     computed_defaults_inputs: ClassVar[tuple[str, ...]] = ()
 
     def evolve(self, **changes: Any) -> Self:
@@ -342,8 +344,9 @@ class Stage(Documented):
         the cosmology); the base stage has none. Defaults for parameters (or below
         stages) that are given are ignored.
 
-        A stage that defines it lists the parameters its defaults are computed from in
-        :attr:`computed_defaults_inputs`. :meth:`evolve` calls the hook again when one
+        A stage that defines it must list the parameters its defaults are computed from
+        in :attr:`computed_defaults_inputs` (a :class:`TypeError` is raised when its
+        routing table is first built if it lists none). :meth:`evolve` calls the hook again when one
         of them changes, with the parameters changed in that call and the new values of
         the inputs, and every parameter it gives a default for, and that the call does
         not give, takes that default. So the hook must compute its defaults from its

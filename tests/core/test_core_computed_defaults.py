@@ -274,6 +274,8 @@ def test_undeclared_inputs_of_computed_defaults():
     class Undeclared(Stage):
         a: int = field(default=1, doc="Read, not declared.")
         b: int = field(default=2, doc="Computed.")
+        c: int = field(default=0, doc="Declared, not read.")
+        computed_defaults_inputs: ClassVar = ("c",)
 
         @classmethod
         def computed_defaults(cls, given):
@@ -282,6 +284,7 @@ def test_undeclared_inputs_of_computed_defaults():
     @attrs.frozen(kw_only=True)
     class Iterates(Stage):
         a: int = field(default=1, doc="A parameter.")
+        computed_defaults_inputs: ClassVar = ("a",)
 
         @classmethod
         def computed_defaults(cls, given):
@@ -289,8 +292,23 @@ def test_undeclared_inputs_of_computed_defaults():
 
     assert undeclared_inputs(Undeclared()) == {"computed_defaults": ("a",)}
     assert undeclared_inputs(Iterates()) == {"computed_defaults": ("*",)}
-    # Without declared inputs, evolve recomputes nothing.
+    # An undeclared input leaves the default stale: what the check is for.
     assert Undeclared.from_flat({}).evolve(a=5).b == 2
+
+
+def test_computed_defaults_need_declared_inputs():
+    @attrs.frozen(kw_only=True)
+    class NoInputs(Stage):
+        a: int = field(default=1, doc="A parameter.")
+
+        @classmethod
+        def computed_defaults(cls, given):
+            return {"a": 2}
+
+    with pytest.raises(TypeError, match="NoInputs defines computed_defaults but no"):
+        NoInputs.from_flat({})
+    with pytest.raises(TypeError, match="NoInputs defines computed_defaults but no"):
+        NoInputs().evolve(a=3)
 
 
 def test_declared_input_must_be_a_field():
