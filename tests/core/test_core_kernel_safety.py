@@ -395,55 +395,63 @@ KERNEL_CASES = [
     ("UnnormalisedPower.power_kernel", lambda: _ups().power_kernel(np.array([1.0, 0.0]))),
     ("FittingFunction.fsigma_kernel", _fsigma_kernel),
     (
+        "FittingFunction.in_calibration_domain_kernel",
+        lambda: fits.Tinker08().in_calibration_domain_kernel(
+            FitInputs(sigma=[1.0, -1.0], z=0.0, delta_halo=200.0)
+        ),
+    ),
+    (
         "Filter.window_derivatives_kernel",
         lambda: TopHat().window_derivatives_kernel(np.array([1.0, -0.5])),
     ),
     (
         "MassDefinition.delta_halo_mean_kernel",
-        lambda: fits.Tinker08.measured_mass_definition.delta_halo_mean_kernel([0.3, -0.1]),
+        lambda: fits.Tinker08.measured_mass_definition.delta_halo_mean_kernel(
+            omega_m_z=[0.3, -0.1]
+        ),
     ),
     (
         "MassDefinition.halo_density_kernel",
         lambda: SOMean().halo_density_kernel(omega_m_z=0.3, rho_mean0=[1.0, 0.0]),
     ),
     (
-        "MassDefinition.m_to_r_kernel",
-        lambda: SOMean().m_to_r_kernel([1e12, -1.0], omega_m_z=0.3, rho_mean0=1e11),
+        "MassDefinition.radius_from_m_kernel",
+        lambda: SOMean().radius_from_m_kernel(m=[1e12, -1.0], omega_m_z=0.3, rho_mean0=1e11),
     ),
     (
-        "MassDefinition.r_to_m_kernel",
-        lambda: SOMean().r_to_m_kernel([1.0, np.nan], omega_m_z=0.3, rho_mean0=1e11),
+        "MassDefinition.m_from_radius_kernel",
+        lambda: SOMean().m_from_radius_kernel(r=[1.0, np.nan], omega_m_z=0.3, rho_mean0=1e11),
     ),
     (
         "ConcentrationModel.ln_concentration_and_slope_kernel",
-        lambda: Duffy08().ln_concentration_and_slope_kernel([1e12, 0.0], z=0.0),
+        lambda: Duffy08().ln_concentration_and_slope_kernel(m=[1e12, 0.0], z=0.0),
     ),
     (
         "ConcentrationModel.in_calibration_domain_kernel",
-        lambda: Duffy08().in_calibration_domain_kernel(1e12, z=[0.0, -1.0]),
+        lambda: Duffy08().in_calibration_domain_kernel(m=1e12, z=[0.0, -1.0]),
     ),
     (
         "DensityProfile.ln_mu_and_slope_kernel",
-        lambda: NFW().ln_mu_and_slope_kernel([1.0, 0.0]),
+        lambda: NFW().ln_mu_and_slope_kernel(x=[1.0, 0.0]),
     ),
     (
         "DensityProfile.convert_concentration_kernel",
-        lambda: NFW().convert_concentration_kernel([5.0, -1.0], slope=-0.1, ln_q=0.5),
+        lambda: NFW().convert_concentration_kernel(c=[5.0, -1.0], slope=-0.1, ln_q=0.5),
     ),
     (
         "DensityProfile.convert_concentration_kernel ln_q",
-        lambda: NFW().convert_concentration_kernel(5.0, slope=-0.1, ln_q=np.inf),
+        lambda: NFW().convert_concentration_kernel(c=5.0, slope=-0.1, ln_q=np.inf),
     ),
     (
         "ProfileConversion.convert_kernel",
         lambda: ProfileConversion().convert_kernel(
-            [1e12, np.inf], z=0.0, omega_m_z=0.3, source=SOMean(), target=SOCritical()
+            m=[1e12, np.inf], z=0.0, omega_m_z=0.3, source=SOMean(), target=SOCritical()
         ),
     ),
     (
         "ProfileConversion.convert_kernel omega_m_z",
         lambda: ProfileConversion().convert_kernel(
-            1e12, z=0.0, omega_m_z=0.0, source=SOMean(), target=SOCritical()
+            m=1e12, z=0.0, omega_m_z=0.0, source=SOMean(), target=SOCritical()
         ),
     ),
     ("FittingFunction.modify_dndm_kernel", lambda: _modify_dndm(fits.PS(), m=-1.0)),
@@ -526,7 +534,7 @@ def test_kernel_checks_do_not_change_values():
     assert np.all(np.isfinite(out))
     mdef = fits.Tinker08.measured_mass_definition
     om = np.array([0.3, 0.5])
-    np.testing.assert_array_equal(mdef.delta_halo_mean_kernel(om), np.full(2, 200.0))
+    np.testing.assert_array_equal(mdef.delta_halo_mean_kernel(omega_m_z=om), np.full(2, 200.0))
     np.testing.assert_array_equal(n_eff_kernel([-0.5, 0.0]), [0.0, -3.0])
 
 

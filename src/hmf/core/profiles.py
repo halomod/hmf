@@ -38,7 +38,7 @@ import numpy.typing as npt
 
 from . import _references as refs
 from ._kernels import mass_conversion as _k
-from .domain import Domain, Interval, check_extent
+from .domain import Calibrated, Domain, Interval, check_extent
 from .model import Model
 from .units import unit_boundary
 
@@ -50,7 +50,7 @@ _POSITIVE = Interval(0, None, lower_open=True)
 
 
 @attrs.frozen(kw_only=True)
-class DensityProfile(Model, kind=True):
+class DensityProfile(Calibrated, Model, kind=True):
     r"""The kind of halo density profiles: their enclosed mass :math:`\mu(x)`.
 
     Subclasses implement :meth:`_ln_mu_and_slope`. See the module documentation.
@@ -76,7 +76,7 @@ class DensityProfile(Model, kind=True):
         _, psi = self._ln_mu_and_slope(c)
         return _k.power_law_start(c, ln_q, psi)
 
-    def ln_mu_and_slope_kernel(self, x: npt.ArrayLike) -> tuple[FloatArray, FloatArray]:
+    def ln_mu_and_slope_kernel(self, *, x: npt.ArrayLike) -> tuple[FloatArray, FloatArray]:
         r""":math:`\ln\mu(x)` and :math:`\psi(x) = d\ln\mu/d\ln x`, at kernel level.
 
         Parameters
@@ -100,7 +100,7 @@ class DensityProfile(Model, kind=True):
         return self._ln_mu_and_slope(x)
 
     def convert_concentration_kernel(
-        self, c: npt.ArrayLike, *, slope: npt.ArrayLike, ln_q: npt.ArrayLike
+        self, *, c: npt.ArrayLike, slope: npt.ArrayLike, ln_q: npt.ArrayLike
     ) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray]:
         r"""Convert haloes of concentration c to a definition of q times the halo density.
 
@@ -139,7 +139,7 @@ class DensityProfile(Model, kind=True):
         )
 
     @unit_boundary()
-    def mu(self, x: npt.ArrayLike) -> FloatArray:
+    def mu(self, *, x: npt.ArrayLike) -> FloatArray:
         r"""The enclosed mass in units of :math:`4\pi\rho_s r_s^3`, :math:`\mu(x)`.
 
         Parameters
@@ -157,7 +157,7 @@ class DensityProfile(Model, kind=True):
         DomainError
             If an x is not finite and > 0.
         """
-        return np.exp(self.ln_mu_and_slope_kernel(x)[0])
+        return np.exp(self.ln_mu_and_slope_kernel(x=x)[0])
 
 
 @attrs.frozen(kw_only=True)

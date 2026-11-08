@@ -1,14 +1,21 @@
 """Model domains, the domain policy, and the errors of :mod:`hmf.core`.
 
-Each model carries two domains, as class variables:
+Each model carries two domains:
 
 ``valid_domain``
-    Where the model's formula is mathematically defined or sensible (e.g. sigma > 0).
-    Outside it, evaluation **always raises** a :class:`DomainError`.
-``calibration_domain``
-    Where the model was calibrated against simulations, or ``None`` if it has none.
-    Outside it, results are extrapolations, handled according to the user's
-    :data:`DomainPolicy`.
+    Where the model's formula is mathematically defined or sensible (e.g. sigma > 0),
+    a class variable. Outside it, evaluation **always raises** a :class:`DomainError`.
+``calibration``
+    Where the model was calibrated against simulations, or ``None`` if it has none:
+    an instance property (:attr:`Calibrated.calibration`), since it can depend on the
+    model's parameters (e.g. :class:`~hmf.core.concentration.Duffy08`'s redshift
+    range). Outside it, results are extrapolations, handled according to the user's
+    :data:`DomainPolicy`. By default it is the class variable ``calibration_domain``,
+    the calibration of the model's default parameters.
+
+Every model kind with a calibration domain (fits, concentration-mass relations,
+density profiles, filters, transfer and growth models) is a :class:`Calibrated`:
+ask an instance for ``model.calibration``.
 
 This module provides the :class:`Domain` type describing either (with
 :meth:`Domain.describe` and :meth:`Domain.check`), :func:`apply_domain_policy`,
@@ -52,7 +59,7 @@ import weakref
 from collections.abc import Mapping
 from functools import cached_property
 from types import MappingProxyType
-from typing import Any, Literal, get_args
+from typing import Any, ClassVar, Literal, get_args
 
 import astropy.units as u
 import attrs
@@ -64,6 +71,7 @@ from .units import _require_quantity, to_canonical
 
 __all__ = [
     "DOMAIN_POLICIES",
+    "Calibrated",
     "Domain",
     "DomainError",
     "DomainPolicy",
@@ -400,6 +408,30 @@ class Domain:
             f"{where}: {n_out} of {np.size(inside)} value(s) are outside the domain "
             f"({self.describe()}); out of range: {', '.join(bad)}."
         )
+
+
+class Calibrated:
+    """The calibration domain of a model kind (a mixin, listed before the kind's base).
+
+    A kind sets :attr:`calibration_domain` (``None`` by default); a model whose
+    calibration depends on its parameters overrides :attr:`calibration`.
+    """
+
+    __slots__ = ()
+
+    #: The calibration domain of the class, with its source (``None`` if it was not
+    #: calibrated): that of its default parameters. Ask an instance for
+    #: :attr:`calibration`.
+    calibration_domain: ClassVar[Domain | None] = None
+
+    @property
+    def calibration(self) -> Domain | None:
+        """Where this model was calibrated, with its source (``None`` if it was not).
+
+        The class's :attr:`calibration_domain`, unless it depends on the instance's
+        parameters.
+        """
+        return type(self).calibration_domain
 
 
 def check_extent(

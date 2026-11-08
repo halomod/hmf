@@ -522,7 +522,7 @@ class MassFunction(Stage):
         assert self.mass_conversion is not None
         out, fit = self.resolved_mass_definition, self.fit_mass_definition
         return self.mass_conversion.convert_kernel(
-            m,
+            m=m,
             z=z,
             omega_m_z=omega_m(self.cosmology, z, "cb"),
             source=out if to_fit else fit,
@@ -646,7 +646,7 @@ class MassFunction(Stage):
         """The inputs of the fit at (m, z), from sigma and its slope there."""
         omega_m_z = omega_m(self.cosmology, z, "cb")
         delta_halo = (
-            self.fit_mass_definition.delta_halo_mean_kernel(omega_m_z)
+            self.fit_mass_definition.delta_halo_mean_kernel(omega_m_z=omega_m_z)
             if self._needs_delta_halo
             else None
         )
@@ -969,11 +969,11 @@ class MassFunction(Stage):
         if not self.converts_masses:
             x, _ = self._inputs_at(m, z)
             shape = np.broadcast_shapes(np.shape(x.sigma), np.shape(m), np.shape(z))
-            return np.array(np.broadcast_to(self.fit.in_calibration_domain(x), shape))
+            return np.array(np.broadcast_to(self.fit.in_calibration_domain_kernel(x), shape))
         conversion = self._conversion(m, z, to_fit=True)
         x, _ = self._inputs_at(conversion.m, z)
         shape = np.broadcast_shapes(np.shape(x.sigma), np.shape(conversion.m))
-        inside = self.fit.in_calibration_domain(x) & conversion.in_calibration_domain
+        inside = self.fit.in_calibration_domain_kernel(x) & conversion.in_calibration_domain
         return np.array(np.broadcast_to(inside, shape))
 
     def m_from_sigma_kernel(self, *, sigma: npt.ArrayLike, z: npt.ArrayLike) -> FloatArray:

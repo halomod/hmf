@@ -163,7 +163,7 @@ def v4_fsigma(
         sigma,
         z=z,
         omega_m_z=om,
-        delta_halo=mdef.delta_halo_mean_kernel(om) if needs_delta else None,
+        delta_halo=mdef.delta_halo_mean_kernel(omega_m_z=om) if needs_delta else None,
         delta_c=delta_c,
         n_eff=n_eff,
         m=m * Msun_h,

@@ -149,8 +149,8 @@ class MassConversion(Model, kind=True):
     @abc.abstractmethod
     def convert_kernel(
         self,
-        m: npt.ArrayLike,
         *,
+        m: npt.ArrayLike,
         z: npt.ArrayLike,
         omega_m_z: npt.ArrayLike,
         source: MassDefinition,
@@ -185,8 +185,8 @@ class MassConversion(Model, kind=True):
     @unit_boundary(m=Msun_h, returns=(Msun_h, None))
     def convert(
         self,
-        m: Any,
         *,
+        m: Any,
         z: npt.ArrayLike,
         omega_m_z: npt.ArrayLike,
         source: MassDefinition,
@@ -213,7 +213,7 @@ class MassConversion(Model, kind=True):
         dm_new_dm : numpy.ndarray
             The Jacobian dM'/dM.
         """
-        out = self.convert_kernel(m, z=z, omega_m_z=omega_m_z, source=source, target=target)
+        out = self.convert_kernel(m=m, z=z, omega_m_z=omega_m_z, source=source, target=target)
         return out.m, out.dm_dm
 
 
@@ -281,30 +281,30 @@ class ProfileConversion(MassConversion, alias="profile"):
         model, profile = self.concentration, self.profile
         own = model.mass_definition
         if own == definition:
-            ln_c, slope = model.ln_concentration_and_slope_kernel(m, z=z)
+            ln_c, slope = model.ln_concentration_and_slope_kernel(m=m, z=z)
             return np.exp(ln_c), slope, np.array(np.broadcast_to(m, ln_c.shape))
-        ln_q = np.log(definition.delta_halo_mean_kernel(omega_m_z)) - np.log(
-            own.delta_halo_mean_kernel(omega_m_z)
+        ln_q = np.log(definition.delta_halo_mean_kernel(omega_m_z=omega_m_z)) - np.log(
+            own.delta_halo_mean_kernel(omega_m_z=omega_m_z)
         )
         ln_m = np.log(m)
         ln_m_own = np.array(np.broadcast_to(ln_m, np.broadcast_shapes(ln_m.shape, ln_q.shape)))
         for _ in range(OUTER_NEWTON_STEPS):
-            ln_c, slope = model.ln_concentration_and_slope_kernel(np.exp(ln_m_own), z=z)
+            ln_c, slope = model.ln_concentration_and_slope_kernel(m=np.exp(ln_m_own), z=z)
             ln_ratio, _, dln_m, _ = profile.convert_concentration_kernel(
-                np.exp(ln_c), slope=slope, ln_q=ln_q
+                c=np.exp(ln_c), slope=slope, ln_q=ln_q
             )
             ln_m_own = ln_m_own - (ln_m_own + ln_ratio - ln_m) / dln_m
         m_own = np.exp(ln_m_own)
-        ln_c, slope = model.ln_concentration_and_slope_kernel(m_own, z=z)
+        ln_c, slope = model.ln_concentration_and_slope_kernel(m=m_own, z=z)
         _, c_new, dln_m, dln_c = profile.convert_concentration_kernel(
-            np.exp(ln_c), slope=slope, ln_q=ln_q
+            c=np.exp(ln_c), slope=slope, ln_q=ln_q
         )
         return c_new, dln_c / dln_m, m_own
 
     def convert_kernel(
         self,
-        m: npt.ArrayLike,
         *,
+        m: npt.ArrayLike,
         z: npt.ArrayLike,
         omega_m_z: npt.ArrayLike,
         source: MassDefinition,
@@ -352,11 +352,11 @@ class ProfileConversion(MassConversion, alias="profile"):
             )
         self.check_definitions(source, target)
         c_source, slope, m_concentration = self._concentration_in(m, z, omega_m_z, source)
-        ln_q = np.log(target.delta_halo_mean_kernel(omega_m_z)) - np.log(
-            source.delta_halo_mean_kernel(omega_m_z)
+        ln_q = np.log(target.delta_halo_mean_kernel(omega_m_z=omega_m_z)) - np.log(
+            source.delta_halo_mean_kernel(omega_m_z=omega_m_z)
         )
         ln_ratio, _, dln_m, _ = self.profile.convert_concentration_kernel(
-            c_source, slope=slope, ln_q=ln_q
+            c=c_source, slope=slope, ln_q=ln_q
         )
         ratio = np.exp(ln_ratio)
         model = self.concentration
@@ -365,7 +365,7 @@ class ProfileConversion(MassConversion, alias="profile"):
             m=np.array(np.broadcast_to(m * ratio, shape)),
             dm_dm=np.array(np.broadcast_to(ratio * dln_m, shape)),
             in_calibration_domain=np.array(
-                np.broadcast_to(model.in_calibration_domain_kernel(m_concentration, z=z), shape)
+                np.broadcast_to(model.in_calibration_domain_kernel(m=m_concentration, z=z), shape)
             ),
             calibration_description=(
                 ""

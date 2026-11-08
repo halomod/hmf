@@ -26,8 +26,9 @@ element at once by a fixed number of Newton steps in :math:`\ln x` from a starti
 point, each elementwise, so the result does not depend on the batch size, and
 :func:`profile_convert` gives the masses and the analytic Jacobian. For NFW
 (:func:`nfw_ln_mu_and_slope`) the starting point is the fit of Hu & Kravtsov (2003,
-eq. C11; :func:`hu_kravtsov_inverse`), and :func:`nfw_concentration_ratio_solve` and
-:func:`nfw_convert` are the two with it.
+eq. C11; :func:`nfw_start`). :class:`~hmf.core.profiles.NFW` calls the two with
+them, through :meth:`DensityProfile.convert_concentration_kernel
+<hmf.core.profiles.DensityProfile.convert_concentration_kernel>`.
 
 The functions follow the rules of :mod:`hmf.core._kernels` and do not check their
 inputs: the kernel-level entry points of :mod:`hmf.core.profiles` do.
@@ -45,12 +46,8 @@ __all__ = [
     "LnMuAndSlope",
     "concentration_ratio_solve",
     "hu_kravtsov_inverse",
-    "nfw_concentration_ratio_solve",
-    "nfw_convert",
     "nfw_ln_mean_density",
-    "nfw_ln_mu",
     "nfw_ln_mu_and_slope",
-    "nfw_ln_mu_slope",
     "nfw_start",
     "power_law_start",
     "profile_convert",
@@ -61,14 +58,15 @@ FloatArray = npt.NDArray[np.float64]
 #: A profile's :math:`x \mapsto (\ln\mu(x), \psi(x))`, on plain arrays.
 LnMuAndSlope = Callable[[FloatArray], tuple[FloatArray, FloatArray]]
 
-#: The number of Newton steps that polish the Hu & Kravtsov (2003) starting point.
+#: The number of Newton steps that polish the Hu & Kravtsov (2003) starting point
+#: (:attr:`hmf.core.profiles.NFW.newton_steps`).
 #: Newton converges quadratically from its error (below 1% for 0 < c < 400): for
 #: 1e-3 < c < 1e4 and 1e-4 < q < 1e4 two steps leave 1e-12 and three round-off
 #: (~1e-13 in c); the fourth is a margin.
 NEWTON_STEPS = 4
 
-#: Below this x, :func:`nfw_ln_mu` uses the series of mu(x), whose closed form loses
-#: digits to cancellation (relative error ~ 1e-16 / x^2).
+#: Below this x, :func:`nfw_ln_mu_and_slope` uses the series of mu(x), whose closed
+#: form loses digits to cancellation (relative error ~ 1e-16 / x^2).
 _SERIES_X = 0.01
 
 #: The parameters (a1, a2, a3, a4) of Hu & Kravtsov (2003), eq. C11.
@@ -78,7 +76,11 @@ _HK_A = (0.5116, -0.4283, -3.13e-3, -3.52e-5)
 def nfw_ln_mu_and_slope(x: npt.ArrayLike) -> tuple[FloatArray, FloatArray]:
     r"""The NFW :math:`\ln\mu(x)` and :math:`\psi(x)`, from one evaluation of :math:`\mu`.
 
-    See :func:`nfw_ln_mu` and :func:`nfw_ln_mu_slope`.
+    :math:`\mu(x) = \ln(1+x) - x/(1+x)`; below x = 0.01 it uses the series
+    :math:`\mu(x) = \sum_{n\ge2} (-1)^n (n-1)x^n/n` (to :math:`x^{9}`), which avoids
+    the cancellation in the closed form. The slope
+    :math:`\psi(x) = d\ln\mu/d\ln x = x^2/((1+x)^2\mu(x))` falls from 2 (as
+    :math:`x \to 0`) to 0 (as :math:`x \to \infty`).
 
     Parameters
     ----------
@@ -106,44 +108,6 @@ def nfw_ln_mu_and_slope(x: npt.ArrayLike) -> tuple[FloatArray, FloatArray]:
     return ln_mu, psi
 
 
-def nfw_ln_mu(x: npt.ArrayLike) -> FloatArray:
-    r"""The log of the NFW mass function :math:`\mu(x) = \ln(1+x) - x/(1+x)`.
-
-    Below x = 0.01 it uses the series
-    :math:`\mu(x) = \sum_{n\ge2} (-1)^n (n-1)x^n/n` (to :math:`x^{9}`), which avoids
-    the cancellation in the closed form.
-
-    Parameters
-    ----------
-    x
-        :math:`r/r_s` (> 0), dimensionless.
-
-    Returns
-    -------
-    numpy.ndarray
-        :math:`\ln\mu(x)`.
-    """
-    return nfw_ln_mu_and_slope(np.asarray(x, dtype=np.float64))[0]
-
-
-def nfw_ln_mu_slope(x: npt.ArrayLike) -> FloatArray:
-    r"""The logarithmic slope :math:`\psi(x) = d\ln\mu/d\ln x = x^2/((1+x)^2\mu(x))`.
-
-    It falls from 2 (as :math:`x \to 0`) to 0 (as :math:`x \to \infty`).
-
-    Parameters
-    ----------
-    x
-        :math:`r/r_s` (> 0), dimensionless.
-
-    Returns
-    -------
-    numpy.ndarray
-        :math:`\psi(x)`, dimensionless.
-    """
-    return nfw_ln_mu_and_slope(np.asarray(x, dtype=np.float64))[1]
-
-
 def nfw_ln_mean_density(x: npt.ArrayLike) -> FloatArray:
     r""":math:`\ln F(x) = \ln[\mu(x)/x^3]`: the mean enclosed density over :math:`3\rho_s`.
 
@@ -161,7 +125,7 @@ def nfw_ln_mean_density(x: npt.ArrayLike) -> FloatArray:
         :math:`\ln F(x)`.
     """
     x = np.asarray(x, dtype=np.float64)
-    out: FloatArray = nfw_ln_mu(x) - 3.0 * np.log(x)
+    out: FloatArray = nfw_ln_mu_and_slope(x)[0] - 3.0 * np.log(x)
     return out
 
 
@@ -328,50 +292,3 @@ def nfw_start(c: FloatArray, ln_q: FloatArray) -> FloatArray:
     r"""The NFW starting point: Hu & Kravtsov (2003) at :math:`\ln F(c) + \ln q`."""
     c = np.asarray(c, dtype=np.float64)
     return hu_kravtsov_inverse(nfw_ln_mean_density(c) + ln_q)
-
-
-def nfw_concentration_ratio_solve(c: npt.ArrayLike, ln_q: npt.ArrayLike) -> FloatArray:
-    r"""The NFW concentration :math:`c'` with :math:`F(c') = q F(c)`, elementwise.
-
-    :func:`concentration_ratio_solve` for NFW, from :func:`hu_kravtsov_inverse`, with
-    :data:`NEWTON_STEPS` steps, so the error is at round-off.
-
-    Parameters
-    ----------
-    c
-        The concentrations (> 0), dimensionless.
-    ln_q
-        :math:`\ln q`, broadcast with ``c``.
-
-    Returns
-    -------
-    numpy.ndarray
-        :math:`c'`, with the broadcast shape.
-    """
-    c = np.asarray(c, dtype=np.float64)
-    ln_q = np.asarray(ln_q, dtype=np.float64)
-    return concentration_ratio_solve(nfw_ln_mu_and_slope, c, ln_q, nfw_start(c, ln_q), NEWTON_STEPS)
-
-
-def nfw_convert(
-    c: npt.ArrayLike, slope: npt.ArrayLike, ln_q: npt.ArrayLike
-) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray]:
-    r""":func:`profile_convert` for NFW haloes (see :func:`nfw_concentration_ratio_solve`).
-
-    Parameters
-    ----------
-    c
-        The concentrations in the old definition (> 0).
-    slope
-        :math:`s = d\ln c/d\ln M`, in the old definition.
-    ln_q
-        :math:`\ln q = \ln(\rho_{\rm new}/\rho_{\rm old})`.
-
-    Returns
-    -------
-    ln_mass_ratio, c_new, dln_m_new_dln_m, dln_c_new_dln_m : numpy.ndarray
-        As for :func:`profile_convert`.
-    """
-    c = np.asarray(c, dtype=np.float64)
-    ln_q = np.asarray(ln_q, dtype=np.float64)
-    return profile_convert(nfw_ln_mu_and_slope, c, slope, ln_q, nfw_start(c, ln_q), NEWTON_STEPS)

@@ -28,7 +28,7 @@ Radii are **comoving**, in Mpc/h, like the filter radii of
 :class:`~hmf.core.mass_variance.MassVariance`: a halo of mass m has the radius
 :math:`r = [3m/(4\pi\Delta_m\bar\rho_{\rm cb,0})]^{1/3}`, with
 :math:`\bar\rho_{\rm cb,0}` the comoving (z = 0) mean density
-(:meth:`~MassDefinition.m_to_r_kernel`); the physical radius is
+(:meth:`~MassDefinition.radius_from_m_kernel`); the physical radius is
 :math:`r/(1+z)`. The comoving halo density is
 :math:`\Delta_m\bar\rho_{\rm cb,0}` (:meth:`~MassDefinition.halo_density_kernel`).
 
@@ -114,7 +114,8 @@ class MassDefinition(abc.ABC):
     def name(self) -> str:
         """A short name, e.g. ``"200m"``, ``"500c"``, ``"vir"``, ``"fof(b=0.2)"``.
 
-        :meth:`from_name` reads it back.
+        :meth:`from_name` reads it back to an equal definition: a number that ``:g``
+        would round (e.g. 18 pi^2) is written in full.
         """
 
     def __str__(self) -> str:
@@ -151,8 +152,10 @@ class MassDefinition(abc.ABC):
         ----------
         name
             ``"200m"`` (:class:`SOMean`), ``"500c"`` (:class:`SOCritical`), ``"vir"``
-            (:class:`SOVirial`), ``"fof"`` or ``"fof(b=0.3)"`` (:class:`FOF`) or
-            ``"self_bound"`` (:class:`SelfBound`); case and spaces are ignored.
+            (:class:`SOVirial`), ``"so(preferred 200m)"`` (:class:`SOGeneric`, with
+            the name of its ``preferred`` definition), ``"fof"`` or ``"fof(b=0.3)"``
+            (:class:`FOF`) or ``"self_bound"`` (:class:`SelfBound`); case and spaces
+            are ignored.
 
         Returns
         -------
@@ -170,6 +173,15 @@ class MassDefinition(abc.ABC):
             return SelfBound()
         if key == "fof":
             return FOF()
+        generic = re.fullmatch(r"so\(preferred(.+)\)", key)
+        if generic:
+            preferred = MassDefinition.from_name(generic.group(1))
+            if not isinstance(preferred, SOMean | SOCritical | SOVirial):
+                raise ValueError(
+                    f"Unknown mass definition name {name!r}: the preferred definition of "
+                    "an SOGeneric must be an SOMean, SOCritical or SOVirial."
+                )
+            return SOGeneric(preferred=preferred)
         fof = re.fullmatch(r"fof\(b=([0-9.eE+-]+)\)", key)
         if fof:
             return FOF(linking_length=float(fof.group(1)))
@@ -181,7 +193,7 @@ class MassDefinition(abc.ABC):
             )
         raise ValueError(
             f"Unknown mass definition name {name!r}: use e.g. '200m', '500c', 'vir', "
-            "'fof', 'fof(b=0.3)' or 'self_bound'."
+            "'so(preferred 200m)', 'fof', 'fof(b=0.3)' or 'self_bound'."
         )
 
     # ------------------------------------------------------------------------------
@@ -192,7 +204,7 @@ class MassDefinition(abc.ABC):
         """The overdensity relative to the mean, on checked Omega_m(z)."""
         raise ValueError(f"The mass definition {self} has no overdensity.")
 
-    def delta_halo_mean_kernel(self, omega_m_z: npt.ArrayLike) -> FloatArray:
+    def delta_halo_mean_kernel(self, *, omega_m_z: npt.ArrayLike) -> FloatArray:
         r"""The halo overdensity relative to the mean density, :math:`\Delta_m`.
 
         A pure, elementwise kernel of :math:`\Omega_m(z)` (of CDM + baryons), on plain
@@ -251,11 +263,11 @@ class MassDefinition(abc.ABC):
         rho = check_extent(
             "rho_mean0", rho_mean0, _POSITIVE, where=f"{type(self).__name__}.halo_density_kernel"
         )
-        out: FloatArray = self.delta_halo_mean_kernel(omega_m_z) * rho
+        out: FloatArray = self.delta_halo_mean_kernel(omega_m_z=omega_m_z) * rho
         return out
 
-    def m_to_r_kernel(
-        self, m: npt.ArrayLike, *, omega_m_z: npt.ArrayLike, rho_mean0: npt.ArrayLike
+    def radius_from_m_kernel(
+        self, *, m: npt.ArrayLike, omega_m_z: npt.ArrayLike, rho_mean0: npt.ArrayLike
     ) -> FloatArray:
         r"""The comoving radius of haloes of mass m: :math:`[3m/(4\pi\rho_{\rm halo})]^{1/3}`.
 
@@ -280,13 +292,13 @@ class MassDefinition(abc.ABC):
         ValueError
             For a definition without an overdensity.
         """
-        m = check_extent("m", m, _POSITIVE, where=f"{type(self).__name__}.m_to_r_kernel")
+        m = check_extent("m", m, _POSITIVE, where=f"{type(self).__name__}.radius_from_m_kernel")
         rho = self.halo_density_kernel(omega_m_z=omega_m_z, rho_mean0=rho_mean0)
         out: FloatArray = np.cbrt(3.0 * m / (4.0 * np.pi * rho))
         return out
 
-    def r_to_m_kernel(
-        self, r: npt.ArrayLike, *, omega_m_z: npt.ArrayLike, rho_mean0: npt.ArrayLike
+    def m_from_radius_kernel(
+        self, *, r: npt.ArrayLike, omega_m_z: npt.ArrayLike, rho_mean0: npt.ArrayLike
     ) -> FloatArray:
         r"""The mass of haloes of comoving radius r: :math:`4\pi r^3\rho_{\rm halo}/3`.
 
@@ -311,7 +323,7 @@ class MassDefinition(abc.ABC):
         ValueError
             For a definition without an overdensity.
         """
-        r = check_extent("r", r, _POSITIVE, where=f"{type(self).__name__}.r_to_m_kernel")
+        r = check_extent("r", r, _POSITIVE, where=f"{type(self).__name__}.m_from_radius_kernel")
         rho = self.halo_density_kernel(omega_m_z=omega_m_z, rho_mean0=rho_mean0)
         out: FloatArray = 4.0 * np.pi * r**3 * rho / 3.0
         return out
@@ -321,7 +333,7 @@ class MassDefinition(abc.ABC):
     # ------------------------------------------------------------------------------
 
     @unit_boundary()
-    def delta_halo_mean(self, omega_m_z: npt.ArrayLike) -> FloatArray:
+    def delta_halo_mean(self, *, omega_m_z: npt.ArrayLike) -> FloatArray:
         r"""The halo overdensity relative to the mean density of CDM + baryons.
 
         See :meth:`delta_halo_mean_kernel`.
@@ -336,7 +348,7 @@ class MassDefinition(abc.ABC):
         numpy.float64 or numpy.ndarray
             :math:`\Delta_m`.
         """
-        return self.delta_halo_mean_kernel(omega_m_z)
+        return self.delta_halo_mean_kernel(omega_m_z=omega_m_z)
 
     @unit_boundary(rho_mean0=rho_unit, returns=rho_unit)
     def halo_density(self, *, omega_m_z: npt.ArrayLike, rho_mean0: Any) -> FloatArray:
@@ -357,8 +369,8 @@ class MassDefinition(abc.ABC):
         return self.halo_density_kernel(omega_m_z=omega_m_z, rho_mean0=rho_mean0)
 
     @unit_boundary(m=Msun_h, rho_mean0=rho_unit, returns=Mpc_h)
-    def m_to_r(self, m: Any, *, omega_m_z: npt.ArrayLike, rho_mean0: Any) -> FloatArray:
-        r"""The comoving radius of haloes of mass m (see :meth:`m_to_r_kernel`).
+    def radius_from_m(self, *, m: Any, omega_m_z: npt.ArrayLike, rho_mean0: Any) -> FloatArray:
+        r"""The comoving radius of haloes of mass m (see :meth:`radius_from_m_kernel`).
 
         Parameters
         ----------
@@ -374,11 +386,11 @@ class MassDefinition(abc.ABC):
         Quantity
             Comoving radii in Mpc/h.
         """
-        return self.m_to_r_kernel(m, omega_m_z=omega_m_z, rho_mean0=rho_mean0)
+        return self.radius_from_m_kernel(m=m, omega_m_z=omega_m_z, rho_mean0=rho_mean0)
 
     @unit_boundary(r=Mpc_h, rho_mean0=rho_unit, returns=Msun_h)
-    def r_to_m(self, r: Any, *, omega_m_z: npt.ArrayLike, rho_mean0: Any) -> FloatArray:
-        r"""The mass of haloes of comoving radius r (see :meth:`r_to_m_kernel`).
+    def m_from_radius(self, *, r: Any, omega_m_z: npt.ArrayLike, rho_mean0: Any) -> FloatArray:
+        r"""The mass of haloes of comoving radius r (see :meth:`m_from_radius_kernel`).
 
         Parameters
         ----------
@@ -394,12 +406,18 @@ class MassDefinition(abc.ABC):
         Quantity
             Masses in Msun/h, in this definition.
         """
-        return self.r_to_m_kernel(r, omega_m_z=omega_m_z, rho_mean0=rho_mean0)
+        return self.m_from_radius_kernel(r=r, omega_m_z=omega_m_z, rho_mean0=rho_mean0)
 
 
 @attrs.frozen(kw_only=True)
 class SphericalOverdensity(MassDefinition):
     """Base class of the spherical-overdensity definitions."""
+
+
+def _number(value: float) -> str:
+    """``value`` in a name: as ``:g`` (``200``) where that is exact, else in full."""
+    short = f"{value:g}"
+    return short if float(short) == value else repr(value)
 
 
 def _overdensity(default: float) -> Any:
@@ -423,7 +441,7 @@ class SOMean(SphericalOverdensity):
     @property
     def name(self) -> str:
         """``"<overdensity>m"``, e.g. ``"200m"``."""
-        return f"{self.overdensity:g}m"
+        return f"{_number(self.overdensity)}m"
 
     def _delta_halo_mean(self, omega_m_z: FloatArray) -> FloatArray:
         return np.full_like(omega_m_z, self.overdensity)
@@ -446,7 +464,7 @@ class SOCritical(SphericalOverdensity):
     @property
     def name(self) -> str:
         """``"<overdensity>c"``, e.g. ``"500c"``."""
-        return f"{self.overdensity:g}c"
+        return f"{_number(self.overdensity)}c"
 
     def _delta_halo_mean(self, omega_m_z: FloatArray) -> FloatArray:
         out: FloatArray = self.overdensity / omega_m_z
@@ -553,7 +571,7 @@ class FOF(MassDefinition):
     @property
     def name(self) -> str:
         """``"fof(b=<linking_length>)"``."""
-        return f"fof(b={self.linking_length:g})"
+        return f"fof(b={_number(self.linking_length)})"
 
     def _delta_halo_mean(self, omega_m_z: FloatArray) -> FloatArray:
         return np.full_like(omega_m_z, 9 / (2 * math.pi * self.linking_length**3))

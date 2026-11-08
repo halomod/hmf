@@ -869,7 +869,7 @@ def test_fsigma_is_dimensionless_and_accepts_equivalent_mass_units():
     other = [1e12, 1e13] * (u.Msun / cu.littleh)
     np.testing.assert_array_equal(model.fsigma([1.0, 2.0], m=other), f)
     x = model.inputs([1.0, 2.0], z=0.0, m=[1e15, 1e16] * Msun_h)
-    np.testing.assert_array_equal(model.in_calibration_domain(x), [True, False])
+    np.testing.assert_array_equal(model.in_calibration_domain_kernel(x), [True, False])
 
 
 def test_masses_without_h_need_a_hubble_constant():
@@ -1018,7 +1018,7 @@ def test_every_fit_has_a_delta_halo_if_it_needs_one(cls):
     """A fit that needs delta_halo can get it from its own measured mass definition."""
     if "delta_halo" not in cls.domain_inputs():
         return
-    delta = cls.measured_mass_definition.delta_halo_mean_kernel(_OMEGA_M_Z)
+    delta = cls.measured_mass_definition.delta_halo_mean_kernel(omega_m_z=_OMEGA_M_Z)
     assert np.all(np.isfinite(delta) & (delta > 0))
 
 

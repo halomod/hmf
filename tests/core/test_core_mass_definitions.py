@@ -89,9 +89,22 @@ def test_resolved():
         assert d.resolved is d
 
 
-@pytest.mark.parametrize("definition", [d for d in ALL if not isinstance(d, SOGeneric)], ids=str)
+@pytest.mark.parametrize(
+    "definition",
+    [
+        *ALL,
+        SOGeneric(preferred=SOCritical(overdensity=500)),
+        # Numbers that ``:g`` would round are written in full.
+        SOMean(overdensity=18 * math.pi**2),
+        SOGeneric(preferred=SOCritical(overdensity=18 * math.pi**2)),
+        FOF(linking_length=0.123456789),
+    ],
+    ids=str,
+)
 def test_names_round_trip(definition):
+    """Every definition type reads its own name back, to an equal value."""
     assert MassDefinition.from_name(definition.name) == definition
+    assert MassDefinition.from_name(definition.name.upper()) == definition
     assert coerce(definition.name) == definition
     assert coerce(definition) is definition
 
@@ -103,8 +116,18 @@ def test_names():
         MassDefinition()
     assert str(SOCritical(overdensity=500)) == "500c"
     assert str(SOGeneric(preferred=SOMean(overdensity=178))) == "so(preferred 178m)"
+    assert str(SOMean(overdensity=18 * math.pi**2)) == f"{18 * math.pi**2!r}m"
     with pytest.raises(ValueError, match="Unknown mass definition name"):
         MassDefinition.from_name("200x")
+    for bad in (
+        "so(preferred fof)",
+        "so(preferred so(preferred 200m))",
+        "so(preferred self_bound)",
+    ):
+        with pytest.raises(ValueError, match="must be an SOMean, SOCritical or SOVirial"):
+            MassDefinition.from_name(bad)
+    with pytest.raises(ValueError, match="Unknown mass definition name"):
+        MassDefinition.from_name("so(preferred)")
     with pytest.raises(TypeError, match="Expected a MassDefinition"):
         coerce(200)
 
@@ -136,8 +159,8 @@ def test_pickle_and_copy(definition):
 
 def test_so_mean_overdensity_is_unchanged():
     mdef = SOMean(overdensity=200)
-    np.testing.assert_array_equal(mdef.delta_halo_mean_kernel(_OMEGA_M_Z), 200.0)
-    assert mdef.delta_halo_mean_kernel(0.3).shape == ()
+    np.testing.assert_array_equal(mdef.delta_halo_mean_kernel(omega_m_z=_OMEGA_M_Z), 200.0)
+    assert mdef.delta_halo_mean_kernel(omega_m_z=0.3).shape == ()
 
 
 def test_so_critical_overdensity_is_the_same_halo_density():
@@ -149,64 +172,66 @@ def test_so_critical_overdensity_is_the_same_halo_density():
     """
     mdef = SOCritical(overdensity=500)
     z = np.array([0.0, 0.5, 2.0, 6.0])
-    delta_m = mdef.delta_halo_mean_kernel(omega_m(Planck18, z))
+    delta_m = mdef.delta_halo_mean_kernel(omega_m_z=omega_m(Planck18, z))
     rho_m = Planck18.Om0 * Planck18.critical_density0 * (1 + z) ** 3
     np.testing.assert_allclose(
         (delta_m * rho_m).to_value(u.g / u.cm**3),
         (500 * Planck18.critical_density(z)).to_value(u.g / u.cm**3),
         rtol=1e-13,
     )
-    assert mdef.delta_halo_mean_kernel(1.0) == 500.0
-    assert np.all(mdef.delta_halo_mean_kernel(_OMEGA_M_Z[:-1]) > 500.0)
+    assert mdef.delta_halo_mean_kernel(omega_m_z=1.0) == 500.0
+    assert np.all(mdef.delta_halo_mean_kernel(omega_m_z=_OMEGA_M_Z[:-1]) > 500.0)
 
 
 def test_bryan_norman_virial_overdensity():
     """18 pi^2 for Omega_m = 1; ~330 times the mean density for Planck18 today."""
     mdef = SOVirial()
-    assert mdef.delta_halo_mean_kernel(1.0) == 18 * np.pi**2
+    assert mdef.delta_halo_mean_kernel(omega_m_z=1.0) == 18 * np.pi**2
     # Bryan & Norman (1998): Delta_c ~ 100 for Omega_m ~ 0.3, so Delta_m ~ 330.
-    delta_m0 = mdef.delta_halo_mean_kernel(omega_m(Planck18, 0.0))
+    delta_m0 = mdef.delta_halo_mean_kernel(omega_m_z=omega_m(Planck18, 0.0))
     assert 300 < delta_m0 < 360
     # It decreases towards 18 pi^2 as Omega_m(z) -> 1 at high z.
-    delta = mdef.delta_halo_mean_kernel(omega_m(Planck18, np.array([0.0, 1.0, 3.0, 10.0])))
+    delta = mdef.delta_halo_mean_kernel(
+        omega_m_z=omega_m(Planck18, np.array([0.0, 1.0, 3.0, 10.0]))
+    )
     assert np.all(np.diff(delta) < 0)
     assert delta[-1] == pytest.approx(18 * np.pi**2, rel=1e-2)
 
 
 def test_virial_is_so_mean_18pi2_in_einstein_de_sitter():
     """With Omega_m(z) = 1 the two are the same overdensity, to the last bit."""
-    assert SOVirial().delta_halo_mean_kernel(1.0) == SOMean(
+    assert SOVirial().delta_halo_mean_kernel(omega_m_z=1.0) == SOMean(
         overdensity=18 * math.pi**2
-    ).delta_halo_mean_kernel(1.0)
+    ).delta_halo_mean_kernel(omega_m_z=1.0)
 
 
 def test_fof_overdensity():
     """9 / (2 pi b^3): about 179 for b = 0.2, falling as b^-3, whatever Omega_m(z)."""
-    delta = FOF(linking_length=0.2).delta_halo_mean_kernel(_OMEGA_M_Z)
+    delta = FOF(linking_length=0.2).delta_halo_mean_kernel(omega_m_z=_OMEGA_M_Z)
     np.testing.assert_allclose(delta, 9 / (2 * np.pi * 0.2**3), rtol=1e-15)
     assert 178 < delta[0] < 180
     wide = FOF(linking_length=0.4)
-    assert wide.delta_halo_mean_kernel(0.3) == pytest.approx(delta[0] / 8, rel=1e-14)
+    assert wide.delta_halo_mean_kernel(omega_m_z=0.3) == pytest.approx(delta[0] / 8, rel=1e-14)
 
 
 def test_so_generic_uses_its_preferred_definition_and_self_bound_has_none():
     watson = fits.Watson.measured_mass_definition
     assert isinstance(watson, SOGeneric)
     np.testing.assert_array_equal(
-        watson.delta_halo_mean_kernel(_OMEGA_M_Z),
-        watson.preferred.delta_halo_mean_kernel(_OMEGA_M_Z),
+        watson.delta_halo_mean_kernel(omega_m_z=_OMEGA_M_Z),
+        watson.preferred.delta_halo_mean_kernel(omega_m_z=_OMEGA_M_Z),
     )
     with pytest.raises(ValueError, match="no overdensity"):
-        SelfBound().delta_halo_mean_kernel(0.3)
+        SelfBound().delta_halo_mean_kernel(omega_m_z=0.3)
     with pytest.raises(ValueError, match="no overdensity"):
-        SelfBound().m_to_r_kernel(1e12, omega_m_z=0.3, rho_mean0=1e11)
+        SelfBound().radius_from_m_kernel(m=1e12, omega_m_z=0.3, rho_mean0=1e11)
 
 
 def test_delta_halo_mean_checks_omega_m():
     with pytest.raises(DomainError, match="omega_m_z"):
-        SOVirial().delta_halo_mean_kernel([0.3, 0.0])
+        SOVirial().delta_halo_mean_kernel(omega_m_z=[0.3, 0.0])
     with pytest.raises(DomainError, match="omega_m_z"):
-        SOGeneric(preferred=SOMean()).delta_halo_mean_kernel(np.nan)
+        SOGeneric(preferred=SOMean()).delta_halo_mean_kernel(omega_m_z=np.nan)
 
 
 # ---------------------------------------------------------------------------------
@@ -228,13 +253,13 @@ def test_radius_of_unit_mean_overdensity_is_the_lagrangian_radius():
     """SO-mean(1) encloses the mean density: r = (3m / (4 pi rho_cb))^(1/3), the top hat's."""
     m = np.logspace(8, 16, 9)
     rho = rho_mean0(Planck18, "cb")
-    r = SOMean(overdensity=1).m_to_r_kernel(m, omega_m_z=0.3, rho_mean0=rho)
+    r = SOMean(overdensity=1).radius_from_m_kernel(m=m, omega_m_z=0.3, rho_mean0=rho)
     np.testing.assert_allclose(4 * np.pi * r**3 * rho / 3, m, rtol=1e-14)
     # Haloes are denser, so smaller: r scales as overdensity^(-1/3).
-    r200 = SOMean().m_to_r_kernel(m, omega_m_z=0.3, rho_mean0=rho)
+    r200 = SOMean().radius_from_m_kernel(m=m, omega_m_z=0.3, rho_mean0=rho)
     np.testing.assert_allclose(r200 / r, 200 ** (-1 / 3), rtol=1e-14)
     # 1e12 Msun/h at 200m: about 0.2 Mpc/h (comoving).
-    assert 0.15 < SOMean().m_to_r_kernel(1e12, omega_m_z=0.3, rho_mean0=rho) < 0.25
+    assert 0.15 < SOMean().radius_from_m_kernel(m=1e12, omega_m_z=0.3, rho_mean0=rho) < 0.25
 
 
 @pytest.mark.parametrize("definition", [SOMean(), SOCritical(), SOVirial(), FOF()], ids=str)
@@ -242,19 +267,35 @@ def test_mass_radius_round_trip(definition):
     m = np.logspace(6, 16, 11)
     om = omega_m(Planck18, 1.0)
     rho = rho_mean0(Planck18)
-    r = definition.m_to_r_kernel(m, omega_m_z=om, rho_mean0=rho)
+    r = definition.radius_from_m_kernel(m=m, omega_m_z=om, rho_mean0=rho)
     np.testing.assert_allclose(
-        definition.r_to_m_kernel(r, omega_m_z=om, rho_mean0=rho), m, rtol=1e-14
+        definition.m_from_radius_kernel(r=r, omega_m_z=om, rho_mean0=rho), m, rtol=1e-14
     )
 
 
 def test_public_methods_take_and_give_quantities():
     rho = rho_mean0(Planck18) * rho_unit
-    r = SOMean().m_to_r(1e12 * Msun_h, omega_m_z=0.3, rho_mean0=rho)
+    r = SOMean().radius_from_m(m=1e12 * Msun_h, omega_m_z=0.3, rho_mean0=rho)
     assert r.unit == Mpc_h
     assert r.shape == ()
-    m = SOMean().r_to_m(r, omega_m_z=0.3, rho_mean0=rho)
+    m = SOMean().m_from_radius(r=r, omega_m_z=0.3, rho_mean0=rho)
     assert m.unit == Msun_h
     assert m.value == pytest.approx(1e12, rel=1e-14)
     assert SOMean().halo_density(omega_m_z=0.3, rho_mean0=rho).unit == rho_unit
-    assert isinstance(SOVirial().delta_halo_mean(1.0), float)
+    assert isinstance(SOVirial().delta_halo_mean(omega_m_z=1.0), float)
+
+
+def test_arguments_are_keyword_only():
+    rho = rho_mean0(Planck18) * rho_unit
+    with pytest.raises(TypeError, match="positional"):
+        SOMean().radius_from_m(1e12 * Msun_h, omega_m_z=0.3, rho_mean0=rho)
+    with pytest.raises(TypeError, match="positional"):
+        SOMean().m_from_radius(1.0 * Mpc_h, omega_m_z=0.3, rho_mean0=rho)
+    with pytest.raises(TypeError, match="positional"):
+        SOMean().radius_from_m_kernel(1e12, omega_m_z=0.3, rho_mean0=1e11)
+    with pytest.raises(TypeError, match="positional"):
+        SOMean().m_from_radius_kernel(1.0, omega_m_z=0.3, rho_mean0=1e11)
+    with pytest.raises(TypeError, match="positional"):
+        SOMean().delta_halo_mean_kernel(0.3)
+    with pytest.raises(TypeError, match="positional"):
+        SOMean().delta_halo_mean(0.3)
