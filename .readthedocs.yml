@@ -17,10 +17,10 @@ build:
 
   jobs:
     pre_create_environment:
-      - asdf plugin add uv
-      - asdf install uv latest
-      - asdf global uv latest
+      # uv from PyPI, not from GitHub releases (which Read the Docs' builders can't
+      # always reach), run as a module so that no shim is needed on PATH.
+      - python -m pip install uv
     create_environment:
-      - uv venv "${READTHEDOCS_VIRTUALENV_PATH}"
+      - python -m uv venv "${READTHEDOCS_VIRTUALENV_PATH}"
     install:
-      - UV_PROJECT_ENVIRONMENT="${READTHEDOCS_VIRTUALENV_PATH}" uv sync --frozen --group docs
+      - UV_PROJECT_ENVIRONMENT="${READTHEDOCS_VIRTUALENV_PATH}" python -m uv sync --frozen --group docs
